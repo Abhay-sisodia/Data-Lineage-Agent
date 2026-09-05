@@ -94,6 +94,20 @@ edges:
     evidence: source_read
     note: The column side of `last_login > v_cutoff`. Needs no dataflow analysis.
 
+  - source: {kind: column, name: REF_POLICY.REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_LOCAL_VARIABLES, line: 18}
+    evidence: source_read
+    note: >
+      ADDED 2026-09-06, before the band-1 analyser existed. The column side of
+      `region = p_region` was omitted when this key was first written, while b1_04 and
+      b1_05 both label the column side of their predicates. The omission was an
+      inconsistency with our own convention, found by working through it rather than by
+      any tool disagreeing - which is the order these corrections should happen in.
+
   # --- band 2: trigger side effect ---------------------------------------------------
 
   - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}

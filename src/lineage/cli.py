@@ -61,8 +61,8 @@ def analyse(
         Path | None, typer.Option("--output", help="Write predicted edges as JSON.")
     ] = None,
 ) -> None:
-    """Extract band-0 lineage from one package."""
-    from lineage.analysis.band0 import analyse_source
+    """Extract lineage from one package — set-based and dataflow."""
+    from lineage.analysis.procedure import analyse_source
     from lineage.resolution.dictionary import Dictionary
 
     result = analyse_source(
@@ -72,12 +72,15 @@ def analyse(
     )
 
     for edge in result.edges:
+        guard = f"  [{edge.guard}]" if edge.guard else ""
         typer.echo(
-            f"{edge.source.name:<34} -> {edge.target.name:<28} "
-            f"{edge.flow.value}/{edge.transform.value}"
+            f"b{edge.band} {edge.source!s:<40} -> {edge.target!s:<34} "
+            f"{edge.flow.value}/{edge.transform.value}{guard}"
         )
     for refusal in result.refusals:
         typer.echo(f"REFUSED L{refusal.line} {refusal.kind}: {refusal.reason}")
+    for boundary in result.boundaries:
+        typer.echo(f"DECLARED  {boundary}")
 
     coverage = result.parse_coverage
     typer.echo(
