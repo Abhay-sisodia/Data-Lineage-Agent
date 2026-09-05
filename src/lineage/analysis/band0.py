@@ -186,11 +186,24 @@ def _projection_named(scope: Scope, name: str) -> Any:
     return None
 
 
-def _trace(column: exp.Column, scope: Scope, depth: int = 0) -> list[tuple[str, str, Transform]]:
+def _trace(
+    column: exp.Column,
+    scope: Scope,
+    dictionary: Dictionary,
+    unresolved: list[str],
+    depth: int = 0,
+) -> list[tuple[str, str, Transform]]:
     """Follow a column reference down to base-table columns.
 
     Recurses through subqueries so an alias chain - a column renamed four times on the
     way - resolves to the real source rather than to the innermost alias.
+
+    **Every landing is checked against the dictionary.** A PL/SQL local or package
+    variable used inside SQL looks exactly like a column reference to a SQL parser, and
+    with one table in scope it will happily bind `v_cutoff` to `stg_customer`. That
+    produces a confident, corroborated, entirely fictional edge - the silent-failure
+    shape this project exists to prevent. If the name is not a real column of the
+    relation it resolved to, no edge is emitted and the reference is declared instead.
     """
     if depth > 20:  # pathological nesting; refuse rather than recurse forever
         return []
@@ -201,19 +214,33 @@ def _trace(column: exp.Column, scope: Scope, depth: int = 0) -> list[tuple[str, 
         source = next(iter(scope.sources.values()))
 
     if isinstance(source, exp.Table):
-        return [(source.name.upper(), column.name.upper(), Transform.IDENTITY)]
+        table = source.name.upper()
+        name = column.name.upper()
+        try:
+            known = dictionary.columns_of(table)
+        except UnknownObjectError:
+            unresolved.append(f"{table}.{name} (relation not in dictionary)")
+            return []
+        if name not in known:
+            # Not a column of this table. Almost always a PL/SQL variable, which is
+            # band-1 territory and must be resolved by def-use analysis, not guessed at.
+            unresolved.append(f"{name} (not a column of {table} - unresolved identifier)")
+            return []
+        return [(table, name, Transform.IDENTITY)]
 
     if isinstance(source, Scope):
         projection = _projection_named(source, column.name)
         if projection is None:
+            unresolved.append(f"{column.name.upper()} (no matching projection in subquery)")
             return []
         own = _transform_of(projection)
         traced: list[tuple[str, str, Transform]] = []
         for inner in projection.find_all(exp.Column):
-            for table, name, transform in _trace(inner, source, depth + 1):
+            for table, name, transform in _trace(inner, source, dictionary, unresolved, depth + 1):
                 traced.append((table, name, _combine(own, transform)))
         return traced
 
+    unresolved.append(f"{column.name.upper()} (could not resolve which relation it belongs to)")
     return []
 
 
@@ -254,7 +281,7 @@ def _target_of(insert: exp.Insert, dictionary: Dictionary) -> tuple[str, list[st
 
 
 def _analyse_insert(
-    statement: exp.Insert, dictionary: Dictionary, band: int
+    statement: exp.Insert, dictionary: Dictionary, band: int, unresolved: list[str]
 ) -> tuple[list[PredictedEdge], str | None]:
     target_name, target_columns = _target_of(statement, dictionary)
 
@@ -283,7 +310,9 @@ def _analyse_insert(
     for target_column, projection in zip(target_columns, projections, strict=True):
         own = _transform_of(projection)
         for column in projection.find_all(exp.Column):
-            for source_table, source_column, traced in _trace(column, scope):
+            for source_table, source_column, traced in _trace(
+                column, scope, dictionary, unresolved
+            ):
                 edges.append(
                     _edge(
                         source_table,
@@ -295,12 +324,17 @@ def _analyse_insert(
                     )
                 )
 
-    edges.extend(_filter_edges(select, scope, target_name, band))
+    edges.extend(_filter_edges(select, scope, target_name, band, dictionary, unresolved))
     return edges, None
 
 
 def _filter_edges(
-    select: exp.Select, scope: Scope, target_name: str, band: int
+    select: exp.Select,
+    scope: Scope,
+    target_name: str,
+    band: int,
+    dictionary: Dictionary,
+    unresolved: list[str],
 ) -> list[PredictedEdge]:
     """Columns that decide WHICH rows land, rather than what value they carry.
 
@@ -322,7 +356,7 @@ def _filter_edges(
         if where is None:
             continue
         for column in where.find_all(exp.Column):
-            for source_table, source_column, _ in _trace(column, current):
+            for source_table, source_column, _ in _trace(column, current, dictionary, unresolved):
                 edges.append(
                     _edge(
                         source_table,
@@ -338,7 +372,7 @@ def _filter_edges(
 
 
 def _analyse_merge(
-    statement: exp.Merge, dictionary: Dictionary, band: int
+    statement: exp.Merge, dictionary: Dictionary, band: int, unresolved: list[str]
 ) -> tuple[list[PredictedEdge], str | None]:
     """MERGE has multiple targets and conditional arms inside one statement.
 
@@ -371,7 +405,9 @@ def _analyse_merge(
                 target_column = setter.this.name.upper()
                 own = _transform_of(setter.expression)
                 for column in setter.expression.find_all(exp.Column):
-                    for src_table, src_column, traced in _trace(column, scope):
+                    for src_table, src_column, traced in _trace(
+                        column, scope, dictionary, unresolved
+                    ):
                         edges.append(
                             _edge(
                                 src_table,
@@ -396,7 +432,9 @@ def _analyse_merge(
             for target_column, item in zip(target_columns, items, strict=True):
                 own = _transform_of(item)
                 for column in item.find_all(exp.Column):
-                    for src_table, src_column, traced in _trace(column, scope):
+                    for src_table, src_column, traced in _trace(
+                        column, scope, dictionary, unresolved
+                    ):
                         edges.append(
                             _edge(
                                 src_table,
@@ -425,7 +463,14 @@ def analyse_source(
         if statement.kind not in SUPPORTED:
             continue
         result.statements_seen += 1
-        edges, refusal = _analyse_statement(statement, dictionary, settings, band)
+        edges, refusal, unresolved = _analyse_statement(statement, dictionary, settings, band)
+        # Declared, counted, and never silent. An identifier the analyser could not
+        # resolve is a stated boundary - which is what makes the coverage number
+        # defensible rather than decorative.
+        for item in unresolved:
+            entry = f"{statement.kind}@{statement.line}: {item}"
+            if entry not in result.boundaries:
+                result.boundaries.append(entry)
         if refusal is not None:
             result.refusals.append(
                 Refusal(
@@ -453,11 +498,12 @@ def _analyse_statement(
     dictionary: Dictionary,
     config: AnalysisConfig,
     band: int,
-) -> tuple[list[PredictedEdge], str | None]:
+) -> tuple[list[PredictedEdge], str | None, list[str]]:
+    unresolved: list[str] = []
     try:
         parsed: Any = sqlglot.parse_one(statement.text, dialect=DIALECT)
     except Exception as exc:
-        return [], f"SQLGlot could not parse: {str(exc).splitlines()[0]}"
+        return [], f"SQLGlot could not parse: {str(exc).splitlines()[0]}", unresolved
 
     parsed, notes = _inline_views(parsed, dictionary, config.budgets.view_expansion_depth_cap)
 
@@ -470,19 +516,18 @@ def _analyse_statement(
             infer_schema=True,
         )
     except Exception as exc:
-        return [], f"could not qualify names: {str(exc).splitlines()[0]}"
+        return [], f"could not qualify names: {str(exc).splitlines()[0]}", unresolved
 
     if isinstance(parsed, exp.Insert):
-        edges, refusal = _analyse_insert(parsed, dictionary, band)
+        edges, refusal = _analyse_insert(parsed, dictionary, band, unresolved)
     elif isinstance(parsed, exp.Merge):
-        edges, refusal = _analyse_merge(parsed, dictionary, band)
+        edges, refusal = _analyse_merge(parsed, dictionary, band, unresolved)
     else:
-        return [], f"unsupported statement type {type(parsed).__name__}"
+        return [], f"unsupported statement type {type(parsed).__name__}", unresolved
 
     if refusal is not None:
-        return [], refusal
-    if notes:
-        # Analysis succeeded but something was left unresolved - surface it rather than
-        # letting a partial result look complete.
-        return edges, None
-    return edges, None
+        return [], refusal, unresolved
+
+    # Notes from view inlining are boundaries too - a view left unexpanded means the
+    # lineage below it was not reached.
+    return edges, None, unresolved + notes

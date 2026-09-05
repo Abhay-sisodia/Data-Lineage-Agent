@@ -29,6 +29,25 @@
 # trigger edges to the table rather than the caller. That is honest measurement, not a
 # broken benchmark.
 
+# BANDING CORRECTION — 2026-09-06, before any band-1 number was produced
+#
+# Two value edges here were originally labelled band 1 because they live inside a
+# procedural package. That was wrong, and wrong in the flattering direction.
+#
+# ADR-0001 6 bands an edge by the hardest construct ON THAT EDGE'S PATH. The path for
+# stg_customer.cust_id -> tmp_recent.cust_id is an ordinary projection inside an
+# INSERT ... SELECT. No variable, no branch, no call. It is a band-0 edge that happens
+# to be written inside a package.
+#
+# Leaving them as band 1 would have padded the band-1 score with band-0 wins and made
+# the procedural analysis look better than it is - which is the specific self-deception
+# this phase exists to avoid. The rule, applied to every band-1 label set from here:
+#
+#   band 1 = the edge's path traverses a VARIABLE, BRANCH, LOOP, CURSOR or CALL
+#   band 0 = plain projection or predicate, even inside procedural code
+#
+# This makes band 1 harder to score well on. That is the point.
+
 package: adversarial/band1/b1_07_package_variables.sql
 source_sha256: e92061bf52e9643648a76bdfb0f232b43fca99d744d73ff5152444c1bdec92e1
 labelled_by: claude+abhay (observation-anchored, human-adjudicated)
@@ -81,23 +100,47 @@ edges:
     target: {kind: column, name: TMP_RECENT.CUST_ID}
     flow: value
     transform: identity
-    band: 1
+    band: 0
     origin: {unit: PKG_POLICY_STATE.APPLY_POLICY, line: 36}
     evidence: adjudicated
     note: >
       Target observed. Source NOT settled by observation - value containment matched 6
       candidate columns because these are low-cardinality integers. Ruled from line 36.
 
+      REBANDED 1 -> 0, 2026-09-06. See the banding note at the head of this file.
+
   - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
     target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
     flow: value
     transform: identity
-    band: 1
+    band: 0
     origin: {unit: PKG_POLICY_STATE.APPLY_POLICY, line: 36}
     evidence: observed
     note: >
       Both ends confirmed: target changed, and STG_CUSTOMER.LAST_LOGIN was the ONLY
       value-consistent source. The strongest label in this set.
+
+      REBANDED 1 -> 0, 2026-09-06. See the banding note at the head of this file.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: PKG_POLICY_STATE.APPLY_POLICY, line: 38}
+    evidence: source_read
+    note: >
+      CORRECTION, 2026-09-06. Added after this key was first written. The predicate is
+      `last_login > g_cutoff` and BOTH operands decide which rows land; b0_01 already
+      labels the column side of `WHERE last_login IS NOT NULL` as a filter edge, so
+      omitting it here was inconsistent with our own convention.
+
+      Recorded explicitly because the omission was noticed when the analyser emitted this
+      edge and scored it spurious. Editing an answer key because the tool disagreed is
+      how a benchmark quietly becomes a mirror of the thing it is meant to test. The
+      justification here is the b0_01 convention, which predates the analyser - not the
+      analyser's output. Band 0, not 1: the column side of the predicate needs no
+      dataflow analysis.
 
   - source: {kind: variable, name: PKG_POLICY_STATE.G_CUTOFF}
     target: {kind: relation, name: TMP_RECENT}

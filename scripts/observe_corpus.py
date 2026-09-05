@@ -24,7 +24,7 @@ reports that split alongside every score.
 
 from __future__ import annotations
 
-import sys
+import argparse
 from collections import Counter, defaultdict
 from typing import Any
 
@@ -128,20 +128,48 @@ def candidate_sources(
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        raise SystemExit(
-            'usage: observe_corpus.py "<call>" ["<call>" ...]\n'
-            "  Multiple calls run in ONE session, in order. This matters: package-level\n"
-            "  state is session-scoped, so pkg.load_policy('EU') and pkg.apply_policy\n"
-            "  observed in separate sessions would show no effect at all - the second\n"
-            "  would read a NULL variable the first never set."
-        )
-    calls = sys.argv[1:]
+    parser = argparse.ArgumentParser(
+        description="Observe what a procedure actually changes.",
+        epilog=(
+            "Calls run in ONE session, in order. This matters: package-level state is "
+            "session-scoped, so pkg.load_policy('EU') and pkg.apply_policy observed in "
+            "separate sessions would show no effect at all."
+        ),
+    )
+    parser.add_argument("calls", nargs="+", help="PL/SQL calls to observe")
+    parser.add_argument(
+        "--setup",
+        action="append",
+        default=[],
+        metavar="STMT",
+        help=(
+            "PL/SQL or SQL to run and commit BEFORE the snapshot, so its effects are not "
+            "attributed to the call under observation. Needed when a branch only writes "
+            "if some precondition holds, or when the seed data makes a write idempotent "
+            "and therefore invisible."
+        ),
+    )
+    arguments = parser.parse_args()
+    calls = arguments.calls
     call = " ; ".join(calls)
 
     settings = OracleSettings.from_env()
     with connect(settings) as connection, connection.cursor() as cursor:
         tables = list_tables(cursor)
+
+        # Setup runs and commits BEFORE the snapshot, so nothing it changes is
+        # attributed to the call being observed.
+        for statement in arguments.setup:
+            text = statement.strip().rstrip(";")
+            block = text if text.upper().startswith(("BEGIN", "DECLARE")) else None
+            try:
+                cursor.execute(block or (f"BEGIN {text}; END;" if "(" in text else text))
+            except Exception as exc:
+                raise SystemExit(f"setup failed: {str(exc).splitlines()[0]}") from exc
+            print(f"setup: {text}")
+        if arguments.setup:
+            connection.commit()
+
         print(f"observing: {call}")
         print(f"snapshotting {len(tables)} tables\n")
 
