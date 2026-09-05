@@ -26,45 +26,21 @@ from typing import Self
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+# The IR is the shared vocabulary. Labels describe the same world the analyser emits
+# into, so they use the same node kinds, flow kinds and transform classes rather than a
+# parallel set that could drift.
+from lineage.ir.model import Flow, Node, NodeKind, Origin, Transform
 
-class NodeKind(StrEnum):
-    """What a lineage endpoint is.
-
-    ``VARIABLE`` exists because collapsing def-use chains to their endpoints would hide
-    where the analysis actually broke (ADR-0001 §3). ``BOUNDARY`` is a declared edge of
-    coverage — a DB link, a schema we were refused, a Java procedure — and is a legitimate
-    label, never an error.
-    """
-
-    COLUMN = "column"
-    VARIABLE = "variable"
-    RELATION = "relation"
-    BOUNDARY = "boundary"
-    LITERAL = "literal"
-
-
-class Flow(StrEnum):
-    """What kind of claim the edge makes.
-
-    Scored separately and never blended: a filter influence is a different assertion from
-    a value copy, and one number covering both hides which kind failed.
-    """
-
-    VALUE = "value"
-    FILTER = "filter"
-
-
-class Transform(StrEnum):
-    """How the value was changed in transit.
-
-    Part of the edge's identity: SUM(x) and a copy of x share endpoints and mean entirely
-    different things to whoever reads the filing (ADR-0001 §4).
-    """
-
-    IDENTITY = "identity"
-    DERIVED = "derived"
-    AGGREGATED = "aggregated"
-    CONDITIONAL = "conditional"
+__all__ = [
+    "Evidence",
+    "Flow",
+    "GroundTruth",
+    "LabelledEdge",
+    "Node",
+    "NodeKind",
+    "Origin",
+    "Transform",
+]
 
 
 class Evidence(StrEnum):
@@ -77,34 +53,6 @@ class Evidence(StrEnum):
     OBSERVED = "observed"
     SOURCE_READ = "source_read"
     ADJUDICATED = "adjudicated"
-
-
-class Origin(BaseModel):
-    """Where in the source this edge comes from."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    unit: str = Field(description="Program unit, e.g. PKG_POLICY_STATE.LOAD_POLICY")
-    line: int = Field(ge=1)
-
-
-class Node(BaseModel):
-    """One endpoint of an edge."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    kind: NodeKind
-    name: str = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def _normalise(self) -> Self:
-        # Oracle identifiers are case-insensitive; comparing raw case would produce
-        # spurious mismatches that say nothing about the analyser.
-        object.__setattr__(self, "name", self.name.strip().upper())
-        return self
-
-    def __str__(self) -> str:
-        return f"{self.kind.value}:{self.name}"
 
 
 class LabelledEdge(BaseModel):

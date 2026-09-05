@@ -72,14 +72,32 @@ Those labels are `source_read` and `unexercised: true` — do not quietly upgrad
 The representation everything downstream reads. Designed against what the corpus actually
 contains, not against a wishlist.
 
-- [ ] **T2.1a** Node types: Column, Relation, Variable, Procedure, Statement, Boundary
-- [ ] **T2.1b** Edge attributes: transform, guard, origin, mechanism, tier, valid_time, tx_time
-- [ ] **T2.1c** Supersession — close the old validity interval and append; never mutate
-- [ ] **T2.1d** Validator rejecting any edge missing origin or mechanism
+- [x] **T2.1a** Node types: Column, Relation, Variable, Procedure, Statement, Boundary, Literal
+- [x] **T2.1b** Edge attributes: transform, guard, origin, mechanism, tier, valid/tx time
+- [x] **T2.1c** Supersession — closes the old interval and appends; never mutates
+- [x] **T2.1d** Validator rejecting any edge missing origin or mechanism
+- [x] **T2.1e** ADR-0001 amendment 1 implemented — `identity()` vs `match_key()`
 
 **Done when:** a schema validator rejects an incomplete edge; `guard` is the only nullable
 attribute; serialisation round-trips losslessly; an update attempt appends rather than
 mutating; `PredictedEdge` in the harness is replaced by the real IR edge.
+
+**Status: CLOSED.** `src/lineage/ir/model.py`, 14 tests in `tests/test_ir.py`.
+119 tests green overall.
+
+- The IR is now the shared vocabulary: `labels` and `scoring` import `Node`, `Flow`,
+  `Transform` and `Origin` from it rather than maintaining parallel definitions that
+  could drift. `PredictedEdge` is an alias for `IREdge`.
+- **Origin is required on every edge.** A fact whose origin cannot be stated is not
+  evidence, and "which line produced this" is the first question anyone asks.
+- **`identity()` = match key + guard + origin; `match_key()` = source, target, flow,
+  transform.** Two edges differing only by the condition under which they fire are two
+  facts in the ledger but one target when scoring — which is what amendment 1 required.
+- **`tx_from` defaults to a fixed sentinel, not `now()`.** Stamping wall-clock time on
+  every edge would break byte-identical reproducibility for no benefit in a phase with
+  no ledger. Verified: two analyser runs produce identical output.
+- `EdgeLedger.as_of()` already answers "what was the lineage on the filing date"
+  in miniature. Phase 2 replaces the storage, not the semantics.
 
 **Note:** `mechanism` and `tier` stay separate. Mechanism is *how it was found*; tier is
 *how well it was corroborated*. An AST-derived edge is still only Tier A if nothing

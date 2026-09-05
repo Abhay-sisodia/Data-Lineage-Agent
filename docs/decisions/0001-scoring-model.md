@@ -87,7 +87,7 @@ is whether band 1 works. Conservative by construction.
 
 ## Amendment 1 · Guard belongs in identity, not in matching
 
-**Added 2026-09-06, during T2.0. Not yet implemented — carried into T2.1.**
+**Added 2026-09-06 during T2.0. Implemented in T2.1 (`lineage.ir.model`).**
 
 Labelling band 1 surfaced a case §5 did not anticipate. In `b1_09`, the edge
 `P_REGION → DIM_CUSTOMER (filter)` occurs twice: once on the happy path, once inside the
@@ -111,7 +111,10 @@ cannot hold both is lossy.
   fact distinct.
 - **Match key** — `(source, target, flow, transform)`. What decides a hit when scoring.
 
-Until then, `b1_03` and `b1_09` each under-count by one edge, and both say so in the
+Implemented as `IREdge.identity()` and `IREdge.match_key()`.
+
+The label format still keys on the match key, so `b1_03` and `b1_09` each under-count by
+one edge until their label sets are re-expressed against IR identity. Both say so in the
 file. Recorded rather than quietly absorbed, because a benchmark that hides its own
 limitations is the thing this project exists not to be.
 

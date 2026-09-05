@@ -33,9 +33,9 @@ from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import Scope, build_scope
 
 from lineage.config import AnalysisConfig
-from lineage.harness.labels import Flow, Node, NodeKind, Transform
+from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
-from lineage.parsing.plsql import ParsedStatement, parse_program
+from lineage.parsing.plsql import ParsedStatement, Program, parse_program
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
 DIALECT = "oracle"
@@ -251,8 +251,15 @@ def _edge(
     target_column: str,
     transform: Transform,
     band: int,
+    origin: Origin,
     flow: Flow = Flow.VALUE,
 ) -> PredictedEdge:
+    """Build one IR edge.
+
+    Mechanism is AST throughout this module by construction: every edge here comes from
+    a resolved syntax tree, not from dataflow, the query log, or inference. Tier is A for
+    the same reason - a parser-only derivation with nothing contradicting it.
+    """
     return PredictedEdge(
         source=Node(kind=NodeKind.COLUMN, name=f"{source_table}.{source_column}"),
         target=(
@@ -265,6 +272,7 @@ def _edge(
         band=band,
         mechanism=Mechanism.AST,
         tier=Tier.A,
+        origin=origin,
     )
 
 
@@ -281,7 +289,11 @@ def _target_of(insert: exp.Insert, dictionary: Dictionary) -> tuple[str, list[st
 
 
 def _analyse_insert(
-    statement: exp.Insert, dictionary: Dictionary, band: int, unresolved: list[str]
+    statement: exp.Insert,
+    dictionary: Dictionary,
+    band: int,
+    unresolved: list[str],
+    origin: Origin,
 ) -> tuple[list[PredictedEdge], str | None]:
     target_name, target_columns = _target_of(statement, dictionary)
 
@@ -321,10 +333,11 @@ def _analyse_insert(
                         target_column,
                         _combine(own, traced),
                         band,
+                        origin,
                     )
                 )
 
-    edges.extend(_filter_edges(select, scope, target_name, band, dictionary, unresolved))
+    edges.extend(_filter_edges(select, scope, target_name, band, dictionary, unresolved, origin))
     return edges, None
 
 
@@ -335,6 +348,7 @@ def _filter_edges(
     band: int,
     dictionary: Dictionary,
     unresolved: list[str],
+    origin: Origin,
 ) -> list[PredictedEdge]:
     """Columns that decide WHICH rows land, rather than what value they carry.
 
@@ -365,6 +379,7 @@ def _filter_edges(
                         "",
                         Transform.IDENTITY,
                         band,
+                        origin,
                         flow=Flow.FILTER,
                     )
                 )
@@ -372,7 +387,11 @@ def _filter_edges(
 
 
 def _analyse_merge(
-    statement: exp.Merge, dictionary: Dictionary, band: int, unresolved: list[str]
+    statement: exp.Merge,
+    dictionary: Dictionary,
+    band: int,
+    unresolved: list[str],
+    origin: Origin,
 ) -> tuple[list[PredictedEdge], str | None]:
     """MERGE has multiple targets and conditional arms inside one statement.
 
@@ -416,6 +435,7 @@ def _analyse_merge(
                                 target_column,
                                 _combine(own, traced),
                                 band,
+                                origin,
                             )
                         )
         elif isinstance(action, exp.Insert):
@@ -443,6 +463,7 @@ def _analyse_merge(
                                 target_column,
                                 _combine(own, traced),
                                 band,
+                                origin,
                             )
                         )
     return edges, None
@@ -463,7 +484,10 @@ def analyse_source(
         if statement.kind not in SUPPORTED:
             continue
         result.statements_seen += 1
-        edges, refusal, unresolved = _analyse_statement(statement, dictionary, settings, band)
+        origin = Origin(unit=_enclosing_unit(program, statement), line=statement.line)
+        edges, refusal, unresolved = _analyse_statement(
+            statement, dictionary, settings, band, origin
+        )
         # Declared, counted, and never silent. An identifier the analyser could not
         # resolve is a stated boundary - which is what makes the coverage number
         # defensible rather than decorative.
@@ -487,10 +511,21 @@ def analyse_source(
     # inflate nothing but confusion.
     unique: dict[tuple[str, str, str, str], PredictedEdge] = {}
     for edge in result.edges:
-        unique.setdefault(edge.key(), edge)
+        unique.setdefault(edge.match_key(), edge)
     result.edges = [unique[key] for key in sorted(unique)]
 
     return result
+
+
+def _enclosing_unit(program: Program, statement: ParsedStatement) -> str:
+    """Which program unit a statement sits inside.
+
+    Origin is required on every IR edge: a fact whose origin cannot be stated is not
+    evidence. Units are sorted by line, so the last one starting at or before the
+    statement is its parent.
+    """
+    candidates = [unit for unit in program.units if unit.line <= statement.line]
+    return candidates[-1].name.upper() if candidates else "<anonymous>"
 
 
 def _analyse_statement(
@@ -498,6 +533,7 @@ def _analyse_statement(
     dictionary: Dictionary,
     config: AnalysisConfig,
     band: int,
+    origin: Origin,
 ) -> tuple[list[PredictedEdge], str | None, list[str]]:
     unresolved: list[str] = []
     try:
@@ -519,9 +555,9 @@ def _analyse_statement(
         return [], f"could not qualify names: {str(exc).splitlines()[0]}", unresolved
 
     if isinstance(parsed, exp.Insert):
-        edges, refusal = _analyse_insert(parsed, dictionary, band, unresolved)
+        edges, refusal = _analyse_insert(parsed, dictionary, band, unresolved, origin)
     elif isinstance(parsed, exp.Merge):
-        edges, refusal = _analyse_merge(parsed, dictionary, band, unresolved)
+        edges, refusal = _analyse_merge(parsed, dictionary, band, unresolved, origin)
     else:
         return [], f"unsupported statement type {type(parsed).__name__}", unresolved
 

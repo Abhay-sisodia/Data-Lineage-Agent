@@ -22,58 +22,27 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from lineage.harness.labels import Flow, GroundTruth, LabelledEdge
+from lineage.ir.model import IREdge, MatchKey, Mechanism, Tier
 
-from lineage.harness.labels import Flow, GroundTruth, LabelledEdge, Node, Transform
+EdgeKey = MatchKey
 
-EdgeKey = tuple[str, str, str, str]
+# The analyser emits IR edges directly (T2.1). The alias is kept because "predicted" is
+# the right word at a scoring boundary - these are claims being tested, not facts yet.
+PredictedEdge = IREdge
 
-
-class Mechanism(StrEnum):
-    """How the analyser derived an edge. Separate from tier on purpose.
-
-    Mechanism is *how it was found*; tier is *how well it was corroborated*. An
-    AST-derived edge is still only Tier A if nothing contradicts it.
-    """
-
-    AST = "AST"
-    DEF_USE = "DEF-USE"
-    CFG = "CFG"
-    LOG = "LOG"
-    INFERRED = "INFERRED"
-
-
-class Tier(StrEnum):
-    A = "A"
-    B = "B"
-    C = "C"
-    D = "D"
-
-
-class PredictedEdge(BaseModel):
-    """One edge the analyser claims.
-
-    Mirrors LabelledEdge's identity so the two can be matched. Replaced by the real IR
-    edge type in T2.1; kept minimal until the IR is designed against what the corpus
-    actually contains rather than against a wishlist.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    source: Node
-    target: Node
-    flow: Flow = Flow.VALUE
-    transform: Transform = Transform.IDENTITY
-    band: int = Field(ge=0, le=3)
-    mechanism: Mechanism = Mechanism.AST
-    tier: Tier = Tier.A
-    guard: str | None = None
-    unexercised: bool = False
-
-    def key(self) -> EdgeKey:
-        return (str(self.source), str(self.target), self.flow.value, self.transform.value)
+__all__ = [
+    "Counts",
+    "EdgeKey",
+    "Mechanism",
+    "PredictedEdge",
+    "ScoreReport",
+    "Tier",
+    "normalise_guard",
+    "render",
+    "score",
+]
 
 
 def normalise_guard(guard: str | None) -> str | None:
@@ -167,7 +136,7 @@ def score(
 ) -> ScoreReport:
     """Score analyser output against a ground-truth label set."""
     truth_by_key: dict[EdgeKey, LabelledEdge] = {edge.key(): edge for edge in truth.edges}
-    predicted_by_key: dict[EdgeKey, PredictedEdge] = {edge.key(): edge for edge in predicted}
+    predicted_by_key: dict[EdgeKey, PredictedEdge] = {edge.match_key(): edge for edge in predicted}
 
     matched_keys = sorted(set(truth_by_key) & set(predicted_by_key))
     missed_keys = sorted(set(truth_by_key) - set(predicted_by_key))

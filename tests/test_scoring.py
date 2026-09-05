@@ -15,6 +15,7 @@ from lineage.harness.labels import (
     GroundTruth,
     Node,
     NodeKind,
+    Origin,
     Transform,
 )
 from lineage.harness.scoring import (
@@ -67,6 +68,9 @@ def _pred(src: str, dst: str, **overrides: Any) -> PredictedEdge:
         "band": 1,
         "mechanism": Mechanism.AST,
         "tier": Tier.A,
+        # Required on every IR edge from T2.1: a fact whose origin cannot be stated is
+        # not evidence.
+        "origin": Origin(unit="FIXTURE", line=1),
     }
     payload.update(overrides)
     return PredictedEdge.model_validate(payload)
