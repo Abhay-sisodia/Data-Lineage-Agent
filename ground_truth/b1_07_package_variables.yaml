@@ -177,4 +177,17 @@ edges:
     evidence: observed
     note: :NEW.cust_id from the inserted row decides which dimension row is updated.
 
+  - source: {kind: column, name: REF_POLICY.REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: PKG_POLICY_STATE.LOAD_POLICY, line: 28}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-06. The column side of `region = p_region`, omitted when this
+      key was written and added when the convention was applied uniformly. Raises
+      precision, since the analyser was already emitting it as a false positive. Verified
+      against line 28 as a genuine predicate operand.
+
 boundaries: []

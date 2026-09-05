@@ -74,4 +74,15 @@ edges:
     evidence: source_read
     note: The column side of `region = p_region`.
 
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_CURSOR_FOR_LOOP, line: 26}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-06. The target side of `cust_id = rec.cust_id`. The record side
+      was already labelled; the column side was not. Raises precision.
+
 boundaries: []

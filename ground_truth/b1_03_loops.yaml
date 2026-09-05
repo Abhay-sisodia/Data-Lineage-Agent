@@ -54,12 +54,31 @@ edges:
     target: {kind: relation, name: STG_ORDERS}
     flow: filter
     transform: identity
+    band: 0
+    origin: {unit: B1_LOOPS, line: 18}
+    evidence: source_read
+    note: >
+      The column side of `EXTRACT(MONTH FROM order_date) = i`.
+
+      CORRECTED 2026-09-06, rebanded 1 -> 0. This edge was originally labelled band 1 on
+      the reasoning that "the loop counter selects which rows are summed" - but that is a
+      statement about the OTHER operand. This edge's own path traverses no variable, so
+      by the banding rule it is band 0. The loop counter's influence is a separate edge,
+      added below. Conflating two operands into one edge lost a real fact and mis-banded
+      the one that remained.
+
+  - source: {kind: variable, name: I}
+    target: {kind: relation, name: STG_ORDERS}
+    flow: filter
+    transform: identity
     band: 1
     origin: {unit: B1_LOOPS, line: 18}
     evidence: source_read
     note: >
-      EXTRACT(MONTH FROM order_date) = i, where i is the loop variable. The loop counter
-      selects which rows are summed on each pass.
+      ADDED 2026-09-06. The loop counter genuinely decides which month's rows are summed
+      on each pass - the same kind of fact as `p_region` selecting a policy row. A FOR
+      index is an implicitly declared variable, and omitting it lost the band-1 half of
+      this predicate entirely.
 
   # --- the write between the loops ---------------------------------------------------
 
@@ -131,5 +150,16 @@ edges:
     origin: {unit: B1_LOOPS, line: 30}
     evidence: source_read
     note: The column side of `gross_amount < v_total`.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_LOOPS, line: 23}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-06. `WHERE cust_id = 1` on the UPDATE between the two loops.
+      A literal on the other side means there is only one operand to label.
 
 boundaries: []

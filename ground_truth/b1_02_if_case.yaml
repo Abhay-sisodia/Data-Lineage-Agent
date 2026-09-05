@@ -69,4 +69,47 @@ edges:
       the negation of both earlier branches - the ELSE arm's condition is implicit in the
       code and must be reconstructed from the CFG, not read off any single line.
 
+  # --- predicate operands ------------------------------------------------------------
+  #
+  # COMPLETION, 2026-09-06. Added when the convention was applied uniformly across all
+  # label sets. b0_01, b1_04 and b1_05 already label the column side of their predicates;
+  # this file did not, and the omission was inconsistent rather than principled.
+  #
+  # Stated plainly because the direction matters: adding these RAISES precision, since
+  # the analyser was already emitting them and they were being counted as false
+  # positives. They were verified against lines 16, 23 and 24 of the source as genuine
+  # predicate operands before being added - not accepted because a tool produced them.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    guard: "P_REGION = 'EU'"
+    origin: {unit: B1_IF_CASE, line: 16}
+    evidence: source_read
+    note: The target side of `d.cust_id IN (SELECT ... FROM tmp_recent)`.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    guard: "P_REGION = 'APAC' AND P_STRICT = 1"
+    origin: {unit: B1_IF_CASE, line: 23}
+    evidence: source_read
+    note: >
+      The correlation predicate `s.cust_id = d.cust_id`. It decides WHICH row the
+      subquery reads, which is filter influence - not a value source. Treating it as a
+      value source would claim a customer id determines an active flag.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    guard: "P_REGION = 'APAC' AND P_STRICT = 1"
+    origin: {unit: B1_IF_CASE, line: 24}
+    evidence: source_read
+
 boundaries: []

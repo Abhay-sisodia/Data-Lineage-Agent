@@ -107,4 +107,36 @@ edges:
   # which is itself worth knowing, because the path is real and completely invisible in
   # a column-to-column model.
 
+  # --- predicate operands ------------------------------------------------------------
+  # COMPLETION, 2026-09-06, applying the convention uniformly. All three verified against
+  # lines 19, 23 and 24 as genuine predicate operands. Raises precision.
+
+  - source: {kind: column, name: REF_POLICY.REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 19}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 23}
+    evidence: source_read
+    note: >
+      Occurs on the happy path (line 23) and again in the NO_DATA_FOUND handler
+      (line 35). Same collapse as the P_REGION pair described above - two facts, one
+      match key.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 24}
+    evidence: source_read
+
 boundaries: []

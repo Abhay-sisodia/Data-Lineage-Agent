@@ -92,4 +92,15 @@ edges:
     evidence: source_read
     note: The cursor's own WHERE clause. Ordinary predicate, no dataflow needed.
 
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_EXPLICIT_CURSOR, line: 31}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-06. The target side of `cust_id = v_id`. The variable side was
+      already labelled; the column side was not. Raises precision.
+
 boundaries: []
