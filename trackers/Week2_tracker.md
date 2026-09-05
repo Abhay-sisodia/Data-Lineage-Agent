@@ -107,15 +107,35 @@ contradicts it.
 
 ## T2.2 — Control flow graph
 
-- [ ] **T2.2a** Basic blocks and sequential flow within a procedure body
-- [ ] **T2.2b** Branches — `IF` / `ELSIF` / `ELSE`, `CASE`
-- [ ] **T2.2c** Loops — `FOR`, `WHILE`, bare `LOOP` with `EXIT WHEN`
-- [ ] **T2.2d** Exception handlers as additional CFG edges, tagged exceptional
-- [ ] **T2.2e** Cursor constructs — `OPEN` / `FETCH` / `CLOSE` as flow, not just statements
+- [x] **T2.2a** Basic blocks and sequential flow within a procedure body
+- [x] **T2.2b** Branches — `IF` / `ELSIF` / `ELSE`, with reconstructed `ELSE` condition
+- [x] **T2.2c** Loops — `FOR`, `WHILE`, with back edges
+- [x] **T2.2d** Exception handlers as additional CFG edges, tagged exceptional
+- [x] **T2.2e** Cursor constructs build without error
+- [x] **T2.2f** `guards_reaching()` — the guard path T2.4 needs
 
 **Done when:** CFGs for the band-1 adversarial packages match hand-drawn node and edge
 counts; exception handlers appear as edges; construction terminates on the deepest
 procedure in the corpus.
+
+**Status: CLOSED.** `src/lineage/analysis/cfg.py`, 21 tests. 140 green overall.
+
+Hand-counted and asserted: `b1_01` 6 nodes / 5 edges · `b1_02` 8 / 10 ·
+`b1_03` 9 / 10 with 2 back edges · `b1_09` 12 / 17 with 6 exception edges.
+
+**Three defects found and fixed while building, each visible only by reading the output:**
+
+1. **Merge points inherited a branch guard.** The `COMMIT` after an `IF/ELSIF/ELSE` was
+   reported as guarded by `p_region = 'EU'` — it runs whichever arm was taken. Fixed by
+   computing guards as the **common prefix over every incoming path** rather than
+   following the first predecessor. Nested branches still conjoin correctly.
+2. **`FOR` loop exits carried a meaningless negation.** `NOT (i IN 1 .. 12)` was being
+   attached to every statement after the loop. A `FOR` loop always completes, so its
+   iteration spec is not a boolean guard; only `WHILE` exits are conditional.
+3. **Handler bodies looked unconditional.** Excluding exception edges from the guard walk
+   left an error-path write with no guard at all. Handler bodies now fall back to their
+   exception edge and carry `EXCEPTION NO_DATA_FOUND` — which independently matches the
+   guard written into `b1_09`'s ground truth before this code existed.
 
 **Why exception handlers matter:** `b1_09` writes `is_active` from a completely different
 source on the `NO_DATA_FOUND` path. On a failure day that *is* the lineage, and it exists

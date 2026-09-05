@@ -131,6 +131,30 @@ class _CollectingErrorListener(ErrorListener):  # type: ignore[misc] # antlr4 sh
         self.errors.append(ParseError(line=line, column=column, message=msg))
 
 
+def iter_contexts(node: Any, wanted: type) -> list[Any]:
+    """Public: every context of a given type, depth first."""
+    return _iter_contexts(node, wanted)
+
+
+def most_specific(ctx: Any) -> Any:
+    """Public: descend single-child wrapper rules to the rule that actually matched."""
+    return _most_specific(ctx)
+
+
+def rule_name(ctx: Any) -> str:
+    """Public: the grammar rule name for a context, e.g. ``insert_statement``."""
+    return _rule_name(ctx)
+
+
+def source_slice(ctx: Any) -> str:
+    """Public: the original source text a context spans.
+
+    Taken from the input stream rather than reconstructed from tokens, so whitespace,
+    casing and comments survive - which matters for evidence and for guard text.
+    """
+    return _source_slice(ctx)
+
+
 def _iter_contexts(node: Any, wanted: type) -> list[Any]:
     """Depth-first collection of every context of a given type."""
     found: list[Any] = []
