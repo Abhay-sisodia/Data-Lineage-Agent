@@ -1,0 +1,16 @@
+# Line endings are pinned to LF everywhere, on purpose.
+#
+# This is a correctness requirement, not a style preference. Ground-truth label sets
+# carry a SHA-256 of the corpus file they describe, and refuse to score if it does not
+# match. If Git rewrote line endings on checkout, a fresh clone on Windows would produce
+# different bytes, every hash check would fail, and the answer keys would appear to have
+# drifted from code nobody had touched.
+#
+# The same applies to corpus/dictionary.json and the requirements hashes.
+
+* text=auto eol=lf
+
+# Binary artefacts must never be line-ending converted.
+*.jar binary
+*.png binary
+*.svg binary

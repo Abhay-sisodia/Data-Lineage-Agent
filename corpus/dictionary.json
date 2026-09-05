@@ -1,0 +1,382 @@
+{
+  "captured_at": "2026-09-05T18:43:55+00:00",
+  "columns": {
+    "LINEAGE.DIM_CUSTOMER": [
+      "CUST_ID",
+      "REGION",
+      "IS_ACTIVE",
+      "EMAIL",
+      "LIFETIME_VALUE"
+    ],
+    "LINEAGE.DW_AUDIT_LOG": [
+      "CUST_ID",
+      "CHANGED_BY",
+      "CHANGED_AT"
+    ],
+    "LINEAGE.DW_DIM_CUSTOMER_V2": [
+      "CUST_ID",
+      "REGION",
+      "IS_ACTIVE",
+      "EMAIL",
+      "LIFETIME_VALUE"
+    ],
+    "LINEAGE.ETL_CONFIG": [
+      "MAPPING_ID",
+      "SOURCE_TABLE",
+      "SOURCE_COLUMN",
+      "TARGET_TABLE",
+      "TARGET_COLUMN",
+      "FILTER_CLAUSE",
+      "IS_ENABLED"
+    ],
+    "LINEAGE.FCT_REVENUE": [
+      "CUST_ID",
+      "PERIOD_MONTH",
+      "NET_AMOUNT",
+      "ORDER_COUNT"
+    ],
+    "LINEAGE.FCT_REVENUE_PART": [
+      "CUST_ID",
+      "PERIOD_MONTH",
+      "NET_AMOUNT",
+      "ORDER_COUNT"
+    ],
+    "LINEAGE.FCT_REVENUE_STAGE": [
+      "CUST_ID",
+      "PERIOD_MONTH",
+      "NET_AMOUNT",
+      "ORDER_COUNT"
+    ],
+    "LINEAGE.GTT_STAGE": [
+      "CUST_ID",
+      "PERIOD_MONTH",
+      "AMOUNT"
+    ],
+    "LINEAGE.REF_POLICY": [
+      "REGION",
+      "WINDOW_DAYS",
+      "EFFECTIVE_FROM"
+    ],
+    "LINEAGE.STG_CUSTOMER": [
+      "CUST_ID",
+      "REGION",
+      "LAST_LOGIN",
+      "EMAIL",
+      "SIGNUP_DATE",
+      "STATUS_CODE"
+    ],
+    "LINEAGE.STG_ORDERS": [
+      "ORDER_ID",
+      "CUST_ID",
+      "ORDER_DATE",
+      "GROSS_AMOUNT",
+      "DISCOUNT_AMT",
+      "CURRENCY"
+    ],
+    "LINEAGE.TMP_RECENT": [
+      "CUST_ID",
+      "LAST_LOGIN"
+    ],
+    "LINEAGE.V_CUSTOMER_EDITABLE": [
+      "CUST_ID",
+      "REGION",
+      "IS_ACTIVE",
+      "SOURCE_EMAIL"
+    ],
+    "LINEAGE.V_CUST_L1": [
+      "ID",
+      "REGION",
+      "LOGIN_TS",
+      "STATUS"
+    ],
+    "LINEAGE.V_CUST_L2": [
+      "CUST_ID",
+      "REGION",
+      "LOGIN_TS",
+      "STATUS_FLAG"
+    ],
+    "LINEAGE.V_CUST_L3": [
+      "CUST_ID",
+      "REGION",
+      "LAST_LOGIN",
+      "STATUS_FLAG"
+    ],
+    "LINEAGE.V_RECENT_RAW": [
+      "CUST_ID",
+      "LAST_LOGIN"
+    ]
+  },
+  "default_schema": "LINEAGE",
+  "objects": {
+    "LINEAGE.B0_ALIAS_CHAINS": {
+      "name": "B0_ALIAS_CHAINS",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B0_INSERT_SELECT": {
+      "name": "B0_INSERT_SELECT",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B0_MERGE": {
+      "name": "B0_MERGE",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B0_NESTED_VIEWS": {
+      "name": "B0_NESTED_VIEWS",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B0_SELECT_STAR": {
+      "name": "B0_SELECT_STAR",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B1_CURSOR_FOR_LOOP": {
+      "name": "B1_CURSOR_FOR_LOOP",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B1_EXCEPTION_HANDLERS": {
+      "name": "B1_EXCEPTION_HANDLERS",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B1_EXPLICIT_CURSOR": {
+      "name": "B1_EXPLICIT_CURSOR",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B1_IF_CASE": {
+      "name": "B1_IF_CASE",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B1_LOCAL_VARIABLES": {
+      "name": "B1_LOCAL_VARIABLES",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B1_LOOPS": {
+      "name": "B1_LOOPS",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B1_NESTED_CALLS": {
+      "name": "B1_NESTED_CALLS",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B1_TEMP_TABLES": {
+      "name": "B1_TEMP_TABLES",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B2_DBMS_SQL": {
+      "name": "B2_DBMS_SQL",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B2_DYNAMIC_CONCATENATED": {
+      "name": "B2_DYNAMIC_CONCATENATED",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B2_DYNAMIC_CONSTANT": {
+      "name": "B2_DYNAMIC_CONSTANT",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B2_METADATA_DRIVEN_ETL": {
+      "name": "B2_METADATA_DRIVEN_ETL",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.B2_TRIGGERS": {
+      "name": "B2_TRIGGERS",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.CUSTOMER_TARGET": {
+      "name": "CUSTOMER_TARGET",
+      "object_type": "SYNONYM",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.DIM_CUSTOMER": {
+      "name": "DIM_CUSTOMER",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.DW_AUDIT_LOG": {
+      "name": "DW_AUDIT_LOG",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.DW_DIM_CUSTOMER_V2": {
+      "name": "DW_DIM_CUSTOMER_V2",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.ETL_CONFIG": {
+      "name": "ETL_CONFIG",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.FCT_REVENUE": {
+      "name": "FCT_REVENUE",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.FCT_REVENUE_PART": {
+      "name": "FCT_REVENUE_PART",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.FCT_REVENUE_STAGE": {
+      "name": "FCT_REVENUE_STAGE",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.FN_DISCOUNT_RATE": {
+      "name": "FN_DISCOUNT_RATE",
+      "object_type": "FUNCTION",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.FN_NET_AMOUNT": {
+      "name": "FN_NET_AMOUNT",
+      "object_type": "FUNCTION",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.GTT_STAGE": {
+      "name": "GTT_STAGE",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.PKG_POLICY_STATE": {
+      "name": "PKG_POLICY_STATE",
+      "object_type": "PACKAGE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.REF_POLICY": {
+      "name": "REF_POLICY",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S1_SYNONYM_REDIRECT": {
+      "name": "S1_SYNONYM_REDIRECT",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S3_TEMP_WRITER_A": {
+      "name": "S3_TEMP_WRITER_A",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S3_TEMP_WRITER_B": {
+      "name": "S3_TEMP_WRITER_B",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S4_PARTITION_EXCHANGE": {
+      "name": "S4_PARTITION_EXCHANGE",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S5_POSITIONAL_UNION": {
+      "name": "S5_POSITIONAL_UNION",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S6_WRITE_THROUGH_VIEW": {
+      "name": "S6_WRITE_THROUGH_VIEW",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S7_UNEXERCISED_BRANCH": {
+      "name": "S7_UNEXERCISED_BRANCH",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S8_AGGREGATED_COPY": {
+      "name": "S8_AGGREGATED_COPY",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S8_CONDITIONAL_COPY": {
+      "name": "S8_CONDITIONAL_COPY",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.S8_IDENTITY_COPY": {
+      "name": "S8_IDENTITY_COPY",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.STG_CUSTOMER": {
+      "name": "STG_CUSTOMER",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.STG_ORDERS": {
+      "name": "STG_ORDERS",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.TMP_RECENT": {
+      "name": "TMP_RECENT",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.TRG_CUSTOMER_DEFAULT": {
+      "name": "TRG_CUSTOMER_DEFAULT",
+      "object_type": "TRIGGER",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.TRG_CUSTOMER_EDITABLE": {
+      "name": "TRG_CUSTOMER_EDITABLE",
+      "object_type": "TRIGGER",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.TRG_RECENT_AUDIT": {
+      "name": "TRG_RECENT_AUDIT",
+      "object_type": "TRIGGER",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.V_CUSTOMER_EDITABLE": {
+      "name": "V_CUSTOMER_EDITABLE",
+      "object_type": "VIEW",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.V_CUST_L1": {
+      "name": "V_CUST_L1",
+      "object_type": "VIEW",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.V_CUST_L2": {
+      "name": "V_CUST_L2",
+      "object_type": "VIEW",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.V_CUST_L3": {
+      "name": "V_CUST_L3",
+      "object_type": "VIEW",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.V_RECENT_RAW": {
+      "name": "V_RECENT_RAW",
+      "object_type": "VIEW",
+      "owner": "LINEAGE"
+    }
+  },
+  "synonyms": {
+    "LINEAGE.CUSTOMER_TARGET": "LINEAGE.DW_DIM_CUSTOMER_V2"
+  },
+  "view_text": {
+    "LINEAGE.V_CUSTOMER_EDITABLE": "SELECT d.cust_id,\n       d.region,\n       d.is_active,\n       s.email AS source_email\n  FROM dim_customer d\n  JOIN stg_customer s ON s.cust_id = d.cust_id",
+    "LINEAGE.V_CUST_L1": "SELECT cust_id      AS id,\n       region       AS region,\n       last_login   AS login_ts,\n       status_code  AS status\n  FROM stg_customer",
+    "LINEAGE.V_CUST_L2": "SELECT id           AS cust_id,\n       region,\n       login_ts,\n       CASE WHEN status = 1 THEN 1 ELSE 0 END AS status_flag\n  FROM v_cust_l1",
+    "LINEAGE.V_CUST_L3": "SELECT cust_id,\n       region,\n       login_ts     AS last_login,\n       status_flag\n  FROM v_cust_l2",
+    "LINEAGE.V_RECENT_RAW": "SELECT cust_id, last_login\n  FROM stg_customer\n WHERE last_login IS NOT NULL"
+  }
+}

@@ -1,0 +1,64 @@
+# Ground truth for adversarial/band0/b0_03_select_star.sql
+#
+# SELECT * through a view. Observed: TMP_RECENT written 0 -> 4 rows, LAST_LOGIN with a
+# unique value-consistent source.
+#
+# Note on how this observation was obtained: the first attempt showed NOTHING for
+# TMP_RECENT, because a previous procedure had already inserted identical rows and the
+# harness was comparing sets. Counted comparison fixed it. A set-based diff silently
+# reports "no change" for a real write whose values happen to already exist - which
+# would have produced a quietly wrong answer key.
+
+package: adversarial/band0/b0_03_select_star.sql
+source_sha256: ea2b1ef6c3b91797dbe799fff8ff0098b3670fcfe330a381a3bda329506c0580
+labelled_by: claude+abhay (observation-anchored)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_SELECT_STAR, line: 19}
+    evidence: adjudicated
+    note: >
+      Requires expanding * against the DDL and resolving V_RECENT_RAW to its base table.
+      Without expansion this stays at table level, which is the useless level.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_SELECT_STAR, line: 19}
+    evidence: observed
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: V_RECENT_RAW, line: 13}
+    evidence: source_read
+    note: >
+      The predicate lives INSIDE the view, not in the procedure. A filter that is
+      invisible at the call site still decides which rows land.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: observed
+
+boundaries: []

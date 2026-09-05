@@ -1,0 +1,106 @@
+# Corpus provenance and coverage requirements.
+#
+# Hand-authored. The measured half of the manifest (line counts, unit counts,
+# statement counts, hashes) is generated from this by scripts/build_manifest.py -
+# counts are computed with our own parser, never typed in by hand.
+
+collections:
+  schema:
+    origin: hand-written for this spike
+    licence: proprietary (internal)
+    url: null
+    purpose: >
+      Shared base tables every adversarial package binds against. Without real DDL,
+      lineage stays at table level, which is the useless level.
+
+  adversarial/band0:
+    origin: hand-written for this spike
+    licence: proprietary (internal)
+    url: null
+    purpose: >
+      Set-based baseline. If this band does not work, stop - that is the finding.
+
+  adversarial/band1:
+    origin: hand-written for this spike
+    licence: proprietary (internal)
+    url: null
+    purpose: >
+      The procedural core. This is the band the spike exists to test, and the band
+      whose precision decides whether the regulatory positioning holds.
+
+  adversarial/band2:
+    origin: hand-written for this spike
+    licence: proprietary (internal)
+    url: null
+    purpose: >
+      Statically undecidable. Must be solved empirically via log recovery or declared
+      honestly - never guessed.
+
+  adversarial/silent:
+    origin: hand-written for this spike
+    licence: proprietary (internal)
+    url: null
+    purpose: >
+      The eight silent failures, where the parser SUCCEEDS and binds the wrong object.
+      Built around this list deliberately: loud failures announce themselves during
+      testing, silent ones surface when a customer catches you.
+
+# Files that are deliberately never compiled against the local database. They
+# reference objects that do not exist here on purpose, standing in for the
+# out-of-scope and not-granted cases. The analyser must still produce a counted
+# boundary node from the source text alone.
+parse_only:
+  - adversarial/band2/b2_06_db_links.sql
+  - adversarial/silent/s2_schema_context.sql
+
+# Machine-checked coverage requirement for T0.2: every construct below must be
+# represented by at least one package. build_manifest.py fails if one is missing.
+required_constructs:
+  band0:
+    - insert_select
+    - merge
+    - select_star
+    - nested_views
+    - alias_chains
+  band1:
+    - local_variables
+    - if_case
+    - loops
+    - cursor_for_loop
+    - explicit_cursor
+    - temp_tables
+    - package_variables
+    - nested_calls
+    - exception_handlers
+  band2:
+    - dynamic_constant
+    - dynamic_concatenated
+    - dbms_sql
+    - metadata_driven_etl
+    - triggers
+    - db_links
+  silent:
+    - synonym_redirect
+    - schema_context
+    - shared_temp_table
+    - partition_exchange
+    - positional_union
+    - updatable_view
+    - unexercised_branch
+    - aggregation_semantics
+
+# The package whose lineage gets hand-labelled in T1.2.
+ground_truth_package:
+  path: adversarial/band1/b1_07_package_variables.sql
+  status: provisional
+  rationale: >
+    A genuine PL/SQL package exercising the hardest legitimate band-1 construct -
+    package-level state carried across two calls with no parameter passing.
+  caveat: >
+    PROVISIONAL AND KNOWN-INADEQUATE ON ITS OWN. This package yields only a handful of
+    edges, and a precision figure computed over a handful of edges is not defensible.
+    Synthetic code is also consistently cleaner than real legacy code, so any score
+    here is a ceiling, not a forecast. The spike is explicit that one sanitised real
+    production package teaches more than the entire synthetic corpus - acquiring one
+    is the highest-value outstanding item in T0.2 and it has human latency that cannot
+    be compressed. Until it arrives, treat band-1 precision as indicative only.

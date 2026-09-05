@@ -1,0 +1,42 @@
+# Local Oracle XE for the spike.
+#
+# This is DEVELOPMENT infrastructure, not product packaging. Phase 0 ships no Docker;
+# this container exists so the corpus can actually be compiled and executed, which is
+# the only honest way to test three things:
+#
+#   * T3.3 log recovery - needs a real V$SQL populated by real execution. A synthetic
+#     log would contain whatever attribution signals we chose to put in it and would
+#     score ~100%, answering nothing.
+#   * T1.4 name resolution - needs a real data dictionary, with synonyms that genuinely
+#     redirect and views that genuinely hide their base tables.
+#   * T3.4 adversarial suite - partition exchange and INSTEAD OF triggers are behaviours,
+#     not text patterns. They cannot be asserted against a mock.
+#
+# Start with:  docker compose up -d
+# Then:        .\.venv\Scripts\python.exe scripts\oracle_bootstrap.py
+
+services:
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: lineage-oracle
+    ports:
+      - "${ORACLE_PORT:-1521}:1521"
+    environment:
+      # Local development credentials only. Nothing here ever reaches a customer
+      # environment - the product never holds database credentials of its own.
+      ORACLE_PASSWORD: ${ORACLE_SYS_PASSWORD:-lineage_sys}
+      APP_USER: ${ORACLE_APP_USER:-lineage}
+      APP_USER_PASSWORD: ${ORACLE_APP_PASSWORD:-lineage_app}
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+    healthcheck:
+      # The image ships its own readiness probe. First start creates the database and
+      # takes a few minutes; later starts are quick.
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+      start_period: 300s
+
+volumes:
+  oracle-data:

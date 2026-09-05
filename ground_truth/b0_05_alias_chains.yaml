@@ -1,0 +1,62 @@
+# Ground truth for adversarial/band0/b0_05_alias_chains.sql
+#
+# A column renamed four times between source and target, with a derivation part-way and
+# an aggregation on top.
+#
+# Observation confirmed all four FCT_REVENUE columns written. NET_AMOUNT and
+# PERIOD_MONTH reported NO value-consistent source, which is itself the right answer:
+# their values do not appear anywhere upstream because they are computed. That absence
+# is corroboration for the DERIVED and AGGREGATED classes rather than a failure to find
+# the source.
+#
+# ORDER_COUNT has no edge at all: COUNT(*) references no source column. A row count is
+# not lineage from any particular column, and inventing one would be a false edge.
+
+package: adversarial/band0/b0_05_alias_chains.sql
+source_sha256: 40e0f472c687e02579d151dd24fee441f272ffe7b56a2c71586bafe7199b4c0a
+labelled_by: claude+abhay (observation-anchored)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_ALIAS_CHAINS, line: 13}
+    evidence: adjudicated
+    note: cust_id -> buyer -> customer. Three names, one value, unchanged.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: B0_ALIAS_CHAINS, line: 14}
+    evidence: observed
+    note: >
+      order_date -> dt -> month_start via TRUNC(dt,'MM'). DERIVED, not identity.
+      Observation found no value-consistent source, consistent with a computed value.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: B0_ALIAS_CHAINS, line: 15}
+    evidence: observed
+    note: >
+      gross_amount -> gross -> (gross - disc) -> amt -> SUM(amt). AGGREGATED wins over
+      DERIVED: the strongest transform on the path decides the class, and calling this
+      identity or derived would be a miss under ADR-0001 4.
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: B0_ALIAS_CHAINS, line: 15}
+    evidence: observed
+    note: The subtrahend is as much a source of the value as the minuend.
+
+boundaries: []

@@ -1,0 +1,37 @@
+# Analysis configuration.
+#
+# Every limit in this file can change an answer, so every limit in this file is
+# reported alongside the answers it produced. Changing a value here changes the
+# coverage statement, by design.
+#
+# Validated by lineage.config.AnalysisConfig - unknown keys are rejected rather
+# than silently ignored, because a typo'd limit that does nothing is worse than
+# an error.
+
+dialect: oracle
+
+budgets:
+  # How many levels of proc-calls-proc to follow before emitting a boundary node.
+  # Beyond this depth the analysis declares a boundary and counts it. It never guesses.
+  interprocedural_depth_cap: 6
+
+  # Iterations allowed for loop analysis to reach a stable edge set.
+  # Non-convergence within the cap is reported, not silently truncated.
+  loop_fixpoint_iteration_cap: 10
+
+  # Nesting depth for views on views on views. Separate from cycle detection,
+  # which is unconditional.
+  view_expansion_depth_cap: 10
+
+log_recovery:
+  # When false, dynamic SQL is declared unresolvable rather than recovered from
+  # the log. Useful for measuring what pure static analysis achieves on its own.
+  enabled: true
+
+  # Query log window available for attribution. A short window means rarely-executed
+  # paths - year-end jobs, error handlers - may never appear at all.
+  retention_months: 18
+
+  # Characters before the log truncates statement text. Oracle V$SQL has historically
+  # capped at 1000. Truncation is detected explicitly and marks the edge partial.
+  statement_text_truncated_at: 1000

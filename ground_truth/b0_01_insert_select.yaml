@@ -1,0 +1,62 @@
+# Ground truth for adversarial/band0/b0_01_insert_select.sql
+#
+# Observed: TMP_RECENT.CUST_ID and LAST_LOGIN written (0 -> 4 rows). LAST_LOGIN had a
+# unique value-consistent source; CUST_ID matched two candidates, so it was adjudicated
+# from line 8 rather than claimed as observed.
+#
+# The trigger edges are band 2, not band 0 (ADR-0001 6: hardest construct on the path).
+# That is deliberate and load-bearing here: it keeps band-0 recall measuring band-0
+# analysis rather than being dragged down by a trigger the band-0 analyser is not
+# supposed to handle.
+
+package: adversarial/band0/b0_01_insert_select.sql
+source_sha256: 4fed27906d34830c7ca5324ad19fc1108bd5d2b7d361f03cdcd6650723474f00
+labelled_by: claude+abhay (observation-anchored)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_INSERT_SELECT, line: 8}
+    evidence: adjudicated
+    note: Target observed. Source matched 2 candidates on value containment; ruled from source.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_INSERT_SELECT, line: 8}
+    evidence: observed
+    note: Uniquely value-consistent source. Strongest form of label.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B0_INSERT_SELECT, line: 10}
+    evidence: source_read
+    note: WHERE last_login IS NOT NULL decides which rows land.
+
+  # Trigger side effects - real, and absent from this procedure's source.
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: observed
+
+boundaries: []

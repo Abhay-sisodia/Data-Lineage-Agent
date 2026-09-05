@@ -1,0 +1,16 @@
+# Development dependencies - loose constraints, resolved by pip-compile.
+# Compile with:
+#   pip-compile --generate-hashes --output-file=requirements-dev.txt requirements-dev.in
+#
+# Kept separate from requirements.in so a client install never pulls test tooling.
+# The -c line constrains dev deps to the versions already pinned for runtime,
+# so the two files can never disagree about a shared transitive dependency.
+
+-c requirements.txt
+
+pytest
+pytest-cov
+ruff
+mypy
+types-PyYAML
+pip-tools

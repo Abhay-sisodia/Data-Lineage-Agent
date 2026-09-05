@@ -1,0 +1,29 @@
+# Runtime dependencies - loose constraints, resolved by pip-compile.
+# Compile to the pinned, hashed requirements.txt with:
+#   pip-compile --generate-hashes --output-file=requirements.txt requirements.in
+#
+# Never install from this file directly. requirements.txt is the reproducible
+# set, and it is what ships to a client system.
+
+# One SQL statement -> AST, with column-level lineage. Band 0 workhorse.
+sqlglot
+
+# PL/SQL grammar runtime. Pinned exactly on purpose: it MUST match the ANTLR
+# tool jar used to generate the parser, or import fails with an unhelpful error.
+antlr4-python3-runtime==4.13.2
+
+# IR schema validation (T2.1: reject any edge missing origin or mechanism).
+pydantic
+
+# Config as data - analysis budgets, depth caps, tier policy.
+pyyaml
+
+# CLI for the analyser and the scoring harness.
+typer
+
+# Harness report rendering.
+rich
+
+# Oracle driver - corpus execution and V$SQL capture for the log-recovery
+# sub-spike (T3.3). Thin mode, no Instant Client needed.
+oracledb

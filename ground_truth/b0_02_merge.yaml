@@ -1,0 +1,79 @@
+# Ground truth for adversarial/band0/b0_02_merge.sql
+#
+# THE ONE PACKAGE OBSERVATION COULD NOT SETTLE.
+#
+# Running b0_merge changed nothing at all. That is not a harness bug and not a no-op:
+# every row matched, and the UPDATE arm set email and region to the values they already
+# held. An idempotent write is invisible to before/after comparison in principle, not
+# just in this implementation.
+#
+# So every edge here is `source_read` - the weakest provenance in the set - and the
+# evidence split printed with any score against this package will say so. This is
+# exactly why the split is reported rather than assumed: a reader can see that this
+# package's answer key rests on someone reading code, not on the database agreeing.
+#
+# Two deliberate omissions:
+#
+#   * is_active and lifetime_value receive literal 0 in the INSERT arm. A literal has no
+#     source column, so there is no edge. Inventing one would be a false edge.
+#   * The ON clause (d.cust_id = s.cust_id) is a JOIN condition, not a row filter. Join
+#     keys are structural; treating them as filter lineage would flood every multi-table
+#     statement with edges that tell a reader nothing about which rows were selected.
+#     Applied consistently in the analyser and here.
+#
+# The MERGE arms are labelled as one deduplicated set. REGION and EMAIL are written by
+# BOTH arms from the same source column, so they are one fact each, not two.
+
+package: adversarial/band0/b0_02_merge.sql
+source_sha256: ba136b8def5015456204d228b42cb8b229ee1c69a5a0fa68d55a154e6490ec38
+labelled_by: claude+abhay (source-read - observation could not settle this package)
+labelled_at: "2026-09-06"
+
+note: >
+  Weakest-evidence package in the set. Every label rests on reading the source because
+  the write is idempotent on the seed data. If this package matters to a conclusion,
+  re-seed the data so the merge actually changes something and re-observe.
+
+edges:
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: column, name: DIM_CUSTOMER.EMAIL}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_MERGE, line: 20}
+    evidence: source_read
+    note: Written by the MATCHED arm and the NOT MATCHED arm. One fact.
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.REGION}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_MERGE, line: 21}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_MERGE, line: 24}
+    evidence: source_read
+    note: NOT MATCHED arm only. Never exercised on this data - all rows matched.
+    unexercised: true
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 2
+    origin: {unit: TRG_CUSTOMER_DEFAULT, line: 30}
+    evidence: source_read
+    unexercised: true
+    note: >
+      A BEFORE INSERT trigger derives is_active from region when it arrives NULL. Real
+      lineage, in code, never observed running here because the insert arm never fired.
+      Tier and unexercised are separate axes: this edge is provably present AND never
+      seen. Reporting that combination is something no other tool does.
+
+boundaries: []

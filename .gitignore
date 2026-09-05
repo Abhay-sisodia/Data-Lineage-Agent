@@ -1,0 +1,38 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ANTLR - generated parser sources and the tool jar.
+# Generated code is reproducible from the grammar; the jar is a large binary.
+# Both are rebuilt by scripts/generate_parser.py.
+src/lineage/parsing/generated/
+tools/*.jar
+
+# Oracle XE container state
+.oracle-data/
+
+# Corpus material that is not ours to redistribute.
+# Sanitised real packages NEVER go in git - they live outside the repo.
+corpus/restricted/
+
+# Harness output - results are recorded in the tracker, not committed as noise.
+out/
+*.log
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

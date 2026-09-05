@@ -1,0 +1,64 @@
+# Ground truth for adversarial/band0/b0_04_nested_views.sql
+#
+# Three view layers, with the column renamed at every level:
+#   stg_customer.last_login -> v_cust_l1.login_ts -> v_cust_l2.login_ts
+#                           -> v_cust_l3.last_login -> tmp_recent.last_login
+#
+# Observed: TMP_RECENT written 0 -> 2 rows. Note it is 2 here and 4 for b0_03 on the
+# same source table - the status_flag filter is doing real work, which is independent
+# corroboration that the filter edge below exists.
+#
+# Lineage must land on STG_CUSTOMER, not on the outermost view. Reporting v_cust_l3 as
+# the source is technically true and practically useless: nobody can act on it.
+
+package: adversarial/band0/b0_04_nested_views.sql
+source_sha256: 8d56797a9fc29217c6a2e3de068d63bf2a2e4fcbf02c6f1be3cbba2784b18759
+labelled_by: claude+abhay (observation-anchored)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_NESTED_VIEWS, line: 36}
+    evidence: adjudicated
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B0_NESTED_VIEWS, line: 36}
+    evidence: observed
+    note: Renamed three times en route. Still an identity copy - no value is changed.
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B0_NESTED_VIEWS, line: 38}
+    evidence: observed
+    note: >
+      WHERE status_flag = 1, where status_flag is a CASE over status_code two view
+      layers down. Corroborated by row count: 2 rows here versus 4 without the filter.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: observed
+
+boundaries: []

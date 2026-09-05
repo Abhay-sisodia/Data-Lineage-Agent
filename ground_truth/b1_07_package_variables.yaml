@@ -1,0 +1,137 @@
+# Ground truth for adversarial/band1/b1_07_package_variables.sql
+#
+# Established per ADR-0001 §1: the database is the referee. Targets marked `observed`
+# were confirmed by executing the package and watching which columns changed
+# (scripts/observe_corpus.py). Sources were then ruled on by a human against the
+# value-consistency evidence.
+#
+# WHAT OBSERVATION SETTLED, AND WHAT IT DID NOT
+#
+#   TMP_RECENT.CUST_ID / LAST_LOGIN       written - definitive
+#   DIM_CUSTOMER.LIFETIME_VALUE           written - definitive, and NOT visible anywhere
+#                                         in this package's source (see trigger note)
+#   STG_CUSTOMER.LAST_LOGIN as a source   uniquely value-consistent - strong evidence
+#   STG_CUSTOMER.CUST_ID as a source      matched 6 candidate columns; low-cardinality
+#                                         integers match almost anything, so this was
+#                                         ruled by reading line 36, not by observation
+#   Package variables G_WINDOW_DAYS,      invisible to observation entirely - they are
+#   G_CUTOFF                              session memory, never touch a table
+#
+# THE TRIGGER FINDING
+#
+# DIM_CUSTOMER.LIFETIME_VALUE is written by TRG_RECENT_AUDIT (defined in
+# adversarial/band2/b2_05_triggers.sql), which fires on INSERT INTO tmp_recent. Nothing
+# in b1_07 hints at it. Those edges are included here because they are REAL lineage that
+# genuinely occurs when this package runs, and omitting real lineage from an answer key
+# is exactly the silent hole the product exists to prevent.
+#
+# Consequence, stated up front: recall will be understated until the analyser attaches
+# trigger edges to the table rather than the caller. That is honest measurement, not a
+# broken benchmark.
+
+package: adversarial/band1/b1_07_package_variables.sql
+source_sha256: e92061bf52e9643648a76bdfb0f232b43fca99d744d73ff5152444c1bdec92e1
+labelled_by: claude+abhay (observation-anchored, human-adjudicated)
+labelled_at: "2026-09-06"
+
+note: >
+  PROVISIONAL. Eleven edges is too few for a defensible precision figure, and this code
+  was written knowing what the analyser must handle, so it is cleaner than real legacy
+  code by construction. Treat any score here as a ceiling, not a forecast. A sanitised
+  real production package remains the priority acquisition.
+
+edges:
+
+  # --- load_policy: the policy lookup -------------------------------------------------
+
+  - source: {kind: column, name: REF_POLICY.WINDOW_DAYS}
+    target: {kind: variable, name: PKG_POLICY_STATE.G_WINDOW_DAYS}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: PKG_POLICY_STATE.LOAD_POLICY, line: 25}
+    evidence: source_read
+    note: SELECT INTO a package variable. Invisible to observation - no table changes.
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: PKG_POLICY_STATE.LOAD_POLICY, line: 28}
+    evidence: source_read
+    note: >
+      A parameter decides WHICH policy row is read, and therefore the cutoff, and
+      therefore which customers load. Filter influence, per ADR-0001 §2.
+
+  - source: {kind: variable, name: PKG_POLICY_STATE.G_WINDOW_DAYS}
+    target: {kind: variable, name: PKG_POLICY_STATE.G_CUTOFF}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: PKG_POLICY_STATE.LOAD_POLICY, line: 30}
+    evidence: source_read
+    note: >
+      g_cutoff := SYSDATE - g_window_days. DERIVED, not identity - an arithmetic
+      expression, and per ADR-0001 §4 calling this identity would be a miss.
+
+  # --- apply_policy: the load, in a DIFFERENT call, reading package state -------------
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: PKG_POLICY_STATE.APPLY_POLICY, line: 36}
+    evidence: adjudicated
+    note: >
+      Target observed. Source NOT settled by observation - value containment matched 6
+      candidate columns because these are low-cardinality integers. Ruled from line 36.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: PKG_POLICY_STATE.APPLY_POLICY, line: 36}
+    evidence: observed
+    note: >
+      Both ends confirmed: target changed, and STG_CUSTOMER.LAST_LOGIN was the ONLY
+      value-consistent source. The strongest label in this set.
+
+  - source: {kind: variable, name: PKG_POLICY_STATE.G_CUTOFF}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: PKG_POLICY_STATE.APPLY_POLICY, line: 38}
+    evidence: source_read
+    note: >
+      THE EDGE THIS PACKAGE EXISTS FOR. Package state written by load_policy governs
+      which rows apply_policy loads, across a separate call, with no parameter passing.
+      The full chain REF_POLICY.WINDOW_DAYS -> G_WINDOW_DAYS -> G_CUTOFF -> row filter
+      spans two procedures. No table-level tool surfaces this.
+
+  # --- trigger side effects: real, and absent from this package's source --------------
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+    note: >
+      NVL(lifetime_value, 0) + 1 - a self-referential derived edge. Band 2 per
+      ADR-0001 §6: the hardest construct on the path is the trigger, not the INSERT.
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: observed
+    note: :NEW.cust_id from the inserted row decides which dimension row is updated.
+
+boundaries: []
