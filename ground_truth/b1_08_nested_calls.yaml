@@ -1,0 +1,77 @@
+# Ground truth for adversarial/band1/b1_08_nested_calls.sql
+#
+# A scalar UDF inside a SELECT. It looks like a column expression and contains a query.
+#
+#   b1_nested_calls
+#     -> fn_net_amount(order_id)          reads stg_orders.gross_amount
+#          -> fn_discount_rate(order_id)  reads stg_orders.discount_amt and gross_amount
+#
+# Call depth 3, inside the default cap of 6.
+#
+# Without inlining the callee summaries, fct_revenue.net_amount appears to come from
+# nowhere: a function call with no visible source. That is the failure this case detects -
+# not a wrong edge, but a regulated column with no traceable origin.
+#
+# Observed: FCT_REVENUE 0 -> 3 rows. NET_AMOUNT reported no value-consistent source,
+# which is correct - it is computed, so its values appear nowhere upstream.
+
+package: adversarial/band1/b1_08_nested_calls.sql
+source_sha256: f8a427a600dce365924e8f834dabf37d96fd9d0ac1c94d18984d472ed0a7096f
+labelled_by: claude+abhay (observation-anchored)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- band 1: through the call chain ------------------------------------------------
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: B1_NESTED_CALLS, line: 42}
+    evidence: observed
+    note: >
+      Reaches the target through fn_net_amount, which reads gross_amount directly AND
+      multiplies by (1 - fn_discount_rate(...)), which reads it again one level deeper.
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: B1_NESTED_CALLS, line: 42}
+    evidence: observed
+    note: >
+      Two levels down, inside fn_discount_rate. An analyser that summarises only the
+      immediate callee stops one level short and silently loses this edge.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
+    target: {kind: relation, name: STG_ORDERS}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: FN_NET_AMOUNT, line: 31}
+    evidence: source_read
+    note: >
+      The parameter passed into the function selects which row each callee reads. The
+      filter lives inside the callee, not at the call site.
+
+  # --- band 0: ordinary projections at the call site ---------------------------------
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B1_NESTED_CALLS, line: 40}
+    evidence: adjudicated
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: B1_NESTED_CALLS, line: 41}
+    evidence: observed
+
+boundaries: []

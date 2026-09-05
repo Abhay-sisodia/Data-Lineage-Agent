@@ -1,0 +1,135 @@
+# Ground truth for adversarial/band1/b1_03_loops.sql
+#
+# Two loops. The first accumulates a value across twelve iterations through a variable;
+# the second writes a table each pass, filtered by that same variable as it decays.
+#
+# Observed: FCT_REVENUE 0 -> 8 rows (the WHILE loop ran more than once, which is what
+# makes fixed-point iteration necessary rather than decorative), and
+# DIM_CUSTOMER.LIFETIME_VALUE written with no value-consistent source - correct, since
+# it is an accumulated sum that exists nowhere upstream.
+#
+# The genuinely hard part: v_total is DEFINED inside the loop from a value that includes
+# its own previous value. A single pass of def-use analysis sees only one definition
+# reaching the use; the loop means the definition also reaches ITSELF. Analysis has to
+# iterate to a fixed point or it will report a chain that is one iteration deep and
+# quietly wrong.
+
+package: adversarial/band1/b1_03_loops.sql
+source_sha256: 468b24541d4c70f57d6e944e60623a43d02429a42fd51f76d1bc4f872afc0beb
+labelled_by: claude+abhay (observation-anchored)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- loop 1: accumulation through a variable ---------------------------------------
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: variable, name: V_TOTAL}
+    flow: value
+    transform: aggregated
+    band: 1
+    origin: {unit: B1_LOOPS, line: 15}
+    evidence: source_read
+    note: >
+      SUM(gross_amount) + v_total, INTO v_total. AGGREGATED. Self-referential across
+      iterations - the variable's new value depends on its old one.
+
+  - source: {kind: variable, name: V_TOTAL}
+    target: {kind: variable, name: V_TOTAL}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: B1_LOOPS, line: 15}
+    evidence: source_read
+    note: >
+      The self-edge that makes this a fixed-point problem. An analyser that misses it
+      reports an accumulation one iteration deep.
+
+      Occurs TWICE in this procedure - the accumulation at line 15 and the decay at
+      line 32 (`v_total := v_total / 2`) - and the v0 edge key cannot distinguish them,
+      since both are (V_TOTAL, V_TOTAL, value, derived). Same model limitation as
+      recorded in b1_09; T2.1 should make guard and origin part of ledger identity while
+      keeping them out of precision matching. This file under-counts by one edge.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: relation, name: STG_ORDERS}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_LOOPS, line: 18}
+    evidence: source_read
+    note: >
+      EXTRACT(MONTH FROM order_date) = i, where i is the loop variable. The loop counter
+      selects which rows are summed on each pass.
+
+  # --- the write between the loops ---------------------------------------------------
+
+  - source: {kind: variable, name: V_TOTAL}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: B1_LOOPS, line: 22}
+    evidence: observed
+    note: >
+      Target observed with no value-consistent source, consistent with an accumulated
+      value that exists nowhere upstream. The full chain is
+      stg_orders.gross_amount -> v_total -> dim_customer.lifetime_value.
+
+  # --- loop 2: WHILE, guarded by the decaying variable -------------------------------
+
+  - source: {kind: variable, name: V_TOTAL}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_LOOPS, line: 30}
+    evidence: source_read
+    note: >
+      WHERE gross_amount < v_total, inside a loop whose continuation condition is also
+      v_total. The variable controls both which rows load and how many times.
+
+  # --- band 0: the projections inside loop 2 -----------------------------------------
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B1_LOOPS, line: 28}
+    evidence: adjudicated
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: B1_LOOPS, line: 28}
+    evidence: observed
+    note: TRUNC(order_date, 'MM').
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: B1_LOOPS, line: 28}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: B1_LOOPS, line: 28}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_LOOPS, line: 30}
+    evidence: source_read
+    note: The column side of `gross_amount < v_total`.
+
+boundaries: []

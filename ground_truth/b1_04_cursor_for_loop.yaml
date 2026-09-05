@@ -1,0 +1,77 @@
+# Ground truth for adversarial/band1/b1_04_cursor_for_loop.sql
+#
+# Row values become record fields become an UPDATE. The cursor's SELECT is the real
+# source, but every value reaches the target through `rec.<field>` - which no SQL parser
+# connects to anything, because `rec` is not a relation.
+#
+# Observed twice:
+#   * directly: IS_ACTIVE written
+#   * with dim_customer.email nulled first: EMAIL written, uniquely value-consistent
+#     with STG_CUSTOMER.EMAIL
+#
+# The second run was necessary because dim_customer.email already equalled
+# stg_customer.email on the seed data, making the write idempotent and invisible. Every
+# edge here would have been source_read without that setup.
+#
+# Everything is band 1: there are no plain projections in this package. Every value
+# passes through the record variable.
+
+package: adversarial/band1/b1_04_cursor_for_loop.sql
+source_sha256: 2b87fd779a2f8f119b925ebce1091b001219f5815fece0532f645090252af05c
+labelled_by: claude+abhay (observation-anchored, email exposed by nulling first)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: column, name: DIM_CUSTOMER.EMAIL}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: B1_CURSOR_FOR_LOOP, line: 25}
+    evidence: observed
+    note: >
+      stg_customer.email -> cursor projection -> rec.email -> dim_customer.email.
+      Uniquely value-consistent once the target was nulled first.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 1
+    origin: {unit: B1_CURSOR_FOR_LOOP, line: 21}
+    evidence: observed
+    note: >
+      CASE WHEN rec.last_login > SYSDATE - 30. CONDITIONAL. A date column drives a flag
+      column - correct edge, entirely different meaning from a copy, which is exactly
+      why transform class is part of edge identity.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_CURSOR_FOR_LOOP, line: 26}
+    evidence: source_read
+    note: rec.cust_id selects which dimension row each iteration updates.
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: STG_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_CURSOR_FOR_LOOP, line: 18}
+    evidence: source_read
+    note: >
+      The parameter filters the cursor's own SELECT, so it decides which rows the loop
+      iterates over at all - and therefore which dimension rows get written.
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: relation, name: STG_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_CURSOR_FOR_LOOP, line: 18}
+    evidence: source_read
+    note: The column side of `region = p_region`.
+
+boundaries: []

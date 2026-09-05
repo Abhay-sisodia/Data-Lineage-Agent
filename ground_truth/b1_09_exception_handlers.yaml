@@ -1,0 +1,110 @@
+# Ground truth for adversarial/band1/b1_09_exception_handlers.sql
+#
+# An error path writes the same regulated column from a completely different source.
+# On a failure day THAT is the lineage, and it exists nowhere in the happy path.
+#
+# Both paths observed, each needing its own setup:
+#
+#   happy    b1_exception_handlers('EU')  -> IS_ACTIVE written
+#   handler  region 'XX' assigned to a customer first, then
+#            b1_exception_handlers('XX')  -> NO_DATA_FOUND fires (no policy row for XX),
+#                                            handler writes IS_ACTIVE = 0
+#
+# Without the setup the handler still fires but updates zero rows, so the write is
+# invisible. Observing an exception path at all took deliberate construction - which is
+# exactly why these edges are usually missed.
+#
+# The WHEN OTHERS arm is labelled unexercised: it is provably in the code and was never
+# seen running. Tier and unexercised are separate axes - an edge can be fully evidenced
+# in source AND never observed. Reporting that combination is something no other tool
+# does, and it is the difference between "dead code, safe to remove" and "the year-end
+# path that has not run yet".
+
+package: adversarial/band1/b1_09_exception_handlers.sql
+source_sha256: ea53b003cb067379d6e014c7052d54cde16170e352cd7e82ec52d4cc8e4f87bd
+labelled_by: claude+abhay (observation-anchored, both paths exercised)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- happy path --------------------------------------------------------------------
+
+  - source: {kind: column, name: REF_POLICY.WINDOW_DAYS}
+    target: {kind: variable, name: V_DAYS}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 16}
+    evidence: source_read
+
+  - source: {kind: variable, name: V_DAYS}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 26}
+    evidence: source_read
+    note: >
+      The policy window decides which customers are considered active, through a
+      correlated subquery inside the UPDATE's WHERE clause.
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 19}
+    evidence: source_read
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 23}
+    evidence: observed
+    note: >
+      Which rows are touched depends entirely on the parameter.
+
+      MODEL LIMITATION, recorded rather than hidden: this exact edge occurs TWICE in
+      this procedure - once on the happy path (line 23) and once in the NO_DATA_FOUND
+      handler (line 35) - with different guards. They are two different facts: one fires
+      when the policy lookup succeeds, one only when it fails. The v0 edge key is
+      (source, target, flow, transform) and excludes guard, so the two collapse into one
+      and the exception-path occurrence cannot be represented separately.
+
+      ADR-0001 5 excludes guard from PRECISION so the gate cannot move on
+      string-comparison noise. That was right, but it was over-applied: guard should be
+      part of an edge's IDENTITY in the ledger while staying out of matching. T2.1 (IR
+      v0) should fix this; until then this file under-counts by one edge and says so.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 26}
+    evidence: source_read
+    note: The column side of `last_login > SYSDATE - v_days`.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 24}
+    evidence: source_read
+    note: Membership test against the subquery's projection.
+
+  # --- NO_DATA_FOUND handler: a different source for the same column -----------------
+
+  # The NO_DATA_FOUND handler's filter edge (line 35) is the duplicate described above.
+  # It was OBSERVED - by giving a customer region 'XX', for which no ref_policy row
+  # exists - but cannot be represented separately under the v0 key.
+  #
+  # The WHEN OTHERS arm writes tmp_recent from literals only (-1, SYSDATE). Consistent
+  # with b0_02 and b0_05, a literal produces no edge: lineage traces where data came
+  # from, and a constant came from nowhere. So that arm contributes no edges at all -
+  # which is itself worth knowing, because the path is real and completely invisible in
+  # a column-to-column model.
+
+boundaries: []

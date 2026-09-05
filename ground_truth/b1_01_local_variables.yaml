@@ -1,0 +1,115 @@
+# Ground truth for adversarial/band1/b1_01_local_variables.sql
+#
+# The canonical band-1 case. A policy table silently governs which customers load,
+# three statements away, through two local variables.
+#
+# Observed with p_region = 'EU' (window_days = 30): TMP_RECENT 0 -> 2 rows, and
+# LAST_LOGIN had a unique value-consistent source. The row count is itself evidence the
+# filter chain works - an unfiltered load would have produced 4.
+#
+# Banding, per the rule in b1_07: an edge is band 1 only if ITS PATH traverses a
+# variable, branch, loop, cursor or call. The two column-to-column projections here are
+# ordinary INSERT ... SELECT work and are band 0 even though they sit inside a procedure.
+# What is genuinely band 1 is everything touching v_days and v_cutoff.
+#
+# Nothing involving the variables is observable: they are session memory and never touch
+# a table. Those four labels are source_read, and any score against this package should
+# be read with that split in view.
+
+package: adversarial/band1/b1_01_local_variables.sql
+source_sha256: fd4d48e3659b01b05ad8f5e701d228fc1346cd699e4cb64d12278044128156d2
+labelled_by: claude+abhay (observation-anchored)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- band 1: the variable chain ---------------------------------------------------
+
+  - source: {kind: column, name: REF_POLICY.WINDOW_DAYS}
+    target: {kind: variable, name: V_DAYS}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: B1_LOCAL_VARIABLES, line: 15}
+    evidence: source_read
+    note: SELECT INTO a local variable. Invisible to observation - no table changes.
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_LOCAL_VARIABLES, line: 18}
+    evidence: source_read
+    note: A parameter selects which policy row is read, and therefore the cutoff.
+
+  - source: {kind: variable, name: V_DAYS}
+    target: {kind: variable, name: V_CUTOFF}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: B1_LOCAL_VARIABLES, line: 20}
+    evidence: source_read
+    note: >
+      v_cutoff := SYSDATE - v_days. DERIVED, not identity - arithmetic on the value.
+      Calling this identity would be a miss under ADR-0001 4.
+
+  - source: {kind: variable, name: V_CUTOFF}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_LOCAL_VARIABLES, line: 25}
+    evidence: source_read
+    note: >
+      THE EDGE THIS PACKAGE EXISTS FOR. A value read from ref_policy, transformed
+      through two variables, decides which customer rows load. No table-level tool
+      surfaces this, and a SQL parser alone sees only an unbound identifier.
+
+  # --- band 0: ordinary projections and the column side of the predicate -------------
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B1_LOCAL_VARIABLES, line: 23}
+    evidence: adjudicated
+    note: Target observed; source ruled from line 23 (value containment was ambiguous).
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B1_LOCAL_VARIABLES, line: 23}
+    evidence: observed
+    note: Uniquely value-consistent source.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_LOCAL_VARIABLES, line: 25}
+    evidence: source_read
+    note: The column side of `last_login > v_cutoff`. Needs no dataflow analysis.
+
+  # --- band 2: trigger side effect ---------------------------------------------------
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: observed
+
+boundaries: []

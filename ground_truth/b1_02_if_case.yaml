@@ -1,0 +1,72 @@
+# Ground truth for adversarial/band1/b1_02_if_case.sql
+#
+# Three branches write the SAME column from three completely different sources. Without
+# guards, the three edges below are indistinguishable - and a regulator asking "where
+# does is_active come from for an APAC customer" gets a wrong answer.
+#
+# All three branches were observed separately, each needing its own precondition:
+#
+#   EU    setup: b1_local_variables('EU') to populate tmp_recent, else the IN (...)
+#                subquery matches nothing and the branch appears to be a no-op
+#   APAC  ran directly; cust 4 is APAC with status_code 3
+#   ELSE  setup: one customer given lifetime_value 5000, else the CASE writes 0 over an
+#                existing 0 and the write is idempotent and therefore invisible
+#
+# That every branch needed a different precondition is the point of the construct: which
+# branch runs decides what the lineage IS.
+#
+# Guards are recorded but excluded from precision (ADR-0001 5) and reported separately.
+
+package: adversarial/band1/b1_02_if_case.sql
+source_sha256: 0f5371a22749f41e7e87f977beeb0df8e8d7edb05f806f2e59d5598bf1058ba2
+labelled_by: claude+abhay (observation-anchored, all three branches exercised)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- EU branch: literal write, filtered by a temp table ----------------------------
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "P_REGION = 'EU'"
+    origin: {unit: B1_IF_CASE, line: 16}
+    evidence: observed
+    note: >
+      is_active is set to the literal 1, so there is no value edge - a literal has no
+      source column. What lineage exists here is entirely in the filter: membership of
+      tmp_recent decides which rows are touched. Band 1 because the branch guard governs
+      whether the edge fires at all.
+
+  # --- APAC branch: aggregated subquery, nested guard --------------------------------
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: aggregated
+    band: 1
+    guard: "P_REGION = 'APAC' AND P_STRICT = 1"
+    origin: {unit: B1_IF_CASE, line: 21}
+    evidence: observed
+    note: >
+      MAX(status_code) - AGGREGATED, not identity. Two conditions conjoined: the outer
+      ELSIF and the inner IF. An analyser that reports only the outer guard is claiming
+      this fires for every APAC run, which is false.
+
+  # --- ELSE branch: conditional over a column in the same table ----------------------
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 1
+    guard: "P_REGION <> 'EU' AND P_REGION <> 'APAC'"
+    origin: {unit: B1_IF_CASE, line: 29}
+    evidence: observed
+    note: >
+      A CASE over another column of the same row. CONDITIONAL, not derived. The guard is
+      the negation of both earlier branches - the ELSE arm's condition is implicit in the
+      code and must be reconstructed from the CFG, not read off any single line.
+
+boundaries: []

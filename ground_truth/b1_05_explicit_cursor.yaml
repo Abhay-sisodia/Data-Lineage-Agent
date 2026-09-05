@@ -1,0 +1,95 @@
+# Ground truth for adversarial/band1/b1_05_explicit_cursor.sql
+#
+# THE POSITIONAL BINDING TRAP.
+#
+#   CURSOR c_cust IS SELECT cust_id, email, region FROM stg_customer ...
+#   FETCH c_cust INTO v_id, v_email, v_region;
+#
+# The fetch targets bind BY POSITION. The variable names happen to line up here, which
+# is precisely what makes the trap dangerous: an analyser that matches on name gets the
+# right answer on this code and the wrong answer on code where they do not align, with
+# no symptom either way.
+#
+# The correct binding is:
+#   position 1  cust_id -> v_id
+#   position 2  email   -> v_email
+#   position 3  region  -> v_region
+#
+# Observed only after nulling dim_customer.email and region first. Run directly, this
+# procedure changes nothing at all - it writes values identical to those already there.
+# Both source columns were then uniquely value-consistent.
+
+package: adversarial/band1/b1_05_explicit_cursor.sql
+source_sha256: 547661f599165d232657b416e65fd6b59dbedcee401581452fd8844fce72f8c6
+labelled_by: claude+abhay (observation-anchored, targets nulled to expose idempotent writes)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: variable, name: V_EMAIL}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXPLICIT_CURSOR, line: 25}
+    evidence: source_read
+    note: FETCH position 2 -> v_email. Bound by position, not by name.
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: variable, name: V_REGION}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXPLICIT_CURSOR, line: 25}
+    evidence: source_read
+    note: FETCH position 3 -> v_region.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: variable, name: V_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXPLICIT_CURSOR, line: 25}
+    evidence: source_read
+    note: FETCH position 1 -> v_id.
+
+  - source: {kind: variable, name: V_EMAIL}
+    target: {kind: column, name: DIM_CUSTOMER.EMAIL}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXPLICIT_CURSOR, line: 29}
+    evidence: observed
+    note: >
+      Observed after nulling the target. STG_CUSTOMER.EMAIL was the only
+      value-consistent source, corroborating the full chain through v_email.
+
+  - source: {kind: variable, name: V_REGION}
+    target: {kind: column, name: DIM_CUSTOMER.REGION}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXPLICIT_CURSOR, line: 30}
+    evidence: observed
+    note: >
+      Observation offered two candidates - STG_CUSTOMER.REGION and REF_POLICY.REGION -
+      because both hold the same small set of region codes. Ruled from the cursor's
+      select list. A good illustration that value containment is evidence, not proof.
+
+  - source: {kind: variable, name: V_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: B1_EXPLICIT_CURSOR, line: 31}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: STG_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B1_EXPLICIT_CURSOR, line: 17}
+    evidence: source_read
+    note: The cursor's own WHERE clause. Ordinary predicate, no dataflow needed.
+
+boundaries: []

@@ -1,0 +1,93 @@
+# Ground truth for adversarial/band1/b1_06_temp_tables.sql
+#
+# stg_orders -> gtt_stage -> fct_revenue. At table level this looks like two unrelated
+# pipelines; the intermediate hop is the whole point.
+#
+# Observed: GTT_STAGE 0 -> 3 rows and FCT_REVENUE 0 -> 3 rows in one run, confirming
+# both halves of the chain.
+#
+# BANDING NOTE, and it is uncomfortable in our favour so it is stated plainly: every edge
+# here is band 0 under the rule in b1_07. The chain passes through a real relation with
+# real columns in the dictionary, so ordinary set-based analysis resolves it - no
+# variable, branch, loop or call is on any path. Our existing band-0 analyser already
+# produces these edges correctly.
+#
+# The construct is listed under band 1 in the spike's ladder, but the difficulty it
+# names - "intermediate hops invisible at table level" - is a difficulty for
+# TABLE-level tools, not for column-level analysis. Labelling these band 1 would hand
+# band 1 seven free wins and inflate the number that decides the company.
+#
+# The genuinely hard part of temp tables is SESSION SCOPING, and it lives in
+# silent/s3_shared_temp_table.sql: two unrelated procedures writing the same temp table
+# name. That case must produce ZERO cross-procedure edges, and it is where this
+# construct is actually tested.
+
+package: adversarial/band1/b1_06_temp_tables.sql
+source_sha256: 20732d012e4df17c73f38f35b65efc8daddd07f2c44c38d83ee5d2dac7b6e11b
+labelled_by: claude+abhay (observation-anchored)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- leg 1: stg_orders -> gtt_stage ------------------------------------------------
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: GTT_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B1_TEMP_TABLES, line: 23}
+    evidence: adjudicated
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: B1_TEMP_TABLES, line: 24}
+    evidence: observed
+    note: TRUNC(order_date, 'MM').
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: B1_TEMP_TABLES, line: 25}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: B1_TEMP_TABLES, line: 25}
+    evidence: observed
+
+  # --- leg 2: gtt_stage -> fct_revenue -----------------------------------------------
+
+  - source: {kind: column, name: GTT_STAGE.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B1_TEMP_TABLES, line: 29}
+    evidence: adjudicated
+
+  - source: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B1_TEMP_TABLES, line: 30}
+    evidence: observed
+
+  - source: {kind: column, name: GTT_STAGE.AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: B1_TEMP_TABLES, line: 31}
+    evidence: observed
+    note: SUM(amount) over a GROUP BY. AGGREGATED.
+
+boundaries: []
