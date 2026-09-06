@@ -211,11 +211,36 @@ from an unconditional one, and a regulator will ask precisely that.
 
 ## T2.5 — Temp tables as first-class relations
 
-- [ ] **T2.5a** Model temp and global temp tables as relations scoped by (procedure, session)
-- [ ] **T2.5b** Chain through them: `stg_orders -> gtt_stage -> fct_revenue` (`b1_06`)
+- [x] **T2.5a** Temporary-ness captured from the data dictionary, not inferred from names
+- [x] **T2.5b** Chain through them: `stg_orders -> gtt_stage -> fct_revenue` (`b1_06`)
+- [x] **T2.5c** Fusion hazards detected and declared — `src/lineage/analysis/scratch.py`
 
 **Done when:** `b1_06` produces the full chain rather than two disconnected pipelines,
 **and `s3_shared_temp_table` produces ZERO cross-procedure edges.**
+
+**Status: CLOSED.** `tests/test_scratch.py`, 7 tests. 158 green overall.
+
+**Zero cross-procedure edges**, asserted in both directions: writer A's customers cannot
+reach writer B's revenue fact, and writer B's orders cannot reach the customer dimension.
+Every edge is derived from a single statement and carries the unit that produced it, so
+fusion cannot occur at the edge level at all.
+
+**Two findings:**
+
+1. **`tmp_recent` is a PERMANENT table in this corpus, despite the name.** Only
+   `gtt_stage` is genuinely temporary. Temporary-ness is now read from
+   `ALL_TABLES.TEMPORARY` rather than inferred from a prefix — treating a naming
+   convention as a semantic fact is exactly how a scratch table gets mis-modelled. The
+   two cases need opposite treatment: a temporary table's data is session-private, so a
+   path composed across units is *invented* and can be refused; a permanent one really is
+   shared, and whether data flows between two writers is **not statically decidable**, so
+   the honest output is a declared hazard rather than a confident join or a silent
+   omission.
+
+2. **The hazard is at path composition, not at edge emission.** Nothing composes paths in
+   phase 0, so nothing is fused today. The hazard appears the moment anything joins
+   `A: stg_customer -> tmp_recent` to `B: tmp_recent -> fct_revenue`. Detection is cheap
+   now, so the constraint is recorded *before* the code that would violate it exists.
 
 **This is a silent failure with its own test.** Forty procedures writing `tmp_recent` and
 keying on the name fuses forty unrelated lineages, inventing edges that never existed. An

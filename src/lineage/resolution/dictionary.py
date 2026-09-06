@@ -99,6 +99,17 @@ class Dictionary(BaseModel):
         default_factory=dict, description="OWNER.TABLE -> ordered column names"
     )
     view_text: dict[str, str] = Field(default_factory=dict)
+    temporary: dict[str, bool] = Field(
+        default_factory=dict,
+        description=(
+            "OWNER.TABLE -> is this a global temporary table. A genuinely temporary "
+            "relation holds session-private data, so a lineage path composed through it "
+            "across two different procedures is invented rather than observed. A "
+            "permanent table used as scratch looks identical in the code and is a "
+            "different problem - it really is shared, and whether data flows between "
+            "two writers is not statically decidable."
+        ),
+    )
 
     # ---- persistence -----------------------------------------------------------
 
@@ -198,6 +209,18 @@ class Dictionary(BaseModel):
     def is_view(self, name: str, schema: str | None = None) -> bool:
         return self.resolve(name, schema).object_type == "VIEW"
 
+    def is_temporary(self, name: str, schema: str | None = None) -> bool:
+        """True for a global temporary table — session-private data.
+
+        Deliberately answered from the data dictionary, not from the name. `tmp_recent`
+        in this corpus is a permanent table despite its prefix, and treating a name
+        convention as a semantic fact is how a scratch table gets silently mis-modelled.
+        """
+        resolved = self.resolve(name, schema)
+        if resolved.qualified is None:
+            return False
+        return self.temporary.get(resolved.qualified, False)
+
 
 def capture(connection: Any, schema: str, captured_at: str) -> Dictionary:
     """Read the dictionary out of a live Oracle connection.
@@ -257,6 +280,16 @@ def capture(connection: Any, schema: str, captured_at: str) -> Dictionary:
         for view_owner, view_name, text in cursor.fetchall():
             view_text[f"{view_owner}.{view_name}"] = str(text) if text is not None else ""
 
+        # Temporary-ness is a property of the object, not of its name.
+        cursor.execute(
+            "SELECT owner, table_name, temporary FROM all_tables WHERE owner = :owner",
+            owner=owner,
+        )
+        temporary = {
+            f"{table_owner}.{table_name}": flag == "Y"
+            for table_owner, table_name, flag in cursor.fetchall()
+        }
+
     return Dictionary(
         captured_at=captured_at,
         default_schema=owner,
@@ -264,4 +297,5 @@ def capture(connection: Any, schema: str, captured_at: str) -> Dictionary:
         synonyms=synonyms,
         columns=columns,
         view_text=view_text,
+        temporary=temporary,
     )

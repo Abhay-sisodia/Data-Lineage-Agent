@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-09-05T18:43:55+00:00",
+  "captured_at": "2026-09-06T10:19:10+00:00",
   "columns": {
     "LINEAGE.DIM_CUSTOMER": [
       "CUST_ID",
@@ -371,6 +371,20 @@
   },
   "synonyms": {
     "LINEAGE.CUSTOMER_TARGET": "LINEAGE.DW_DIM_CUSTOMER_V2"
+  },
+  "temporary": {
+    "LINEAGE.DIM_CUSTOMER": false,
+    "LINEAGE.DW_AUDIT_LOG": false,
+    "LINEAGE.DW_DIM_CUSTOMER_V2": false,
+    "LINEAGE.ETL_CONFIG": false,
+    "LINEAGE.FCT_REVENUE": false,
+    "LINEAGE.FCT_REVENUE_PART": false,
+    "LINEAGE.FCT_REVENUE_STAGE": false,
+    "LINEAGE.GTT_STAGE": true,
+    "LINEAGE.REF_POLICY": false,
+    "LINEAGE.STG_CUSTOMER": false,
+    "LINEAGE.STG_ORDERS": false,
+    "LINEAGE.TMP_RECENT": false
   },
   "view_text": {
     "LINEAGE.V_CUSTOMER_EDITABLE": "SELECT d.cust_id,\n       d.region,\n       d.is_active,\n       s.email AS source_email\n  FROM dim_customer d\n  JOIN stg_customer s ON s.cust_id = d.cust_id",

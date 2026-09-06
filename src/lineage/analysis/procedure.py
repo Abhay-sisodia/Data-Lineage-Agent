@@ -18,6 +18,7 @@ from lineage.analysis import band0
 from lineage.analysis.band0 import AnalysisResult, Refusal
 from lineage.analysis.cfg import Cfg, build_all
 from lineage.analysis.defuse import analyse_unit, collect_scopes
+from lineage.analysis.scratch import find_fusion_hazards
 from lineage.config import AnalysisConfig
 from lineage.ir.model import IREdge
 from lineage.parsing.plsql import parse_program
@@ -72,6 +73,15 @@ def analyse_source(
     result.edges = sorted(
         merged, key=lambda e: (e.band, e.flow.value, str(e.source), str(e.target))
     )
+
+    # Declared, not silently resolved. Nothing composes paths yet, so nothing is fused -
+    # but the hazard is recorded now so the constraint exists before the code that would
+    # violate it.
+    for hazard in find_fusion_hazards(result.edges, dictionary):
+        entry = f"fusion hazard: {hazard.describe()}"
+        if entry not in result.boundaries:
+            result.boundaries.append(entry)
+
     return result
 
 
