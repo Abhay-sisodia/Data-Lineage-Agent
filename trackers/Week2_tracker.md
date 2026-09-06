@@ -294,19 +294,43 @@ harness report "NOTHING CHANGED" until both calls ran in one session.
 
 ## T2.7 — Interprocedural analysis
 
-- [ ] **T2.7a** Summarise each callee once (in / out / writes / reads)
-- [ ] **T2.7b** Inline the summary at every call site; cache it
-- [ ] **T2.7c** Depth cap → boundary node, counted, never a guessed edge
-- [ ] **T2.7d** Package-level state carried across separate calls
-- [ ] **T2.7e** Scalar UDFs inside a `SELECT` (`b1_08` `fn_net_amount`)
+- [x] **T2.7a** Summarise each callee once — `src/lineage/analysis/interproc.py`
+- [x] **T2.7b** Inline the summary at every call site; cached per unit
+- [x] **T2.7c** Depth cap → declared boundary, never a guessed edge
+- [x] **T2.7d** Package-level state carried across separate calls
+- [x] **T2.7e** Scalar UDFs inside a `SELECT` (`b1_08` `fn_net_amount`)
+- [x] **T2.7f** Unknown callees declared rather than guessed from their arguments
 
 **Done when:** `b1_08`'s three-deep call chain resolves; beyond the cap a boundary node is
 emitted and counted; a recursive package terminates; **and `b1_07` produces the full
 `ref_policy.window_days -> g_window_days -> g_cutoff -> tmp_recent` chain spanning two
 procedure calls.**
 
-**T2.7d is the nastiest legitimate case in the band.** State survives across calls with no
-parameter passing and nothing in either statement connecting them.
+**Status: CLOSED.** `tests/test_interproc.py`, 9 tests. 186 green overall.
+
+**The wrong answer this removes was a plausible one.** `fn_net_amount(order_id)` contains
+the column `order_id`, so a naive walk emits `order_id -> net_amount`. It type-checks, it
+reads sensibly, and it is false: an order id selects *which row* the callee reads, it does
+not determine a net amount. The argument is filter influence; the value comes from the
+columns the callee's return expression depends on.
+
+**Two combination rules, and confusing them gives a wrong answer.** Along **one path** the
+strongest transform wins. Across **different paths** to the same column the *weakest* wins:
+`gross_amount` reaches the result unconditionally through `v_gross` *and* conditionally
+through the rate's `CASE`, so it is `derived`. Reporting it `conditional` would claim it
+only sometimes contributes. `discount_amt` has only the conditional path and stays
+conditional — it genuinely does not contribute when `gross_amount = 0`.
+
+**Unknown callees are declared, not guessed.** Found by a failing test: a call to something
+outside the analysed source was still having its arguments treated as value sources. In a
+real estate most callees start outside the file, so this is the common case rather than the
+exotic one. SQL built-ins are unaffected — `TRUNC(order_date)` genuinely derives from its
+argument, and sqlglot distinguishes them by parsing what it knows into typed nodes.
+
+**Two label corrections in `b1_08`,** both flagged because they raise agreement:
+`discount_amt -> net_amount` was `derived` and is `conditional` (the callee's `CASE` was
+never traced); and the function-internal variable hops were missing, though `b1_01` labels
+exactly that kind of edge.
 
 ---
 

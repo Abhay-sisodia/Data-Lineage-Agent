@@ -294,6 +294,7 @@ def _analyse_insert(
     band: int,
     unresolved: list[str],
     origin: Origin,
+    summaries: dict[str, Any],
 ) -> tuple[list[PredictedEdge], str | None]:
     target_name, target_columns = _target_of(statement, dictionary)
 
@@ -321,6 +322,25 @@ def _analyse_insert(
     edges: list[PredictedEdge] = []
     for target_column, projection in zip(target_columns, projections, strict=True):
         own = _transform_of(projection)
+
+        # A scalar UDF looks like a column expression and contains a query. Its ARGUMENTS
+        # select which row the callee reads; they do not supply the value. Treating them
+        # as value sources produces `order_id -> net_amount`, which type-checks, reads
+        # sensibly, and is false.
+        call_edges, consumed = _call_site_edges(
+            projection,
+            target_name,
+            target_column,
+            band,
+            origin,
+            summaries,
+            dictionary,
+            unresolved,
+        )
+        if consumed:
+            edges.extend(call_edges)
+            continue
+
         for column in projection.find_all(exp.Column):
             for source_table, source_column, traced in _trace(
                 column, scope, dictionary, unresolved
@@ -339,6 +359,93 @@ def _analyse_insert(
 
     edges.extend(_filter_edges(select, scope, target_name, band, dictionary, unresolved, origin))
     return edges, None
+
+
+def _call_site_edges(
+    projection: Any,
+    target_name: str,
+    target_column: str,
+    band: int,
+    origin: Origin,
+    summaries: dict[str, Any],
+    dictionary: Dictionary,
+    unresolved: list[str],
+) -> tuple[list[PredictedEdge], bool]:
+    """Inline a callee's summary at the call site.
+
+    Returns (edges, consumed). `consumed` is True when this projection contained a
+    user-defined call and has been handled, so the caller must not also treat its
+    argument columns as value sources.
+
+    SQL built-ins are left alone. `TRUNC(order_date)` genuinely derives its value from
+    its argument; a user function does not, and sqlglot distinguishes them by parsing
+    what it knows into typed nodes and everything else into `Anonymous`.
+    """
+    # Unknown user-defined calls: cannot be summarised, so no value edge may be claimed.
+    # In a real estate most callees start outside the file being analysed, which makes
+    # this the common case rather than the exotic one.
+    unknown = [
+        name
+        for node in projection.find_all(exp.Anonymous)
+        if (name := (getattr(node, "name", "") or "").upper()) and name not in summaries
+    ]
+
+    called = [
+        summaries[name]
+        for node in projection.find_all(exp.Anonymous, exp.Func)
+        if (name := (getattr(node, "name", "") or "").upper()) in summaries
+    ]
+
+    if unknown and not called:
+        for name in dict.fromkeys(unknown):
+            unresolved.append(
+                f"call to {name} could not be summarised - its source is not in this "
+                f"analysis, so the value it supplies is out of coverage rather than "
+                f"derived from the arguments at the call site"
+            )
+        return [], True
+
+    if not called:
+        return [], False
+
+    edges: list[PredictedEdge] = []
+    for summary in called:
+        for item in summary.consolidated():
+            source_table, _, source_column = item.column.partition(".")
+            edges.append(
+                _edge(
+                    source_table,
+                    source_column,
+                    target_name,
+                    target_column,
+                    item.transform,
+                    1,  # the path goes through a call, so it is band 1
+                    origin,
+                )
+            )
+        # The argument selects which row the callee reads: filter influence, on the
+        # relation the callee reads rather than on the statement's target.
+        for column in projection.find_all(exp.Column):
+            for relation in sorted(summary.reads):
+                try:
+                    known = dictionary.columns_of(relation)
+                except UnknownObjectError:
+                    continue
+                if column.name.upper() in known:
+                    edges.append(
+                        _edge(
+                            relation,
+                            column.name.upper(),
+                            relation,
+                            "",
+                            Transform.IDENTITY,
+                            1,
+                            origin,
+                            flow=Flow.FILTER,
+                        )
+                    )
+
+    return edges, True
 
 
 def _filter_edges(
@@ -392,6 +499,7 @@ def _analyse_merge(
     band: int,
     unresolved: list[str],
     origin: Origin,
+    summaries: dict[str, Any],
 ) -> tuple[list[PredictedEdge], str | None]:
     """MERGE has multiple targets and conditional arms inside one statement.
 
@@ -474,9 +582,11 @@ def analyse_source(
     dictionary: Dictionary,
     config: AnalysisConfig | None = None,
     band: int = 0,
+    summaries: dict[str, Any] | None = None,
 ) -> AnalysisResult:
     """Analyse one PL/SQL source unit for band-0 lineage."""
     settings = config or AnalysisConfig()
+    known_calls = summaries or {}
     result = AnalysisResult()
 
     program = parse_program(source)
@@ -486,7 +596,7 @@ def analyse_source(
         result.statements_seen += 1
         origin = Origin(unit=_enclosing_unit(program, statement), line=statement.line)
         edges, refusal, unresolved = _analyse_statement(
-            statement, dictionary, settings, band, origin
+            statement, dictionary, settings, band, origin, known_calls
         )
         # Declared, counted, and never silent. An identifier the analyser could not
         # resolve is a stated boundary - which is what makes the coverage number
@@ -534,6 +644,7 @@ def _analyse_statement(
     config: AnalysisConfig,
     band: int,
     origin: Origin,
+    summaries: dict[str, Any],
 ) -> tuple[list[PredictedEdge], str | None, list[str]]:
     unresolved: list[str] = []
     try:
@@ -555,9 +666,9 @@ def _analyse_statement(
         return [], f"could not qualify names: {str(exc).splitlines()[0]}", unresolved
 
     if isinstance(parsed, exp.Insert):
-        edges, refusal = _analyse_insert(parsed, dictionary, band, unresolved, origin)
+        edges, refusal = _analyse_insert(parsed, dictionary, band, unresolved, origin, summaries)
     elif isinstance(parsed, exp.Merge):
-        edges, refusal = _analyse_merge(parsed, dictionary, band, unresolved, origin)
+        edges, refusal = _analyse_merge(parsed, dictionary, band, unresolved, origin, summaries)
     else:
         return [], f"unsupported statement type {type(parsed).__name__}", unresolved
 

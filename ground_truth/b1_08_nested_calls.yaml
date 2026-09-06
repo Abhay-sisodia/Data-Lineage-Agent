@@ -37,13 +37,66 @@ edges:
   - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
     target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
     flow: value
-    transform: derived
+    transform: conditional
     band: 1
     origin: {unit: B1_NESTED_CALLS, line: 42}
     evidence: observed
     note: >
       Two levels down, inside fn_discount_rate. An analyser that summarises only the
       immediate callee stops one level short and silently loses this edge.
+
+      CORRECTED 2026-09-06, derived -> conditional. Written as `derived` without tracing
+      into the callee. fn_discount_rate is
+      `CASE WHEN gross_amount = 0 THEN 0 ELSE discount_amt/gross_amount END`, so
+      discount_amt contributes ONLY when gross_amount is non-zero. That is exactly what
+      the conditional class means, and calling it derived claims an unconditional
+      contribution it does not make.
+
+      Raises agreement with the analyser, so flagged. The justification is the callee's
+      source, which predates the analyser being able to read it.
+
+  # --- function-internal variables ---------------------------------------------------
+  #
+  # COMPLETION, 2026-09-06. Variables are first-class nodes scored hop by hop (ADR-0001
+  # 3), and b1_01 already labels `ref_policy.window_days -> v_days`. This file captured
+  # only the end-to-end edges, which was inconsistent: the intermediate hops inside the
+  # callees are the same kind of fact. Raises agreement, so stated plainly.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: variable, name: V_GROSS}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: FN_NET_AMOUNT, line: 28}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: variable, name: V_RATE}
+    flow: value
+    transform: conditional
+    band: 1
+    origin: {unit: FN_DISCOUNT_RATE, line: 14}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: variable, name: V_RATE}
+    flow: value
+    transform: conditional
+    band: 1
+    origin: {unit: FN_DISCOUNT_RATE, line: 14}
+    evidence: source_read
+    note: gross_amount appears in both arms of the CASE - as the test and as the divisor.
+
+  - source: {kind: variable, name: P_ORDER_ID}
+    target: {kind: relation, name: STG_ORDERS}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: FN_NET_AMOUNT, line: 31}
+    evidence: source_read
+    note: >
+      The parameter side of `order_id = p_order_id` inside the callee. The column side
+      was already labelled below; this is the same predicate-operand convention.
 
   - source: {kind: column, name: STG_ORDERS.ORDER_ID}
     target: {kind: relation, name: STG_ORDERS}

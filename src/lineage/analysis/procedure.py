@@ -24,6 +24,7 @@ from lineage.analysis.defuse import (
     collect_scopes,
     definitions_and_uses,
 )
+from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
 from lineage.analysis.scratch import find_fusion_hazards
 from lineage.config import AnalysisConfig
@@ -42,11 +43,22 @@ def analyse_source(
     """Analyse one PL/SQL source unit for band-0 and band-1 lineage."""
     settings = config or AnalysisConfig()
 
-    result = band0.analyse_source(source, dictionary, settings)
-
     program = parse_program(source)
+
+    # Callees are summarised before the call sites are analysed, so a scalar UDF inside a
+    # SELECT contributes the columns its return value depends on rather than the columns
+    # in its arguments.
+    summaries = build_summaries(program, dictionary, settings.budgets.interprocedural_depth_cap)
+
+    result = band0.analyse_source(source, dictionary, settings, summaries=summaries)
+
     scopes = collect_scopes(program)
     graphs = build_all(program)
+
+    for summary in summaries.values():
+        boundary = summary.boundary()
+        if boundary and boundary not in result.boundaries:
+            result.boundaries.append(boundary)
 
     for unit, cfg in graphs.items():
         scope = scopes.get(unit)
