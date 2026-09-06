@@ -93,4 +93,16 @@ edges:
     evidence: source_read
     note: ORDER BY total DESC decides which row gets which rank.
 
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_WINDOW_FUNCTIONS, line: 21}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-06. `LAG(total) OVER (PARTITION BY product_id ...)`. This key
+      labelled the partition and order columns of ROW_NUMBER but missed LAG's own
+      partition - an omission, not a different rule. Raises agreement, so stated plainly.
+
 boundaries: []

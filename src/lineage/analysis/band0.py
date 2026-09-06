@@ -178,6 +178,37 @@ def _combine(first: Transform, second: Transform) -> Transform:
     return first if TRANSFORM_RANK[first] >= TRANSFORM_RANK[second] else second
 
 
+def _influence_columns(expression: Any) -> list[Any]:
+    """Columns that decide WHICH row, rather than supplying the value.
+
+    Two shapes, and both were previously counted as value sources:
+
+    * a nested `WHERE` — a correlated scalar subquery's predicate selects the row it
+      reads; it does not supply what comes back;
+    * a window's `PARTITION BY` / `ORDER BY` — these decide which row gets which rank.
+      `ROW_NUMBER() OVER (ORDER BY total DESC)` does not take its value from `total`.
+
+    Counting either as a value source produces an edge that type-checks, reads sensibly
+    and is false - the same category error as `order_id -> net_amount`.
+    """
+    found: list[Any] = []
+    for where in expression.find_all(exp.Where):
+        found.extend(where.find_all(exp.Column))
+    for window in expression.find_all(exp.Window):
+        for part in window.args.get("partition_by") or []:
+            found.extend(part.find_all(exp.Column))
+        order = window.args.get("order")
+        if order is not None:
+            found.extend(order.find_all(exp.Column))
+    return found
+
+
+def _value_columns(expression: Any) -> list[Any]:
+    """Columns that genuinely supply the value of an expression."""
+    excluded = {id(column) for column in _influence_columns(expression)}
+    return [c for c in expression.find_all(exp.Column) if id(c) not in excluded]
+
+
 def _projection_named(scope: Scope, name: str) -> Any:
     projections: list[Any] = getattr(scope.expression, "selects", []) or []
     for projection in projections:
@@ -210,6 +241,15 @@ def _trace(
 
     source = scope.sources.get(column.table) if column.table else None
 
+    if source is None and column.table:
+        # A scalar subquery in the select list brings its own FROM. `MAX(s.email)` inside
+        # `(SELECT MAX(s.email) FROM stg_customer s WHERE ...)` resolves against that
+        # subquery's scope, not the outer one - and looking only at the outer scope loses
+        # the edge entirely rather than getting it wrong.
+        for nested in getattr(scope, "subquery_scopes", []) or []:
+            if column.table in nested.sources:
+                return _trace(column, nested, dictionary, unresolved, depth + 1)
+
     if source is None and len(scope.sources) == 1:
         source = next(iter(scope.sources.values()))
 
@@ -229,6 +269,13 @@ def _trace(
         return [(table, name, Transform.IDENTITY)]
 
     if isinstance(source, Scope):
+        # A set operation has no select list of its own - each arm has one, and SQL
+        # binds them BY POSITION (silent failure s5). Every arm feeds the same output
+        # column, so missing one is a silent under-report of a whole feed.
+        arms = getattr(source, "union_scopes", None)
+        if arms:
+            return _trace_through_set_operation(column, arms, dictionary, unresolved, depth)
+
         projection = _projection_named(source, column.name)
         if projection is None:
             unresolved.append(f"{column.name.upper()} (no matching projection in subquery)")
@@ -242,6 +289,65 @@ def _trace(
 
     unresolved.append(f"{column.name.upper()} (could not resolve which relation it belongs to)")
     return []
+
+
+def _flatten_arms(arms: list[Any]) -> list[Any]:
+    """Expand nested set operations into a flat list of leaf arms."""
+    flat: list[Any] = []
+    for arm in arms:
+        nested = getattr(arm, "union_scopes", None)
+        if nested:
+            flat.extend(_flatten_arms(nested))
+        else:
+            flat.append(arm)
+    return flat
+
+
+def _trace_through_set_operation(
+    column: exp.Column,
+    arms: list[Any],
+    dictionary: Dictionary,
+    unresolved: list[str],
+    depth: int,
+) -> list[tuple[str, str, Transform]]:
+    """Follow a column into every arm of a UNION / INTERSECT / MINUS.
+
+    Binding is POSITIONAL, not by name. The first arm's select list fixes the output
+    column names; every later arm supplies the same positions whatever it calls them.
+    Matching on name here would wire the wrong sources together and, worse, would look
+    entirely reasonable - which is the whole point of silent failure s5.
+    """
+    # `A UNION B UNION C` parses as Union(Union(A, B), C), so the first "arm" is itself
+    # a set operation with no select list of its own. Flatten before binding by position,
+    # or only the outermost arm resolves and the rest of the feeds vanish silently.
+    flattened = _flatten_arms(arms)
+
+    first = getattr(flattened[0].expression, "selects", []) or [] if flattened else []
+    name = column.name.upper()
+    position = next(
+        (i for i, item in enumerate(first) if (item.alias_or_name or "").upper() == name),
+        None,
+    )
+    if position is None:
+        unresolved.append(f"{name} (no matching position in the set operation)")
+        return []
+
+    traced: list[tuple[str, str, Transform]] = []
+    for arm in flattened:
+        projections = getattr(arm.expression, "selects", []) or []
+        if position >= len(projections):
+            unresolved.append(
+                f"{name} (set operation arm has fewer columns than position {position + 1})"
+            )
+            continue
+        projection = projections[position]
+        own = _transform_of(projection)
+        for inner in _value_columns(projection):
+            for table, source_column, transform in _trace(
+                inner, arm, dictionary, unresolved, depth + 1
+            ):
+                traced.append((table, source_column, _combine(own, transform)))
+    return traced
 
 
 def _edge(
@@ -341,7 +447,7 @@ def _analyse_insert(
             edges.extend(call_edges)
             continue
 
-        for column in projection.find_all(exp.Column):
+        for column in _value_columns(projection):
             for source_table, source_column, traced in _trace(
                 column, scope, dictionary, unresolved
             ):
@@ -354,6 +460,23 @@ def _analyse_insert(
                         _combine(own, traced),
                         band,
                         origin,
+                    )
+                )
+
+        # Partition/order columns and correlated predicates decide which row, so they
+        # are filter influence on the written relation rather than value sources.
+        for column in _influence_columns(projection):
+            for source_table, source_column, _ in _trace(column, scope, dictionary, unresolved):
+                edges.append(
+                    _edge(
+                        source_table,
+                        source_column,
+                        target_name,
+                        "",
+                        Transform.IDENTITY,
+                        band,
+                        origin,
+                        flow=Flow.FILTER,
                     )
                 )
 

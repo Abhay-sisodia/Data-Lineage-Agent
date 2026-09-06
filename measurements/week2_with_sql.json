@@ -1,19 +1,19 @@
 {
-  "boundaries_declared": 11,
+  "boundaries_declared": 6,
   "cells": {
     "0/filter": {
-      "false_negatives": 5,
+      "false_negatives": 3,
       "false_positives": 0,
       "precision": 1.0,
-      "recall": 0.8387096774193549,
-      "true_positives": 26
+      "recall": 0.9090909090909091,
+      "true_positives": 30
     },
     "0/value": {
-      "false_negatives": 8,
-      "false_positives": 5,
-      "precision": 0.9230769230769231,
-      "recall": 0.8823529411764706,
-      "true_positives": 60
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positives": 68
     },
     "1/filter": {
       "false_negatives": 2,
@@ -47,7 +47,7 @@
   "evidence_split": {
     "adjudicated": 15,
     "observed": 55,
-    "source_read": 77
+    "source_read": 79
   },
   "gate": {
     "band1_value_precision": 0.9565217391304348,
@@ -84,12 +84,12 @@
     }
   ],
   "mechanism_distribution": {
-    "AST": 110,
+    "AST": 117,
     "DEF-USE": 23
   },
   "parse_coverage": 0.9473684210526315,
   "provenance": {
-    "commit": "6fab950",
+    "commit": "2571d1f",
     "config_fingerprint": "eed291d00fb6a073d18f09989752d29d69e737c95e6f1b7911e25cdcb3aaa497",
     "corpus_fingerprint": "025ec055a107a318774c73cc5f8444688f4f58a2a9f3d45a07296bcdd336b1c1",
     "declared_limits": {
@@ -103,9 +103,9 @@
     },
     "dictionary_fingerprint": "46393f45f6e144b89228aabd76b3a1792e313e5ea35cc1e30f1f380bce755368",
     "engine_version": "0.0.0",
-    "measured_at": "2026-09-06T12:02:29+00:00"
+    "measured_at": "2026-09-06T12:12:28+00:00"
   },
   "tier_distribution": {
-    "A": 133
+    "A": 140
   }
 }
