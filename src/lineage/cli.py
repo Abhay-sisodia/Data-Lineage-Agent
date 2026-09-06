@@ -140,5 +140,36 @@ def score(
     typer.echo(render(score_edges(ground_truth, predicted, declared)))
 
 
+@app.command()
+def measure(
+    corpus: Annotated[Path, typer.Option("--corpus", help="Corpus root.")] = Path("corpus"),
+    ground_truth: Annotated[
+        Path, typer.Option("--ground-truth", help="Directory of label sets.")
+    ] = Path("ground_truth"),
+    dictionary: Annotated[
+        Path, typer.Option("--dictionary", help="Captured data dictionary.")
+    ] = Path("corpus/dictionary.json"),
+    output: Annotated[
+        Path | None, typer.Option("--output", help="Write the measurement as JSON.")
+    ] = None,
+) -> None:
+    """Score every labelled package and record the number with its provenance.
+
+    Phase 0's output is a number, not software — and a number without the inputs that
+    produced it is not defensible six months later.
+    """
+    from lineage.harness.measure import as_json, render, run_measurement
+    from lineage.resolution.dictionary import Dictionary
+
+    measurement = run_measurement(
+        corpus, ground_truth, Dictionary.load(dictionary), AnalysisConfig.load()
+    )
+    typer.echo(render(measurement))
+
+    if output is not None:
+        output.write_text(as_json(measurement), encoding="utf-8")
+        typer.echo(f"wrote {output}")
+
+
 if __name__ == "__main__":
     app()

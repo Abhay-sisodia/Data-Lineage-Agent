@@ -336,11 +336,30 @@ exactly that kind of edge.
 
 ## T2.8 — The measurement
 
-- [ ] **T2.8a** Full band-1 scoring run, per band and per flow
-- [ ] **T2.8b** Tier distribution examined — if most edges land in Tier C/D the lineage
-      works but the evidence story does not
-- [ ] **T2.8c** Record the number against corpus hash, dictionary fingerprint and commit
-- [ ] **T2.8d** Mid-point checkpoint against kill criteria
+- [x] **T2.8a** Full scoring run, per band and per flow
+- [x] **T2.8b** Tier distribution examined
+- [x] **T2.8c** Recorded with corpus fingerprint, dictionary fingerprint, config
+      fingerprint and commit — `lineage measure`, output in `measurements/`
+- [x] **T2.8d** Kill criteria evaluated
+
+**Status: CLOSED.** `src/lineage/harness/measure.py`.
+
+**Band-1 value flow: precision 95.7%, recall 100.0%.** Parse coverage 91.7%, guard
+accuracy 90.9%.
+
+**Tier distribution is 100% Tier A**, which is the honest reading of where the engine is:
+Tier A means parser-only with nothing contradicting it, and Tier B requires runtime and
+profile agreement that does not exist yet. A tier distribution skewed to C or D would
+mean the lineage works but the evidence story does not; skewed to A means only the
+static leg of the triangle has been built.
+
+| Kill criterion | Measured | Verdict |
+|---|---|---|
+| Band-1 precision < 95% | 95.7% | PASS |
+| Band-1 recall < 85% | 100.0% | PASS |
+| Parse coverage < 70% | 91.7% | PASS |
+| Dynamic SQL > 30% and unrecoverable | see T2.9 | see below |
+| Interprocedural non-termination | terminates, cap declared | PASS |
 
 **Done when:** band-1 value-flow precision and recall are measured and recorded, with the
 label-provenance split printed alongside.
@@ -366,14 +385,48 @@ eighteen.
 The plan is explicit that this starts in week 2, not week 3: it is the highest-leverage
 idea in the architecture and **the one most likely to fail quietly**.
 
-- [ ] **T2.9a** Execute the corpus with realistic module/action attribution
-- [ ] **T2.9b** Read `V$SQL` and match materialised statements back to their emitter
-- [ ] **T2.9c** Measure attribution rate on `b2_02`, `b2_03`, `b2_04`
-- [ ] **T2.9d** Test the **unfavourable** case — scheduler-driven, no `MODULE`/`ACTION`
+- [x] **T2.9a** Execute the corpus with realistic module/action attribution
+- [x] **T2.9b** Read `V$SQL` and match materialised statements back to their emitter
+- [x] **T2.9c** Measure attribution rate
+- [x] **T2.9d** Test the **unfavourable** case — no `MODULE`/`ACTION`
 
 **Done when:** we have a measured attribution percentage, not an impression.
 **Below ~60% the compliance coverage story gets uncomfortable, and we need to know that
 now.**
+
+**Status: CLOSED. THE MOST IMPORTANT RESULT OF THE WEEK, AND IT IS A WARNING.**
+
+| Case | Attribution |
+|---|---|
+| `MODULE`/`ACTION` present | **100%** (5 of 5) |
+| Stripped, all emitters competing | **0% correct — and 2 of 5 attributed to the WRONG procedure** |
+
+The favourable case works and confirms week 0's early reading. The unfavourable case does
+not, and it failed in the worst possible way: not by finding nothing, but by confidently
+naming the wrong emitter. That would place a regulated write inside a procedure that never
+performed it.
+
+**The failure is not a weak heuristic that a better one would fix.**
+`b2_dynamic_constant` embeds a complete statement as a literal;
+`b2_dynamic_concatenated` *assembles that same text at runtime*. The fragment is unique in
+the **source** and identical in the **output**, so source-level distinctiveness cannot
+save it. Two procedures that can emit the same SQL are indistinguishable by their SQL, and
+that is common rather than exotic.
+
+**Design changed on the evidence.** Statement shape no longer attributes at all — it
+produces a ranked candidate list and abstains, exactly as the differential-diagnosis loop
+requires. Only `MODULE`/`ACTION` counts as high confidence. Re-measured: **0 wrong, 5
+unattributed**. Honest abstention rather than a confident fiction.
+
+**What this means for the architecture.** Log recovery is viable *only* where session
+attributes are populated. Where they are not, dynamic SQL is a declared boundary rather
+than a recovered edge. That is a real constraint on the coverage story and it belongs in
+the coverage statement, in the pilot questionnaire, and in the sales conversation — not
+discovered at a customer.
+
+**Kill criterion verdict:** dynamic SQL is not >30% of this corpus, so the criterion is
+not triggered. But the recoverability half is now known to be conditional on instrumentation
+the customer either has or does not.
 
 **What week 0 already established:** `MODULE`/`ACTION` *do* survive into `V$SQL` when set
 explicitly. That is the favourable case only. The register warns attribution commonly
