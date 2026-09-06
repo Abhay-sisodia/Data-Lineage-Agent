@@ -83,38 +83,24 @@ edges:
     evidence: source_read
     note: The other operand of the predicate.
 
-  # --- trg_customer_default: BEFORE INSERT ON dim_customer ----------------------------
+  # --- trg_customer_default is NOT labelled here, and that is the correction -----------
   #
-  # Never fires in this package - nothing inserts into dim_customer here - but the edge is
-  # declared in this file and is provably in the code. UNEXERCISED, not absent, and that
-  # distinction is exactly what T3.5 exists to represent.
-
-  - source: {kind: column, name: DIM_CUSTOMER.REGION}
-    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
-    flow: value
-    transform: conditional
-    band: 2
-    origin: {unit: TRG_CUSTOMER_DEFAULT, line: 30}
-    evidence: source_read
-    unexercised: true
-    note: >
-      CASE WHEN :NEW.region = 'EU' THEN 1 ELSE 0. Both correlation names are dim_customer's
-      own columns, so this is a column-to-column edge within one table, decided before the
-      row lands. It is the ONLY place this edge exists - b0_02's MERGE writes is_active
-      from a literal.
-
-  - source: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
-    target: {kind: relation, name: DIM_CUSTOMER}
-    flow: filter
-    transform: identity
-    band: 2
-    origin: {unit: TRG_CUSTOMER_DEFAULT, line: 29}
-    evidence: source_read
-    unexercised: true
-    note: >
-      `IF :NEW.is_active IS NULL` guards whether the default applies at all. A supplied
-      value survives untouched, so the trigger's edge is conditional on the column's own
-      incoming state.
+  # REMOVED 2026-09-07. It raises this package's recall by dropping two misses, so it is
+  # stated plainly.
+  #
+  # This key originally carried trg_customer_default's two edges because the trigger is
+  # DECLARED in this file. That is exactly the mistake the whole task exists to correct: a
+  # trigger belongs to its TABLE, not to whichever source file happens to hold its text.
+  # trg_customer_default fires BEFORE INSERT ON dim_customer, and nothing in b2_triggers
+  # inserts into dim_customer, so it never fires here.
+  #
+  # Where it does belong is b0_02, whose MERGE has an insert arm on dim_customer - and
+  # that key has carried the edge, correctly banded and marked unexercised, since week 1.
+  # The duplicate here was the artefact.
+  #
+  # Keeping it would have made this package score well for the wrong reason: an analyser
+  # that read triggers out of the local file rather than the dictionary would match it,
+  # and would then miss the same trigger for every other writer of dim_customer.
 
 forbidden:
   - source: {kind: column, name: STG_CUSTOMER.CUST_ID}

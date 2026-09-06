@@ -41,7 +41,13 @@ def main() -> None:
     print(f"  synonyms    {len(dictionary.synonyms)}")
     print(f"  relations   {len(dictionary.columns)} with columns")
     print(f"  views       {len(dictionary.view_text)}")
+    print(f"  triggers    {len(dictionary.triggers)}")
     print(f"  fingerprint {dictionary.fingerprint()}")
+
+    if dictionary.triggers:
+        print("\ntriggers captured (attached to the TABLE, not to any caller):")
+        for name, trigger in sorted(dictionary.triggers.items()):
+            print(f"  {name}  {trigger.describe()}")
 
     if dictionary.synonyms:
         print("\nsynonym redirects captured (the silent-failure defence):")

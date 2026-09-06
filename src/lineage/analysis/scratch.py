@@ -74,11 +74,22 @@ def _relation_of(edge: IREdge, *, target: bool) -> str | None:
 
 
 def find_fusion_hazards(edges: list[IREdge], dictionary: Dictionary) -> list[FusionHazard]:
-    """Relations whose lineage must not be composed across program units."""
+    """Relations whose lineage must not be composed across program units.
+
+    Triggers are excluded from the writer and reader sets (T3.3). A trigger is not an
+    independent unit competing for a scratch relation - it runs as part of somebody else's
+    write, always, and it is attached to the table rather than to any caller. Counting it
+    made `dim_customer` look like a shared scratch table the moment trigger analysis
+    landed, which is a false hazard, and a coverage statement full of false hazards is one
+    nobody reads.
+    """
+    triggers = {trigger.name.upper() for trigger in dictionary.triggers.values()}
     writers: dict[str, set[str]] = defaultdict(set)
     readers: dict[str, set[str]] = defaultdict(set)
 
     for edge in edges:
+        if edge.origin.unit.upper() in triggers:
+            continue
         # A filter edge names the relation whose rows are selected, not a data write.
         if edge.flow is Flow.VALUE:
             written = _relation_of(edge, target=True)

@@ -167,4 +167,49 @@ edges:
     origin: {unit: B1_EXCEPTION_HANDLERS, line: 24}
     evidence: source_read
 
+  # --- trigger side effects, on the WHEN OTHERS path only -----------------------------
+  #
+  # COMPLETION, 2026-09-07, AND IT RAISES RECALL AND PRECISION - stated for that reason.
+  #
+  # The WHEN OTHERS handler runs `INSERT INTO tmp_recent VALUES (-1, SYSDATE)`, which
+  # fires trg_recent_audit exactly like every other insert into that table. This key was
+  # written believing the handler contributed no edges, because its VALUES list is all
+  # literals - true of the handler's own statement, and wrong about what it CAUSES.
+  #
+  # That is the trigger failure in miniature: the visible statement has no lineage and the
+  # write still happens.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: source_read
+    unexercised: true
+    note: >
+      Fires only on the WHEN OTHERS path, which the seed data does not reach.
+
+      KNOWN MODELLING GAP, recorded rather than fudged: this edge SHOULD carry the
+      handler's guard, because it only occurs when an unexpected error is raised. Trigger
+      edges are inherited at the level of the relation a source writes, not of the
+      statement that writes it, so the caller's guard is lost. Fixing it means inheriting
+      per statement rather than per source, which is a larger change than T3.3.
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: source_read
+    unexercised: true
+
+  # The trigger predicate's other operand, DIM_CUSTOMER.CUST_ID -> DIM_CUSTOMER, is NOT
+  # listed. It shares a match key AND a guard with the line-24 filter edge above and
+  # differs only by band and origin, so amendment 1a collapses the two and the label
+  # validator rejects the duplicate outright. This key under-counts by one edge and says
+  # so - the fifth package to hit the same limit, and the third to need origin rather
+  # than guard to separate two real facts.
+
 boundaries: []

@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-09-06T12:01:45+00:00",
+  "captured_at": "2026-09-06T18:52:28+00:00",
   "columns": {
     "LINEAGE.DIM_CUSTOMER": [
       "CUST_ID",
@@ -501,6 +501,35 @@
     "LINEAGE.STG_PRODUCTS": false,
     "LINEAGE.STG_RETURNS": false,
     "LINEAGE.TMP_RECENT": false
+  },
+  "triggers": {
+    "LINEAGE.TRG_CUSTOMER_DEFAULT": {
+      "base_object_type": "TABLE",
+      "body": "BEGIN\n    IF :NEW.is_active IS NULL THEN\n        :NEW.is_active := CASE WHEN :NEW.region = 'EU' THEN 1 ELSE 0 END;\n    END IF;\nEND;",
+      "event": "INSERT",
+      "name": "TRG_CUSTOMER_DEFAULT",
+      "owner": "LINEAGE",
+      "table": "LINEAGE.DIM_CUSTOMER",
+      "timing": "BEFORE EACH ROW"
+    },
+    "LINEAGE.TRG_CUSTOMER_EDITABLE": {
+      "base_object_type": "VIEW",
+      "body": "BEGIN\n    UPDATE dim_customer\n       SET is_active = :NEW.is_active\n     WHERE cust_id = :NEW.cust_id;\n\n    INSERT INTO dw_audit_log (cust_id, changed_by, changed_at)\n    VALUES (:NEW.cust_id, USER, SYSDATE);\nEND;",
+      "event": "UPDATE",
+      "name": "TRG_CUSTOMER_EDITABLE",
+      "owner": "LINEAGE",
+      "table": "LINEAGE.V_CUSTOMER_EDITABLE",
+      "timing": "INSTEAD OF"
+    },
+    "LINEAGE.TRG_RECENT_AUDIT": {
+      "base_object_type": "TABLE",
+      "body": "BEGIN\n    UPDATE dim_customer\n       SET lifetime_value = NVL(lifetime_value, 0) + 1\n     WHERE cust_id = :NEW.cust_id;\nEND;",
+      "event": "INSERT",
+      "name": "TRG_RECENT_AUDIT",
+      "owner": "LINEAGE",
+      "table": "LINEAGE.TMP_RECENT",
+      "timing": "AFTER EACH ROW"
+    }
   },
   "view_text": {
     "LINEAGE.V_CUSTOMER_EDITABLE": "SELECT d.cust_id,\n       d.region,\n       d.is_active,\n       s.email AS source_email\n  FROM dim_customer d\n  JOIN stg_customer s ON s.cust_id = d.cust_id",

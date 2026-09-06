@@ -53,6 +53,44 @@ edges:
     evidence: source_read
     unexercised: true
 
+  # --- trigger side effects, inherited from the write to tmp_recent -------------------
+  #
+  # COMPLETION, 2026-09-07, AND IT RAISES PRECISION - stated for that reason.
+  #
+  # Statement 1 inserts into tmp_recent, so trg_recent_audit fires. Omitted when this key
+  # was written because triggers were not yet analysed anywhere.
+  #
+  # These are the ONLY edges in this package that do not depend on the execution schema.
+  # The trigger is bound to a specific table object; whichever schema resolved
+  # `stg_customer`, the write lands in tmp_recent and the same trigger runs.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: source_read
+    unexercised: true
+
   # --- statement 2: qualified against a schema that is not in scope --------------------
   #
   # No edges. reporting.stg_customer was never supplied, so its columns are not knowable -

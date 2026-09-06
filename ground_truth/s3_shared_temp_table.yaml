@@ -129,6 +129,31 @@ edges:
   # net_amount receives the literal 0 - no edge. order_count is COUNT(*), and a row count
   # has no source column - no edge. Both rules established in b0_05 and b0_02.
 
+  # --- trigger side effect, inherited by BOTH writers ---------------------------------
+  #
+  # COMPLETION, 2026-09-07, AND IT RAISES PRECISION - stated for that reason.
+  #
+  # Both procedures insert into tmp_recent, so trg_recent_audit fires for each. It was
+  # OBSERVED in both runs - DIM_CUSTOMER.LIFETIME_VALUE moved when A ran and again when B
+  # ran - and the key simply omitted it, having been written before triggers were
+  # analysed.
+  #
+  # Worth noting against this package's own subject: the trigger edge is NOT fusion. It
+  # is genuinely inherited by both writers because the trigger belongs to tmp_recent, and
+  # it composes nothing across the two procedures.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+
+  # The trigger's two filter operands are not listed separately: both share a match key
+  # with procedure A's own line-28 predicate edges above, and neither carries a guard to
+  # separate them. Amendment 1a again, and this key under-counts by two.
+
 forbidden:
   - source: {kind: column, name: STG_ORDERS.CUST_ID}
     target: {kind: relation, name: DIM_CUSTOMER}

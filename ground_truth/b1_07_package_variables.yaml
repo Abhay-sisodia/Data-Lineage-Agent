@@ -168,6 +168,23 @@ edges:
       NVL(lifetime_value, 0) + 1 - a self-referential derived edge. Band 2 per
       ADR-0001 §6: the hardest construct on the path is the trigger, not the INSERT.
 
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-07, AND IT RAISES PRECISION - stated plainly for that reason.
+
+      The other operand of the trigger's `WHERE cust_id = :NEW.cust_id`. Every operand of
+      a predicate is a filter edge: the convention was fixed in b0_01 and applied
+      uniformly across the corpus in commit 0b9a9e8, but the trigger stanza was copied
+      between keys as a two-edge block and the completion never reached it. b2_05's key,
+      written before any trigger analysis existed, states this edge explicitly - so the
+      convention is not being invented now to fit an analyser.
+
   - source: {kind: column, name: TMP_RECENT.CUST_ID}
     target: {kind: relation, name: DIM_CUSTOMER}
     flow: filter

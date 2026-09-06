@@ -84,6 +84,48 @@ class ObjectInfo(BaseModel):
     object_type: str
 
 
+class TriggerInfo(BaseModel):
+    """A trigger, and the object it fires on.
+
+    Triggers belong in the dictionary rather than in whichever source file happens to
+    declare them, and that is the whole design point of T3.3. `trg_recent_audit` is
+    written in `b2_05_triggers.sql`, but it fires for every one of the seven procedures in
+    this corpus that insert into `tmp_recent` — none of which mentions it. Attaching the
+    edge to the CALLER would credit one procedure with a write it never issued and miss
+    the other six; attaching it to the TABLE is what makes inheritance work.
+
+    ``body`` is the PL/SQL between BEGIN and END, exactly as Oracle stores it, so the
+    correlation names `:NEW` and `:OLD` are still present to be resolved.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    owner: str
+    name: str
+    table: str = Field(description="OWNER.TABLE the trigger fires on")
+    timing: str = Field(description="BEFORE / AFTER / INSTEAD OF, per ALL_TRIGGERS")
+    event: str = Field(description="INSERT, UPDATE, DELETE, or a combination")
+    body: str
+    base_object_type: str = "TABLE"
+
+    @property
+    def qualified(self) -> str:
+        return f"{self.owner}.{self.name}"
+
+    def fires_on(self, events: str) -> bool:
+        """Does this trigger run for any of these events?
+
+        ``events`` may name more than one — a MERGE both inserts and updates, and which
+        arm a given row takes is not statically decidable. Any overlap counts: a trigger
+        that MIGHT fire is a real edge, and dropping it would be a silent miss.
+        """
+        mine = self.event.upper()
+        return any(word and word in mine for word in events.upper().split())
+
+    def describe(self) -> str:
+        return f"{self.timing} {self.event} ON {self.table}"
+
+
 class Dictionary(BaseModel):
     """A point-in-time snapshot of the data dictionary."""
 
@@ -108,6 +150,14 @@ class Dictionary(BaseModel):
             "permanent table used as scratch looks identical in the code and is a "
             "different problem - it really is shared, and whether data flows between "
             "two writers is not statically decidable."
+        ),
+    )
+    triggers: dict[str, TriggerInfo] = Field(
+        default_factory=dict,
+        description=(
+            "OWNER.TRIGGER -> the trigger and the object it fires on. Keyed by trigger "
+            "rather than by table because a table may carry several; use triggers_on() "
+            "to go the other way."
         ),
     )
 
@@ -221,6 +271,23 @@ class Dictionary(BaseModel):
             return False
         return self.temporary.get(resolved.qualified, False)
 
+    def triggers_on(self, name: str, schema: str | None = None) -> list[TriggerInfo]:
+        """Every trigger that fires on this relation, resolved through synonyms.
+
+        The inheritance rule from the blind-spot register: *any statement touching that
+        table inherits the trigger's edges*. Resolution goes through `resolve` so a write
+        to a synonym still finds the base object's triggers - otherwise the two silent
+        failures compound, and a synonym would hide a trigger as well as a table.
+        """
+        resolved = self.resolve(name, schema)
+        if resolved.qualified is None:
+            return []
+        return [
+            trigger
+            for _, trigger in sorted(self.triggers.items())
+            if trigger.table == resolved.qualified
+        ]
+
 
 def capture(connection: Any, schema: str, captured_at: str) -> Dictionary:
     """Read the dictionary out of a live Oracle connection.
@@ -290,6 +357,43 @@ def capture(connection: Any, schema: str, captured_at: str) -> Dictionary:
             for table_owner, table_name, flag in cursor.fetchall()
         }
 
+        # Triggers, with the object each fires on. Captured here rather than read from
+        # source files because a trigger belongs to its TABLE, and the procedure that
+        # writes that table is usually in a different file with no mention of it.
+        cursor.execute(
+            """
+            SELECT owner, trigger_name, table_owner, table_name, trigger_type,
+                   triggering_event, base_object_type, trigger_body
+              FROM all_triggers
+             WHERE owner = :owner
+               AND status = 'ENABLED'
+            """,
+            owner=owner,
+        )
+        triggers: dict[str, TriggerInfo] = {}
+        for row in cursor.fetchall():
+            (
+                trigger_owner,
+                trigger_name,
+                table_owner,
+                table_name,
+                trigger_type,
+                event,
+                base_object_type,
+                body,
+            ) = row
+            triggers[f"{trigger_owner}.{trigger_name}"] = TriggerInfo(
+                owner=trigger_owner,
+                name=trigger_name,
+                table=f"{table_owner or owner}.{table_name}",
+                # ALL_TRIGGERS reports e.g. "AFTER EACH ROW"; the timing word is enough
+                # for evidence, and INSTEAD OF is the one that changes the analysis.
+                timing=str(trigger_type),
+                event=str(event),
+                body=str(body) if body is not None else "",
+                base_object_type=str(base_object_type or "TABLE"),
+            )
+
     return Dictionary(
         captured_at=captured_at,
         default_schema=owner,
@@ -298,4 +402,5 @@ def capture(connection: Any, schema: str, captured_at: str) -> Dictionary:
         columns=columns,
         view_text=view_text,
         temporary=temporary,
+        triggers=triggers,
     )

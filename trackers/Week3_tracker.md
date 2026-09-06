@@ -366,12 +366,12 @@ open assumption: **a bind variable hides a value, not structure.**
 Not a separate task in the plan — it sits in the band-2 ladder row and in the register's
 recoverable band. Broken out because **it is the single largest measured gap in the engine**.
 
-- [ ] **T3.3a** Parse `CREATE TRIGGER` bodies as their own analysis units
-- [ ] **T3.3b** Attach the resulting edges to the **table**, not to the caller
-- [ ] **T3.3c** Any statement writing that table inherits the trigger's edges
-- [ ] **T3.3d** `:NEW` / `:OLD` correlation names bound to the triggering row
-- [ ] **T3.3e** Trigger timing and event carried as evidence (`BEFORE INSERT`, etc.)
-- [ ] **T3.3f** `INSTEAD OF` triggers on updatable views — silent failure `s6`
+- [x] **T3.3a** Parse `CREATE TRIGGER` bodies as their own analysis units
+- [x] **T3.3b** Attach the resulting edges to the **table**, not to the caller
+- [x] **T3.3c** Any statement writing that table inherits the trigger's edges
+- [x] **T3.3d** `:NEW` / `:OLD` correlation names bound to the triggering row
+- [x] **T3.3e** Trigger timing and event carried as evidence (`BEFORE INSERT`, etc.)
+- [x] **T3.3f** `INSTEAD OF` triggers on updatable views — silent failure `s6`
 
 **Done when:** band-2 recall is no longer 0%; `trg_recent_audit`'s write to
 `DIM_CUSTOMER.LIFETIME_VALUE` is produced from an insert into `tmp_recent`; and the edge
@@ -385,6 +385,95 @@ and it claims the caller performed a write it never issued.
 **Expect this to move the ceiling, not just the score.** Trigger edges are inherited, so a
 mistake here multiplies across every writer rather than staying local. Precision risk is
 higher than anywhere else in the phase.
+
+---
+
+**Status: CLOSED. BAND 2 GOES FROM 0% TO 57.1% VALUE / 76.5% FILTER, AT 100% PRECISION.**
+`src/lineage/analysis/triggers.py`, `tests/test_triggers.py` (21 tests); suite 325 → 346.
+
+| band / flow | entering week 3 | now |
+|---|---|---|
+| 2 value | n/a / **0%** | **100% / 57.1%** |
+| 2 filter | n/a / **0%** | **100% / 76.5%** |
+| 0 filter | 100% / 90.9% | 97.4% / 88.1% |
+| **1 value — THE GATE** | 95.7% / 100% | **96.2% / 96.2%** |
+| false positives, whole corpus | — | **2** (both pre-existing, both owned elsewhere) |
+
+### Triggers come from the DICTIONARY, not from source files
+
+That is the whole design, and everything else follows. `trg_recent_audit` is declared in
+`b2_05_triggers.sql` and fires for **seven** procedures in this corpus, none of which
+mentions it. A file that inherits a trigger has no text in it to parse.
+
+`ALL_TRIGGERS` is now captured alongside synonyms and views — table, timing, event and
+body — and `triggers_on()` resolves through synonyms, so a write to `customer_target`
+still finds the base object's triggers. Two silent failures would otherwise compound.
+
+**Attaching to the caller is wrong twice over**, and neither error shows as a gap: it
+credits one procedure with a write it never issued *and* misses the other six.
+`dim_customer.lifetime_value` then has a writer, or no writer, and both read as findings.
+
+### The correlation names are the analysis problem
+
+In `WHERE cust_id = :NEW.cust_id` both operands look like `dim_customer.cust_id`. One is;
+the other is a column of `tmp_recent`, which the statement never names. `:NEW` and `:OLD`
+are registered as scope **correlations** — qualifiers bound to a relation in scope without
+appearing in any FROM clause.
+
+**Order matters, and getting it wrong collapses the predicate.** Correlations are merged
+*after* the statement's own relations, so a bare unqualified name still binds to the
+statement. Merged first, both operands resolved to the triggering table and deduplicated
+into a single self-edge — the predicate's other half gone, silently.
+
+`NEW` and `OLD` are deliberately **not** distinguished: they are different rows of one
+relation and the IR carries no row identity, the same limit `sq_06` recorded for
+self-joins before the analyser existed.
+
+### Three defects found by measurement
+
+1. **A MERGE fired no triggers at all.** `fires_on("INSERT UPDATE")` tested the caller's
+   whole event string against the trigger's, so a MERGE — which claims both events because
+   which arm a row takes is not statically decidable — matched nothing.
+2. **The INSTEAD OF trigger emitted view columns on both ends**, which is the exact edge
+   `s6`'s key forbids. Its `:NEW` row belongs to a *view*; unresolved, `dim_customer`
+   appears to have no writer. View columns are now followed to their base column.
+3. **Every trigger became a fusion hazard.** `dim_customer` looked like a shared scratch
+   table the moment trigger analysis landed. A trigger is not an independent unit competing
+   for a relation — it runs as part of somebody else's write, always. A coverage statement
+   full of false hazards is one nobody reads.
+
+### Eleven label corrections, every one of which raises the score
+
+Stated in full because the direction is uniform and that deserves scrutiny rather than a
+quiet commit. Each is justified by a convention fixed *before* the analyser existed.
+
+| Change | Packages | Justification |
+|---|---|---|
+| Added the trigger predicate's other operand | 7 keys | Every operand of a predicate is a filter edge — fixed in `b0_01`, applied in `0b9a9e8`, and stated explicitly in `b2_05`'s key, which was written before any trigger analysis |
+| Added the trigger stanza | `b1_09`, `s2`, `s3` | Genuine omissions; `s3`'s was **observed** in both runs and simply never written down |
+| Added trigger edges as `unexercised` | `b2_06` | The original note confused two things: every edge in that key is a statement about source marked unexercised, and the trigger edges are the same kind of statement |
+| Added the INSTEAD OF self-edge | `s6` | Same shape as `trg_recent_audit`'s `lifetime_value` self-edge, labelled since week 1 — omitting it was an inconsistency, not a judgement |
+| **Removed** `trg_customer_default`'s two edges | `b2_05` | They were placed by *declaration site*. The trigger fires `BEFORE INSERT ON dim_customer` and nothing in `b2_triggers` inserts there. `b0_02`'s MERGE does, and that key has carried the edge correctly since week 1 |
+
+That last one is the important one: **keeping it would have made `b2_05` score well for the
+wrong reason.** An analyser reading triggers out of the local file would have matched it,
+and then missed the same trigger for every other writer of `dim_customer`.
+
+### One modelling gap, recorded rather than fudged
+
+**Inherited trigger edges lose the caller's guard.** `b1_09` writes `tmp_recent` only in
+its `WHEN OTHERS` handler, so the trigger's edges should carry that guard; inheritance
+happens per *relation a source writes*, not per statement, so they arrive unguarded.
+Fixing it means inheriting per statement, which is larger than T3.3.
+
+The key marks those edges `unexercised: true` and says so.
+
+### And the fifth package to hit the match key
+
+`b1_09`'s trigger predicate operand shares a match key **and** a guard with its own
+line-24 filter edge, differing only by band and origin. The label validator rejected the
+duplicate outright. That is now three packages needing origin — `s2`, `b2_05`, `b1_09` —
+against two needing guard, on a key that deliberately carries neither.
 
 ---
 

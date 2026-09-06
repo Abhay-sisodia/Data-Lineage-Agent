@@ -14,6 +14,9 @@ them separate is what lets the score say which one broke.
 
 from __future__ import annotations
 
+import sqlglot
+from sqlglot import exp
+
 from lineage.analysis import band0
 from lineage.analysis.band0 import AnalysisResult, Refusal
 from lineage.analysis.cfg import Cfg, build_all
@@ -24,13 +27,14 @@ from lineage.analysis.defuse import (
     collect_scopes,
     definitions_and_uses,
 )
-from lineage.analysis.dynamic import resolve_dynamic_sql
+from lineage.analysis.dynamic import Resolution, resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
 from lineage.analysis.scratch import find_fusion_hazards
+from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
 from lineage.ir.model import IREdge
-from lineage.parsing.plsql import parse_program
+from lineage.parsing.plsql import Program, parse_program
 from lineage.resolution.dictionary import Dictionary
 
 __all__ = ["AnalysisResult", "Refusal", "analyse_source"]
@@ -81,6 +85,19 @@ def analyse_source(
             if entry not in result.boundaries:
                 result.boundaries.append(entry)
 
+    # Triggers fire invisibly. Nothing in the source mentions them, so their edges are
+    # inherited from the DICTIONARY by whichever relations this source writes - the
+    # register's rule, and the reason a trigger belongs to its table rather than to any
+    # caller. Added before the merge below so they are deduplicated and ordered like any
+    # other edge.
+    trigger_edges, trigger_boundaries = inherited_edges(
+        _written_relations(program, dynamic), dictionary
+    )
+    result.edges.extend(trigger_edges)
+    for entry in trigger_boundaries:
+        if entry not in result.boundaries:
+            result.boundaries.append(entry)
+
     # The set-based analyser works one statement at a time and never sees control flow,
     # so its edges arrive unguarded even when the statement sits inside a branch or a
     # loop. An unguarded edge claims the write always happens, which for a conditional
@@ -112,6 +129,50 @@ def analyse_source(
             result.boundaries.append(entry)
 
     return result
+
+
+def _written_relations(program: Program, dynamic: Resolution) -> dict[str, str]:
+    """Which relations this source writes, and by what event.
+
+    The event matters: a trigger fires on `INSERT` or on `UPDATE`, and inheriting an
+    `AFTER INSERT` trigger from an `UPDATE` statement would be an invented edge - the
+    trigger genuinely does not run.
+
+    Recovered dynamic statements are included. `b2_01` inserts into `tmp_recent` through
+    `EXECUTE IMMEDIATE`, and the trigger fires just the same; a source that only looked at
+    written SQL would miss it, which is two invisible mechanisms compounding.
+    """
+    written: dict[str, str] = {}
+    texts = [statement.text for statement in program.statements]
+    texts += [statement.text for statement in dynamic.statements]
+
+    for text in texts:
+        try:
+            parsed = sqlglot.parse_one(text, dialect="oracle")
+        except Exception:
+            continue
+        if isinstance(parsed, exp.Insert):
+            event = "INSERT"
+        elif isinstance(parsed, exp.Update):
+            event = "UPDATE"
+        elif isinstance(parsed, exp.Delete):
+            event = "DELETE"
+        elif isinstance(parsed, exp.Merge):
+            # A MERGE both inserts and updates, and which one a given row takes is not
+            # statically decidable. Both events are claimed, because a trigger that might
+            # fire is a real edge and dropping it would be a silent miss.
+            event = "INSERT UPDATE"
+        else:
+            continue
+
+        target = parsed.this
+        if isinstance(target, exp.Schema):
+            target = target.this
+        if isinstance(target, exp.Table):
+            name = target.name.upper()
+            written[name] = event if name not in written else f"{written[name]} {event}"
+
+    return written
 
 
 def _reaching_findings(cfg: Cfg, scope: UnitScope, config: AnalysisConfig) -> list[str]:

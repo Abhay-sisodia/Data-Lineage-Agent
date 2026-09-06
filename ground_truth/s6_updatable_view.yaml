@@ -67,6 +67,26 @@ edges:
       :NEW.cust_id, which the view projects from dim_customer. Two rows written, matching
       the two EU customers.
 
+  - source: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: TRG_CUSTOMER_EDITABLE, line: 36}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-07, AND IT RAISES PRECISION - stated for that reason.
+
+      `SET is_active = :NEW.is_active`. The view projects is_active straight from
+      dim_customer, so resolving the correlation to its base column gives a self-edge:
+      whatever the writer supplied passes through unchanged. Vacuous-looking and the same
+      shape as trg_recent_audit's lifetime_value self-edge, which this corpus has labelled
+      since week 1 - so omitting it here was an inconsistency rather than a judgement.
+
+      This key's header says there is no value edge into is_active because the outer
+      UPDATE supplies a literal. That is true of the OUTER statement and not of the
+      trigger, which is a separate unit and cannot see the caller's literal.
+
   # dw_audit_log.changed_by comes from USER and changed_at from SYSDATE. Neither is a
   # column, so neither has a source column and neither gets an edge - the same rule that
   # excludes literals. Observation showed changed_by written with no value-consistent

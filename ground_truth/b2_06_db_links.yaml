@@ -98,10 +98,63 @@ edges:
     evidence: source_read
     unexercised: true
 
-  # Trigger edges are NOT labelled here. trg_recent_audit would fire on the insert into
-  # tmp_recent, but this file never runs, so claiming the trigger fired would be an
-  # assertion about an execution that has not happened. Everything else in this key is
-  # a statement about SOURCE; that would be a statement about behaviour.
+  # --- trigger side effects -----------------------------------------------------------
+  #
+  # CORRECTED 2026-09-07, AND IT RAISES BOTH RECALL AND PRECISION - stated for that reason.
+  #
+  # This key originally omitted the trigger edges, reasoning that the file never runs so
+  # claiming a trigger fired would be an assertion about an execution that has not
+  # happened. That confused two different things. Every other edge in this key is a
+  # statement about the SOURCE, marked `unexercised` because nothing ran. The trigger
+  # edges are exactly the same kind of statement: this file writes tmp_recent and
+  # dim_customer, both carry triggers, and those triggers fire on those writes. Whether
+  # the file has ever run is what `unexercised` records - it is not a reason to omit the
+  # fact.
+  #
+  # The trigger's own edges do not depend on the DB link at all: the boundary is upstream
+  # of dim_customer, and everything below happens after the row lands.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 2
+    guard: "TRIGGERING_ROW.IS_ACTIVE IS NULL"
+    origin: {unit: TRG_CUSTOMER_DEFAULT, line: 30}
+    evidence: source_read
+    unexercised: true
+    note: >
+      The BEFORE INSERT trigger on dim_customer, which this file's first statement fires.
+      The remote source supplies the literal 0 for is_active, so in practice the default
+      never applies - but that is a fact about the DATA arriving, not about the code, and
+      the guard states the condition rather than resolving it.
 
 forbidden:
   - source: {kind: column, name: STG_CUSTOMER.CUST_ID}

@@ -91,6 +91,18 @@ class UnitScope:
     variables: dict[str, VariableDecl] = field(default_factory=dict)
     row_sources: dict[str, RowSource] = field(default_factory=dict)
     cursors: dict[str, str] = field(default_factory=dict)  # cursor name -> SELECT text
+    correlations: dict[str, str] = field(
+        default_factory=dict,
+        metadata={
+            "why": (
+                "Qualifier -> relation for names that are in scope without appearing in "
+                "any FROM clause. A trigger's :NEW and :OLD are the case: they name a row "
+                "of the TRIGGERING table, which the statement being analysed does not "
+                "mention at all. Without this, `WHERE cust_id = :NEW.cust_id` binds both "
+                "operands to the updated table and the trigger's real input vanishes."
+            )
+        },
+    )
 
     def lookup(self, name: str) -> VariableDecl | None:
         return self.variables.get(name.strip().upper())
@@ -472,7 +484,11 @@ def analyse_statement(
         result.unresolved.append(f"line {node.line}: SQLGlot could not parse the statement")
         return result
 
-    relations = _relations_in(statement, dictionary)
+    # Correlations go LAST so the statement's own relations win when a bare, unqualified
+    # name has to be resolved. `WHERE cust_id = :NEW.cust_id` has one operand of each
+    # kind, and putting the correlation first binds BOTH to the triggering table - which
+    # collapses them into a single self-edge and loses the predicate's other half.
+    relations = {**_relations_in(statement, dictionary), **scope.correlations}
 
     if isinstance(statement, exp.Select) and statement.args.get("into") is not None:
         result = _analyse_select_into(statement, scope, relations, dictionary, origin, guard)
