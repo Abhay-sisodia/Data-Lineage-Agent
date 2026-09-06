@@ -3,7 +3,8 @@
 **Companion to** [Phase0_tracker.md](Phase0_tracker.md), which holds the phase-level
 gates. This file breaks week 2 into small, individually verifiable tasks.
 
-**Status:** not started · **Created:** 2026-09-06 · **Baseline commit:** `ec8cef1`
+**Status:** **CLOSED — all ten tasks (T2.0–T2.9) done** · **Created:** 2026-09-06
+**Baseline commit:** `ec8cef1` · **Closing commit:** `8916d6c` · 237 tests green
 
 ---
 
@@ -50,12 +51,12 @@ rationalise away. Label first, measure second.
 
 The answer key for the nine band-1 packages. Observation-anchored per ADR-0001 §1.
 
-- [ ] **T2.0a** Observe all nine band-1 procedures; record what each actually writes
-- [ ] **T2.0b** Label `b1_01` local variables, `b1_02` if/case, `b1_03` loops
-- [ ] **T2.0c** Label `b1_04` cursor FOR, `b1_05` explicit cursor, `b1_06` temp tables
-- [ ] **T2.0d** Label `b1_08` nested calls, `b1_09` exception handlers
+- [x] **T2.0a** Observe all nine band-1 procedures; record what each actually writes
+- [x] **T2.0b** Label `b1_01` local variables, `b1_02` if/case, `b1_03` loops
+- [x] **T2.0c** Label `b1_04` cursor FOR, `b1_05` explicit cursor, `b1_06` temp tables
+- [x] **T2.0d** Label `b1_08` nested calls, `b1_09` exception handlers
       *(`b1_07` already labelled in week 1)*
-- [ ] **T2.0e** Record which labels observation could NOT settle, and why
+- [x] **T2.0e** Record which labels observation could NOT settle, and why
 
 **Done when:** every band-1 package has a committed label set; each edge records its own
 provenance; `pytest` hash-checks all of them; and the count of `source_read` labels is
@@ -64,6 +65,33 @@ stated explicitly rather than buried.
 **Watch for:** exception handlers and rare branches will not execute on the seed data.
 Those labels are `source_read` and `unexercised: true` — do not quietly upgrade them to
 `observed` because the analyser found them.
+
+**Status: CLOSED.** Commit `017648b`. **84 labelled edges across 14 packages, up from 30.**
+Band split 40 band-0 / 33 band-1 / 11 band-2. Provenance 39 observed, 10 adjudicated,
+35 `source_read`.
+
+**Every observable branch needed its own precondition, which is the whole point of the
+band — which path runs decides what the lineage IS:**
+
+| Package | What had to be arranged before it wrote anything |
+|---|---|
+| `b1_02` EU arm | `tmp_recent` populated, or the `IN (...)` matches nothing |
+| `b1_02` ELSE arm | a customer given a high `lifetime_value`, else it writes 0 over 0 |
+| `b1_04`, `b1_05` | targets nulled first — the written emails were already present |
+| `b1_09` handler | a customer given `region = 'XX'`, else the update matches no rows |
+
+**Banding rule applied as corrected:** band 1 means the edge's *path* traverses a variable,
+branch, loop, cursor or call. A plain projection inside procedural code is still band 0.
+`b1_06` therefore labels entirely band 0 — the temp-table chain passes through a real
+relation with real columns, so set-based analysis resolves it, and that construct's genuine
+difficulty (session scoping) lives in `silent/s3`. Labelling it band 1 would have handed
+band 1 seven free wins.
+
+**ADR-0001 amendment 1 was found here, while labelling** — `b1_09` has the same filter edge
+on the happy path and in the exception handler, and `b1_03` has the same self-edge as
+accumulation and as decay. The v0 match key collapses each pair, so both files under-count
+by one edge and say so in their own text. Guard belongs in ledger identity but not in the
+match key; implemented in the IR at T2.1, still outstanding in `harness/labels.py`.
 
 ---
 
@@ -147,12 +175,12 @@ nowhere in the happy path.
 
 The core of the week. Values moving between statements through variables.
 
-- [ ] **T2.3a** Variable declarations and scope (local, parameter, package-level)
-- [ ] **T2.3b** `SELECT ... INTO v` as a definition
-- [ ] **T2.3c** `v := expr` assignment as a definition
-- [ ] **T2.3d** Variable *use* inside SQL — the SQLGlot handoff point
-- [ ] **T2.3e** Reaching definitions over the CFG
-- [ ] **T2.3f** Cursor `FETCH INTO` bound **positionally** to the cursor's select list
+- [x] **T2.3a** Variable declarations and scope (local, parameter, package-level)
+- [x] **T2.3b** `SELECT ... INTO v` as a definition
+- [x] **T2.3c** `v := expr` assignment as a definition
+- [x] **T2.3d** Variable *use* inside SQL — the SQLGlot handoff point
+- [x] **T2.3e** Reaching definitions over the CFG
+- [x] **T2.3f** Cursor `FETCH INTO` bound **positionally** to the cursor's select list
 
 **Done when:** `b1_01` produces the documented chain
 `ref_policy.window_days -> v_days -> v_cutoff -> row filter on tmp_recent`;
@@ -165,6 +193,46 @@ Matching on name wires them to the wrong sources — and it compiles, runs, and 
 **Handoff reminder:** `tests/test_smoke_toolchain.py` pins the behaviour this depends on —
 SQLGlot surfaces `v_cutoff` as an unbound column reference. That marker is where def-use
 takes over.
+
+**Status: CLOSED.** Commit `5f90ffc`, `src/lineage/analysis/defuse.py`.
+
+**First band-1 measurement: precision 81.0%, recall 89.5%** — below the gate at this point,
+with T2.7 and the band-2 trigger work still unbuilt. Recorded as the honest mid-week
+number rather than deferred until it looked better.
+
+**Declarations are collected before any SQL is interpreted.** To SQLGlot a PL/SQL variable
+inside a `WHERE` clause is indistinguishable from a column reference, and it will bind
+`v_cutoff` to whichever table is in scope. Checking declared variables first is what stops
+that becoming a confident fictional edge.
+
+`b1_07`'s package-state chain resolves across two separate procedures —
+`ref_policy.window_days -> g_window_days -> g_cutoff -> tmp_recent` row filter — with no
+parameter passing and nothing in either statement connecting them.
+
+**Two real bugs found by reading the output:**
+
+1. **Correlated subquery predicates were counted as VALUE sources.** In
+   `SET is_active = (SELECT MAX(status_code) FROM s WHERE s.cust_id = d.cust_id)` the
+   correlation decides *which row* is read, not what value returns. Counting it invented an
+   edge claiming a customer id determines an active flag — plausible-looking and wrong.
+   Band-0 value precision rose 88.2% → 96.8% once fixed. **This same category error
+   reappeared twice more** (UDF arguments in T2.7, window `PARTITION BY` in the complex-SQL
+   band), which is why it is worth naming rather than just patching.
+2. **Record fields were resolved as columns.** `rec.email` in a cursor FOR loop is a field
+   of a record whose shape is the cursor's projection; binding it to a table in scope
+   reported `dim_customer.email` as its own source. Row sources now resolve fields back
+   through the cursor query.
+
+**`FETCH INTO` binds positionally,** read from the parse tree because SQLGlot cannot parse
+`FETCH` at all. In `b1_05` the variable names happen to line up with the cursor's columns —
+which is exactly what makes name-matching dangerous: it gets the right answer there and the
+wrong answer elsewhere, with no symptom either way.
+
+**Label omissions left standing at the time, closed later in `0b9a9e8`:** several sets
+omitted the column side of predicates that `b0_01`, `b1_04` and `b1_05` all include, so
+roughly nine of the false positives here were key errors rather than analyser errors. Left
+in place deliberately for one commit — completing them raises the score, and that direction
+of edit deserves scrutiny rather than a quiet fix.
 
 ---
 
@@ -442,9 +510,22 @@ degrades when a scheduler drives the call — T2.9d is the honest test.
 - **Read any result as a ceiling.** The corpus was written knowing what the analyser must
   handle; real legacy code is consistently worse.
 
-## Carried-forward risks
+## Carried-forward risks *(refreshed at close, commit `8916d6c`)*
 
-- **30 labelled edges is a small key.** T2.0 roughly triples it, still small.
+- **149 labelled edges across 21 packages.** T2.0 tripled the key and the complex-SQL band
+  added seven more packages — still small for a number this load-bearing.
 - **No real production package.** Highest-value outstanding item; human latency.
-- **12 of 30 current labels are `source_read`** — the weakest provenance.
+- **79 of 149 labels are `source_read`** — the weakest provenance, and now the largest
+  single slice (55 observed, 15 adjudicated). The share rose because the complex-SQL and
+  exception-path cases are the hardest to exercise, which is exactly where a wrong label
+  costs most.
 - **Third-party corpora undecided** (utPLSQL / Alexandria / db-sample-schemas / none).
+
+## Open defects at close
+
+| Defect | Cost | Note |
+|---|---|---|
+| Band 2 (triggers) not analysed | 11 edges, 0% recall | Largest gap. Trigger edges must attach to the **table**, not the caller |
+| `harness/labels.py` still keys on `match_key()` | the 1 band-1 false positive | ADR-0001 amendment 1 done in the IR, not in the label format. Fixing it takes the gate 95.7% → 100% — a scoring-format change, not an analyser improvement, and must be reported as such |
+| Filter recall | 3 FN band 0, 2 FN band 1 | Mostly the same trigger gap |
+| Self-join alias collapse | `sq_06` | Node names carry no alias, so `child`/`parent` are one node. Declared in that key before the analyser ran |

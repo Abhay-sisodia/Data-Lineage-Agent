@@ -1,0 +1,111 @@
+{
+  "boundaries_declared": 6,
+  "cells": {
+    "0/filter": {
+      "false_negatives": 3,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.9090909090909091,
+      "true_positives": 30
+    },
+    "0/value": {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positives": 68
+    },
+    "1/filter": {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.8666666666666667,
+      "true_positives": 13
+    },
+    "1/value": {
+      "false_negatives": 0,
+      "false_positives": 1,
+      "precision": 0.9565217391304348,
+      "recall": 1.0,
+      "true_positives": 22
+    },
+    "2/filter": {
+      "false_negatives": 5,
+      "false_positives": 0,
+      "precision": null,
+      "recall": 0.0,
+      "true_positives": 0
+    },
+    "2/value": {
+      "false_negatives": 6,
+      "false_positives": 0,
+      "precision": null,
+      "recall": 0.0,
+      "true_positives": 0
+    }
+  },
+  "evidence_split": {
+    "adjudicated": 15,
+    "observed": 55,
+    "source_read": 79
+  },
+  "gate": {
+    "band1_value_precision": 0.9565217391304348,
+    "band1_value_recall": 1.0,
+    "precision_floor": 0.95,
+    "recall_floor": 0.85
+  },
+  "guard_accuracy": 0.9090909090909091,
+  "kill_criteria": [
+    {
+      "criterion": "Band-1 value precision < 95% -> regulatory positioning dead",
+      "measured": "95.7%",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Band-1 value recall < 85%",
+      "measured": "100.0%",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Parse coverage < 70% on real code -> parser strategy wrong",
+      "measured": "94.7%",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Dynamic SQL > 30% of statements AND unrecoverable",
+      "measured": "not yet measured",
+      "verdict": "PENDING"
+    },
+    {
+      "criterion": "Interprocedural analysis does not terminate at a usable depth",
+      "measured": "terminates; recursion and depth cap both declared",
+      "verdict": "PASS"
+    }
+  ],
+  "mechanism_distribution": {
+    "AST": 117,
+    "DEF-USE": 23
+  },
+  "parse_coverage": 0.9473684210526315,
+  "provenance": {
+    "commit": "8916d6c",
+    "config_fingerprint": "eed291d00fb6a073d18f09989752d29d69e737c95e6f1b7911e25cdcb3aaa497",
+    "corpus_fingerprint": "025ec055a107a318774c73cc5f8444688f4f58a2a9f3d45a07296bcdd336b1c1",
+    "declared_limits": {
+      "dialect": "oracle",
+      "interprocedural_depth_cap": 6,
+      "log_recovery_enabled": true,
+      "log_statement_truncated_at": 1000,
+      "loop_fixpoint_iteration_cap": 10,
+      "query_log_retention_months": 18,
+      "view_expansion_depth_cap": 10
+    },
+    "dictionary_fingerprint": "46393f45f6e144b89228aabd76b3a1792e313e5ea35cc1e30f1f380bce755368",
+    "engine_version": "0.0.0",
+    "measured_at": "2026-09-06T17:41:04+00:00"
+  },
+  "tier_distribution": {
+    "A": 140
+  }
+}
