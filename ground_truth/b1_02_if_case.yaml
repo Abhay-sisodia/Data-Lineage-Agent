@@ -88,6 +88,28 @@ edges:
     guard: "P_REGION = 'EU'"
     origin: {unit: B1_IF_CASE, line: 16}
     evidence: source_read
+    note: The EU arm's membership test. Its APAC twin is below.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "P_REGION <> 'EU' AND P_REGION = 'APAC' AND P_STRICT = 1"
+    origin: {unit: B1_IF_CASE, line: 23}
+    evidence: source_read
+    note: >
+      RESTORED 2026-09-06 by ADR-0001 amendment 1, AND IT RAISES PRECISION, so it is
+      flagged rather than quietly added.
+
+      `WHERE s.cust_id = d.cust_id` - the other operand of the correlation whose
+      stg_customer side is labelled just below. The convention that every operand of a
+      predicate is a filter edge was fixed in b0_01 and applied uniformly in commit
+      0b9a9e8; this occurrence was skipped there for a mechanical reason rather than a
+      judged one. Its key was identical to the EU arm's membership test above, so the v0
+      key had nowhere to put it and the duplicate validator would have rejected it.
+
+      Band 1, not 0: it exists only inside a doubly-nested branch.
     note: The target side of `d.cust_id IN (SELECT ... FROM tmp_recent)`.
 
   - source: {kind: column, name: STG_CUSTOMER.CUST_ID}

@@ -60,14 +60,21 @@ edges:
     unexercised: true
     note: The correlation predicate - it decides which orders are counted.
 
-  # `WHERE region = 'APAC'` on the outer UPDATE is NOT listed separately. Its key is
-  # character-for-character the EU branch's filter edge above - same source, same target,
-  # same flow, same transform - and only the guard and origin differ. The v0 match key
-  # carries neither, so the two collapse and this key under-counts by one edge.
-  #
-  # ADR-0001 amendment 1, for the fourth time and from a fourth direction: b1_03 needed
-  # guard, b1_09 needed origin, s2 needed origin, and this package needs guard. The label
-  # validator rejects the duplicate outright, so the omission is at least loud.
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "NOT (P_REGION = 'EU') AND P_REGION = 'APAC'"
+    origin: {unit: S7_UNEXERCISED_BRANCH, line: 36}
+    evidence: source_read
+    unexercised: true
+    note: >
+      RESTORED 2026-09-06 by ADR-0001 amendment 1. `WHERE region = 'APAC'` on the outer
+      UPDATE. Character-for-character the EU branch's filter edge in source, target, flow
+      and transform, and a different fact: one fires for European customers, one for
+      Asia-Pacific, and only one of them has ever run. Under the v0 key this package could
+      not state that at all.
 
   - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
     target: {kind: relation, name: DIM_CUSTOMER}

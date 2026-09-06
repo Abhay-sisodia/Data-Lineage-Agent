@@ -42,13 +42,24 @@ edges:
     evidence: source_read
     note: >
       The self-edge that makes this a fixed-point problem. An analyser that misses it
-      reports an accumulation one iteration deep.
+      reports an accumulation one iteration deep. Inside a FOR loop, which contributes no
+      guard - a FOR body always runs.
 
-      Occurs TWICE in this procedure - the accumulation at line 15 and the decay at
-      line 32 (`v_total := v_total / 2`) - and the v0 edge key cannot distinguish them,
-      since both are (V_TOTAL, V_TOTAL, value, derived). Same model limitation as
-      recorded in b1_09; T2.1 should make guard and origin part of ledger identity while
-      keeping them out of precision matching. This file under-counts by one edge.
+  - source: {kind: variable, name: V_TOTAL}
+    target: {kind: variable, name: V_TOTAL}
+    flow: value
+    transform: derived
+    band: 1
+    guard: "v_total > 100"
+    origin: {unit: B1_LOOPS, line: 32}
+    evidence: source_read
+    note: >
+      RESTORED 2026-09-06 by ADR-0001 amendment 1. The decay, `v_total := v_total / 2`.
+      Identical to the accumulation above in source, target, flow and transform, and a
+      completely different fact: one grows the value twelve times, the other halves it
+      until a condition fails. The v0 key collapsed them and this file said so; the guard
+      now separates them, because the decay lives inside `WHILE v_total > 100` and the
+      accumulation does not.
 
   - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
     target: {kind: relation, name: STG_ORDERS}

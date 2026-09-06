@@ -21,12 +21,45 @@ claimed one — which is the honest reading of that mistake.
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from dataclasses import dataclass, field
 
 from lineage.harness.labels import Flow, GroundTruth, LabelledEdge
 from lineage.ir.model import IREdge, MatchKey, Mechanism, Tier
 
-EdgeKey = MatchKey
+# ADR-0001 amendment 1, implemented at the scoring boundary.
+#
+# The match key is (source, target, flow, transform). It collapses edges that are
+# genuinely different facts: the same write on the happy path and again inside an
+# exception handler, a filter firing for EU and an identical one firing for APAC, an
+# accumulation and a decay of the same variable. Scored on the match key alone a package
+# can only ever be credited with ONE of each pair, and the other is a permanent miss that
+# no analyser could fix.
+#
+# THE OBVIOUS FIX IS WRONG. Adding the guard to the key makes a wrong guard produce a miss
+# and a false positive, which drags guard-comparison noise straight into precision - and
+# ADR-0001 5 excludes guards from precision precisely because comparing them properly is
+# a research problem. T2.4 measured that noise: the first guard scoring was 0/5 purely on
+# phrasing, `P_REGION <> 'EU'` against `NOT (p_region = 'EU')`.
+#
+# So matching is TWO-STAGE. Group both sides by match key; where a group holds more than
+# one edge, use the guard to pair them off. A lone edge with a mis-stated guard still
+# matches and is counted wrong in the separate guard figure, exactly as before. Guards
+# discriminate only where discrimination is actually needed.
+#
+# ORIGIN IS NOT USED, and that was measured rather than assumed. Across the corpus, label
+# and analyser agree on the origin UNIT for 160 of 170 matched edges but on the LINE for
+# only 12 - line numbers are hand-read while labelling, and requiring them would collapse
+# recall for a reason unrelated to lineage being right. Unit agrees far better, but its ten
+# disagreements are a live modelling question (when a view's predicate or a callee's
+# expression is inlined, does the edge belong to the caller or to the unit that wrote it?)
+# and putting an unsettled convention inside the gate would move the headline number on a
+# decision nobody has taken.
+#
+# The residual cost is stated rather than hidden: three silent failures - s2, b2_05 and
+# b2_02 - turn on origin alone and cannot be expressed here at all. They need direct
+# assertions, not a scoring key.
+EdgeKey = tuple[str, str, str, str, str]
 
 # The analyser emits IR edges directly (T2.1). The alias is kept because "predicted" is
 # the right word at a scoring boundary - these are claims being tested, not facts yet.
@@ -35,6 +68,7 @@ PredictedEdge = IREdge
 __all__ = [
     "Counts",
     "EdgeKey",
+    "MatchKey",
     "Mechanism",
     "PredictedEdge",
     "ScoreReport",
@@ -42,7 +76,55 @@ __all__ = [
     "normalise_guard",
     "render",
     "score",
+    "scoring_key",
 ]
+
+
+def scoring_key(edge: IREdge | LabelledEdge) -> EdgeKey:
+    """Match key plus normalised guard — the reported identity of one scored fact.
+
+    Used for *reporting* a miss or a false positive unambiguously, and for pairing edges
+    within a match-key group. It is not the equality test on its own; see ``_pair``.
+
+    Takes either side deliberately: a label and a prediction must be reduced by exactly
+    the same function, or the comparison is between two different notions of identity.
+    """
+    match_key = edge.key() if isinstance(edge, LabelledEdge) else edge.match_key()
+    return (*match_key, normalise_guard(edge.guard) or "")
+
+
+def _pair(
+    truths: list[LabelledEdge], predictions: list[PredictedEdge]
+) -> tuple[list[tuple[LabelledEdge, PredictedEdge]], list[LabelledEdge], list[PredictedEdge]]:
+    """Pair labels with predictions inside one match-key group.
+
+    Guard-equal pairs are taken first so that when a group holds an EU edge and an APAC
+    edge, each is credited against its own counterpart rather than at random. Whatever
+    remains is paired positionally: those are edges the analyser found with the wrong
+    guard, which must still count as matched - the guard figure is what reports them.
+    """
+    remaining = list(predictions)
+    pairs: list[tuple[LabelledEdge, PredictedEdge]] = []
+    unpaired: list[LabelledEdge] = []
+
+    for truth in truths:
+        want = normalise_guard(truth.guard)
+        exact = next((p for p in remaining if normalise_guard(p.guard) == want), None)
+        if exact is None:
+            unpaired.append(truth)
+            continue
+        remaining.remove(exact)
+        pairs.append((truth, exact))
+
+    # Second pass: a mis-stated guard is still a match. Only genuine surplus is a miss.
+    still_unpaired: list[LabelledEdge] = []
+    for truth in unpaired:
+        if remaining:
+            pairs.append((truth, remaining.pop(0)))
+        else:
+            still_unpaired.append(truth)
+
+    return pairs, still_unpaired, remaining
 
 
 def normalise_guard(guard: str | None) -> str | None:
@@ -186,12 +268,40 @@ def score(
     declared_boundaries: list[str] | None = None,
 ) -> ScoreReport:
     """Score analyser output against a ground-truth label set."""
-    truth_by_key: dict[EdgeKey, LabelledEdge] = {edge.key(): edge for edge in truth.edges}
-    predicted_by_key: dict[EdgeKey, PredictedEdge] = {edge.match_key(): edge for edge in predicted}
+    truth_groups: dict[MatchKey, list[LabelledEdge]] = defaultdict(list)
+    for edge in truth.edges:
+        truth_groups[edge.key()].append(edge)
 
-    matched_keys = sorted(set(truth_by_key) & set(predicted_by_key))
-    missed_keys = sorted(set(truth_by_key) - set(predicted_by_key))
-    spurious_keys = sorted(set(predicted_by_key) - set(truth_by_key))
+    # Collapse predictions that are the same fact stated twice.
+    #
+    # The analyser merges on IREdge.identity(), which includes origin, so one fact reached
+    # by two routes - a predicate inlined from a view and again from the caller, a callee
+    # summarised at two call sites - survives as two edges. Under the scoring key those
+    # are one claim, and counting them twice would punish precision for saying the same
+    # true thing twice. Deduplicating here rather than in the analyser is deliberate: the
+    # ledger genuinely wants both, each with its own origin.
+    seen: dict[EdgeKey, PredictedEdge] = {}
+    for claim in sorted(predicted, key=lambda e: (e.origin.unit, e.origin.line)):
+        seen.setdefault(scoring_key(claim), claim)
+
+    predicted_groups: dict[MatchKey, list[PredictedEdge]] = defaultdict(list)
+    for claim in seen.values():
+        predicted_groups[claim.match_key()].append(claim)
+
+    matched: list[tuple[LabelledEdge, PredictedEdge]] = []
+    missed: list[LabelledEdge] = []
+    spurious: list[PredictedEdge] = []
+
+    for match_key in truth_groups.keys() | predicted_groups.keys():
+        pairs, unmatched_truth, surplus = _pair(
+            truth_groups.get(match_key, []), predicted_groups.get(match_key, [])
+        )
+        matched += pairs
+        missed += unmatched_truth
+        spurious += surplus
+
+    missed_keys = sorted(scoring_key(edge) for edge in missed)
+    spurious_keys = sorted(scoring_key(claim) for claim in spurious)
 
     cells: dict[tuple[int, str], Counts] = {}
 
@@ -204,35 +314,34 @@ def score(
         )
 
     # Matched and missed count against the TRUE band.
-    for key in matched_keys:
-        edge = truth_by_key[key]
+    for edge, _ in matched:
         _bump(edge.band, edge.flow.value, tp=1)
-    for key in missed_keys:
-        edge = truth_by_key[key]
+    for edge in missed:
         _bump(edge.band, edge.flow.value, fn=1)
     # A false positive counts against the band the analyser CLAIMED.
-    for key in spurious_keys:
-        invented = predicted_by_key[key]
+    for invented in spurious:
         _bump(invented.band, invented.flow.value, fp=1)
 
     # Guards: measured only over edges that matched, and only where truth states one.
+    # Still entirely outside precision (ADR-0001 §5) - a guard that disagrees produces a
+    # matched pair here and a wrong entry there.
     guard_total = 0
     guard_correct = 0
-    for key in matched_keys:
-        expected = normalise_guard(truth_by_key[key].guard)
+    for edge, claim in matched:
+        expected = normalise_guard(edge.guard)
         if expected is None:
             continue
         guard_total += 1
-        if normalise_guard(predicted_by_key[key].guard) == expected:
+        if normalise_guard(claim.guard) == expected:
             guard_correct += 1
 
     # Forbidden edges are checked against everything emitted, not only against the
     # spurious set. An edge could in principle be forbidden here and legitimate
     # elsewhere; what matters is whether THIS package produced it.
     violations: list[tuple[EdgeKey, str]] = []
-    for key in sorted(predicted_by_key):
+    for key in sorted(seen):
         for rule in truth.forbidden:
-            if rule.matches(key):
+            if rule.matches(key[:4]):
                 violations.append((key, rule.reason))
 
     tier_distribution: dict[str, int] = {}
@@ -316,14 +425,14 @@ def render(report: ScoreReport) -> str:
             "  <- the exact wrong answer this package tests for"
         )
         for key, reason in report.forbidden_violations:
-            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]")
+            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]{_guard_suffix(key)}")
             lines.append(f"      {reason}")
 
     if report.missed_edges:
         lines.append("")
         lines.append(f"MISSED ({len(report.missed_edges)})")
         for key in report.missed_edges:
-            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]")
+            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]{_guard_suffix(key)}")
 
     if report.spurious_edges:
         lines.append("")
@@ -331,10 +440,15 @@ def render(report: ScoreReport) -> str:
             f"SPURIOUS ({len(report.spurious_edges)})  <- these are what precision punishes"
         )
         for key in report.spurious_edges:
-            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]")
+            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]{_guard_suffix(key)}")
 
     return "\n".join(lines) + "\n"
 
 
 def _pct(value: float | None) -> str:
     return "n/a" if value is None else f"{value * 100:.1f}%"
+
+
+def _guard_suffix(key: EdgeKey) -> str:
+    """Show the guard when there is one — two edges can now differ by nothing else."""
+    return f"  when {key[4]}" if len(key) > 4 and key[4] else ""

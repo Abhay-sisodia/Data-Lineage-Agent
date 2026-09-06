@@ -63,7 +63,24 @@ edges:
     origin: {unit: B1_EXCEPTION_HANDLERS, line: 23}
     evidence: observed
     note: >
-      Which rows are touched depends entirely on the parameter.
+      Which rows are touched depends entirely on the parameter. The happy path, so no
+      guard - it is what runs when nothing goes wrong.
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "EXCEPTION NO_DATA_FOUND"
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 35}
+    evidence: observed
+    note: >
+      RESTORED 2026-09-06 by ADR-0001 amendment 1. This edge existed all along - observed
+      by giving a customer region 'XX', for which no ref_policy row exists - and could not
+      be written down, because the v0 key collapsed it into the happy-path edge above.
+      Same endpoints, same flow, same transform; different guard, and therefore a
+      different fact. On a failure day THIS is the lineage of is_active, and it exists
+      nowhere in the happy path.
 
       MODEL LIMITATION, recorded rather than hidden: this exact edge occurs TWICE in
       this procedure - once on the happy path (line 23) and once in the NO_DATA_FOUND
@@ -126,10 +143,21 @@ edges:
     band: 0
     origin: {unit: B1_EXCEPTION_HANDLERS, line: 23}
     evidence: source_read
+    note: The happy-path occurrence. Its handler twin is below.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "EXCEPTION NO_DATA_FOUND"
+    origin: {unit: B1_EXCEPTION_HANDLERS, line: 35}
+    evidence: source_read
     note: >
-      Occurs on the happy path (line 23) and again in the NO_DATA_FOUND handler
-      (line 35). Same collapse as the P_REGION pair described above - two facts, one
-      match key.
+      RESTORED 2026-09-06 by ADR-0001 amendment 1. Band 1 rather than 0: this occurrence
+      only exists because control reached an exception handler, and the path to it runs
+      through the failed SELECT INTO. The happy-path twin above stays band 0 - same
+      endpoints, different path, and ADR-0001 6 bands by the path.
 
   - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
     target: {kind: relation, name: DIM_CUSTOMER}

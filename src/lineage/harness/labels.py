@@ -82,10 +82,11 @@ class LabelledEdge(BaseModel):
     note: str | None = None
 
     def key(self) -> tuple[str, str, str, str]:
-        """Identity used for matching against analyser output.
+        """The ADR-0001 §4 match key: source, target, flow, transform.
 
-        Guard, band, origin and evidence are deliberately absent: they are carried and
-        reported, but they do not decide whether an edge matches.
+        Band, origin and evidence are deliberately absent — carried and reported, but not
+        part of whether an edge matches. Guard is absent HERE and added back by the
+        scoring layer; see ``scoring.scoring_key`` for why the two differ.
         """
         return (str(self.source), str(self.target), self.flow.value, self.transform.value)
 
@@ -156,7 +157,14 @@ class GroundTruth(BaseModel):
 
     @model_validator(mode="after")
     def _reject_duplicates(self) -> Self:
-        keys = [edge.key() for edge in self.edges]
+        """Two labels for the same fact are an error; two facts sharing a match key are not.
+
+        ADR-0001 amendment 1: an edge that fires only under `p_region = 'APAC'` is a
+        different fact from the same endpoints firing unconditionally, so the guard is part
+        of what makes a label unique. Origin is deliberately NOT included - see
+        ``scoring.scoring_key``.
+        """
+        keys = [(*edge.key(), edge.guard or "") for edge in self.edges]
         duplicates = {key for key in keys if keys.count(key) > 1}
         if duplicates:
             raise ValueError(

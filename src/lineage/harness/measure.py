@@ -295,20 +295,23 @@ def render(measurement: Measurement) -> str:
             "  <- named wrong answers, not anonymous false positives"
         )
         for package, edge, reason in measurement.forbidden:
-            lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]")
+            guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
+            lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
             lines.append(f"    {' '.join(reason.split())[:96]}")
 
     if measurement.spurious:
         lines.append("")
         lines.append(f"FALSE POSITIVES ({len(measurement.spurious)})")
         for package, edge in measurement.spurious:
-            lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]")
+            guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
+            lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
 
     if measurement.missed:
         lines.append("")
         lines.append(f"MISSED ({len(measurement.missed)})")
         for package, edge in measurement.missed:
-            lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]")
+            guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
+            lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
 
     return "\n".join(lines) + "\n"
 

@@ -176,6 +176,73 @@ never raise it, which is the test to apply to any post-hoc change to an answer k
 
 ---
 
+## T3.0b — ADR-0001 amendment 1 in the scoring layer *(unplanned; T3.3 and T3.5 needed it)*
+
+Amendment 1 was written in T2.0 and implemented in the IR at T2.1. The label format never
+followed, and T3.0 turned that from a scoring tidy-up into a blocker: three silent failures
+could not be expressed at all.
+
+- [x] **T3.0b1** Two-stage matching — group by match key, pair within a group by guard
+- [x] **T3.0b2** §5 preserved — a mis-stated guard still matches, reported only in the guard figure
+- [x] **T3.0b3** Predictions deduplicated by scoring key before counting
+- [x] **T3.0b4** Restore the four edges the v0 key could not hold
+- [x] **T3.0b5** ADR-0001 amendment 1a written down, with the measurement behind it
+
+**Status: CLOSED.** `tests/test_amendment_1.py` (8 tests); suite 295 → 303.
+
+**The obvious implementation is wrong, and the wrong version passes a casual review.**
+Putting the guard in the match key satisfies amendment 1 and breaks §5: a mis-stated guard
+becomes a miss *and* a false positive, so guard-comparison noise lands directly on the
+gate. T2.4 measured that noise at 0/5 on phrasing alone. `test_amendment_1.py` pins the
+distinction explicitly, because nothing else would catch a regression to the easy version.
+
+**Origin was excluded on evidence, not preference.** Label and analyser agree on the origin
+**unit** for 160 of 170 matched edges and on the **line** for only 12. Requiring line
+numbers — hand-read during labelling — would collapse recall for a reason unrelated to
+lineage. Unit agrees far better, but its ten disagreements are a live modelling question:
+when a view's predicate or a callee's expression is inlined, does the edge belong to the
+caller or to the unit that wrote it? Putting an unsettled convention inside the gate would
+move the headline number on a decision nobody has taken.
+
+**Four edges restored**, each one a fact the corpus could not previously state:
+
+| Package | The fact that had nowhere to go |
+|---|---|
+| `b1_09` | the `NO_DATA_FOUND` handler's filter edge — **already observed**, by giving a customer region `'XX'` |
+| `b1_03` | the decay `v_total := v_total / 2`, identical to the accumulation but for its `WHILE` guard |
+| `s7` | the APAC filter, identical to the EU one |
+| `b1_02` | the APAC arm's correlation operand |
+
+**`b1_02`'s restored edge raises precision**, so it is flagged in that file. The convention
+— every operand of a predicate is a filter edge — was fixed in `b0_01` and applied
+uniformly in `0b9a9e8`; this occurrence was skipped there for a mechanical reason, not a
+judged one, because its key collided with the EU arm's and the duplicate validator would
+have rejected it.
+
+**Two defects surfaced that the old scoring had been hiding:**
+
+1. **The analyser emits some edges twice.** Dict-keyed scoring silently kept one. They are
+   genuinely one claim reached by two routes, so they are now deduplicated at the scoring
+   boundary rather than in the analyser — the ledger legitimately wants both, each with its
+   own origin.
+2. **`b1_03`'s accumulation self-edge is classified `aggregated` and should be `derived`.**
+   In `NVL(SUM(gross_amount), 0) + v_total`, `gross_amount` arrives through a SUM but
+   `v_total` arrives through an addition. Transform class is per-source, not per-statement.
+   Previously invisible: the wrong class collided with the right one under the v0 key.
+
+| | before | after |
+|---|---|---|
+| band-1 filter recall | 88.9% | **90.9%** |
+| band-1 value recall | 100% | **96.2%** — `b1_03`'s decay is now a target, and missed |
+| band-1 value precision | 75.8% | 75.8% |
+| guard accuracy | 88.2% of 17 | 100% of 22 |
+
+**The gate did not move, and that is the correct outcome.** The eight false positives are
+still the statement-text defect, untouched by any of this. Amendment 1 was never going to
+fix the number — it made three untestable failures testable.
+
+---
+
 ## T3.1 — The unanalysable-construct classifier
 
 *The spike calls this out as a deliverable in its own right: "the classifier that says 'I

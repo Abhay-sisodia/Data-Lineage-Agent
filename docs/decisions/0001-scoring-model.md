@@ -118,12 +118,52 @@ one edge until their label sets are re-expressed against IR identity. Both say s
 file. Recorded rather than quietly absorbed, because a benchmark that hides its own
 limitations is the thing this project exists not to be.
 
+### Amendment 1a · How the scoring layer implements it
+
+**Added 2026-09-06 during week 3, after T3.0 found four more cases.** The gap had grown
+from "two files under-count by one" to "three silent failures cannot be tested at all":
+`s2`, `b2_05` and `b2_02` each invite a wrong answer whose match key is identical to a
+correct one, and `s7`'s APAC filter could not be written down beside its EU twin.
+
+**The obvious implementation is wrong.** Adding guard to the match key makes a mis-stated
+guard produce a miss *and* a false positive, dragging guard-comparison noise onto the gate
+— exactly what §5 forbids, and T2.4 measured that noise at 0/5 on phrasing alone.
+
+**So matching is two-stage.** Group both sides by match key; where a group holds more than
+one edge, pair them off by normalised guard. A lone edge with a wrong guard still matches
+and is counted wrong only in the separate guard figure. Guards discriminate solely where
+discrimination is needed.
+
+**Origin is not used, and that was measured rather than assumed.** Across the corpus, label
+and analyser agree on the origin *unit* for 160 of 170 matched edges but on the *line* for
+only 12. Line numbers are hand-read while labelling; requiring them would collapse recall
+for a reason unrelated to lineage being right. Unit agrees far better, but its ten
+disagreements are an open modelling question — when a view's predicate or a callee's
+expression is inlined, does the edge belong to the caller or to the unit that wrote it? —
+and putting an unsettled convention inside the gate would move the headline number on a
+decision nobody has taken.
+
+**Residual limitation, stated.** The three origin-only silent failures remain inexpressible
+in the key. They need direct assertions in T3.3 and T3.5, not a scoring change.
+
+**Predictions are deduplicated by scoring key before counting.** The analyser merges on
+`identity()`, which includes origin, so one fact reached by two routes survives as two
+edges; counting both would punish precision for saying the same true thing twice.
+
+**Effect on the numbers, recorded because it is an edit to a benchmark:** four edges
+restored to the keys (`b1_02`, `b1_03`, `b1_09`, `s7`). Band-1 filter recall rose
+88.9% → 90.9% and band-1 value recall fell 100% → 96.2%, because `b1_03`'s decay is now a
+target the analyser misses. `b1_02`'s restored edge *raises* precision by removing a false
+positive, and is flagged as such in that file.
+
 ---
 
 ## Consequences
 
-- Edge identity for matching is `(source, target, flow, transform)`. Guard, band, origin
-  and evidence are carried but compared separately.
+- Edge identity for matching is `(source, target, flow, transform)`, with guard used to
+  pair edges *within* a match-key group (amendment 1a). Band, origin and evidence are
+  carried but compared separately; guard is also reported separately and stays out of
+  precision.
 - Reported per band: precision and recall, split by flow kind, plus guard-correct % and
   tier distribution. **No blended headline number exists** — by design.
 - The 95% gate applies to **band-1 value-flow precision**. That must be stated wherever
