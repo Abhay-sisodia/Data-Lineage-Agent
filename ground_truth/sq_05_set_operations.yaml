@@ -1,0 +1,97 @@
+# Ground truth for adversarial/sql/sq_05_set_operations.sql
+#
+# Three UNION ALL arms reading three DIFFERENT tables. Every output column therefore has
+# three legitimate sources, and missing any one is a silent under-report - the trace would
+# look complete and omit a whole feed.
+#
+# Set operations bind BY POSITION (silent failure s5). Arm 2 selects refund_amount where
+# arm 1 selects line_amount: the names differ, the positions match, position wins.
+#
+# Arm 3's period_month is TRUNC(SYSDATE) - a literal expression with no source column, so
+# it contributes no edge. Two arms feed period_month, not three.
+
+package: adversarial/sql/sq_05_set_operations.sql
+source_sha256: 1550d1e8d7bd7b61d9f1c12401f1cccc4364f51d3945e0afdec42df6bd94751c
+labelled_by: claude+abhay (written before running the analyser)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- period_month: two arms ---------------------------------------------------------
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: SQ_SET_OPERATIONS, line: 16}
+    evidence: source_read
+    note: Arms 1 and 2 both TRUNC(o.order_date). Arm 3 uses SYSDATE - no source column.
+
+  # --- product_id: three arms, three tables -------------------------------------------
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SET_OPERATIONS, line: 19}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_RETURNS.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SET_OPERATIONS, line: 26}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_PRODUCTS.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SET_OPERATIONS, line: 33}
+    evidence: source_read
+
+  # --- gross_sales: three arms, three different transforms ----------------------------
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SET_OPERATIONS, line: 20}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_RETURNS.REFUND_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: SQ_SET_OPERATIONS, line: 27}
+    evidence: source_read
+    note: >
+      Negated, so DERIVED rather than identity. Positionally this arm's refund_amount
+      lands in the same output column as arm 1's line_amount - two different measures
+      in one column, which is a real modelling hazard and exactly what position-binding
+      produces.
+
+  - source: {kind: column, name: STG_PRODUCTS.LIST_PRICE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SET_OPERATIONS, line: 34}
+    evidence: source_read
+
+  # --- predicate ----------------------------------------------------------------------
+
+  - source: {kind: column, name: STG_PRODUCTS.STATUS_CODE}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SET_OPERATIONS, line: 36}
+    evidence: source_read
+
+boundaries: []

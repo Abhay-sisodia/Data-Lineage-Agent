@@ -1,0 +1,90 @@
+# Ground truth for adversarial/sql/sq_07_unqualified_ambiguity.sql
+#
+# THE SILENT-FAILURE CASE OF THIS BAND.
+#
+# Four references are unqualified, and each names a column that exists on several tables
+# in the schema but on exactly ONE table in this statement's FROM scope:
+#
+#   order_date   also on nothing else          -> STG_ORDERS
+#   line_amount  also on nothing else          -> STG_ORDER_LINES
+#   quantity     also on nothing else          -> STG_ORDER_LINES
+#   status_code  also on stg_customer,         -> STG_PRODUCTS
+#                stg_returns
+#   cust_id      also on stg_customer,         -> STG_ORDERS
+#                stg_returns, dim_customer,
+#                dim_customer_hier
+#
+# Oracle resolves every one correctly, because scope is what matters. An analyser that
+# resolves names against the whole DICTIONARY rather than against the statement's own
+# FROM clause will bind status_code or cust_id to the wrong table - and the result
+# parses, runs, and looks entirely normal.
+#
+# The two that matter are status_code and cust_id. If either is attributed to
+# stg_customer or stg_returns, that is a confident wrong answer of exactly the kind the
+# evidence model cannot catch, because all three witnesses would agree on it.
+
+package: adversarial/sql/sq_07_unqualified_ambiguity.sql
+source_sha256: 0996929d50371ad3de3577fd85932aac683b586bdf66e47b0844047684dc6247
+labelled_by: claude+abhay (written before running the analyser)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: SQ_UNQUALIFIED, line: 30}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_PRODUCTS.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_UNQUALIFIED, line: 31}
+    evidence: source_read
+    note: Qualified as p.product_id, so unambiguous.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_UNQUALIFIED, line: 32}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_UNQUALIFIED, line: 33}
+    evidence: source_read
+
+  # --- the two that decide whether scope resolution works -----------------------------
+
+  - source: {kind: column, name: STG_PRODUCTS.STATUS_CODE}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_UNQUALIFIED, line: 37}
+    evidence: source_read
+    note: >
+      Unqualified. STG_PRODUCTS is the only table in this join carrying status_code, so
+      Oracle binds it there. Binding it to stg_customer or stg_returns would be wrong and
+      would look entirely normal.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_UNQUALIFIED, line: 38}
+    evidence: source_read
+    note: >
+      Unqualified, and cust_id exists on four other tables in the schema. Only
+      STG_ORDERS is in scope here.
+
+boundaries: []

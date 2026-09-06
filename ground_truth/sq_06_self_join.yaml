@@ -1,0 +1,89 @@
+# Ground truth for adversarial/sql/sq_06_self_join.sql
+#
+# KNOWN MODEL LIMITATION, stated before the analyser was run.
+#
+# dim_customer_hier appears twice, as `child` and `parent`. Those are different ROWS of
+# the same relation, and our node names carry no alias - `column:DIM_CUSTOMER_HIER.CUST_ID`
+# is the same node whichever side it came from. So:
+#
+#   child.cust_id  -> dim_customer_hier.cust_id        (a self-edge)
+#   parent.cust_id -> dim_customer_hier.parent_cust_id
+#
+# collapse into indistinguishable facts about the same column, and the first is a
+# self-edge that reads as circular. The lineage is genuinely self-referential here, but
+# the model cannot express WHICH side fed which target.
+#
+# This is the join-side analogue of the shared temp table problem, and it is the same
+# class of gap as ADR-0001 amendment 1: identity needs more than the column name. Not
+# fixed here; recorded so the score is read correctly.
+#
+# The scalar subquery in the select list adds the second difficulty: its WHERE correlates
+# back to the outer query, so those columns are filter influence, not value sources -
+# the same rule established in b1_02.
+
+package: adversarial/sql/sq_06_self_join.sql
+source_sha256: 654c8f61920c8d967c524bf5d34a79ae75e4b85915227b4aecc5c355b12379d6
+labelled_by: claude+abhay (written before running the analyser)
+labelled_at: "2026-09-06"
+
+note: >
+  Expect a lower score here than on the other SQL cases, and expect it for a reason that
+  is about the model rather than the analyser.
+
+edges:
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SELF_JOIN, line: 16}
+    evidence: source_read
+    note: child.cust_id -> cust_id. A genuine self-edge, not a modelling artefact.
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.PARENT_CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SELF_JOIN, line: 17}
+    evidence: source_read
+    note: parent.cust_id -> parent_cust_id. Same source node as the edge above.
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.DEPTH}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.DEPTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: SQ_SELF_JOIN, line: 18}
+    evidence: source_read
+    note: NVL(parent.depth, 0) + 1.
+
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_SELF_JOIN, line: 19}
+    evidence: source_read
+    note: MAX(s.email) from a correlated scalar subquery in the select list.
+
+  # --- predicates ---------------------------------------------------------------------
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.DEPTH}
+    target: {kind: relation, name: DIM_CUSTOMER_HIER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SELF_JOIN, line: 24}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER_HIER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_SELF_JOIN, line: 21}
+    evidence: source_read
+    note: The correlation predicate inside the scalar subquery.
+
+boundaries: []

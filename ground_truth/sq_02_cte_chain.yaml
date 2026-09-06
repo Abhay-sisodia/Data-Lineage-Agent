@@ -1,0 +1,74 @@
+# Ground truth for adversarial/sql/sq_02_cte_chain.sql
+#
+# Three chained CTEs. `combined` reads `base` and `refunds`; the outer SELECT reads
+# `combined`. Resolving `b.amount` means having analysed a different part of the same
+# statement first.
+#
+# Observed: FCT_PRODUCT_SALES 0 -> 4 rows. GROSS_SALES uniquely value-consistent with
+# STG_ORDER_LINES.LINE_AMOUNT. NET_SALES and PERIOD_MONTH computed, so no value-consistent
+# source - correct.
+#
+# No WHERE clause anywhere, and join conditions are not filter edges, so this file has no
+# filter lineage at all. That is the right answer, not an omission.
+
+package: adversarial/sql/sq_02_cte_chain.sql
+source_sha256: 9f8cf405317963f815c79562f74e177e44d7c07ff0038ddd5c1e816b0a6a5b61
+labelled_by: claude+abhay (observation-anchored, written before running the analyser)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 39}
+    evidence: observed
+    note: o.order_date -> base.order_date -> combined.period_month -> target. Three hops.
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 40}
+    evidence: adjudicated
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 41}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 42}
+    evidence: observed
+    note: gross - refunded, where gross is SUM(b.amount).
+
+  - source: {kind: column, name: STG_RETURNS.REFUND_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 42}
+    evidence: source_read
+    note: >
+      Reaches the target through TWO CTEs: refunds aggregates it, combined joins that in
+      and MAXes it, the outer SELECT subtracts it. An analyser that stops at the first
+      CTE boundary loses this entirely.
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 43}
+    evidence: observed
+
+boundaries: []

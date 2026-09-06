@@ -30,7 +30,8 @@ SOURCES = CORPUS / "sources.yaml"
 MANIFEST = CORPUS / "manifest.yaml"
 
 # b0_01_insert_select.sql -> insert_select ; s3_shared_temp_table.sql -> shared_temp_table
-CONSTRUCT = re.compile(r"^(?:b\d+_\d+|s\d+)_(?P<construct>.+)\.sql$")
+# sq_01_multi_join.sql     -> multi_join
+CONSTRUCT = re.compile(r"^(?:sq_\d+|b\d+_\d+|s\d+)_(?P<construct>.+)\.sql$")
 
 
 def _sha256(path: Path) -> str:

@@ -1,0 +1,118 @@
+# Ground truth for adversarial/sql/sq_01_multi_join.sql
+#
+# Five tables, one LEFT JOIN, GROUP BY, aggregates over derived expressions.
+#
+# Observed: FCT_PRODUCT_SALES 0 -> 3 rows, all seven columns written.
+# CATEGORY_NAME had a UNIQUE value-consistent source (STG_CATEGORIES.CATEGORY_NAME) and
+# GROSS_SALES likewise (STG_ORDER_LINES.LINE_AMOUNT) - the strongest labels here.
+# NET_SALES, REFUND_TOTAL and PERIOD_MONTH reported no value-consistent source, which is
+# correct: they are computed and their values appear nowhere upstream.
+#
+# All edges are band 0. No variable, branch, loop or call is on any path - this file
+# tests SQL difficulty, not procedural difficulty, which is the point of the band.
+#
+# Join conditions are NOT filter edges, per the convention set in b0_02: a join key is
+# structural, and treating it as row-selection lineage would flood every multi-table
+# statement with edges that tell a reader nothing.
+
+package: adversarial/sql/sq_01_multi_join.sql
+source_sha256: e0f1c6e5291a84dc92f0ea79643931ce6908e717f8a1c128f2a7db8e21d7cc24
+labelled_by: claude+abhay (observation-anchored, written before running the analyser)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 20}
+    evidence: observed
+
+  - source: {kind: column, name: STG_PRODUCTS.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 21}
+    evidence: adjudicated
+    note: >
+      Written `p.product_id`, so it resolves to stg_products. Observation offered both
+      STG_ORDER_LINES.PRODUCT_ID and STG_PRODUCTS.PRODUCT_ID as value-consistent -
+      unsurprising, since the join equates them. The qualifier settles it.
+
+  - source: {kind: column, name: STG_CATEGORIES.CATEGORY_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 22}
+    evidence: observed
+    note: Uniquely value-consistent. Four joins deep from the driving table.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 23}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 24}
+    evidence: observed
+
+  - source: {kind: column, name: STG_RETURNS.REFUND_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 24}
+    evidence: source_read
+    note: >
+      The subtrahend. Arrives through the LEFT JOIN, so it is NULL for products with no
+      return - which is exactly why NVL wraps it, and why missing this edge would
+      understate what feeds a regulated total.
+
+  - source: {kind: column, name: STG_RETURNS.REFUND_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.REFUND_TOTAL}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 25}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 26}
+    evidence: adjudicated
+    note: >
+      Observation offered six candidates, all small integers - the low-cardinality
+      problem again. Ruled from line 26.
+
+  # --- predicates -------------------------------------------------------------------
+
+  - source: {kind: column, name: STG_PRODUCTS.STATUS_CODE}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 32}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_MULTI_JOIN, line: 33}
+    evidence: source_read
+
+boundaries: []

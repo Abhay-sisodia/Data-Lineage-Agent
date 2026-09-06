@@ -1,0 +1,96 @@
+# Ground truth for adversarial/sql/sq_03_window_functions.sql
+#
+# MODELLING DECISION, made here for the first time and applied consistently.
+#
+# A window function has three kinds of column reference and they are NOT the same fact:
+#
+#   * the argument      LAG(total)              -> a value source
+#   * PARTITION BY      period_month            -> influence, not value
+#   * ORDER BY          total DESC              -> influence, not value
+#
+# ROW_NUMBER() takes no argument at all, so rank_in_month has NO value edge - the same
+# rule as COUNT(*) in b0_05, where a row count has no source column. What decides the
+# rank is the partitioning and ordering, and those are filter-shaped influence.
+#
+# Treating PARTITION BY and ORDER BY columns as value sources would claim that a date
+# determines a rank's VALUE, which is the same category error as treating a correlated
+# predicate as a value source.
+#
+# LAG is the interesting one: prior_month's value comes from ANOTHER ROW of `total`. The
+# column lineage is still line_amount - lineage tracks which column, not which row.
+#
+# Observed: all six columns written. RANK_IN_MONTH offered only low-cardinality integer
+# candidates, consistent with a value computed rather than copied.
+
+package: adversarial/sql/sq_03_window_functions.sql
+source_sha256: d76fc809dcbfc3b2bb7454d8a7ba4b8ff22b6cde48366b3dc87131cddd96184f
+labelled_by: claude+abhay (observation-anchored, written before running the analyser)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: SQ_WINDOW_FUNCTIONS, line: 17}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_WINDOW_FUNCTIONS, line: 18}
+    evidence: adjudicated
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_WINDOW_FUNCTIONS, line: 19}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRIOR_MONTH}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_WINDOW_FUNCTIONS, line: 21}
+    evidence: observed
+    note: >
+      LAG(total) reads another ROW of the same column. Lineage tracks which COLUMN a
+      value came from, not which row, so the edge is to line_amount - and observation
+      confirmed line_amount as a value-consistent source.
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_WINDOW_FUNCTIONS, line: 22}
+    evidence: observed
+
+  # rank_in_month has NO value edge. ROW_NUMBER() takes no argument; nothing supplies
+  # its value. What decides it is below.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_WINDOW_FUNCTIONS, line: 20}
+    evidence: source_read
+    note: PARTITION BY period_month, which derives from order_date.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: SQ_WINDOW_FUNCTIONS, line: 20}
+    evidence: source_read
+    note: ORDER BY total DESC decides which row gets which rank.
+
+boundaries: []

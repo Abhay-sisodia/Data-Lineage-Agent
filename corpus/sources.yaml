@@ -36,6 +36,17 @@ collections:
       Statically undecidable. Must be solved empirically via log recovery or declared
       honestly - never guessed.
 
+  adversarial/sql:
+    origin: hand-written for this spike
+    licence: proprietary (internal)
+    url: null
+    purpose: >
+      SQL difficulty on its own axis. The band-0/1 corpus was built around the spike's
+      PROCEDURAL construct ladder and has almost no join surface - 0.7 tables per
+      statement and not one JOIN. This band tests multi-table joins, CTEs, window
+      functions, five-level nesting, set operations, self-joins and unqualified column
+      resolution, which is where silent binding errors live.
+
   adversarial/silent:
     origin: hand-written for this spike
     licence: proprietary (internal)
@@ -79,6 +90,14 @@ required_constructs:
     - metadata_driven_etl
     - triggers
     - db_links
+  sql:
+    - multi_join
+    - cte_chain
+    - window_functions
+    - deep_nesting
+    - set_operations
+    - self_join
+    - unqualified_ambiguity
   silent:
     - synonym_redirect
     - schema_context

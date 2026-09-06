@@ -1,0 +1,57 @@
+# Ground truth for adversarial/sql/sq_04_deep_nesting.sql
+#
+# Five levels of subquery, renamed at every level, with a JOIN introduced at the innermost
+# and an aggregation at the outermost:
+#
+#   line_amount -> amt -> val -> v2 -> final_value -> net_sales
+#   order_date  -> dt  -> mth -> m  -> month_start -> period_month
+#
+# b0_05 tested two levels. This is five. Every level is a chance to lose the trail or
+# bind to the wrong side of the join.
+#
+# Observed: NET_SALES uniquely value-consistent with STG_ORDER_LINES.LINE_AMOUNT, which
+# confirms the chain survives all five renames.
+
+package: adversarial/sql/sq_04_deep_nesting.sql
+source_sha256: 27ed7b850275a1c52e027ed650663cf97de2d0148dd37ff87f6eb61bc0df1f8e
+labelled_by: claude+abhay (observation-anchored, written before running the analyser)
+labelled_at: "2026-09-06"
+
+edges:
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: SQ_DEEP_NESTING, line: 13}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: SQ_DEEP_NESTING, line: 13}
+    evidence: adjudicated
+    note: Renamed p_id -> pd -> pid -> prod. Still an identity copy after four renames.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_DEEP_NESTING, line: 13}
+    evidence: observed
+    note: >
+      amt * 1.0 is a derived step, SUM(v2) an aggregation on top. Strongest on the path
+      wins, so AGGREGATED.
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_DEEP_NESTING, line: 13}
+    evidence: observed
+
+boundaries: []

@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-09-06T10:19:10+00:00",
+  "captured_at": "2026-09-06T12:01:45+00:00",
   "columns": {
     "LINEAGE.DIM_CUSTOMER": [
       "CUST_ID",
@@ -7,6 +7,12 @@
       "IS_ACTIVE",
       "EMAIL",
       "LIFETIME_VALUE"
+    ],
+    "LINEAGE.DIM_CUSTOMER_HIER": [
+      "CUST_ID",
+      "PARENT_CUST_ID",
+      "DEPTH",
+      "ROOT_NAME"
     ],
     "LINEAGE.DW_AUDIT_LOG": [
       "CUST_ID",
@@ -28,6 +34,17 @@
       "TARGET_COLUMN",
       "FILTER_CLAUSE",
       "IS_ENABLED"
+    ],
+    "LINEAGE.FCT_PRODUCT_SALES": [
+      "PERIOD_MONTH",
+      "PRODUCT_ID",
+      "CATEGORY_NAME",
+      "GROSS_SALES",
+      "NET_SALES",
+      "REFUND_TOTAL",
+      "UNITS_SOLD",
+      "RANK_IN_MONTH",
+      "PRIOR_MONTH"
     ],
     "LINEAGE.FCT_REVENUE": [
       "CUST_ID",
@@ -57,6 +74,11 @@
       "WINDOW_DAYS",
       "EFFECTIVE_FROM"
     ],
+    "LINEAGE.STG_CATEGORIES": [
+      "CATEGORY_ID",
+      "CATEGORY_NAME",
+      "PARENT_ID"
+    ],
     "LINEAGE.STG_CUSTOMER": [
       "CUST_ID",
       "REGION",
@@ -72,6 +94,29 @@
       "GROSS_AMOUNT",
       "DISCOUNT_AMT",
       "CURRENCY"
+    ],
+    "LINEAGE.STG_ORDER_LINES": [
+      "LINE_ID",
+      "ORDER_ID",
+      "PRODUCT_ID",
+      "QUANTITY",
+      "UNIT_PRICE",
+      "LINE_AMOUNT"
+    ],
+    "LINEAGE.STG_PRODUCTS": [
+      "PRODUCT_ID",
+      "PRODUCT_NAME",
+      "CATEGORY_ID",
+      "LIST_PRICE",
+      "STATUS_CODE"
+    ],
+    "LINEAGE.STG_RETURNS": [
+      "RETURN_ID",
+      "ORDER_ID",
+      "CUST_ID",
+      "PRODUCT_ID",
+      "REFUND_AMOUNT",
+      "STATUS_CODE"
     ],
     "LINEAGE.TMP_RECENT": [
       "CUST_ID",
@@ -208,6 +253,11 @@
       "object_type": "TABLE",
       "owner": "LINEAGE"
     },
+    "LINEAGE.DIM_CUSTOMER_HIER": {
+      "name": "DIM_CUSTOMER_HIER",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
     "LINEAGE.DW_AUDIT_LOG": {
       "name": "DW_AUDIT_LOG",
       "object_type": "TABLE",
@@ -220,6 +270,11 @@
     },
     "LINEAGE.ETL_CONFIG": {
       "name": "ETL_CONFIG",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.FCT_PRODUCT_SALES": {
+      "name": "FCT_PRODUCT_SALES",
       "object_type": "TABLE",
       "owner": "LINEAGE"
     },
@@ -313,6 +368,46 @@
       "object_type": "PROCEDURE",
       "owner": "LINEAGE"
     },
+    "LINEAGE.SQ_CTE_CHAIN": {
+      "name": "SQ_CTE_CHAIN",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.SQ_DEEP_NESTING": {
+      "name": "SQ_DEEP_NESTING",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.SQ_MULTI_JOIN": {
+      "name": "SQ_MULTI_JOIN",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.SQ_SELF_JOIN": {
+      "name": "SQ_SELF_JOIN",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.SQ_SET_OPERATIONS": {
+      "name": "SQ_SET_OPERATIONS",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.SQ_UNQUALIFIED": {
+      "name": "SQ_UNQUALIFIED",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.SQ_WINDOW_FUNCTIONS": {
+      "name": "SQ_WINDOW_FUNCTIONS",
+      "object_type": "PROCEDURE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.STG_CATEGORIES": {
+      "name": "STG_CATEGORIES",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
     "LINEAGE.STG_CUSTOMER": {
       "name": "STG_CUSTOMER",
       "object_type": "TABLE",
@@ -320,6 +415,21 @@
     },
     "LINEAGE.STG_ORDERS": {
       "name": "STG_ORDERS",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.STG_ORDER_LINES": {
+      "name": "STG_ORDER_LINES",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.STG_PRODUCTS": {
+      "name": "STG_PRODUCTS",
+      "object_type": "TABLE",
+      "owner": "LINEAGE"
+    },
+    "LINEAGE.STG_RETURNS": {
+      "name": "STG_RETURNS",
       "object_type": "TABLE",
       "owner": "LINEAGE"
     },
@@ -374,16 +484,22 @@
   },
   "temporary": {
     "LINEAGE.DIM_CUSTOMER": false,
+    "LINEAGE.DIM_CUSTOMER_HIER": false,
     "LINEAGE.DW_AUDIT_LOG": false,
     "LINEAGE.DW_DIM_CUSTOMER_V2": false,
     "LINEAGE.ETL_CONFIG": false,
+    "LINEAGE.FCT_PRODUCT_SALES": false,
     "LINEAGE.FCT_REVENUE": false,
     "LINEAGE.FCT_REVENUE_PART": false,
     "LINEAGE.FCT_REVENUE_STAGE": false,
     "LINEAGE.GTT_STAGE": true,
     "LINEAGE.REF_POLICY": false,
+    "LINEAGE.STG_CATEGORIES": false,
     "LINEAGE.STG_CUSTOMER": false,
     "LINEAGE.STG_ORDERS": false,
+    "LINEAGE.STG_ORDER_LINES": false,
+    "LINEAGE.STG_PRODUCTS": false,
+    "LINEAGE.STG_RETURNS": false,
     "LINEAGE.TMP_RECENT": false
   },
   "view_text": {

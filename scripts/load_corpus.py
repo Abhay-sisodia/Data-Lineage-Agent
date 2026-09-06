@@ -39,6 +39,7 @@ LOAD_ORDER = [
     "adversarial/band1",
     "adversarial/band2",
     "adversarial/silent",
+    "adversarial/sql",
 ]
 
 PLSQL_START = re.compile(
