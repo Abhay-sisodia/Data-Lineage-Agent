@@ -34,6 +34,7 @@ from lineage.ir.model import Flow, Node, NodeKind, Origin, Transform
 __all__ = [
     "Evidence",
     "Flow",
+    "ForbiddenEdge",
     "GroundTruth",
     "LabelledEdge",
     "Node",
@@ -89,6 +90,42 @@ class LabelledEdge(BaseModel):
         return (str(self.source), str(self.target), self.flow.value, self.transform.value)
 
 
+class ForbiddenEdge(BaseModel):
+    """An edge that must NOT appear — the plausible wrong answer a package invites.
+
+    A silent-failure package is defined by the specific mistake it elicits, and absence
+    of the true edge is not the same failure as presence of the false one. Recall already
+    punishes the first; nothing punished the second, because a wrong edge that happens to
+    be absent from the key is only ever one anonymous false positive among others.
+
+    Naming it changes what a regression means. ``s5`` losing its true edge is a miss;
+    ``s5`` producing ``stg_orders.order_date -> tmp_recent.cust_id`` is the exact defect
+    the case was written to catch, and it should be reported by name rather than as a
+    number moving.
+
+    ``transform`` is optional: omitted, the edge is forbidden under every transform class,
+    which is usually what is meant. A wrong binding is wrong however it was computed.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source: Node
+    target: Node
+    flow: Flow = Flow.VALUE
+    transform: Transform | None = Field(
+        default=None,
+        description="Omit to forbid this pair of endpoints under any transform class.",
+    )
+    reason: str = Field(description="Why this looks right and is not. Stated, never implied.")
+
+    def matches(self, key: tuple[str, str, str, str]) -> bool:
+        """Does an emitted edge's match key describe this forbidden fact?"""
+        source, target, flow, transform = key
+        if (source, target, flow) != (str(self.source), str(self.target), self.flow.value):
+            return False
+        return self.transform is None or transform == self.transform.value
+
+
 class GroundTruth(BaseModel):
     """The complete answer key for one corpus package."""
 
@@ -110,6 +147,11 @@ class GroundTruth(BaseModel):
         "constructs, DB links, refused schemas. Declaring these is scored too: "
         "silently omitting one is the failure mode the whole product exists to avoid.",
     )
+    forbidden: list[ForbiddenEdge] = Field(
+        default_factory=list,
+        description="Edges that must NOT be produced - the plausible wrong answer this "
+        "package was written to elicit. Scored by presence, not by absence.",
+    )
     note: str | None = None
 
     @model_validator(mode="after")
@@ -120,6 +162,21 @@ class GroundTruth(BaseModel):
             raise ValueError(
                 f"duplicate edges in ground truth for {self.package}: {sorted(duplicates)}"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _reject_self_contradiction(self) -> Self:
+        """A key that both requires and forbids the same edge is broken, not strict.
+
+        Cheap to write by accident when a package's true edge and its trap share
+        endpoints, and it would make the package unscoreable in a way no number reveals.
+        """
+        for forbidden in self.forbidden:
+            for edge in self.edges:
+                if forbidden.matches(edge.key()):
+                    raise ValueError(
+                        f"{self.package}: edge is both required and forbidden: {edge.key()}"
+                    )
         return self
 
     @classmethod

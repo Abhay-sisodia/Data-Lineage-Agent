@@ -1,0 +1,122 @@
+# Ground truth for adversarial/silent/s4_partition_exchange.sql
+#
+# OBSERVED, AND THE OBSERVATION IS THE ARGUMENT. After one run:
+#
+#   FCT_REVENUE_PART   0 -> 3 rows      (all four columns written)
+#   FCT_REVENUE_STAGE  3 -> 0 rows      (verified directly afterwards)
+#
+# There is no INSERT anywhere in this file targeting fct_revenue_part. A fully populated,
+# partitioned, regulated-looking fact table acquired its entire contents through an ALTER
+# TABLE, and a DML-only analyser reports it as having no writer at all.
+#
+# "No writer" is the worst possible wrong answer, worse than a missing edge: it reads as a
+# positive finding. An auditor asking who populates this table gets silence that looks
+# like an answer.
+#
+# TWO SEPARATE DIFFICULTIES, AND THEY NEED DIFFERENT REMEDIES:
+#   1. The exchange is DDL. Lineage must treat DDL in the log as lineage-bearing.
+#   2. The DDL is inside EXECUTE IMMEDIATE, so it is also band-2 dynamic SQL - though of
+#      the constant-string kind, which makes it statically recoverable like b2_01.
+#
+# BANDING. The staging load is band 0 - a plain INSERT ... SELECT. The exchange edges are
+# band 2: the hardest construct on their path is dynamic DDL.
+
+package: adversarial/silent/s4_partition_exchange.sql
+source_sha256: 075c8e2251cf7a824f91c93af064aeb68c18ee9fa1463d8714bd54366e71803c
+labelled_by: claude+abhay (observation-anchored; row counts verified on both tables)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- the ordinary part: stg_orders -> fct_revenue_stage -----------------------------
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S4_PARTITION_EXCHANGE, line: 42}
+    evidence: source_read
+    note: >
+      source_read, not observed, and for an interesting reason: by the time the snapshot
+      was taken the exchange had already emptied the staging table, so the write is
+      invisible in a before/after diff of a completed run. Observation sees end states.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S4_PARTITION_EXCHANGE, line: 43}
+    evidence: source_read
+    note: TRUNC(order_date, 'MM').
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S4_PARTITION_EXCHANGE, line: 44}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S4_PARTITION_EXCHANGE, line: 44}
+    evidence: source_read
+    note: gross_amount - discount_amt. Both operands are sources.
+
+  # order_count receives the literal 1 - no edge.
+
+  # --- the exchange: an entire dataset moves with no DML ------------------------------
+  #
+  # Column-to-column and positional. EXCHANGE PARTITION swaps segments, so the mapping is
+  # by position in the table definition, exactly like a UNION arm - it is not a projection
+  # and there is no select list to read names from.
+
+  - source: {kind: column, name: FCT_REVENUE_STAGE.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_PART.CUST_ID}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: S4_PARTITION_EXCHANGE, line: 52}
+    evidence: observed
+
+  - source: {kind: column, name: FCT_REVENUE_STAGE.PERIOD_MONTH}
+    target: {kind: column, name: FCT_REVENUE_PART.PERIOD_MONTH}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: S4_PARTITION_EXCHANGE, line: 52}
+    evidence: observed
+
+  - source: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE_PART.NET_AMOUNT}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: S4_PARTITION_EXCHANGE, line: 52}
+    evidence: observed
+
+  - source: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    target: {kind: column, name: FCT_REVENUE_PART.ORDER_COUNT}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: S4_PARTITION_EXCHANGE, line: 52}
+    evidence: observed
+
+forbidden:
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE_PART.NET_AMOUNT}
+    flow: value
+    reason: >
+      The composed shortcut. It is arguably TRUE in the end-to-end sense, and it is still
+      forbidden here, because emitting it directly skips the exchange and therefore
+      reports the wrong mechanism, the wrong origin and the wrong evidence tier for a hop
+      that no INSERT performed. Path composition is a query-time operation over hops that
+      each stand on their own evidence; collapsing two hops into one claim at emission
+      time is how an unprovable edge acquires a provable-looking origin.
+
+boundaries: []

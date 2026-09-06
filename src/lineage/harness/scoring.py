@@ -152,6 +152,7 @@ class ScoreReport:
     boundaries_declared: list[str] = field(default_factory=list)
     missed_edges: list[EdgeKey] = field(default_factory=list)
     spurious_edges: list[EdgeKey] = field(default_factory=list)
+    forbidden_violations: list[tuple[EdgeKey, str]] = field(default_factory=list)
 
     def cell(self, band: int, flow: Flow) -> Counts:
         return self.cells.get((band, flow.value), Counts(0, 0, 0))
@@ -225,6 +226,15 @@ def score(
         if normalise_guard(predicted_by_key[key].guard) == expected:
             guard_correct += 1
 
+    # Forbidden edges are checked against everything emitted, not only against the
+    # spurious set. An edge could in principle be forbidden here and legitimate
+    # elsewhere; what matters is whether THIS package produced it.
+    violations: list[tuple[EdgeKey, str]] = []
+    for key in sorted(predicted_by_key):
+        for rule in truth.forbidden:
+            if rule.matches(key):
+                violations.append((key, rule.reason))
+
     tier_distribution: dict[str, int] = {}
     mechanism_distribution: dict[str, int] = {}
     for claim in predicted:
@@ -246,6 +256,7 @@ def score(
         boundaries_declared=sorted(declared_boundaries or []),
         missed_edges=missed_keys,
         spurious_edges=spurious_keys,
+        forbidden_violations=violations,
     )
 
 
@@ -297,6 +308,16 @@ def render(report: ScoreReport) -> str:
         lines.append(f"  declared   {len(report.boundaries_declared)}")
         for item in report.boundaries_missed:
             lines.append(f"  NOT DECLARED  {item}")
+
+    if report.forbidden_violations:
+        lines.append("")
+        lines.append(
+            f"FORBIDDEN EDGES PRODUCED ({len(report.forbidden_violations)})"
+            "  <- the exact wrong answer this package tests for"
+        )
+        for key, reason in report.forbidden_violations:
+            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]")
+            lines.append(f"      {reason}")
 
     if report.missed_edges:
         lines.append("")

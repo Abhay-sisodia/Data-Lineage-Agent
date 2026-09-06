@@ -65,6 +65,7 @@ class Measurement:
     packages: int = 0
     spurious: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     missed: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
+    forbidden: list[tuple[str, tuple[str, ...], str]] = field(default_factory=list)
 
     def cell(self, band: int, flow: Flow) -> Counts:
         return self.cells.get((band, flow.value), Counts(0, 0, 0))
@@ -163,6 +164,9 @@ def run_measurement(
 
         measurement.spurious += [(path.stem, key) for key in report.spurious_edges]
         measurement.missed += [(path.stem, key) for key in report.missed_edges]
+        measurement.forbidden += [
+            (path.stem, key, reason) for key, reason in report.forbidden_violations
+        ]
 
     return measurement
 
@@ -284,6 +288,16 @@ def render(measurement: Measurement) -> str:
     for criterion, measured, verdict in kill_criteria(measurement):
         lines.append(f"  [{verdict:<9}] {measured:<12}  {criterion}")
 
+    if measurement.forbidden:
+        lines.append("")
+        lines.append(
+            f"FORBIDDEN EDGES PRODUCED ({len(measurement.forbidden)})"
+            "  <- named wrong answers, not anonymous false positives"
+        )
+        for package, edge, reason in measurement.forbidden:
+            lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]")
+            lines.append(f"    {' '.join(reason.split())[:96]}")
+
     if measurement.spurious:
         lines.append("")
         lines.append(f"FALSE POSITIVES ({len(measurement.spurious)})")
@@ -324,6 +338,10 @@ def as_json(measurement: Measurement) -> str:
         "mechanism_distribution": measurement.mechanism_distribution,
         "evidence_split": measurement.evidence_split,
         "boundaries_declared": measurement.boundaries_declared,
+        "forbidden_edges_produced": [
+            {"package": package, "edge": list(edge), "reason": " ".join(reason.split())}
+            for package, edge, reason in measurement.forbidden
+        ],
         "kill_criteria": [
             {"criterion": c, "measured": m, "verdict": v} for c, m, v in kill_criteria(measurement)
         ],

@@ -1,0 +1,113 @@
+# Ground truth for adversarial/silent/s6_updatable_view.sql
+#
+# Observed: DIM_CUSTOMER.IS_ACTIVE written, and DW_AUDIT_LOG.CUST_ID and CHANGED_BY
+# written (0 -> 2 rows). The procedure's source updates neither table. It updates a view.
+#
+# TWO SILENT FAILURES STACKED IN ONE PACKAGE, and they need different defences:
+#
+#   1. The view is not a storage object. Reporting v_customer_editable.is_active as the
+#      target names something that stores nothing, and dim_customer - the regulated table -
+#      appears to have no writer.
+#   2. The view is a JOIN view, so it is not directly updatable at all. The write is
+#      redirected by an INSTEAD OF trigger, which also writes a SECOND table that has no
+#      connection to the statement whatsoever.
+#
+# Defence 1 is view-to-base-table resolution at ingest. Defence 2 is the same trigger
+# machinery as b2_05 - parse separately, attach to the object, not the caller.
+#
+# The audit-log write is the one nothing else in the corpus tests: dw_audit_log.changed_by
+# comes from USER, and dw_audit_log.cust_id from the updated row. Neither is visible from
+# the UPDATE statement in any form.
+
+package: adversarial/silent/s6_updatable_view.sql
+source_sha256: f2b07fb8d0d28ef38a1bc53306b1e7d05f5848e39361ca0ab790ebb606f9690f
+labelled_by: claude+abhay (observation-anchored - both base tables proved by execution)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- what the INSTEAD OF trigger actually does --------------------------------------
+  #
+  # is_active is set from :NEW.is_active, which the UPDATE sets to the literal 1. A
+  # literal has no source column, so there is no value edge into is_active - the lineage
+  # is entirely in the filters and in the audit write.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_CUSTOMER_EDITABLE, line: 37}
+    evidence: observed
+    note: >
+      `WHERE cust_id = :NEW.cust_id`. Both operands resolve to dim_customer.cust_id -
+      :NEW is a row of the view, whose cust_id is projected straight from dim_customer.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: S6_WRITE_THROUGH_VIEW, line: 49}
+    evidence: source_read
+    note: >
+      `WHERE region = 'EU'` on the outer UPDATE, resolved through the view to its base
+      column. The view's region comes from dim_customer, so this filter reaches the real
+      table even though the statement names the view.
+
+  # --- the second table, written by nothing the caller can see ------------------------
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DW_AUDIT_LOG.CUST_ID}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: TRG_CUSTOMER_EDITABLE, line: 40}
+    evidence: observed
+    note: >
+      :NEW.cust_id, which the view projects from dim_customer. Two rows written, matching
+      the two EU customers.
+
+  # dw_audit_log.changed_by comes from USER and changed_at from SYSDATE. Neither is a
+  # column, so neither has a source column and neither gets an edge - the same rule that
+  # excludes literals. Observation showed changed_by written with no value-consistent
+  # source, which is consistent with exactly that.
+
+forbidden:
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    reason: >
+      The view joins stg_customer, so an analyser that expands the view and treats every
+      base relation as a potential source will reach for it. stg_customer contributes only
+      source_email to the view, and the trigger never reads that column. A join partner is
+      not a source.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: V_CUSTOMER_EDITABLE}
+    flow: filter
+    reason: >
+      The view as a lineage target. v_customer_editable stores nothing; an edge into it is
+      a claim about a name. Worse than useless here, because it leaves dim_customer -
+      the regulated table - looking unwritten.
+
+  - source: {kind: column, name: V_CUSTOMER_EDITABLE.REGION}
+    target: {kind: relation, name: V_CUSTOMER_EDITABLE}
+    flow: filter
+    reason: >
+      ADDED AFTER RUNNING THE ANALYSER, and flagged because that direction of edit needs
+      scrutiny. The rule above guessed which SOURCE column would appear on a view-target
+      edge and guessed wrong: the analyser emits the view on BOTH ends, having resolved
+      neither. Same failure, and the first rule did not catch it. Adding this one can only
+      lower the score, never raise it, which is why it is safe to add after the fact - the
+      test to apply to any post-hoc label change.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    reason: >
+      `ON s.cust_id = d.cust_id` is the view's JOIN condition, and join keys are
+      structural rather than row-selection policy - the convention fixed in b0_02.
+      Expanding a view is exactly where that rule gets forgotten, because the join
+      arrives as part of the resolved statement rather than as something the author wrote.
+
+boundaries: []

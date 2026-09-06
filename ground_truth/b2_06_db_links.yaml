@@ -1,0 +1,118 @@
+# Ground truth for adversarial/band2/b2_06_db_links.sql
+#
+# PARSE-ONLY. This file is deliberately never compiled: crm_link does not exist and
+# neither does the finance_dw schema, so there is nothing to observe and every label here
+# is source_read and unexercised. That is not a weakness of the case - it IS the case.
+# In a real estate the remote side is routinely out of scope, and the analyser has to
+# produce something useful from source text alone.
+#
+# THE CORRECT OUTPUT IS NOT AN ERROR AND NOT SILENCE. It is edges up to the boundary,
+# plus a counted boundary node at each crossing. Both halves matter:
+#
+#   * The projection IS visible. remote_customer.email -> dim_customer.email is readable
+#     in the source and is a true fact. Refusing the whole statement because one relation
+#     is unreachable throws away lineage we can actually prove.
+#   * What is upstream of remote_customer is invisible, permanently, and that is a
+#     dangling reference to be counted rather than a gap to be quiet about.
+#
+# This package is therefore the cleanest test of partial resolution: not "can you analyse
+# it" but "can you analyse the part you can see and declare the part you cannot".
+
+package: adversarial/band2/b2_06_db_links.sql
+source_sha256: acab9d37b1ad3b798b2a88abe27b7a7771e680f08562d4a9c0f1d5786e78e858
+labelled_by: claude+abhay (source_read only - the objects do not exist to be observed)
+labelled_at: "2026-09-06"
+
+note: >
+  Zero observed labels, by construction. The evidence split for this package is the
+  weakest in the corpus and it cannot be improved without the remote database.
+
+edges:
+  # --- statement 1: across the DB link -------------------------------------------------
+  #
+  # is_active and lifetime_value receive literal 0, so they have no value edge.
+
+  - source: {kind: column, name: REMOTE_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: B2_DB_LINKS, line: 21}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: REMOTE_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.REGION}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: B2_DB_LINKS, line: 22}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: REMOTE_CUSTOMER.EMAIL}
+    target: {kind: column, name: DIM_CUSTOMER.EMAIL}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: B2_DB_LINKS, line: 24}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: REMOTE_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: B2_DB_LINKS, line: 27}
+    evidence: source_read
+    unexercised: true
+    note: WHERE r.region IS NOT NULL.
+
+  # --- statement 2: cross-schema, possibly never granted -------------------------------
+
+  - source: {kind: column, name: CUSTOMER_ACTIVITY.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: B2_DB_LINKS, line: 31}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: CUSTOMER_ACTIVITY.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: B2_DB_LINKS, line: 31}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: CUSTOMER_ACTIVITY.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: B2_DB_LINKS, line: 33}
+    evidence: source_read
+    unexercised: true
+
+  # Trigger edges are NOT labelled here. trg_recent_audit would fire on the insert into
+  # tmp_recent, but this file never runs, so claiming the trigger fired would be an
+  # assertion about an execution that has not happened. Everything else in this key is
+  # a statement about SOURCE; that would be a statement about behaviour.
+
+forbidden:
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    reason: >
+      finance_dw.customer_activity is qualified with a schema we do not hold. An analyser
+      that drops the unresolvable qualifier and binds the unqualified remainder against
+      the local schema will find a plausible local table instead - the s2 failure arriving
+      through a different door. The honest output is a boundary, not a nearby match.
+
+boundaries:
+  - "B2_DB_LINKS: remote_customer@crm_link - database link target out of coverage, 1 dangling reference"
+  - "B2_DB_LINKS: finance_dw.customer_activity - schema not granted, 1 dangling reference"

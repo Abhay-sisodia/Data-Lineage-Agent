@@ -1,0 +1,159 @@
+# Ground truth for adversarial/silent/s8_aggregation_semantics.sql
+#
+# Three procedures write the SAME pair of endpoints - stg_orders.gross_amount ->
+# fct_revenue.net_amount - and the three edges mean entirely different things. One copies
+# a row's value. One sums a whole customer-month. One applies a currency conversion on a
+# branch. To anyone reading a filing those are three different facts, and the only thing
+# separating them is the transform class.
+#
+# THE FINDING FROM OBSERVING IT, AND IT IS A LIMIT OF THE REFEREE ITSELF.
+#
+# Each procedure was observed against an emptied fct_revenue:
+#
+#   s8_identity_copy    -> 3 rows, NET_AMOUNT value-consistent with STG_ORDERS.GROSS_AMOUNT
+#   s8_aggregated_copy  -> 3 rows, NET_AMOUNT value-consistent with STG_ORDERS.GROSS_AMOUNT
+#   s8_conditional_copy -> 3 rows, NET_AMOUNT with NO value-consistent source
+#
+# The first two outputs are INDISTINGUISHABLE. The seed data holds three orders in three
+# distinct customer-months, so every GROUP BY group has exactly one row and SUM(x) = x.
+# Row counts match, values match, candidate sources match.
+#
+# So observation - the referee this whole answer key rests on - cannot separate identity
+# from aggregated here, and ADR-0001 4 makes a wrong transform class a MISS rather than
+# partial credit. Those two labels are therefore source_read and NOT observed, and the
+# provenance split will say so on every score. Upgrading them because the analyser agreed
+# would be exactly the self-certification the observation harness exists to prevent.
+#
+# A denser corpus would separate them. That is a corpus improvement worth making and it is
+# not made here, because discovering the limit is more useful than papering over it.
+
+package: adversarial/silent/s8_aggregation_semantics.sql
+source_sha256: 22adc89e7df9f6f4c780e8a33e5ceff445600927611c88f564276fe83cc513c6
+labelled_by: claude+abhay (targets observed; transform classes source_read - see above)
+labelled_at: "2026-09-06"
+
+note: >
+  The identity/aggregated distinction is NOT observation-anchored on this seed data, and
+  it is the distinction the package exists to test. Read those two labels accordingly.
+
+edges:
+  # --- s8_identity_copy: one row in, one row out --------------------------------------
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S8_IDENTITY_COPY, line: 20}
+    evidence: observed
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S8_IDENTITY_COPY, line: 21}
+    evidence: observed
+    note: >
+      No truncation in this procedure - the raw order_date lands in period_month. That
+      alone is a discrepancy worth surfacing, and lineage surfaces it without ruling on it.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S8_IDENTITY_COPY, line: 22}
+    evidence: source_read
+    note: >
+      Target observed and value-consistent, but the TRANSFORM CLASS is source_read: this
+      seed data cannot distinguish a copy from a sum. See the header.
+
+  # order_count receives the literal 1 - no edge.
+
+  # --- s8_aggregated_copy: many rows collapse into one --------------------------------
+  #
+  # cust_id -> cust_id and gross_amount -> net_amount would duplicate the keys above
+  # under the v0 match key if they carried the same transform. They do not: the transform
+  # class is what separates them, which is exactly ADR-0001 4 doing its job. This is the
+  # one place in the corpus where transform alone carries edge identity.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S8_AGGREGATED_COPY, line: 36}
+    evidence: source_read
+    note: SUM(gross_amount) over a customer-month group. Transform class read from source.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S8_AGGREGATED_COPY, line: 35}
+    evidence: observed
+    note: TRUNC(order_date, 'MM') - derived, and distinct from the identity copy above.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S8_AGGREGATED_COPY, line: 39}
+    evidence: source_read
+    note: >
+      GROUP BY cust_id. Grouping decides which rows collapse together, which is influence
+      over WHICH row rather than over the value - the same treatment as a window function's
+      PARTITION BY, fixed in the complex-SQL band. Consistency across the two matters more
+      than either choice on its own.
+
+  # order_count is COUNT(*) and gets no edge in either procedure.
+
+  # --- s8_conditional_copy: the value depends on a branch inside the expression --------
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S8_CONDITIONAL_COPY, line: 51}
+    evidence: observed
+    note: >
+      The one transform class this seed data DOES prove: the USD conversion changed the
+      values, so no value-consistent source was found - which is what a conditional
+      transform looks like from the outside and what a copy never looks like.
+
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S8_CONDITIONAL_COPY, line: 51}
+    evidence: source_read
+    note: >
+      currency decides WHICH arm of the CASE runs, and the arms compute different values,
+      so it genuinely participates in the value. This is the boundary case against the
+      correlated-predicate rule: a predicate that selects a row is filter influence, but a
+      predicate that selects an EXPRESSION is a value source.
+
+forbidden:
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.ORDER_COUNT}
+    flow: value
+    reason: >
+      COUNT(*) has no source column. Attaching the nearest column in the select list is a
+      standing temptation for an analyser that wants every target to have a source, and it
+      manufactures a lineage claim out of nothing.
+
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    reason: >
+      currency inside a CASE is not a row filter - the statement selects every row of
+      stg_orders regardless of it. Reporting it as a filter would be the mirror image of
+      the correlated-predicate error: influence classified as the wrong KIND of influence
+      rather than invented outright. Both make the edge a different fact than it is.
+
+boundaries: []

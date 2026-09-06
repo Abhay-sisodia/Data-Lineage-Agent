@@ -1,0 +1,94 @@
+# Ground truth for adversarial/band2/b2_01_dynamic_constant.sql
+#
+# Observed: DIM_CUSTOMER.IS_ACTIVE and LIFETIME_VALUE written; TMP_RECENT.CUST_ID and
+# LAST_LOGIN written (2 -> 6 rows). LAST_LOGIN had a unique value-consistent source.
+#
+# THE POINT OF THIS PACKAGE: nothing here is genuinely dynamic. Both statements are
+# knowable in full before the program runs, so every edge below is recoverable by static
+# analysis alone and belongs at mechanism AST - full static evidence, costing nothing.
+# Treating them as unrecoverable would drop them a tier for no reason and inflate the
+# "unresolved dynamic SQL" count in the coverage statement, which is the number a
+# customer reads hardest.
+#
+# BAND 2 ALL THE SAME. ADR-0001 6 bands an edge by the hardest construct on its path,
+# and the path runs through EXECUTE IMMEDIATE. That an analyser CAN resolve it does not
+# make the construct easy - it makes this the band's cheap win. Banding it 0 would let
+# the band-2 figure claim credit for the one case in the band that needs no new machinery.
+
+package: adversarial/band2/b2_01_dynamic_constant.sql
+source_sha256: 87d4b7198cce1a3f2fcafbc68525cf976e374b4542098985b9ff9728973e9b96
+labelled_by: claude+abhay (observation-anchored, written before the analyser handled band 2)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- statement 1: constant string, assigned then executed ---------------------------
+  #
+  # is_active receives the literal 1. A literal has no source column, so there is NO
+  # value edge - the same rule as b0_02 and b1_02. All the lineage here is in the filter.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: B2_DYNAMIC_CONSTANT, line: 14}
+    evidence: source_read
+    note: WHERE region = 'EU' inside the constant string. Decides which rows are written.
+
+  # --- statement 2: constant concatenated from constant parts -------------------------
+  #
+  # `'INSERT INTO ...' || 'SELECT ...'` has no variable operand. Folding it is safe here
+  # precisely because EVERY operand is a literal - see the forbidden note below.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: B2_DYNAMIC_CONSTANT, line: 19}
+    evidence: adjudicated
+    note: Target observed. Source matched several candidates on value containment; ruled from source.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: B2_DYNAMIC_CONSTANT, line: 19}
+    evidence: observed
+    note: Uniquely value-consistent source.
+
+  # --- trigger side effects, inherited from the write to tmp_recent -------------------
+  #
+  # OBSERVED HERE AND WORTH STATING: dim_customer.lifetime_value changed during a
+  # procedure whose source never mentions it. trg_recent_audit fires on the insert above.
+  # This is the inheritance property in the register - any statement touching tmp_recent
+  # inherits the trigger's edges - and it is why triggers attach to the TABLE.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: observed
+
+forbidden:
+  - source: {kind: variable, name: V_SQL}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    reason: >
+      The string variable is the CARRIER of the statement, not a source of the value. An
+      analyser that follows def-use into EXECUTE IMMEDIATE without parsing the recovered
+      text will emit the variable as a source, which type-checks and reads plausibly and
+      says nothing true. The value comes from the literal 1, which is no source at all.
+
+boundaries: []

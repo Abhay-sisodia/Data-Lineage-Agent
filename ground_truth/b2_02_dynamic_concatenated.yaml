@@ -1,0 +1,120 @@
+# Ground truth for adversarial/band2/b2_02_dynamic_concatenated.sql
+#
+# THE HOP THE WHOLE ARCHITECTURE TURNS ON. Statically undecidable; recoverable only from
+# the query log, and only for paths actually exercised in the retention window.
+#
+# Observed with p_column = 'is_active', p_region = 'EU', p_suffix = 'recent'. Two runs
+# were needed: the first showed nothing for IS_ACTIVE because the seed rows already held
+# 1, so the write was idempotent and therefore invisible. Re-run after nulling the column.
+# That is a limit of observation, not of the code, and it is recorded rather than hidden.
+#
+# EVERY EDGE BELOW IS ARGUMENT-DEPENDENT. Called with p_column = 'lifetime_value' the
+# target column is different; called with p_suffix = 'stage' the target TABLE is
+# different. These labels are the lineage OF THE OBSERVED CALL, not of the procedure.
+# A static analyser cannot reach them at all, and a log-based one reaches exactly the
+# argument values that ran. That distinction is the coverage story for this whole band.
+
+package: adversarial/band2/b2_02_dynamic_concatenated.sql
+source_sha256: 1a83fbe1adc82408ef5de46aa5715a4203578f3b8ada0a17615abcadbb2b34c6
+labelled_by: claude+abhay (observation-anchored, arguments recorded above)
+labelled_at: "2026-09-06"
+
+note: >
+  Expect zero recall from static analysis here, by design. Recall against this key
+  measures the log-recovery leg, not the parser.
+
+edges:
+  # --- statement 1: column name chosen at runtime -------------------------------------
+  #
+  # is_active receives the literal 1, so again no value edge. The filter is the lineage.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: B2_DYNAMIC_CONCATENATED, line: 29}
+    evidence: source_read
+    note: WHERE region = '<p_region>'. The literal is interpolated from a parameter.
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: B2_DYNAMIC_CONCATENATED, line: 30}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: B2_DYNAMIC_CONCATENATED, line: 30}
+    evidence: source_read
+    note: The other operand of `cust_id IN (SELECT ...)`. Every operand is a filter edge.
+
+  # --- statement 2: TABLE name chosen at runtime - the genuinely dark case -------------
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: B2_DYNAMIC_CONCATENATED, line: 35}
+    evidence: adjudicated
+    note: >
+      True only because p_suffix was 'recent'. With any other value this edge points at a
+      table that may not even exist - the procedure swallows the failure deliberately.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: B2_DYNAMIC_CONCATENATED, line: 35}
+    evidence: adjudicated
+
+  # --- trigger side effects, inherited from the write to tmp_recent -------------------
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+
+  # trg_recent_audit's own filter edge, TMP_RECENT.CUST_ID -> DIM_CUSTOMER, is NOT listed
+  # separately. Its key is identical to the line-30 filter edge above - same endpoints,
+  # same flow, same transform - and only the origin differs. The v0 match key carries no
+  # origin, so the two collapse and this key under-counts by one edge. The label validator
+  # rejected the duplicate outright, which is at least a loud failure.
+  #
+  # ADR-0001 amendment 1 for the second time in this key alone.
+
+forbidden:
+  - source: {kind: variable, name: P_COLUMN}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    reason: >
+      p_column supplies the NAME of the target, not its value. An analyser that treats a
+      concatenated fragment as a value source produces exactly this - a parameter feeding
+      the column it happens to name. Same category error as a correlated predicate read
+      as a value source, and it looks entirely reasonable in a diagram.
+
+  - source: {kind: variable, name: P_SUFFIX}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    reason: >
+      p_suffix picks the target TABLE. It cannot be a source of any column's value.
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    reason: >
+      p_region is interpolated into a WHERE clause. It selects rows; it supplies nothing.
+
+boundaries:
+  - "B2_DYNAMIC_CONCATENATED: dynamic SQL assembled from variables at line 28 - target column not statically decidable"
+  - "B2_DYNAMIC_CONCATENATED: dynamic SQL assembled from variables at line 34 - target relation not statically decidable"

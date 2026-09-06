@@ -1,0 +1,166 @@
+# Ground truth for adversarial/silent/s3_shared_temp_table.sql
+#
+# Two procedures, one table name, no relationship whatsoever.
+#
+# Observed separately, and the separation is the evidence:
+#   * s3_temp_writer_a  -> TMP_RECENT written, then DIM_CUSTOMER.IS_ACTIVE written
+#   * s3_temp_writer_b  -> TMP_RECENT written, then FCT_REVENUE written.
+#                          DIM_CUSTOMER.IS_ACTIVE did NOT change.
+#
+# That second line is the whole case. Running B alone leaves is_active untouched, so
+# `stg_orders -> dim_customer.is_active` is not a weakly-supported edge, it is a fact the
+# database refuses. Key the temp relation on its name and forty procedures fuse into one
+# invented lineage; here it would be two, and both directions are forbidden below.
+#
+# tmp_recent is a PERMANENT table in this corpus despite the prefix - established at T2.5
+# by reading ALL_TABLES.TEMPORARY rather than trusting the name. That matters for the
+# remedy: a temporary table's rows are session-private so a composed path is provably
+# invented and can be refused outright, whereas a permanent one really is shared and
+# whether data flows between two writers is NOT statically decidable. The honest output
+# for the permanent case is a declared hazard, not a confident join and not silence.
+#
+# BANDING: every edge here is band 0. Both procedures are plain statement sequences with
+# no variable, branch, loop, cursor or call on any path. The difficulty of this package is
+# entirely in what must NOT be produced, which is why the forbidden section is longer than
+# the edge list.
+
+package: adversarial/silent/s3_shared_temp_table.sql
+source_sha256: 8ecb22df9380f3419658a47d0f5bb1b3ede2cd4f075610286c832a57660b6483
+labelled_by: claude+abhay (observation-anchored, each procedure observed on its own)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- procedure A: customers -> tmp_recent -> dim_customer ---------------------------
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_A, line: 22}
+    evidence: adjudicated
+    note: Target observed. Source matched several candidates on value containment; ruled from source.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_A, line: 22}
+    evidence: observed
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_A, line: 24}
+    evidence: source_read
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_A, line: 28}
+    evidence: observed
+    note: >
+      is_active is set to the literal 1, so there is no value edge - membership of
+      tmp_recent is the entire lineage of that write.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_A, line: 28}
+    evidence: source_read
+    note: The other operand of `cust_id IN (SELECT ...)`.
+
+  # --- procedure B: orders -> tmp_recent -> fct_revenue -------------------------------
+  #
+  # Note the type pun that makes fusion so easy to commit: B loads ORDER_DATE into a
+  # column called LAST_LOGIN. Observation confirmed it - tmp_recent.last_login became
+  # value-consistent with stg_orders.order_date. The column name is a lie in procedure B,
+  # and a name-keyed analyser has nothing else to go on.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_B, line: 41}
+    evidence: adjudicated
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_B, line: 41}
+    evidence: observed
+    note: Uniquely value-consistent source. order_date lands in a column named last_login.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_B, line: 43}
+    evidence: source_read
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_B, line: 46}
+    evidence: observed
+
+  - source: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S3_TEMP_WRITER_B, line: 46}
+    evidence: observed
+    note: TRUNC(last_login, 'MM').
+
+  # net_amount receives the literal 0 - no edge. order_count is COUNT(*), and a row count
+  # has no source column - no edge. Both rules established in b0_05 and b0_02.
+
+forbidden:
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    reason: >
+      Fusion, A onto B. Composing `B: stg_orders -> tmp_recent` with `A: tmp_recent ->
+      dim_customer` invents a path from the order staging table into the customer
+      dimension. Observation refutes it directly: running B alone left is_active
+      unchanged.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    reason: >
+      The same fusion through the punned column. Nothing about a customer's activity flag
+      derives from an order date.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    reason: >
+      Fusion, B onto A - the other direction, and it must be tested separately. An
+      analyser that composes paths through a shared name will produce both; one that
+      composes them in only one direction is still wrong, just harder to notice.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    reason: >
+      The most persuasive of the four, because the column names line up perfectly:
+      last_login is truncated to a month and the source really is called last_login. It is
+      still false - the rows fct_revenue was built from came from stg_orders.
+
+boundaries:
+  - "fusion hazard: TMP_RECENT is written by S3_TEMP_WRITER_A and S3_TEMP_WRITER_B - composing paths across units is not statically decidable"

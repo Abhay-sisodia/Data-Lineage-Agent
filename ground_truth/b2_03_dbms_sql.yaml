@@ -1,0 +1,95 @@
+# Ground truth for adversarial/band2/b2_03_dbms_sql.sql
+#
+# Observed with p_region = 'EU': DIM_CUSTOMER.LIFETIME_VALUE written, no value-consistent
+# source - consistent with a SUM rather than a copy.
+#
+# THE EXPECTED ANALYSER BEHAVIOUR IS TO PRODUCE NOTHING AND SAY SO. The statement is
+# assembled across four assignments and handed to an opaque handle; there is no single
+# string expression to inspect and no static route to the text. This package is the
+# cleanest test of the abstention classifier in the corpus precisely because it is
+# trivial to PARSE and impossible to RESOLVE - the two are not the same thing, and a
+# parser that conflates them will emit something confident here.
+#
+# The edges below are nevertheless real. Labelling them keeps band-2 recall honest: the
+# gap is a genuine gap, recoverable only from the query log, and pretending the lineage
+# does not exist would flatter the number by redefining the question.
+
+package: adversarial/band2/b2_03_dbms_sql.sql
+source_sha256: 8b73414bfaa8d4c6077d7ab5e22a966215aa4b9bf015e63066a88149e0b39659
+labelled_by: claude+abhay (observation-anchored target, source read from the assembled text)
+labelled_at: "2026-09-06"
+
+note: >
+  Zero recall expected from static analysis. A non-zero PRECISION figure here would mean
+  the analyser resolved something it cannot possibly know, which is worse than the gap.
+
+edges:
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: aggregated
+    band: 2
+    origin: {unit: B2_DBMS_SQL, line: 22}
+    evidence: source_read
+    note: >
+      SUM(gross_amount - discount_amt) over a correlated subquery. Target observed;
+      the source is read from the assembled string, which no witness but the log confirms.
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: aggregated
+    band: 2
+    origin: {unit: B2_DBMS_SQL, line: 22}
+    evidence: source_read
+
+  # --- predicates ---------------------------------------------------------------------
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: B2_DBMS_SQL, line: 23}
+    evidence: source_read
+    note: The correlation predicate. Decides which orders belong to which customer.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: B2_DBMS_SQL, line: 23}
+    evidence: source_read
+    note: The other operand of the correlation.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: B2_DBMS_SQL, line: 24}
+    evidence: source_read
+    note: >
+      `WHERE region = :b_region`, bound at line 27. The bind variable hides the VALUE and
+      not the structure - which is the assumption the sub-spike had to confirm rather than
+      assume, and this is the case that confirms it. The column is visible; 'EU' is not.
+
+forbidden:
+  - source: {kind: variable, name: V_STMT}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    reason: >
+      v_stmt carries the statement text. An analyser that follows the four concatenating
+      assignments and treats the accumulated variable as a source emits this - a
+      def-use chain that is structurally correct and semantically meaningless.
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    reason: >
+      p_region is bound into a WHERE clause. It selects rows and supplies no value. The
+      same mistake fn_net_amount(order_id) invited at T2.7.
+
+boundaries:
+  - "B2_DBMS_SQL: DBMS_SQL statement assembled through an opaque cursor handle - no static route to the text"

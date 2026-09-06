@@ -1,0 +1,105 @@
+# Ground truth for adversarial/silent/s5_positional_union.sql
+#
+# PROVED BY THE DATA, not by reading the SQL standard. After a run against an emptied
+# tmp_recent:
+#
+#   tmp_recent.cust_id  = [1, 2, 3, 4, 100, 101, 102]
+#   stg_customer.cust_id = [1, 2, 3, 4]
+#   stg_orders.order_id  = [100, 101, 102]
+#
+# col_a carries order_id, exactly as position dictates and exactly opposite to what the
+# aliases say. The alias on arm 2 calls it col_b; SQL ignores that entirely.
+#
+# WHY THIS IS SILENT RATHER THAN LOUD. The types line up in POSITION order - (NUMBER,
+# DATE) in both arms - so Oracle accepts the statement without complaint. An earlier
+# version of this case reversed the types as well and was simply rejected by the
+# compiler, which would have tested nothing: a loud failure announces itself. The whole
+# point is that this compiles, runs, and produces plausible output with only the lineage
+# wrong.
+#
+# The name-matched answer is not merely wrong, it is impossible: it would put order_date,
+# a DATE, into cust_id, a NUMBER. An analyser producing it has contradicted the schema it
+# already holds - which makes this case a test of whether resolution is checked against
+# the dictionary or merely assumed.
+
+package: adversarial/silent/s5_positional_union.sql
+source_sha256: de737b3cf61e5cd583891c94cc31f0131edaf7c900fadf0dfc290fce476fbdf4
+labelled_by: claude+abhay (observation-anchored - binding proved by value containment)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- arm 1: aliases agree with position ---------------------------------------------
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S5_POSITIONAL_UNION, line: 26}
+    evidence: observed
+    note: Values 1-4 appear in tmp_recent.cust_id.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S5_POSITIONAL_UNION, line: 27}
+    evidence: observed
+
+  # --- arm 2: aliases DISAGREE with position, and position wins -----------------------
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S5_POSITIONAL_UNION, line: 32}
+    evidence: observed
+    note: >
+      Values 100-102 appear in tmp_recent.cust_id, and they exist nowhere else in the
+      schema. Arm 2's first column is order_id whatever its alias claims.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S5_POSITIONAL_UNION, line: 33}
+    evidence: observed
+
+  # --- trigger side effect, inherited from the write to tmp_recent --------------------
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: observed
+
+forbidden:
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    reason: >
+      The name-matched binding: arm 2's alias col_a is on order_date, so matching by name
+      wires a DATE into a NUMBER column. Impossible against the dictionary we already
+      hold, and produced anyway by any analyser that trusts aliases across a set operation.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    reason: >
+      The other half of the same mistake. Both halves are listed because an analyser could
+      in principle get one right by accident.
+
+boundaries: []

@@ -1,0 +1,86 @@
+# Ground truth for adversarial/silent/s2_schema_context.sql
+#
+# PARSE-ONLY. reporting.stg_customer is a schema deliberately never created, so this file
+# is not compiled and nothing here is observed. Every label is source_read.
+#
+# THE FAILURE THIS CASE DESCRIBES CANNOT BE SEEN IN ONE RUN. An unqualified name resolves
+# through the EXECUTING USER's schema, so the same procedure run by two jobs touches two
+# different tables. A single observation would show one of them and look definitive -
+# which is precisely how this becomes a silent failure rather than a loud one. The
+# evidence that resolves it is V$SQL's parsing_schema_name, per execution, not a global
+# default chosen once at ingest.
+#
+# So the first statement's labels below are conditional on the execution schema being
+# LINEAGE. That condition is part of the fact, not a footnote to it.
+
+package: adversarial/silent/s2_schema_context.sql
+source_sha256: bdf623e2f0b53e4b2cfef391d4070c11a5bf65c3eab42e15e6662cd72b447e9c
+labelled_by: claude+abhay (source_read - the package is parse-only by design)
+labelled_at: "2026-09-06"
+
+note: >
+  Labels for statement 1 hold for execution schema LINEAGE only. Under any other parsing
+  schema the same source describes different objects, and the honest output is per
+  execution context rather than one answer.
+
+edges:
+  # --- statement 1: unqualified, resolved through the executing schema -----------------
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_SCHEMA_CONTEXT, line: 19}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_SCHEMA_CONTEXT, line: 19}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SCHEMA_CONTEXT, line: 21}
+    evidence: source_read
+    unexercised: true
+
+  # --- statement 2: qualified against a schema that is not in scope --------------------
+  #
+  # No edges. reporting.stg_customer was never supplied, so its columns are not knowable -
+  # not even by name, since `SELECT cust_id, last_login` only tells us what was asked for,
+  # not what exists. The correct output is the boundary below and nothing else.
+
+# NO FORBIDDEN EDGES HERE, AND THE REASON IS ITSELF A FINDING.
+#
+# The wrong answer this package invites is statement 2 bound against the LOCAL
+# stg_customer - dropping the unresolvable qualifier and matching the remainder to a
+# table we do hold. That is the most dangerous repair available to an analyser here: it
+# silently merges a refused schema into one we own.
+#
+# It cannot be expressed as a forbidden edge, because the resulting edge is
+# `STG_CUSTOMER.CUST_ID -> TMP_RECENT.CUST_ID` - character for character the same as
+# statement 1's legitimate edge. The v0 match key is (source, target, flow, transform)
+# and carries no origin, so the same key is correct from line 19 and fabricated from
+# line 26.
+#
+# This is ADR-0001 amendment 1 arriving from a third direction: b1_03 needed guard in the
+# key, b1_09 needed origin, and this package needs origin too. Three independent cases now
+# say the match key is under-specified. Recorded here rather than worked around, because
+# a forbidden rule that contradicts a required edge would make the package unscoreable -
+# the label validator rejects exactly that.
+#
+# What CAN be checked today is the boundary below: if the analyser declares the refused
+# schema, it did not silently absorb it.
+
+boundaries:
+  - "S2_SCHEMA_CONTEXT: reporting.stg_customer - schema not granted, 1 dangling reference"
+  - "S2_SCHEMA_CONTEXT: unqualified names at line 20 resolve per execution schema - lineage is context-dependent"

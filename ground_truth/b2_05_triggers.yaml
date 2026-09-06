@@ -1,0 +1,141 @@
+# Ground truth for adversarial/band2/b2_05_triggers.sql
+#
+# Observed: TMP_RECENT.CUST_ID and LAST_LOGIN written (0 -> 2 rows), and
+# DIM_CUSTOMER.LIFETIME_VALUE written - by a procedure whose source never mentions
+# dim_customer at all.
+#
+# This is the package that defines the band-2 trigger gap, and the eleven trigger edges
+# scattered across the other keys all trace back to the two triggers declared here.
+#
+# BANDING. The caller's own INSERT ... SELECT is band 0: the path traverses no variable,
+# branch, loop, cursor or call, and the corrected banding rule from T2.0 says a plain
+# projection inside procedural code stays band 0. Only the trigger-borne edges are band 2.
+# Getting this wrong in either direction distorts a measurement: band 0 would inherit a
+# construct its analyser is not meant to handle, or band 2 would collect two free wins.
+
+package: adversarial/band2/b2_05_triggers.sql
+source_sha256: 53a67ca73aaeb67cea9af03eb2898cd7a3c2b26cbecffa719b02f3b69c147462
+labelled_by: claude+abhay (observation-anchored, written before trigger analysis existed)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- the caller's visible write -----------------------------------------------------
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B2_TRIGGERS, line: 39}
+    evidence: adjudicated
+    note: Target observed. Source matched several candidates on value containment; ruled from source.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: B2_TRIGGERS, line: 39}
+    evidence: observed
+    note: Uniquely value-consistent source.
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: B2_TRIGGERS, line: 39}
+    evidence: source_read
+    note: WHERE status_code = 1. Two customers of four qualify, which the row counts confirm.
+
+  # --- trg_recent_audit: AFTER INSERT ON tmp_recent -----------------------------------
+  #
+  # The edge that exists nowhere in the caller. dim_customer.lifetime_value's ONLY writer
+  # in this corpus is a trigger, so an analyser that misses triggers reports a regulated
+  # column with no writer at all - a silent failure, not a visible gap.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+    note: NVL(lifetime_value, 0) + 1 - a self-edge, and a genuine one.
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: observed
+    note: >
+      `WHERE cust_id = :NEW.cust_id`. :NEW is the row just inserted into tmp_recent, so
+      the correlation name resolves to that TABLE's column, not to dim_customer's.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: source_read
+    note: The other operand of the predicate.
+
+  # --- trg_customer_default: BEFORE INSERT ON dim_customer ----------------------------
+  #
+  # Never fires in this package - nothing inserts into dim_customer here - but the edge is
+  # declared in this file and is provably in the code. UNEXERCISED, not absent, and that
+  # distinction is exactly what T3.5 exists to represent.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 2
+    origin: {unit: TRG_CUSTOMER_DEFAULT, line: 30}
+    evidence: source_read
+    unexercised: true
+    note: >
+      CASE WHEN :NEW.region = 'EU' THEN 1 ELSE 0. Both correlation names are dim_customer's
+      own columns, so this is a column-to-column edge within one table, decided before the
+      row lands. It is the ONLY place this edge exists - b0_02's MERGE writes is_active
+      from a literal.
+
+  - source: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_CUSTOMER_DEFAULT, line: 29}
+    evidence: source_read
+    unexercised: true
+    note: >
+      `IF :NEW.is_active IS NULL` guards whether the default applies at all. A supplied
+      value survives untouched, so the trigger's edge is conditional on the column's own
+      incoming state.
+
+forbidden:
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    reason: >
+      The plausible fusion. stg_customer feeds tmp_recent and the trigger reads tmp_recent,
+      so composing the two paths inside one procedure produces a direct edge from the
+      staging table to the regulated column. It is wrong for the reason s3 exists: the
+      trigger fires per inserted row of tmp_recent, and lifetime_value is derived from its
+      OWN prior value, not from anything stg_customer supplied.
+
+# THE OTHER FAILURE IN THIS PACKAGE CANNOT BE A FORBIDDEN EDGE EITHER.
+#
+# Attaching the trigger's edges to the CALLER rather than to the table is wrong twice
+# over: it credits b2_triggers with a write it never issued, and it misses every other
+# procedure that inserts into tmp_recent - of which this corpus has six. But the resulting
+# edge has the same source, target, flow and transform as the correct one. Only the origin
+# differs, and the v0 match key does not carry origin.
+#
+# So a correct-looking 100% here would be consistent with the design error the register
+# warns about most explicitly. T3.3 has to assert the origin directly.
+
+boundaries: []

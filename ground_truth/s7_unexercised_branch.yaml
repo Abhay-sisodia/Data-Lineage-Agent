@@ -1,0 +1,146 @@
+# Ground truth for adversarial/silent/s7_unexercised_branch.sql
+#
+# Observed with p_region = 'EU' ONLY, deliberately. The other two branches were left
+# unrun, because a case about unexercised code cannot be labelled by exercising it.
+#
+#   EU branch        -> DIM_CUSTOMER.IS_ACTIVE written.  evidence: observed
+#   APAC branch      -> never ran.                        evidence: source_read, unexercised
+#   YEAR_END branch  -> never ran.                        evidence: source_read, unexercised
+#
+# THE DISTINCTION THIS PACKAGE EXISTS FOR. The APAC edges are not weakly supported. They
+# are provably present in the source - Tier A, the strongest static evidence there is -
+# and simply never observed running. Demoting them by TIER would say "we are unsure this
+# is real", which is false and is the opposite of what is known.
+#
+# So `unexercised` is a separate AXIS from tier, and an edge can be Tier A and
+# unexercised at once. That combination is itself the finding, and it supports two
+# opposite readings that only a human can settle:
+#
+#   * dead code, safe to remove                (a migration finding, worth money)
+#   * a year-end path that has not run yet     (removing it would be a disaster)
+#
+# The system reports the observation and refuses to rule. That is the "state observations,
+# never allegations" rule applied to code rather than to people.
+
+package: adversarial/silent/s7_unexercised_branch.sql
+source_sha256: f062ad0c98636dcdad3428c02348fe105aab3b2682457a1cea95fde4f26d04b0
+labelled_by: claude+abhay (EU branch observed; other branches deliberately not exercised)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- EU branch: exercised -----------------------------------------------------------
+  #
+  # is_active receives the literal 1 - no value edge.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "P_REGION = 'EU'"
+    origin: {unit: S7_UNEXERCISED_BRANCH, line: 28}
+    evidence: observed
+
+  # --- APAC branch: provably present, never observed -----------------------------------
+
+  # is_active = (SELECT COUNT(*) ...) has NO VALUE EDGE. Two established rules meet here
+  # and both point the same way: a row count has no source column (b0_05), and a
+  # correlated predicate decides WHICH row is read rather than what value returns (T2.3).
+  # Between them nothing supplies this column's value, so the entire lineage of the APAC
+  # write is filter influence.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "NOT (P_REGION = 'EU') AND P_REGION = 'APAC'"
+    origin: {unit: S7_UNEXERCISED_BRANCH, line: 35}
+    evidence: source_read
+    unexercised: true
+    note: The correlation predicate - it decides which orders are counted.
+
+  # `WHERE region = 'APAC'` on the outer UPDATE is NOT listed separately. Its key is
+  # character-for-character the EU branch's filter edge above - same source, same target,
+  # same flow, same transform - and only the guard and origin differ. The v0 match key
+  # carries neither, so the two collapse and this key under-counts by one edge.
+  #
+  # ADR-0001 amendment 1, for the fourth time and from a fourth direction: b1_03 needed
+  # guard, b1_09 needed origin, s2 needed origin, and this package needs guard. The label
+  # validator rejects the duplicate outright, so the omission is at least loud.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "NOT (P_REGION = 'EU') AND P_REGION = 'APAC'"
+    origin: {unit: S7_UNEXERCISED_BRANCH, line: 35}
+    evidence: source_read
+    unexercised: true
+    note: The other operand of the correlation `o.cust_id = dim_customer.cust_id`.
+
+  # --- YEAR_END branch: runs once a year -----------------------------------------------
+  #
+  # The branch the register warns about specifically: absent from an eighteen-month
+  # window only by bad luck, and indistinguishable from dead code without an SME.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    guard: "NOT (P_REGION = 'EU') AND NOT (P_REGION = 'APAC') AND P_REGION = 'YEAR_END'"
+    origin: {unit: S7_UNEXERCISED_BRANCH, line: 41}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 1
+    guard: "NOT (P_REGION = 'EU') AND NOT (P_REGION = 'APAC') AND P_REGION = 'YEAR_END'"
+    origin: {unit: S7_UNEXERCISED_BRANCH, line: 41}
+    evidence: source_read
+    unexercised: true
+    note: TRUNC(order_date, 'YYYY') - a YEAR truncation landing in a column called period_month.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 1
+    guard: "NOT (P_REGION = 'EU') AND NOT (P_REGION = 'APAC') AND P_REGION = 'YEAR_END'"
+    origin: {unit: S7_UNEXERCISED_BRANCH, line: 41}
+    evidence: source_read
+    unexercised: true
+    note: >
+      SUM(gross_amount) into net_amount. The name says net and the value is gross - a
+      real discrepancy, and precisely the kind of thing lineage surfaces and does not rule
+      on. order_count is COUNT(*) and gets no edge.
+
+forbidden:
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    reason: >
+      The correlated predicate read as a value source. `is_active = (SELECT COUNT(*) FROM
+      stg_orders o WHERE o.cust_id = dim_customer.cust_id)` claims a customer id
+      determines an activity flag. This exact error has now appeared four times in this
+      project - correlated subqueries at T2.3, UDF arguments at T2.7, window PARTITION BY
+      in the complex-SQL band, and here - which is why it is written down as a rule rather
+      than fixed again.
+
+# THE REAL HAZARD IN THIS PACKAGE CANNOT BE A FORBIDDEN EDGE.
+#
+# The failure is not a wrong edge appearing. It is a CORRECT edge appearing with the wrong
+# metadata: the APAC and YEAR_END edges reported at a lower tier because they were never
+# seen running, rather than at Tier A with an unexercised flag. Match-key comparison
+# cannot see that - the key matches perfectly either way, and precision and recall both
+# read 100%.
+#
+# T3.5 has to assert it directly, against the `unexercised` field. Recorded here so the
+# gap is visible in the key rather than only in the tracker.
+
+boundaries: []

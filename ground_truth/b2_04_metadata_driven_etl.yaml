@@ -1,0 +1,105 @@
+# Ground truth for adversarial/band2/b2_04_metadata_driven_etl.sql
+#
+# The spike calls this the worst case in the whole corpus and it earns the title: the
+# pipeline is not in the code. Reading the procedure tells you a loop runs some INSERTs.
+# What it actually does is decided by three rows in ETL_CONFIG.
+#
+# Observed: TMP_RECENT gained 8 rows (two mappings x four customers) and
+# DIM_CUSTOMER.LIFETIME_VALUE moved. DIM_CUSTOMER.EMAIL did NOT change.
+#
+# THE FINDING FROM OBSERVING IT. Mapping 3 declares STG_CUSTOMER.EMAIL ->
+# DIM_CUSTOMER.EMAIL. That INSERT supplies only one column, dim_customer.cust_id is NOT
+# NULL, so Oracle rejects it - and the procedure's WHEN OTHERS THEN NULL swallows the
+# failure without trace. The config table asserts an edge that has never once existed.
+#
+# So a config-derived lineage claim is not just version-dependent, it is not even a claim
+# about what ran. Three readings are possible from the config alone and only execution
+# separates them: the mapping works, the mapping is disabled, or the mapping fails
+# silently every night. This one is the third, and nothing in code or config says so.
+#
+# EVERY EDGE HERE IS VALID ONLY AS AT THE CONFIG VERSION THAT PRODUCED IT. Someone
+# updating a row changes the lineage with no code change, no commit and no diff. That is
+# the argument for pinning config into the run record, and it is stated in the register.
+
+package: adversarial/band2/b2_04_metadata_driven_etl.sql
+source_sha256: 409b9b1c01499f8579023c9b3dab0f26a681f75cfb61325c589e50028c910084
+labelled_by: claude+abhay (observation-anchored; config version = the three seeded rows)
+labelled_at: "2026-09-06"
+
+edges:
+  # --- mapping 1: STG_CUSTOMER.CUST_ID -> TMP_RECENT.CUST_ID --------------------------
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: ETL_CONFIG, line: 27}
+    evidence: observed
+    note: >
+      Origin is the CONFIG ROW, not a line of PL/SQL. There is no line of code that
+      mentions either column. This is the only package in the corpus whose lineage
+      originates in data.
+
+  # --- mapping 2: STG_CUSTOMER.LAST_LOGIN -> TMP_RECENT.LAST_LOGIN --------------------
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: ETL_CONFIG, line: 28}
+    evidence: observed
+    note: Uniquely value-consistent source.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: ETL_CONFIG, line: 28}
+    evidence: source_read
+    note: >
+      The filter lives inside a VARCHAR2 column - `last_login IS NOT NULL` as config data.
+      Recovering it means parsing a fragment of SQL out of a table cell, which is a
+      different ingest path from anything else in the engine.
+
+  # --- trigger side effects, inherited from the writes to tmp_recent ------------------
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: observed
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: observed
+
+  # --- mapping 3 is NOT here, deliberately --------------------------------------------
+  #
+  # STG_CUSTOMER.EMAIL -> DIM_CUSTOMER.EMAIL is enabled in the config and fails on every
+  # run. Labelling it would assert an edge that observation directly refutes. It appears
+  # under `forbidden` instead: an analyser reading the config table faithfully WILL
+  # produce it, and that is the failure this package exists to expose.
+
+forbidden:
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: column, name: DIM_CUSTOMER.EMAIL}
+    flow: value
+    reason: >
+      Config mapping 3, enabled, and it has never succeeded - the INSERT omits the NOT
+      NULL cust_id and WHEN OTHERS swallows the error. Reading the config table as truth
+      produces a confident edge into a regulated dimension that has never carried a single
+      value. This is the specific hazard of treating configuration as evidence: it states
+      intent, and intent is exactly what this platform must never report as mechanics.
+
+boundaries:
+  - "B2_METADATA_DRIVEN_ETL: statement text assembled from ETL_CONFIG rows - lineage valid only as at the config version"
+  - "B2_METADATA_DRIVEN_ETL: WHEN OTHERS THEN NULL at line 54 suppresses failures - an enabled mapping may never have run"

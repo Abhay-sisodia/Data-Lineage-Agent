@@ -407,6 +407,11 @@ value went 92.3% / 88.2% → **100% / 100%**. `tests/test_complex_sql.py`, 22 te
 
 ## Week 3 · Undecidables and the verdict
 
+**Broken into granular tasks in [Week3_tracker.md](Week3_tracker.md)**, which adds **T3.0**
+(ground truth for the fourteen unlabelled band-2 and silent-failure packages — label first,
+as in weeks 1 and 2) and breaks **triggers** out of the band-2 ladder into their own task,
+because they are the largest measured gap in the engine.
+
 ### T3.1 — Unanalysable-construct classifier
 
 - [ ] Detect and declare every construct the analyser cannot resolve

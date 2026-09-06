@@ -1,0 +1,62 @@
+# Ground truth for adversarial/silent/s1_synonym_redirect.sql
+#
+# THE DATABASE SETTLED THIS ONE OUTRIGHT. Observed after seeding dw_dim_customer_v2:
+# DW_DIM_CUSTOMER_V2.IS_ACTIVE changed and DIM_CUSTOMER did not. There is no reading of
+# the code that survives that, which is the whole argument for anchoring labels in
+# execution rather than in a second opinion about the source.
+#
+# This is the case proving evidence triangulation does NOT protect against name
+# resolution error. All three witnesses - source, log, profile - would happily describe
+# `customer_target`, because that is the name in the code, in the SQL text, and in the
+# execution plan. Three agreeing witnesses, one wrong object, Tier B, signed.
+#
+# The defence has to be at ingest, and it is: T1.4 resolves every name through
+# ALL_SYNONYMS / ALL_OBJECTS and stores the chain as evidence on the edge.
+
+package: adversarial/silent/s1_synonym_redirect.sql
+source_sha256: beaa9128d3159422481b45653ce715ca1d1a364feaa2e8f2c4004a558e6e3bfa
+labelled_by: claude+abhay (observation-anchored - the target was proved by execution)
+labelled_at: "2026-09-06"
+
+edges:
+  # is_active is set to the literal 1, so there is no value edge. All the lineage in this
+  # package is in the filter and in the TARGET's identity - which is the point.
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S1_SYNONYM_REDIRECT, line: 34}
+    evidence: observed
+    note: >
+      Membership of tmp_recent decides which rows are written. The target relation is
+      dw_dim_customer_v2, established by observation, not by reading `customer_target`.
+
+  - source: {kind: column, name: DW_DIM_CUSTOMER_V2.CUST_ID}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S1_SYNONYM_REDIRECT, line: 34}
+    evidence: observed
+    note: The other operand of `cust_id IN (SELECT ...)`.
+
+forbidden:
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: CUSTOMER_TARGET}
+    flow: filter
+    reason: >
+      The literal name in the code. A synonym is not an object that stores anything, so an
+      edge into it is a claim about a name rather than about data. This is the failure in
+      its purest form: the parser succeeded, the binding is confident, and the object does
+      not exist.
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    reason: >
+      The near-miss that is worse than the literal name, because it names a REAL table
+      that a reader will accept without question. dim_customer exists, is regulated, and
+      was not touched. Observation is what separates this from the true answer; nothing in
+      the source does.
