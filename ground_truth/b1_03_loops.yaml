@@ -102,6 +102,7 @@ edges:
     transform: identity
     band: 1
     origin: {unit: B1_LOOPS, line: 30}
+    guard: "v_total > 100"
     evidence: source_read
     note: >
       WHERE gross_amount < v_total, inside a loop whose continuation condition is also
@@ -115,6 +116,7 @@ edges:
     transform: identity
     band: 0
     origin: {unit: B1_LOOPS, line: 28}
+    guard: "v_total > 100"
     evidence: adjudicated
 
   - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
@@ -123,6 +125,7 @@ edges:
     transform: derived
     band: 0
     origin: {unit: B1_LOOPS, line: 28}
+    guard: "v_total > 100"
     evidence: observed
     note: TRUNC(order_date, 'MM').
 
@@ -132,6 +135,7 @@ edges:
     transform: derived
     band: 0
     origin: {unit: B1_LOOPS, line: 28}
+    guard: "v_total > 100"
     evidence: observed
 
   - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
@@ -140,6 +144,7 @@ edges:
     transform: derived
     band: 0
     origin: {unit: B1_LOOPS, line: 28}
+    guard: "v_total > 100"
     evidence: observed
 
   - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
@@ -148,6 +153,7 @@ edges:
     transform: identity
     band: 0
     origin: {unit: B1_LOOPS, line: 30}
+    guard: "v_total > 100"
     evidence: source_read
     note: The column side of `gross_amount < v_total`.
 

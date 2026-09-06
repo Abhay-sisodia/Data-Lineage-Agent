@@ -258,21 +258,27 @@ class _Builder:
         return exits
 
     def _build_loop(self, ctx: Any, incoming: Exits, depth: int) -> Exits:
+        # Only a WHILE contributes a guard. A guard is a condition under which an edge
+        # fires or does not; a FOR loop's body always runs, once per iteration, so its
+        # iteration spec is not a condition at all. Treating `i IN 1 .. 12` as a guard
+        # would say the write is conditional when it is not.
+        #
+        # The loop variable's real influence - deciding WHICH rows a statement reads - is
+        # carried as a filter edge by the def-use analysis, which is where it belongs.
         condition = None
-        # A WHILE condition is a genuine boolean guard: its negation governs what runs
-        # after the loop. A FOR iteration spec is not - a FOR loop always completes, so
-        # negating it would attach a meaningless condition to every following statement.
         exit_is_conditional = False
+        label_text = ""
 
         if ctx.condition() is not None:  # WHILE
             condition = _text(ctx.condition())
             exit_is_conditional = True
+            label_text = condition
         elif ctx.cursor_loop_param() is not None:  # FOR
-            condition = _text(ctx.cursor_loop_param())
+            label_text = _text(ctx.cursor_loop_param())
 
         head = self.add_node(
             NodeKind.LOOP,
-            f"LOOP {condition or ''}".strip(),
+            f"LOOP {label_text}".strip(),
             ctx.start.line,
             "loop_statement",
             ctx,

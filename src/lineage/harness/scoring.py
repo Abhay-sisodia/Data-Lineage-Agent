@@ -48,23 +48,73 @@ __all__ = [
 def normalise_guard(guard: str | None) -> str | None:
     """Reduce a guard to a comparable form.
 
-    `p_region = 'EU'` and `'EU' = p_region` are the same condition and different strings.
-    Upper-cases, collapses whitespace, and orders the operands of a simple equality.
+    Four things vary without changing meaning, and all four are normalised away:
 
-    Deliberately modest. Guards are excluded from precision precisely because comparing
-    them properly is a research problem in itself, and a half-clever normaliser that
-    silently mis-compares would be worse than an honest one that occasionally says
-    "different".
+    * case — `p_region` and `P_REGION`
+    * operand order — `p_region = 'EU'` and `'EU' = p_region`
+    * conjunct order — a guard is a set of conditions, not a sequence
+    * negated equality — `NOT (x = y)` and `x <> y`
+
+    Deliberately stops there. Guards are excluded from precision precisely because
+    comparing them properly is a research problem, and a half-clever normaliser that
+    silently equates two different conditions would be far worse than an honest one that
+    occasionally reports a difference. Anything beyond these four rules needs a solver,
+    not a regex.
     """
     if guard is None:
         return None
-    text = re.sub(r"\s+", " ", guard.strip().upper())
-    match = re.fullmatch(r"([^=<>!]+)=([^=<>!]+)", text)
-    if match:
-        left, right = (part.strip() for part in match.groups())
-        left, right = sorted([left, right])
+
+    atoms = sorted({_normalise_atom(part) for part in _split_conjuncts(guard)})
+    return " AND ".join(a for a in atoms if a)
+
+
+def _split_conjuncts(guard: str) -> list[str]:
+    """Split on top-level AND, ignoring ANDs inside parentheses."""
+    parts: list[str] = []
+    depth = 0
+    current = ""
+    for token in re.split(r"(\(|\)|\bAND\b)", guard, flags=re.IGNORECASE):
+        if token is None:
+            continue
+        if token == "(":
+            depth += 1
+        elif token == ")":
+            depth -= 1
+        elif token.upper() == "AND" and depth == 0:
+            parts.append(current)
+            current = ""
+            continue
+        current += token
+    parts.append(current)
+    return [p for p in parts if p.strip()]
+
+
+def _normalise_atom(text: str) -> str:
+    """Canonicalise one condition."""
+    atom = re.sub(r"\s+", " ", text.strip().upper())
+
+    # NOT (x = y) is the same condition as x <> y.
+    negated = re.fullmatch(r"NOT\s*\((.+)\)", atom)
+    if negated:
+        inner = negated.group(1).strip()
+        equality = re.fullmatch(r"([^=<>!]+)=([^=<>!]+)", inner)
+        if equality:
+            left, right = sorted(part.strip() for part in equality.groups())
+            return f"{left} <> {right}"
+        return f"NOT ({inner})"
+
+    # Equality is symmetric, so order the operands.
+    equality = re.fullmatch(r"([^=<>!]+)=([^=<>!]+)", atom)
+    if equality:
+        left, right = sorted(part.strip() for part in equality.groups())
         return f"{left} = {right}"
-    return text
+
+    inequality = re.fullmatch(r"([^=<>!]+)<>([^=<>!]+)", atom)
+    if inequality:
+        left, right = sorted(part.strip() for part in inequality.groups())
+        return f"{left} <> {right}"
+
+    return atom
 
 
 @dataclass(frozen=True)

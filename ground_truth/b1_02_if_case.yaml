@@ -46,7 +46,7 @@ edges:
     flow: value
     transform: aggregated
     band: 1
-    guard: "P_REGION = 'APAC' AND P_STRICT = 1"
+    guard: "P_REGION <> 'EU' AND P_REGION = 'APAC' AND P_STRICT = 1"
     origin: {unit: B1_IF_CASE, line: 21}
     evidence: observed
     note: >
@@ -95,7 +95,7 @@ edges:
     flow: filter
     transform: identity
     band: 0
-    guard: "P_REGION = 'APAC' AND P_STRICT = 1"
+    guard: "P_REGION <> 'EU' AND P_REGION = 'APAC' AND P_STRICT = 1"
     origin: {unit: B1_IF_CASE, line: 23}
     evidence: source_read
     note: >
@@ -108,7 +108,7 @@ edges:
     flow: filter
     transform: identity
     band: 0
-    guard: "P_REGION = 'APAC' AND P_STRICT = 1"
+    guard: "P_REGION <> 'EU' AND P_REGION = 'APAC' AND P_STRICT = 1"
     origin: {unit: B1_IF_CASE, line: 24}
     evidence: source_read
 

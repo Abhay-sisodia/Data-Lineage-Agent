@@ -170,13 +170,39 @@ takes over.
 
 ## T2.4 — Branch guards
 
-- [ ] **T2.4a** Attach the governing condition to every edge produced inside a branch
-- [ ] **T2.4b** Conjoin nested guards (`b1_02` APAC path is guarded by two conditions)
-- [ ] **T2.4c** Report guard accuracy separately from precision (harness already supports it)
+- [x] **T2.4a** Attach the governing condition to every edge produced inside a branch
+- [x] **T2.4b** Conjoin nested guards (`b1_02` APAC path is guarded by two conditions)
+- [x] **T2.4c** Report guard accuracy separately from precision
+- [x] **T2.4d** Canonicalising guard normaliser
 
 **Done when:** the EU-guarded edge carries `p_region = 'EU'`; unconditional edges carry
 null; the nested case produces the correct conjunction; guard accuracy appears in the
 score report.
+
+**Status: CLOSED.** `tests/test_guards.py`, 11 tests. 149 green overall.
+
+**Guard accuracy 0/11 → 10/11 (90.9%)**, and the number of guard-carrying edges rose
+from 5 to 11. Precision and recall did not move — which is the point: ADR-0001 §5 keeps
+guards out of the gate, and this work confirms the separation holds in practice.
+
+**Three findings:**
+
+1. **§5 was right, and now there is evidence.** The first measurement was 0/5, entirely
+   from cosmetic differences: `P_REGION <> 'EU' AND P_REGION <> 'APAC'` versus
+   `NOT (p_region = 'EU') AND NOT (p_region = 'APAC')`. Had guards been inside precision,
+   the gate would have been reporting the state of a regex.
+2. **Set-based edges were silently unguarded.** The band-0 analyser never sees control
+   flow, so an `INSERT` inside `WHILE v_total > 100` claimed the write always happens —
+   a wrong answer, not an incomplete one. Guards are now applied from the CFG after both
+   analyses run.
+3. **A `FOR` loop contributes no guard.** A guard is a condition under which an edge
+   fires or does not; a `FOR` body always runs. `i IN 1 .. 12` was being reported as a
+   guard, which claims a write is conditional when it is not. The loop variable's real
+   influence — deciding *which rows* are read — is carried as a filter edge instead.
+
+**Labels corrected (guards only, so the gate is untouched):** `b1_02`'s ELSIF arms now
+carry the implied negation of the preceding arm; `b1_03`'s `WHILE`-body edges now carry
+`v_total > 100`. Both were under-specifications.
 
 **Why it is not a footnote:** an edge that only fires for EU customers is a different fact
 from an unconditional one, and a regulator will ask precisely that.
