@@ -17,7 +17,14 @@ from __future__ import annotations
 from lineage.analysis import band0
 from lineage.analysis.band0 import AnalysisResult, Refusal
 from lineage.analysis.cfg import Cfg, build_all
-from lineage.analysis.defuse import analyse_unit, collect_scopes
+from lineage.analysis.cfg import NodeKind as CfgNodeKind
+from lineage.analysis.defuse import (
+    UnitScope,
+    analyse_unit,
+    collect_scopes,
+    definitions_and_uses,
+)
+from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
 from lineage.analysis.scratch import find_fusion_hazards
 from lineage.config import AnalysisConfig
 from lineage.ir.model import IREdge
@@ -48,6 +55,11 @@ def analyse_source(
         dataflow = analyse_unit(cfg, scope, dictionary)
         result.edges.extend(dataflow.edges)
         for item in dataflow.unresolved:
+            entry = f"{unit}: {item}"
+            if entry not in result.boundaries:
+                result.boundaries.append(entry)
+
+        for item in _reaching_findings(cfg, scope, settings):
             entry = f"{unit}: {item}"
             if entry not in result.boundaries:
                 result.boundaries.append(entry)
@@ -83,6 +95,65 @@ def analyse_source(
             result.boundaries.append(entry)
 
     return result
+
+
+def _reaching_findings(cfg: Cfg, scope: UnitScope, config: AnalysisConfig) -> list[str]:
+    """Variables read before anything assigns them, and non-convergence if it happens."""
+    definitions: dict[int, set[str]] = {}
+    uses: dict[int, set[str]] = {}
+
+    for node in cfg.nodes.values():
+        if node.kind is CfgNodeKind.LOOP:
+            # A FOR loop's index or record is defined by the loop header, not by any
+            # statement. Without this it looks like a variable read before assignment.
+            for name, row in scope.row_sources.items():
+                if row.line == node.line:
+                    definitions.setdefault(node.id, set()).add(name)
+            for name, declaration in scope.variables.items():
+                if declaration.line == node.line and declaration.scope == "local":
+                    definitions.setdefault(node.id, set()).add(name)
+            continue
+        if node.kind is not CfgNodeKind.STATEMENT:
+            continue
+        defined, used = definitions_and_uses(node, scope)
+        if defined:
+            definitions[node.id] = defined
+        if used:
+            uses[node.id] = used
+
+    # `v_total NUMBER := 0` is assigned before the first statement runs. Treating the
+    # declaration as a definition at entry stops every later read looking uninitialised.
+    initialised = {name for name, declaration in scope.variables.items() if declaration.has_default}
+    if initialised:
+        definitions.setdefault(cfg.entry, set()).update(initialised)
+
+    cap = config.budgets.loop_fixpoint_iteration_cap
+    result = reaching_definitions(cfg, definitions, cap)
+
+    findings: list[str] = []
+    if not result.converged:
+        # A limit that silently truncates is a hidden defect; declared, it is a
+        # specification.
+        findings.append(
+            f"reaching definitions did not converge within the configured cap of {cap} "
+            f"iterations - results below that point are incomplete"
+        )
+
+    parameters = {name for name, decl in scope.variables.items() if decl.scope == "parameter"}
+    package_state = {name for name, decl in scope.variables.items() if decl.scope == "package"}
+
+    for finding in uninitialised_uses(
+        cfg,
+        definitions,
+        uses,
+        result,
+        parameters=parameters,
+        external=package_state,
+        iteration_cap=cap,
+    ):
+        findings.append(finding.describe())
+
+    return findings
 
 
 def _with_guard(edge: IREdge, graphs: dict[str, Cfg]) -> IREdge:

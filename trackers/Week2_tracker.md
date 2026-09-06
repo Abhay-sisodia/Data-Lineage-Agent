@@ -250,15 +250,45 @@ invented edge is worse than a missing one.
 
 ## T2.6 — Loops
 
-- [ ] **T2.6a** Fixed-point iteration to a stable edge set
-- [ ] **T2.6b** Termination proven, not observed once; cap from config, reported when hit
+- [x] **T2.6a** Fixed-point iteration — reaching definitions over the CFG
+- [x] **T2.6b** Convergence within the configured cap; non-convergence declared
+- [x] **T2.6c** "Definitely assigned" must-analysis
+- [x] **T2.6d** Uninitialised and partially-assigned reads reported
 
 **Done when:** every loop in the corpus converges within the documented cap; the cap
 appears in the run's declared limits; non-convergence is reported rather than silently
 truncated.
 
-**Hard case:** `b1_03`'s second loop has a write target that depends on the loop counter,
-so the edge set is not fixed by reading the statement.
+**Status: CLOSED.** `src/lineage/analysis/reaching.py`, 19 tests. 177 green overall.
+
+**The finding that shaped this task: fixed-point iteration adds no edges here.** Because
+variables are first-class IR nodes, each statement contributes its own edges and
+`gross_amount -> v_total -> lifetime_value` is complete after one pass. An implementation
+that iterated anyway and reported "converged" would be theatre, and
+`loop_fixpoint_iteration_cap` would be a limit declared in the coverage statement while
+doing nothing — worse than not declaring it.
+
+What iteration genuinely answers is a *different* question: whether anything was assigned
+before a read, and whether that holds on every path. Three outcomes are now distinguished:
+
+| Finding | Meaning |
+|---|---|
+| no definition reaches | value is NULL; any claimed source is wrong |
+| reaches on some paths only | edge is real but conditional on a path that may not run |
+| assigned in another unit | edge is real; conditional on **call order** |
+
+**Two bugs found by reading the output:** a `FOR` index looked uninitialised (it is defined
+by the loop header, not a statement), and `v_total NUMBER := 0` looked uninitialised
+(a declaration default is an assignment before the first statement).
+
+**One performance defect:** the first "assigned on every path" check enumerated routes,
+which is exponential on a CFG with branches and exception edges — the corpus stopped
+completing. Replaced with a linear must-analysis (intersection at merge points); whole
+corpus now runs in ~64s.
+
+**The one real finding on the corpus** is `apply_policy` reading `g_cutoff`, which only
+`load_policy` assigns. That is the same phenomenon that made the week-1 observation
+harness report "NOTHING CHANGED" until both calls ran in one session.
 
 ---
 

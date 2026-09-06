@@ -62,6 +62,7 @@ class VariableDecl:
     qualified: str  # PACKAGE.NAME for package state, else the bare name
     scope: str  # parameter | local | package
     line: int
+    has_default: bool = False  # `v_total NUMBER := 0` is assigned before any statement
 
     def as_node(self) -> Node:
         return Node(kind=IRNodeKind.VARIABLE, name=self.qualified)
@@ -139,7 +140,10 @@ def _declarations_of(ctx: Any, package: str | None) -> dict[str, VariableDecl]:
             name = str(identifier.getText()).upper()
             scope = "package" if package else "local"
             qualified = f"{package}.{name}" if package else name
-            found[name] = VariableDecl(name, qualified, scope, node.start.line)
+            default = getattr(node, "default_value_part", lambda: None)()
+            found[name] = VariableDecl(
+                name, qualified, scope, node.start.line, has_default=default is not None
+            )
 
     return found
 
@@ -891,6 +895,68 @@ def _filter_edges_for(
             )
         )
     return edges
+
+
+def definitions_and_uses(node: CfgNode, scope: UnitScope) -> tuple[set[str], set[str]]:
+    """Variables this statement defines, and variables it reads.
+
+    Names only — the edges themselves are built elsewhere. This feeds reaching-definitions
+    analysis, which asks a different question: not *what* flows, but *whether anything
+    was assigned before the read*.
+    """
+    defined: set[str] = set()
+    used: set[str] = set()
+    if node.ctx is None:
+        return defined, used
+
+    text = source_slice(node.ctx)
+
+    if node.statement_kind == "assignment_statement":
+        inner = next(iter(iter_contexts(node.ctx, PlSqlParser.Assignment_statementContext)), None)
+        if inner is not None:
+            target = inner.general_element()
+            if target is not None and scope.lookup(str(target.getText())) is not None:
+                defined.add(str(target.getText()).upper())
+            expression = inner.expression()
+            if expression is not None:
+                for name in _identifiers_in(source_slice(expression)):
+                    if scope.lookup(name) is not None:
+                        used.add(name)
+        return defined, used
+
+    if node.statement_kind == "fetch_statement":
+        inner = next(iter(iter_contexts(node.ctx, PlSqlParser.Fetch_statementContext)), None)
+        if inner is not None:
+            for target in inner.variable_or_collection():
+                name = str(target.getText()).upper()
+                if scope.lookup(name) is not None:
+                    defined.add(name)
+        return defined, used
+
+    # SQL statements: an INTO target is a definition, everything else a read.
+    try:
+        statement: Any = sqlglot.parse_one(text, dialect=DIALECT)
+    except Exception:
+        return defined, used
+
+    into = statement.args.get("into") if isinstance(statement, exp.Select) else None
+    into_names: set[str] = set()
+    if into is not None:
+        into_names = {i.name.upper() for i in into.find_all(exp.Identifier)}
+        for name in into_names:
+            if scope.lookup(name) is not None:
+                defined.add(name)
+
+    for column in statement.find_all(exp.Column):
+        if column.table:
+            continue
+        name = column.name.upper()
+        if name in into_names:
+            continue
+        if scope.lookup(name) is not None:
+            used.add(name)
+
+    return defined, used
 
 
 def analyse_unit(cfg: Cfg, scope: UnitScope, dictionary: Dictionary) -> DefUseResult:
