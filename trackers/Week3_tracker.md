@@ -272,10 +272,11 @@ is a quiet recall collapse that *looks* like discipline. Both need a number.
 
 ## T3.2 — Dynamic SQL, constant string
 
-- [ ] **T3.2a** Constant propagation through the CFG to the `EXECUTE IMMEDIATE` site
-- [ ] **T3.2b** Parse the recovered text normally and emit edges at mechanism `AST`
-- [ ] **T3.2c** Refuse — loudly — where the string is not fully constant on every path
-- [ ] **T3.2d** Concatenation of constants folded; concatenation with a variable refused
+- [x] **T3.2a** Constant propagation through the CFG to the `EXECUTE IMMEDIATE` site
+- [x] **T3.2b** Parse the recovered text normally and emit edges at mechanism `AST`
+- [x] **T3.2c** Refuse — loudly — where the string is not fully constant on every path
+- [x] **T3.2d** Concatenation of constants folded; concatenation with a variable refused
+- [x] **T3.2e** Statement carriers separated from data-carrying variables
 
 **Done when:** `b2_01_dynamic_constant` produces edges at mechanism `AST`, indistinguishable
 from static SQL, **and `b2_02_dynamic_concatenated` produces none** — only a declared boundary.
@@ -285,6 +286,78 @@ from static SQL, **and `b2_02_dynamic_concatenated` produces none** — only a d
 **The trap:** partially-constant strings. `'UPDATE ' || v_table || ' SET x = 1'` has constant
 fragments and a variable table name. Folding what is available and guessing the rest is
 exactly the plausible wrong answer this phase keeps finding. Must-analysis, not may.
+
+---
+
+**Status: CLOSED. THE GATE IS BACK ABOVE THE FLOOR — 75.8% → 96.2% — AND BAND 2 IS OFF
+ZERO FOR THE FIRST TIME.** `src/lineage/analysis/dynamic.py`,
+`tests/test_dynamic_sql.py` (22 tests); suite 303 → 325.
+
+| band / flow | before | after |
+|---|---|---|
+| **1 value — THE GATE** | **75.8%** / 96.2% | **96.2% / 96.2%** |
+| 2 value | n/a / 0% | **100% / 13.3%** |
+| 2 filter | n/a / 0% | **100% / 17.4%** |
+| band-1 value false positives | 8 | **1** |
+| whole-corpus false positives | 10 | **2** |
+
+The kill criterion is no longer triggered.
+
+### The two jobs, and they pull in opposite directions
+
+**Recover what is knowable.** Constant propagation in source order, so
+`v_stmt := v_stmt || '...'` works — by the time the self-reference is read the accumulated
+value is known. Recovered statements are analysed by exactly the same code as written ones:
+same parser, same dispatch, mechanism `AST`. What changes is the text, not the treatment.
+
+**Refuse everything else, loudly.** Constant-ness is a MUST property. One unknown operand
+and the whole expression is unknown, because half a statement resolves to a *different*
+statement. An assignment inside a branch or loop poisons its target permanently — a
+constant that only sometimes holds is not a constant.
+
+| Package | Outcome |
+|---|---|
+| `b2_01` | both statements recovered; 5 edges, all band 2 |
+| `b2_03` | recovered — the text is provably constant despite the API |
+| `s4` | the `EXCHANGE PARTITION` DDL recovered (turning it into an edge is T3.4b) |
+| `b2_02` | **refused**, both sites, with a named reason |
+| `b2_04` | **refused** — the `WHERE` clause is appended inside an `IF` |
+
+### The eight false positives were one defect: text is not data
+
+`p_column -> v_sql`, `v_stmt -> v_stmt`, `v_cursor -> v_rows` are all true def-use facts
+and none is a lineage fact. A variable holding statement TEXT is not a variable carrying
+data, and def-use cannot tell them apart.
+
+**The line is data-carrying versus text-carrying, not "variables are noise."** ADR-0001 §3
+makes variables first-class and `window_days -> v_days -> v_cutoff -> row filter` is the
+chain this phase exists to trace. `v_cutoff` ends up selecting rows; `v_sql` ends up at
+`EXECUTE IMMEDIATE`. A test pins both halves, because suppressing variables wholesale would
+delete band 1 and score beautifully.
+
+**Carriers are identified by where they are USED, not by name or type** — the same
+reasoning that stopped `tmp_recent` being called temporary at T2.5. A DBMS_SQL cursor
+handle is included: `v_rows := DBMS_SQL.EXECUTE(v_cursor)` derives the row count from the
+statement's effect, which no static edge can express.
+
+### One deliberate departure from the ladder
+
+The construct ladder says DBMS_SQL is **"log recovery only. No static route exists."**
+`b2_03`'s text is assembled across four assignments, every one a literal, so constant
+propagation recovers it in full. Refusing would be abstention on account of the API's
+reputation rather than for a reason, and T3.1 measures false abstention. The general case
+— piecewise parsing, dynamic binding — remains out of reach and unattempted. Its key still
+labels the edges, so the recall gap stays visible.
+
+The recovered text keeps its `:b_region` bind variable, which confirms the sub-spike's
+open assumption: **a bind variable hides a value, not structure.**
+
+### Two false positives remain corpus-wide
+
+| Package | Edge | Owner |
+|---|---|---|
+| `b1_03` | `V_TOTAL -> V_TOTAL [value/aggregated]` | transform class is computed per statement and should be per source — in `NVL(SUM(x),0) + v_total`, `x` arrives through a SUM and `v_total` through an addition |
+| `s6` | `V_CUSTOMER_EDITABLE.REGION -> V_CUSTOMER_EDITABLE` | the view is resolved on neither end — T3.4c |
 
 ---
 

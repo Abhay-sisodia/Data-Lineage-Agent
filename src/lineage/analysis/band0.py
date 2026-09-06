@@ -32,6 +32,7 @@ from sqlglot import exp
 from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import Scope, build_scope
 
+from lineage.analysis.dynamic import resolve_dynamic_sql
 from lineage.config import AnalysisConfig
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
@@ -713,13 +714,26 @@ def analyse_source(
     result = AnalysisResult()
 
     program = parse_program(source)
-    for statement in program.statements:
+
+    # Dynamic SQL that is decidable is analysed exactly like static SQL, at mechanism AST.
+    # A recovered statement stays BAND 2 though (ADR-0001 §6): the path runs through
+    # EXECUTE IMMEDIATE whether or not we could see through it, and crediting band 0 with
+    # these would let the band's score claim work it did not do.
+    dynamic = resolve_dynamic_sql(program)
+    for entry in dynamic.boundaries:
+        if entry not in result.boundaries:
+            result.boundaries.append(entry)
+
+    recovered = [(statement, 2) for statement in dynamic.statements]
+    static = [(statement, band) for statement in program.statements]
+
+    for statement, statement_band in static + recovered:
         if statement.kind not in SUPPORTED:
             continue
         result.statements_seen += 1
         origin = Origin(unit=_enclosing_unit(program, statement), line=statement.line)
         edges, refusal, unresolved = _analyse_statement(
-            statement, dictionary, settings, band, origin, known_calls
+            statement, dictionary, settings, statement_band, origin, known_calls
         )
         # Declared, counted, and never silent. An identifier the analyser could not
         # resolve is a stated boundary - which is what makes the coverage number

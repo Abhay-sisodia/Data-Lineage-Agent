@@ -25,6 +25,7 @@ import sqlglot
 from sqlglot import exp
 
 from lineage.analysis.cfg import Cfg, CfgNode, NodeKind
+from lineage.analysis.dynamic import Resolution
 from lineage.ir.model import (
     Flow,
     IREdge,
@@ -441,6 +442,7 @@ def analyse_statement(
     scope: UnitScope,
     dictionary: Dictionary,
     unit: str,
+    dynamic: Resolution | None = None,
 ) -> DefUseResult:
     """Extract def-use edges from one statement."""
     result = DefUseResult()
@@ -450,14 +452,20 @@ def analyse_statement(
     origin = Origin(unit=unit, line=node.line)
     guards = cfg.guards_reaching(node.id)
     guard = " AND ".join(guards) if guards else None
+    carriers = dynamic.carriers if dynamic else set()
 
     # Assignment and FETCH are PL/SQL, not SQL: they come from the parse tree.
     if node.statement_kind == "assignment_statement":
-        return _analyse_assignment(node, scope, origin, guard)
+        return _analyse_assignment(node, scope, origin, guard, carriers)
     if node.statement_kind == "fetch_statement":
         return _analyse_fetch(node, scope, dictionary, origin, guard)
 
+    # A recovered dynamic statement is analysed exactly like a written one - same parser,
+    # same dispatch below. What changes is the TEXT, not the treatment.
     text = source_slice(node.ctx)
+    recovered = dynamic is not None and node.line in dynamic.recovered
+    if dynamic is not None and recovered:
+        text = dynamic.recovered[node.line]
     try:
         statement: Any = sqlglot.parse_one(text, dialect=DIALECT)
     except Exception:
@@ -467,19 +475,35 @@ def analyse_statement(
     relations = _relations_in(statement, dictionary)
 
     if isinstance(statement, exp.Select) and statement.args.get("into") is not None:
-        return _analyse_select_into(statement, scope, relations, dictionary, origin, guard)
-    if isinstance(statement, exp.Update):
-        return _analyse_update(statement, scope, relations, dictionary, origin, guard)
-    if isinstance(statement, exp.Insert):
-        return _analyse_insert_filter(statement, scope, relations, dictionary, origin, guard)
+        result = _analyse_select_into(statement, scope, relations, dictionary, origin, guard)
+    elif isinstance(statement, exp.Update):
+        result = _analyse_update(statement, scope, relations, dictionary, origin, guard)
+    elif isinstance(statement, exp.Insert):
+        result = _analyse_insert_filter(statement, scope, relations, dictionary, origin, guard)
+
+    # A statement we could only read because constant propagation recovered it is band 2,
+    # whatever its own shape (ADR-0001 §6). The band describes the PATH, and this path ran
+    # through EXECUTE IMMEDIATE - being able to see through it does not make it easier,
+    # it makes it the band's cheap win.
+    if recovered:
+        result.edges = [edge.model_copy(update={"band": 2}) for edge in result.edges]
 
     return result
 
 
 def _analyse_assignment(
-    node: CfgNode, scope: UnitScope, origin: Origin, guard: str | None
+    node: CfgNode,
+    scope: UnitScope,
+    origin: Origin,
+    guard: str | None,
+    carriers: set[str] = frozenset(),  # type: ignore[assignment]
 ) -> DefUseResult:
-    """`v := expr`. The definition that carries a value between statements."""
+    """`v := expr`. The definition that carries a value between statements.
+
+    Unless the variable carries a STATEMENT rather than a value — see `analysis.dynamic`.
+    `v_sql := 'UPDATE ' || p_column` is a true def-use fact and not a lineage fact, and
+    emitting it claims a column name determines the column's data.
+    """
     result = DefUseResult()
     ctx = node.ctx
 
@@ -494,6 +518,8 @@ def _analyse_assignment(
     if target_ctx is None:
         return result
     target_name = str(target_ctx.getText()).upper()
+    if target_name in carriers:
+        return result
     target_decl = scope.lookup(target_name)
     if target_decl is None:
         result.unresolved.append(f"line {node.line}: assignment to undeclared {target_name}")
@@ -503,6 +529,11 @@ def _analyse_assignment(
     transform = _assignment_transform(expression_text)
 
     for name in _identifiers_in(expression_text):
+        if name in carriers:
+            # `v_rows := DBMS_SQL.EXECUTE(v_cursor)` - a cursor handle is API plumbing,
+            # not a value. The row count genuinely derives from the statement's effect,
+            # which no static edge can express.
+            continue
         source_decl = scope.lookup(name)
         if source_decl is None:
             continue
@@ -959,15 +990,26 @@ def definitions_and_uses(node: CfgNode, scope: UnitScope) -> tuple[set[str], set
     return defined, used
 
 
-def analyse_unit(cfg: Cfg, scope: UnitScope, dictionary: Dictionary) -> DefUseResult:
-    """Def-use edges for one program unit."""
+def analyse_unit(
+    cfg: Cfg,
+    scope: UnitScope,
+    dictionary: Dictionary,
+    dynamic: Resolution | None = None,
+) -> DefUseResult:
+    """Def-use edges for one program unit.
+
+    ``dynamic`` carries the dynamic-SQL resolution for the whole source (T3.2): which
+    variables are statement carriers rather than data, and what text each decidable site
+    resolved to. Passing None analyses the unit as if no dynamic SQL existed, which is
+    what the pre-T3.2 behaviour was.
+    """
     combined = DefUseResult()
     seen: set[tuple[Any, ...]] = set()
 
     for node in cfg.nodes.values():
         if node.kind is not NodeKind.STATEMENT:
             continue
-        result = analyse_statement(node, cfg, scope, dictionary, cfg.unit)
+        result = analyse_statement(node, cfg, scope, dictionary, cfg.unit, dynamic)
         for edge in result.edges:
             # Deduplicate on ledger identity, not the match key: two facts that differ
             # by guard or origin are genuinely different and both belong.

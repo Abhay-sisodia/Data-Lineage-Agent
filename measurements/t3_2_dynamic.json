@@ -1,0 +1,124 @@
+{
+  "boundaries_declared": 17,
+  "cells": {
+    "0/filter": {
+      "false_negatives": 6,
+      "false_positives": 1,
+      "precision": 0.972972972972973,
+      "recall": 0.8571428571428571,
+      "true_positives": 36
+    },
+    "0/value": {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positives": 93
+    },
+    "1/filter": {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.9090909090909091,
+      "true_positives": 20
+    },
+    "1/value": {
+      "false_negatives": 1,
+      "false_positives": 1,
+      "precision": 0.9615384615384616,
+      "recall": 0.9615384615384616,
+      "true_positives": 25
+    },
+    "2/filter": {
+      "false_negatives": 19,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.17391304347826086,
+      "true_positives": 4
+    },
+    "2/value": {
+      "false_negatives": 26,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.13333333333333333,
+      "true_positives": 4
+    }
+  },
+  "evidence_split": {
+    "adjudicated": 21,
+    "observed": 91,
+    "source_read": 124
+  },
+  "forbidden_edges_produced": [
+    {
+      "edge": [
+        "column:V_CUSTOMER_EDITABLE.REGION",
+        "relation:V_CUSTOMER_EDITABLE",
+        "filter",
+        "identity",
+        ""
+      ],
+      "package": "s6_updatable_view",
+      "reason": "ADDED AFTER RUNNING THE ANALYSER, and flagged because that direction of edit needs scrutiny. The rule above guessed which SOURCE column would appear on a view-target edge and guessed wrong: the analyser emits the view on BOTH ends, having resolved neither. Same failure, and the first rule did not catch it. Adding this one can only lower the score, never raise it, which is why it is safe to add after the fact - the test to apply to any post-hoc label change."
+    }
+  ],
+  "gate": {
+    "band1_value_precision": 0.9615384615384616,
+    "band1_value_recall": 0.9615384615384616,
+    "precision_floor": 0.95,
+    "recall_floor": 0.85
+  },
+  "guard_accuracy": 1.0,
+  "kill_criteria": [
+    {
+      "criterion": "Band-1 value precision < 95% -> regulatory positioning dead",
+      "measured": "96.2%",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Band-1 value recall < 85%",
+      "measured": "96.2%",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Parse coverage < 70% on real code -> parser strategy wrong",
+      "measured": "94.3%",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Dynamic SQL > 30% of statements AND unrecoverable",
+      "measured": "not yet measured",
+      "verdict": "PENDING"
+    },
+    {
+      "criterion": "Interprocedural analysis does not terminate at a usable depth",
+      "measured": "terminates; recursion and depth cap both declared",
+      "verdict": "PASS"
+    }
+  ],
+  "mechanism_distribution": {
+    "AST": 164,
+    "DEF-USE": 23
+  },
+  "parse_coverage": 0.9428571428571428,
+  "provenance": {
+    "commit": "b47b3c6",
+    "config_fingerprint": "eed291d00fb6a073d18f09989752d29d69e737c95e6f1b7911e25cdcb3aaa497",
+    "corpus_fingerprint": "025ec055a107a318774c73cc5f8444688f4f58a2a9f3d45a07296bcdd336b1c1",
+    "declared_limits": {
+      "dialect": "oracle",
+      "interprocedural_depth_cap": 6,
+      "log_recovery_enabled": true,
+      "log_statement_truncated_at": 1000,
+      "loop_fixpoint_iteration_cap": 10,
+      "query_log_retention_months": 18,
+      "view_expansion_depth_cap": 10
+    },
+    "dictionary_fingerprint": "46393f45f6e144b89228aabd76b3a1792e313e5ea35cc1e30f1f380bce755368",
+    "engine_version": "0.0.0",
+    "measured_at": "2026-09-06T18:48:49+00:00"
+  },
+  "tier_distribution": {
+    "A": 187
+  }
+}

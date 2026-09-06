@@ -24,6 +24,7 @@ from lineage.analysis.defuse import (
     collect_scopes,
     definitions_and_uses,
 )
+from lineage.analysis.dynamic import resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
 from lineage.analysis.scratch import find_fusion_hazards
@@ -55,6 +56,10 @@ def analyse_source(
     scopes = collect_scopes(program)
     graphs = build_all(program)
 
+    # Resolved once for the whole source, not per unit: a carrier variable is a carrier
+    # everywhere, and the constant environment is built in source order.
+    dynamic = resolve_dynamic_sql(program)
+
     for summary in summaries.values():
         boundary = summary.boundary()
         if boundary and boundary not in result.boundaries:
@@ -64,7 +69,7 @@ def analyse_source(
         scope = scopes.get(unit)
         if scope is None:
             continue
-        dataflow = analyse_unit(cfg, scope, dictionary)
+        dataflow = analyse_unit(cfg, scope, dictionary, dynamic)
         result.edges.extend(dataflow.edges)
         for item in dataflow.unresolved:
             entry = f"{unit}: {item}"
