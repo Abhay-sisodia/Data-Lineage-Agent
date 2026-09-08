@@ -169,3 +169,13 @@ forbidden:
 boundaries:
   - "B2_DB_LINKS: remote_customer@crm_link - database link target out of coverage, 1 dangling reference"
   - "B2_DB_LINKS: finance_dw.customer_activity - schema not granted, 1 dangling reference"
+
+# STRUCTURED FORM (ADR-0001 amendment 1d). Subject is the object we were denied, named
+# exactly as the code names it - which is what both sides can agree on.
+expected_boundaries:
+  - kind: dangling_reference
+    subject: "REMOTE_CUSTOMER@CRM_LINK"
+    reason: Database link target is out of coverage; everything upstream of it is invisible.
+  - kind: dangling_reference
+    subject: "FINANCE_DW.CUSTOMER_ACTIVITY"
+    reason: Cross-schema reference to a schema that was never granted.

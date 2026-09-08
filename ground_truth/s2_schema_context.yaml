@@ -178,3 +178,20 @@ origin_assertions:
 boundaries:
   - "S2_SCHEMA_CONTEXT: reporting.stg_customer - schema not granted, 1 dangling reference"
   - "S2_SCHEMA_CONTEXT: unqualified names at line 20 resolve per execution schema - lineage is context-dependent"
+
+# STRUCTURED FORM (ADR-0001 amendment 1d). Both of these were "expected" for weeks and
+# neither was ever checked: run_measurement counted declarations and never compared them
+# against this list. The first one is now declared, after the qualifier-dropping fix. The
+# second is not, and that is a real gap this key can finally state.
+expected_boundaries:
+  - kind: dangling_reference
+    subject: "REPORTING.STG_CUSTOMER"
+    reason: >
+      Explicitly qualified against a schema that was never granted. Binding it to the local
+      stg_customer is the silent absorption this package exists to catch.
+  - kind: context_dependent_binding
+    subject: "S2_SCHEMA_CONTEXT:20"
+    reason: >
+      The unqualified stg_customer in statement 1 resolves through whichever schema
+      executes the procedure. The lineage is correct only for the schema it was bound
+      against, and that is a property of the run rather than of the code.

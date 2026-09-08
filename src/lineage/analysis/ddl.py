@@ -25,7 +25,18 @@ from __future__ import annotations
 
 import re
 
-from lineage.ir.model import Flow, IREdge, Mechanism, Node, NodeKind, Origin, Tier, Transform
+from lineage.ir.model import (
+    BoundaryKind,
+    Declared,
+    Flow,
+    IREdge,
+    Mechanism,
+    Node,
+    NodeKind,
+    Origin,
+    Tier,
+    Transform,
+)
 from lineage.resolution.dictionary import Dictionary
 
 __all__ = ["EXCHANGE_PARTITION", "exchange_partition_edges"]
@@ -99,11 +110,20 @@ def exchange_partition_edges(
     # the partition was empty, so that direction carries nothing and emitting it would be
     # inventing rows. Declared instead of guessed, because on a non-empty partition it is
     # a real flow and the next reader of this code needs to know it was considered.
-    boundaries = [
-        f"EXCHANGE PARTITION {partition}: an exchange swaps segments both ways. The "
-        f"reverse flow {partitioned} -> {staging} carries whatever the partition held "
-        f"before the exchange, which no static reading can know",
-        f"EXCHANGE PARTITION {partition}: rows enter {partitioned} through DDL, so no "
-        f"INSERT names it as a target - a DML-only reading reports it as having no writer",
+    boundaries: list[str] = [
+        Declared(
+            f"EXCHANGE PARTITION {partition}: an exchange swaps segments both ways. The "
+            f"reverse flow {partitioned} -> {staging} carries whatever the partition held "
+            f"before the exchange, which no static reading can know",
+            kind=BoundaryKind.DDL_SEMANTICS,
+            subject=f"{partitioned}:{partition}",
+        ),
+        Declared(
+            f"EXCHANGE PARTITION {partition}: rows enter {partitioned} through DDL, so no "
+            f"INSERT names it as a target - a DML-only reading reports it as having no "
+            f"writer",
+            kind=BoundaryKind.DDL_SEMANTICS,
+            subject=f"{partitioned}:{partition}",
+        ),
     ]
     return edges, boundaries

@@ -37,6 +37,112 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 UNSET_TIME = datetime(1970, 1, 1, tzinfo=UTC)
 
 
+class BoundaryKind(StrEnum):
+    """Why knowledge stops here. A closed list, like the refusal taxonomy.
+
+    Boundaries carry the whole regulatory pitch - "here is what we could not see, counted
+    and named" - and until 2026-09-09 they were free text. That made them **unscoreable**:
+    the answer key expected `B2_DB_LINKS: remote_customer@crm_link - database link target
+    out of coverage` while the analyser declared `insert_statement@20:
+    REMOTE_CUSTOMER@CRM_LINK.CUST_ID (relation not in dictionary)`. Same fact, no possible
+    string comparison, so every one of 18 expected boundaries read as undeclared while 35
+    were declared, and nothing anywhere reported the contradiction.
+
+    A kind plus a SUBJECT - the thing the boundary is about - is what makes two statements
+    of the same fact comparable. The prose stays, for humans; it is no longer the identity.
+    """
+
+    DANGLING_REFERENCE = "dangling_reference"
+    """A named object we were never given: an ungranted schema, a DB link target."""
+
+    CONTEXT_DEPENDENT_BINDING = "context_dependent_binding"
+    """The name resolves through the executing schema, so lineage depends on who ran it."""
+
+    DYNAMIC_SQL = "dynamic_sql"
+    """Statement text not knowable statically - assembled, or built through DBMS_SQL."""
+
+    REFUSAL = "refusal"
+    """A construct the classifier declined (T3.1). Subject is the refused statement."""
+
+    PARSE_FAILURE = "parse_failure"
+    """The parser could not read the statement at all."""
+
+    UNRESOLVED_IDENTIFIER = "unresolved_identifier"
+    """A name in SQL that is not a column of the relation it would bind to."""
+
+    CROSS_UNIT_STATE = "cross_unit_state"
+    """Package state written in one unit and read in another."""
+
+    FUSION_HAZARD = "fusion_hazard"
+    """A shared scratch relation where composing paths would invent a flow."""
+
+    DDL_SEMANTICS = "ddl_semantics"
+    """Lineage carried by DDL - a partition exchange - that DML-only reading misses."""
+
+    ROW_CORRESPONDENCE = "row_correspondence"
+    """Columns resolve but the row-to-row mapping does not."""
+
+    SUPPRESSED_ERROR = "suppressed_error"
+    """An exception handler that hides failure, so absence of an edge proves nothing."""
+
+    DEPTH_CAP = "depth_cap"
+    """Analysis stopped at a declared budget rather than guessing beyond it."""
+
+    SOURCE_UNAVAILABLE = "source_unavailable"
+    """The body exists but cannot be read - wrapped PL/SQL, a missing trigger body."""
+
+
+class Declared(str):
+    """A boundary message that also knows what it is ABOUT.
+
+    A ``str`` subclass, and that is a deliberate transitional choice rather than a clever
+    one. Boundaries are produced at a dozen sites and consumed at fifty-odd, and the real
+    fix - a first-class ``Boundary`` node that can be an edge endpoint - is `docs/ir-v0.md`
+    item 1 and an IR change. Carrying ``kind`` and ``subject`` on the string lets the axis
+    be SCORED now, without a refactor of every producer, consumer and test in between.
+
+    Every consumer keeps treating it as the sentence it always was. Anything that wants to
+    compare two statements of the same fact reads ``kind`` and ``subject`` instead, because
+    prose was never comparable: the key says "database link target out of coverage" where
+    the analyser says "(relation not in dictionary)".
+
+    A plain ``str`` where a ``Declared`` was expected is not an error - it is a boundary
+    nobody has classified yet, and ``classified`` says so rather than guessing.
+    """
+
+    __slots__ = ("kind", "subject")
+
+    kind: BoundaryKind
+    subject: str
+
+    def __new__(cls, text: str, *, kind: BoundaryKind, subject: str) -> Declared:
+        boundary = super().__new__(cls, text)
+        boundary.kind = kind
+        boundary.subject = subject.upper()
+        return boundary
+
+    def prefixed(self, prefix: str, *, subject_prefix: str = "") -> Declared:
+        """The same fact with context prepended, keeping its classification.
+
+        Formatting a ``Declared`` into an f-string yields a plain ``str`` and silently
+        loses the structure, which is exactly the bug this class exists to prevent. Every
+        site that decorates a boundary message goes through here instead.
+
+        ``subject_prefix`` qualifies the subject as well, for facts raised somewhere that
+        does not know its own unit - a parse failure knows its line and not much else, and
+        a bare line number is not an identity.
+        """
+        subject = f"{subject_prefix}{self.subject}" if subject_prefix else self.subject
+        return Declared(f"{prefix}{self}", kind=self.kind, subject=subject)
+
+    @staticmethod
+    def classified(entry: str) -> tuple[BoundaryKind, str] | None:
+        """``(kind, subject)`` if this boundary has been classified, else ``None``."""
+        if isinstance(entry, Declared):
+            return entry.kind, entry.subject
+        return None
+
+
 class NodeKind(StrEnum):
     """What a lineage endpoint is.
 

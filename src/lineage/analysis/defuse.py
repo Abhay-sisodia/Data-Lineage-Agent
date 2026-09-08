@@ -27,6 +27,8 @@ from sqlglot import exp
 from lineage.analysis.cfg import Cfg, CfgNode, NodeKind
 from lineage.analysis.dynamic import Resolution
 from lineage.ir.model import (
+    BoundaryKind,
+    Declared,
     Flow,
     IREdge,
     Mechanism,
@@ -481,7 +483,14 @@ def analyse_statement(
     try:
         statement: Any = sqlglot.parse_one(text, dialect=DIALECT)
     except Exception:
-        result.unresolved.append(f"line {node.line}: SQLGlot could not parse the statement")
+        result.unresolved.append(
+            Declared(
+                f"line {node.line}: SQLGlot could not parse the statement",
+                kind=BoundaryKind.PARSE_FAILURE,
+                # Qualified with the unit by `procedure._in_unit`, which knows it.
+                subject=str(node.line),
+            )
+        )
         return result
 
     # Correlations go LAST so the statement's own relations win when a bare, unqualified

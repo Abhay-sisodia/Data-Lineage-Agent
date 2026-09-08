@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # The IR is the shared vocabulary. Labels describe the same world the analyser emits
 # into, so they use the same node kinds, flow kinds and transform classes rather than a
 # parallel set that could drift.
-from lineage.ir.model import Flow, Node, NodeKind, Origin, Transform
+from lineage.ir.model import BoundaryKind, Flow, Node, NodeKind, Origin, Transform
 
 __all__ = [
     "Evidence",
@@ -125,6 +125,34 @@ class ForbiddenEdge(BaseModel):
         if (source, target, flow) != (str(self.source), str(self.target), self.flow.value):
             return False
         return self.transform is None or transform == self.transform.value
+
+
+class ExpectedBoundary(BaseModel):
+    """A known unknown this package must declare, stated so it can be COMPARED.
+
+    The prose list in ``boundaries`` was never scoreable. Measured 2026-09-09: all 18
+    expected boundaries read as undeclared while the analyser declared 35, because the key
+    says "database link target out of coverage" and the analyser says "(relation not in
+    dictionary)" - the same fact in two vocabularies, with exact string equality between
+    them. And nothing reported the contradiction, because ``run_measurement`` counted
+    declarations and never compared them to expectations at all.
+
+    A kind plus a subject is what both sides can agree on. The prose stays where it is
+    useful - explaining to a human why the boundary exists - and stops being the identity.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: BoundaryKind
+    subject: str = Field(
+        min_length=1,
+        description="The object or statement the boundary is about: an ungranted schema, "
+        "a DB link target, UNIT:LINE for a refusal. Compared case-insensitively.",
+    )
+    reason: str = Field(description="Why knowledge stops here, for a human reading the key.")
+
+    def identity(self) -> tuple[str, str]:
+        return (self.kind.value, self.subject.upper())
 
 
 class AllowedOrigin(BaseModel):
@@ -245,6 +273,12 @@ class GroundTruth(BaseModel):
         default_factory=list,
         description="Edges that must NOT be produced - the plausible wrong answer this "
         "package was written to elicit. Scored by presence, not by absence.",
+    )
+    expected_boundaries: list[ExpectedBoundary] = Field(
+        default_factory=list,
+        description="Known unknowns, stated as kind + subject so they can be compared "
+        "against what the analyser declared. The prose `boundaries` list above is "
+        "documentation; this is what is scored.",
     )
     origin_assertions: list[OriginAssertion] = Field(
         default_factory=list,

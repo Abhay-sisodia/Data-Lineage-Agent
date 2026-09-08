@@ -35,7 +35,7 @@ from lineage.analysis.scratch import find_fusion_hazards
 from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
 from lineage.evidence.witness import ExecutionWitness
-from lineage.ir.model import IREdge
+from lineage.ir.model import BoundaryKind, Declared, IREdge
 from lineage.parsing.plsql import Program, parse_program
 from lineage.resolution.dictionary import Dictionary
 from lineage.resolution.views import resolve_views
@@ -80,11 +80,14 @@ def analyse_source(
             result.refusals.append(refusal)
             already_refused.add((refusal.unit, refusal.line))
     for refusal in result.refusals:
-        entry = (
-            f"{refusal.unit}: line {refusal.line} refused [{refusal.code.value}] - {refusal.reason}"
+        refused = Declared(
+            f"{refusal.unit}: line {refusal.line} refused "
+            f"[{refusal.code.value}] - {refusal.reason}",
+            kind=BoundaryKind.REFUSAL,
+            subject=f"{refusal.unit}:{refusal.line}",
         )
-        if entry not in result.boundaries:
-            result.boundaries.append(entry)
+        if refused not in result.boundaries:
+            result.boundaries.append(refused)
 
     scopes = collect_scopes(program)
     graphs = build_all(program)
@@ -96,7 +99,9 @@ def analyse_source(
     for summary in summaries.values():
         boundary = summary.boundary()
         if boundary and boundary not in result.boundaries:
-            result.boundaries.append(boundary)
+            result.boundaries.append(
+                Declared(boundary, kind=BoundaryKind.DEPTH_CAP, subject=summary.unit)
+            )
 
     for unit, cfg in graphs.items():
         scope = scopes.get(unit)
@@ -105,14 +110,14 @@ def analyse_source(
         dataflow = analyse_unit(cfg, scope, dictionary, dynamic)
         result.edges.extend(dataflow.edges)
         for item in dataflow.unresolved:
-            entry = f"{unit}: {item}"
-            if entry not in result.boundaries:
-                result.boundaries.append(entry)
+            unresolved = _in_unit(unit, item, BoundaryKind.UNRESOLVED_IDENTIFIER)
+            if unresolved not in result.boundaries:
+                result.boundaries.append(unresolved)
 
         for item in _reaching_findings(cfg, scope, settings):
-            entry = f"{unit}: {item}"
-            if entry not in result.boundaries:
-                result.boundaries.append(entry)
+            finding = _in_unit(unit, item, BoundaryKind.CROSS_UNIT_STATE)
+            if finding not in result.boundaries:
+                result.boundaries.append(finding)
 
     # Triggers fire invisibly. Nothing in the source mentions them, so their edges are
     # inherited from the DICTIONARY by whichever relations this source writes - the
@@ -123,9 +128,16 @@ def analyse_source(
         _written_relations(program, dynamic), dictionary
     )
     result.edges.extend(trigger_edges)
-    for entry in trigger_boundaries:
-        if entry not in result.boundaries:
-            result.boundaries.append(entry)
+    for note in trigger_boundaries:
+        trigger_note = (
+            note
+            if isinstance(note, Declared)
+            else Declared(
+                note, kind=BoundaryKind.SOURCE_UNAVAILABLE, subject=str(note).split(":")[0]
+            )
+        )
+        if trigger_note not in result.boundaries:
+            result.boundaries.append(trigger_note)
 
     # Silent failure s6, closed corpus-wide rather than per analyser (T3.4c). Band 0
     # inlines view text before analysing a projection and the trigger analyser rewrites an
@@ -136,9 +148,14 @@ def analyse_source(
     # Run over every edge from every analyser, because a view is a naming fact and the
     # third copy of a naming rule is the one that disagrees with the other two.
     result.edges, view_notes = resolve_views(result.edges, dictionary)
-    for entry in view_notes:
-        if entry not in result.boundaries:
-            result.boundaries.append(entry)
+    for note in view_notes:
+        view_note = Declared(
+            note,
+            kind=BoundaryKind.ROW_CORRESPONDENCE,
+            subject=str(note).split(" ")[0],
+        )
+        if view_note not in result.boundaries:
+            result.boundaries.append(view_note)
 
     # The set-based analyser works one statement at a time and never sees control flow,
     # so its edges arrive unguarded even when the statement sits inside a branch or a
@@ -182,11 +199,30 @@ def analyse_source(
     # but the hazard is recorded now so the constraint exists before the code that would
     # violate it.
     for hazard in find_fusion_hazards(result.edges, dictionary):
-        entry = f"fusion hazard: {hazard.describe()}"
+        entry = Declared(
+            f"fusion hazard: {hazard.describe()}",
+            kind=BoundaryKind.FUSION_HAZARD,
+            subject=hazard.relation,
+        )
         if entry not in result.boundaries:
             result.boundaries.append(entry)
 
     return result
+
+
+def _in_unit(unit: str, item: str, default: BoundaryKind) -> Declared:
+    """Prefix a boundary with its unit without losing how it was classified.
+
+    An f-string over a ``Declared`` returns a plain ``str`` and drops kind and subject
+    silently, which would make the axis unscoreable again one interpolation at a time.
+    """
+    prefix = f"{unit}: "
+    if isinstance(item, Declared):
+        # A parse failure knows its line and not its unit, and a bare line number is not an
+        # identity - so the unit qualifies the subject here, where it is known.
+        qualify = f"{unit}:" if item.kind is BoundaryKind.PARSE_FAILURE else ""
+        return item.prefixed(prefix, subject_prefix=qualify)
+    return Declared(f"{prefix}{item}", kind=default, subject=unit)
 
 
 def _unexercised(edge: IREdge, witness: ExecutionWitness) -> bool | None:

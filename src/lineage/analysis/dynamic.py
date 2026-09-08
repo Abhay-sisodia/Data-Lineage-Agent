@@ -40,6 +40,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from lineage.ir.model import BoundaryKind, Declared
 from lineage.parsing.generated.PlSqlParser import PlSqlParser
 from lineage.parsing.plsql import (
     ParsedStatement,
@@ -95,7 +96,15 @@ class Resolution:
     @property
     def boundaries(self) -> list[str]:
         """Sites that could not be resolved — declared, counted, never guessed."""
-        return [site.describe() for site in self.sites if site.recovered is None]
+        return [
+            Declared(
+                site.describe(),
+                kind=BoundaryKind.DYNAMIC_SQL,
+                subject=f"EXECUTE IMMEDIATE:{site.line}",
+            )
+            for site in self.sites
+            if site.recovered is None
+        ]
 
 
 # --- constant folding ------------------------------------------------------------------

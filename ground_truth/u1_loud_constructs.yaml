@@ -165,3 +165,33 @@ boundaries:
   - "U1_XMLTABLE: line 110 refused [SHAPE_NOT_DECIDABLE] - XMLTABLE"
   - "U1_WRAPPED: line 136 refused [SOURCE_UNAVAILABLE] - wrapped PL/SQL"
   - "U1_WRAPPED: the wrapped blob is not valid PL/SQL, so the grammar derails on it and every unit declared after it is lost - which is why the control sits above it"
+
+# STRUCTURED FORM (ADR-0001 amendment 1d). Subject is UNIT:LINE - a refusal is about one
+# statement, and that is the identity both the classifier and this key can state.
+expected_boundaries:
+  - kind: refusal
+    subject: "U1_MODEL_CLAUSE:31"
+    reason: MODEL clause - spreadsheet-style cell rules.
+  - kind: refusal
+    subject: "U1_MATCH_RECOGNIZE:48"
+    reason: MATCH_RECOGNIZE - measures defined over pattern variables.
+  - kind: refusal
+    subject: "U1_PIVOT_SUBQUERY:68"
+    reason: PIVOT with a subquery column list - the output shape is not static.
+  - kind: refusal
+    subject: "U1_HIERARCHICAL:79"
+    reason: CONNECT BY generates rows by walking a hierarchy.
+  - kind: refusal
+    subject: "U1_CONDITIONAL_COMPILATION:95"
+    reason: $IF block - which branch exists depends on compiler flags, so both arms are refused.
+  - kind: refusal
+    subject: "U1_XMLTABLE:110"
+    reason: XMLTABLE projects columns out of a document.
+  - kind: refusal
+    subject: "U1_WRAPPED:136"
+    reason: Wrapped PL/SQL - the body is stored obfuscated.
+  - kind: source_unavailable
+    subject: "U1_WRAPPED"
+    reason: >
+      The wrapped blob is not valid PL/SQL, so the grammar derails and every unit declared
+      after it is lost - which is why the control sits above it.

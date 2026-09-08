@@ -25,7 +25,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from lineage.harness.labels import Flow, GroundTruth, LabelledEdge
-from lineage.ir.model import IREdge, MatchKey, Mechanism, Tier
+from lineage.ir.model import BoundaryKind, Declared, IREdge, MatchKey, Mechanism, Tier
 
 # ADR-0001 amendment 1, implemented at the scoring boundary.
 #
@@ -316,6 +316,8 @@ class ScoreReport:
     forbidden_violations: list[tuple[EdgeKey, str]] = field(default_factory=list)
     origin_violations: list[tuple[EdgeKey, str, str, str]] = field(default_factory=list)
     origin_assertions_checked: int = 0
+    boundaries_expected_structured: list[tuple[str, str, str]] = field(default_factory=list)
+    boundaries_undeclared: list[tuple[str, str, str]] = field(default_factory=list)
 
     def cell(self, band: int, flow: Flow) -> Counts:
         return self.cells.get((band, flow.value), Counts(0, 0, 0))
@@ -350,10 +352,16 @@ class ScoreReport:
 
     @property
     def boundaries_missed(self) -> list[str]:
-        """Known unknowns the analyser failed to declare.
+        """Known unknowns the analyser failed to declare, compared as PROSE.
 
-        A silently omitted boundary is the specific failure the product exists to
-        prevent, so it is reported even though it is not an edge.
+        Kept because the older label sets state boundaries only as sentences, and a
+        package with no structured expectation still deserves the weaker check.
+
+        **It is nearly useless on its own and was measured to be so**: with the answer key
+        writing "database link target out of coverage" where the analyser writes "(relation
+        not in dictionary)", exact string equality reported all 18 expected boundaries as
+        undeclared while 35 were declared. `boundaries_undeclared` is the real check;
+        this one is the fallback for packages that have not been converted.
         """
         return sorted(set(self.boundaries_expected) - set(self.boundaries_declared))
 
@@ -470,6 +478,25 @@ def score(
             if rule.matches(key[:4]):
                 violations.append((key, rule.reason))
 
+    # Boundaries, compared on kind and subject rather than on prose (ADR-0001 amendment
+    # 1d). An unclassified declaration cannot satisfy anything - it is counted as declared
+    # for the human report and simply cannot be matched, which is honest: nobody has said
+    # what it is about.
+    declared_identities = {
+        classified
+        for entry in (declared_boundaries or [])
+        if (classified := Declared.classified(entry)) is not None
+    }
+    expected_structured = [
+        (expected.kind.value, expected.subject.upper(), expected.reason)
+        for expected in truth.expected_boundaries
+    ]
+    boundaries_undeclared = [
+        item
+        for item in expected_structured
+        if (BoundaryKind(item[0]), item[1]) not in declared_identities
+    ]
+
     # Origin assertions (ADR-0001 amendment 1c). Checked against EVERY emitted edge, before
     # dedup, because dedup keeps one claim per key and the whole question here is which of
     # several same-key claims the analyser derived. A wrongly-derived edge that dedup
@@ -515,6 +542,8 @@ def score(
         forbidden_violations=violations,
         origin_violations=origin_violations,
         origin_assertions_checked=len(truth.origin_assertions),
+        boundaries_expected_structured=expected_structured,
+        boundaries_undeclared=boundaries_undeclared,
     )
 
 
@@ -568,8 +597,17 @@ def render(report: ScoreReport) -> str:
         lines.append("BOUNDARIES")
         lines.append(f"  expected   {len(report.boundaries_expected)}")
         lines.append(f"  declared   {len(report.boundaries_declared)}")
-        for item in report.boundaries_missed:
-            lines.append(f"  NOT DECLARED  {item}")
+        if report.boundaries_expected_structured:
+            lines.append(
+                f"  checked    {len(report.boundaries_expected_structured)} by kind+subject, "
+                f"{len(report.boundaries_undeclared)} NOT DECLARED"
+            )
+            for kind, subject, reason in report.boundaries_undeclared:
+                lines.append(f"  NOT DECLARED  [{kind}] {subject}")
+                lines.append(f"      {' '.join(reason.split())[:96]}")
+        else:
+            for item in report.boundaries_missed:
+                lines.append(f"  NOT DECLARED (prose match)  {item}")
 
     if report.forbidden_violations:
         lines.append("")

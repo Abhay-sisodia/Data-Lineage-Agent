@@ -79,6 +79,8 @@ class Measurement:
     forbidden: list[tuple[str, tuple[str, ...], str]] = field(default_factory=list)
     wrongly_derived: list[tuple[str, tuple[str, ...], str, str, str]] = field(default_factory=list)
     origin_assertions_checked: int = 0
+    boundaries_expected: int = 0
+    boundaries_undeclared: list[tuple[str, str, str, str]] = field(default_factory=list)
     unexercised_claimed: int = 0
     unexercised_total: int = 0
     unexercised_correct: int = 0
@@ -286,6 +288,11 @@ def run_measurement(
             for key, actual, allowed, reason in report.origin_violations
         ]
         measurement.origin_assertions_checked += report.origin_assertions_checked
+        measurement.boundaries_expected += len(report.boundaries_expected_structured)
+        measurement.boundaries_undeclared += [
+            (path.stem, kind, subject, reason)
+            for kind, subject, reason in report.boundaries_undeclared
+        ]
 
     measurement.dynamic_sites, measurement.dynamic_recovered, measurement.statements_total = (
         _dynamic_sql_census(corpus)
@@ -477,6 +484,10 @@ def render(measurement: Measurement) -> str:
     lines.append(f"  tier distribution      {measurement.tier_distribution or '-'}")
     lines.append(f"  mechanism distribution {measurement.mechanism_distribution or '-'}")
     lines.append(f"  boundaries declared    {measurement.boundaries_declared}")
+    lines.append(
+        f"  boundaries expected    {measurement.boundaries_expected}"
+        f"   {len(measurement.boundaries_undeclared)} NOT DECLARED"
+    )
 
     lines.append("")
     lines.append("THE EXECUTION AXIS  (T3.5 - orthogonal to tier, never inside the gate)")
@@ -528,6 +539,16 @@ def render(measurement: Measurement) -> str:
         for package, edge, reason in measurement.forbidden:
             guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
             lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
+            lines.append(f"    {' '.join(reason.split())[:96]}")
+
+    if measurement.boundaries_undeclared:
+        lines.append("")
+        lines.append(
+            f"BOUNDARIES NOT DECLARED ({len(measurement.boundaries_undeclared)})"
+            "  <- a known unknown the run stayed silent about"
+        )
+        for package, kind, subject, reason in measurement.boundaries_undeclared:
+            lines.append(f"  {package:<28} [{kind}] {subject}")
             lines.append(f"    {' '.join(reason.split())[:96]}")
 
     if measurement.wrongly_derived:
@@ -643,6 +664,19 @@ def as_json(measurement: Measurement) -> str:
             {"package": package, "edge": list(edge), "reason": " ".join(reason.split())}
             for package, edge, reason in measurement.forbidden
         ],
+        "boundaries": {
+            "declared": measurement.boundaries_declared,
+            "expected": measurement.boundaries_expected,
+            "undeclared": [
+                {
+                    "package": package,
+                    "kind": kind,
+                    "subject": subject,
+                    "reason": " ".join(reason.split()),
+                }
+                for package, kind, subject, reason in measurement.boundaries_undeclared
+            ],
+        },
         "origin_assertions": {
             "checked": measurement.origin_assertions_checked,
             "wrongly_derived": [

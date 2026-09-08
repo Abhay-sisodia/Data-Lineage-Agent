@@ -45,6 +45,7 @@ from lineage.analysis.refusal import (
 from lineage.config import AnalysisConfig
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
+from lineage.ir.model import BoundaryKind, Declared
 from lineage.parsing.plsql import ParsedStatement, Program, parse_program
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
@@ -281,7 +282,13 @@ def _trace(
         try:
             known = dictionary.columns_of(lookup)
         except UnknownObjectError:
-            unresolved.append(f"{lookup}.{name} (relation not in dictionary)")
+            unresolved.append(
+                Declared(
+                    f"{lookup}.{name} (relation not in dictionary)",
+                    kind=BoundaryKind.DANGLING_REFERENCE,
+                    subject=lookup,
+                )
+            )
             return []
         if qualifier:
             # Granted after all - report it under the object it really is, not the
@@ -290,7 +297,13 @@ def _trace(
         if name not in known:
             # Not a column of this table. Almost always a PL/SQL variable, which is
             # band-1 territory and must be resolved by def-use analysis, not guessed at.
-            unresolved.append(f"{name} (not a column of {table} - unresolved identifier)")
+            unresolved.append(
+                Declared(
+                    f"{name} (not a column of {table} - unresolved identifier)",
+                    kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                    subject=f"{table}.{name}",
+                )
+            )
             return []
         return [(table, name, Transform.IDENTITY)]
 
@@ -304,7 +317,13 @@ def _trace(
 
         projection = _projection_named(source, column.name)
         if projection is None:
-            unresolved.append(f"{column.name.upper()} (no matching projection in subquery)")
+            unresolved.append(
+                Declared(
+                    f"{column.name.upper()} (no matching projection in subquery)",
+                    kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                    subject=column.name.upper(),
+                )
+            )
             return []
         own = _transform_of(projection)
         traced: list[tuple[str, str, Transform]] = []
@@ -313,7 +332,13 @@ def _trace(
                 traced.append((table, name, _combine(own, transform)))
         return traced
 
-    unresolved.append(f"{column.name.upper()} (could not resolve which relation it belongs to)")
+    unresolved.append(
+        Declared(
+            f"{column.name.upper()} (could not resolve which relation it belongs to)",
+            kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+            subject=column.name.upper(),
+        )
+    )
     return []
 
 
@@ -355,7 +380,13 @@ def _trace_through_set_operation(
         None,
     )
     if position is None:
-        unresolved.append(f"{name} (no matching position in the set operation)")
+        unresolved.append(
+            Declared(
+                f"{name} (no matching position in the set operation)",
+                kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                subject=name,
+            )
+        )
         return []
 
     traced: list[tuple[str, str, Transform]] = []
@@ -835,7 +866,16 @@ def analyse_source(
         # resolve is a stated boundary - which is what makes the coverage number
         # defensible rather than decorative.
         for item in unresolved:
-            entry = f"{statement.kind}@{statement.line}: {item}"
+            prefix = f"{statement.kind}@{statement.line}: "
+            entry = (
+                item.prefixed(prefix)
+                if isinstance(item, Declared)
+                else Declared(
+                    f"{prefix}{item}",
+                    kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                    subject=str(item),
+                )
+            )
             if entry not in result.boundaries:
                 result.boundaries.append(entry)
         if refusal is not None:

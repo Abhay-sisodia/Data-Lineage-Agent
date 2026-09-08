@@ -93,3 +93,11 @@ forbidden:
 
 boundaries:
   - "B2_DBMS_SQL: DBMS_SQL statement assembled through an opaque cursor handle - no static route to the text"
+
+# STRUCTURED FORM (ADR-0001 amendment 1d).
+expected_boundaries:
+  - kind: dynamic_sql
+    subject: "B2_DBMS_SQL"
+    reason: >
+      Statement assembled through an opaque DBMS_SQL cursor handle - there is no static
+      route to the text at all, which is a stronger claim than EXECUTE IMMEDIATE.

@@ -53,7 +53,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from lineage.ir.model import Flow, IREdge, NodeKind
+from lineage.ir.model import BoundaryKind, Declared, Flow, IREdge, NodeKind
 from lineage.resolution.dictionary import Dictionary
 
 # Emitted by band0 when a name resolves to nothing the dictionary holds. Shared as a
@@ -170,12 +170,24 @@ def build_coverage(
     # An object the code names that the dictionary does not hold. Read from the analyser's
     # own declared boundaries rather than re-derived, so the count cannot disagree with
     # what the report says.
+    #
+    # Read from the boundary's own KIND and SUBJECT since ADR-0001 amendment 1d. It used to
+    # be recovered by string-matching DANGLING_MARKER and then splitting the sentence apart
+    # on punctuation to guess which words were the object name - which is the "boundaries
+    # are strings, not nodes" problem (docs/ir-v0.md item 1) doing real damage rather than
+    # sitting in a document. The marker is kept for boundaries nobody has classified yet.
     dangling: set[str] = set()
     for entry in boundaries:
+        classified = Declared.classified(entry)
+        if classified is not None:
+            kind, subject = classified
+            if kind is BoundaryKind.DANGLING_REFERENCE and subject:
+                dangling.add(subject)
+            continue
         if DANGLING_MARKER not in entry:
             continue
-        subject = entry.split(":", 1)[-1].split(DANGLING_MARKER)[0].strip()
-        relation = subject.rsplit(".", 1)[0] if "." in subject else subject
+        subject_text = entry.split(":", 1)[-1].split(DANGLING_MARKER)[0].strip()
+        relation = subject_text.rsplit(".", 1)[0] if "." in subject_text else subject_text
         if relation:
             dangling.add(relation.upper())
     coverage.dangling_references = sorted(dangling)

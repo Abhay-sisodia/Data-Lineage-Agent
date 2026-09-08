@@ -118,3 +118,16 @@ forbidden:
 boundaries:
   - "B2_DYNAMIC_CONCATENATED: dynamic SQL assembled from variables at line 28 - target column not statically decidable"
   - "B2_DYNAMIC_CONCATENATED: dynamic SQL assembled from variables at line 34 - target relation not statically decidable"
+
+# STRUCTURED FORM (ADR-0001 amendment 1d). Compared on kind + subject, because the prose
+# above and the analyser's prose describe the same fact in two vocabularies that no string
+# comparison can reconcile. Subject is the EXECUTE IMMEDIATE site - where the unknowable
+# text is run - not the line a fragment was assembled on, which is what the prose above
+# says. The site is the thing both sides can name.
+expected_boundaries:
+  - kind: dynamic_sql
+    subject: "EXECUTE IMMEDIATE:31"
+    reason: Target column assembled from a variable; not statically decidable.
+  - kind: dynamic_sql
+    subject: "EXECUTE IMMEDIATE:37"
+    reason: Target relation assembled from a variable; not statically decidable.

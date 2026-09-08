@@ -189,3 +189,11 @@ forbidden:
 
 boundaries:
   - "fusion hazard: TMP_RECENT is written by S3_TEMP_WRITER_A and S3_TEMP_WRITER_B - composing paths across units is not statically decidable"
+
+# STRUCTURED FORM (ADR-0001 amendment 1d).
+expected_boundaries:
+  - kind: fusion_hazard
+    subject: "TMP_RECENT"
+    reason: >
+      Written by two unrelated units, so composing paths through it would invent a flow
+      that no single execution ever performed.

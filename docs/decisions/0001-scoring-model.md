@@ -305,6 +305,65 @@ fabrication in directly, because a guard nobody has seen fire is a guard nobody 
 
 ---
 
+### Amendment 1d · Boundaries are scored, on kind and subject rather than prose
+
+*2026-09-09. Found while building amendment 1c, and larger than what it was found under.*
+
+**Two independent failures, either of which alone made the axis useless.**
+
+1. **Nothing checked boundaries at all.** `run_measurement` counted declarations and never
+   compared them against `boundaries_expected`. A silently omitted boundary — the specific
+   failure the label format calls "the failure mode the whole product exists to avoid" —
+   produced no symptom anywhere.
+2. **Had it compared them, it would have been noise.** All **18** expected boundaries read
+   as undeclared while **35** were declared, because the two sides describe the same fact in
+   different prose. The key says `B2_DB_LINKS: remote_customer@crm_link - database link
+   target out of coverage`; the analyser says `insert_statement@20:
+   REMOTE_CUSTOMER@CRM_LINK.CUST_ID (relation not in dictionary)`. Same fact, zero shared
+   words, exact string equality between them.
+
+**The fix.** A boundary carries a **kind** (closed enum, like the refusal taxonomy) and a
+**subject** — the object or statement it is about. Expectations are stated the same way, and
+comparison is on `(kind, subject)`. The prose survives untouched, for humans; it is simply no
+longer the identity.
+
+`Declared` is a `str` subclass, which is a transitional choice and is documented as one.
+Boundaries are produced at a dozen sites and consumed at fifty-odd; carrying the structure on
+the string lets the axis be scored now without a refactor of every producer, consumer and
+test. **The real fix — a `Boundary` node that can be an edge endpoint — is still
+`docs/ir-v0.md` item 1**, and this does not close it.
+
+**Result: 37 boundaries declared, all classified; 18 expected; 14 satisfied; 4 not declared.**
+Those four are genuine gaps, and every one was invisible before:
+
+| package | kind | subject |
+|---|---|---|
+| `b2_03_dbms_sql` | `dynamic_sql` | `B2_DBMS_SQL` |
+| `b2_04_metadata_driven_etl` | `suppressed_error` | `B2_METADATA_DRIVEN_ETL:54` |
+| `s2_schema_context` | `context_dependent_binding` | `S2_SCHEMA_CONTEXT:20` |
+| `u1_loud_constructs` | `source_unavailable` | `U1_WRAPPED` |
+
+`b2_03` is the sharpest: a package whose entire subject is an opaque `DBMS_SQL` handle
+declares **no boundary at all**, and scored clean for it.
+
+**`coverage.py` stopped guessing too.** Dangling references were recovered by string-matching
+a marker constant and then splitting the sentence on punctuation to guess which words were
+the object name. It now reads kind and subject — which is why `CUSTOMER_ACTIVITY` became
+`FINANCE_DW.CUSTOMER_ACTIVITY`: the schema was always part of the name and the prose parser
+had been dropping it.
+
+**Effect on the gate: none.** Every cell identical, band-1 value precision 96.2%, parse
+coverage 76.1%. `boundaries_declared` 71 → 73 and the dangling list gains
+`REPORTING.STG_CUSTOMER` — both from the `s2` analyser fix that this work uncovered, not from
+the scoring change.
+
+**The undeclared four are left undeclared, deliberately.** Making the analyser emit them is
+analyser work with its own measurement; recording them as a known, counted gap is what this
+amendment is for. A check that is switched on and immediately silenced by fixing the label to
+match the code would have proved nothing.
+
+---
+
 ## Consequences
 
 - Edge identity for matching is `(source, target, flow, transform)`, with guard used to

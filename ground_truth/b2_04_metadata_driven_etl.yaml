@@ -103,3 +103,14 @@ forbidden:
 boundaries:
   - "B2_METADATA_DRIVEN_ETL: statement text assembled from ETL_CONFIG rows - lineage valid only as at the config version"
   - "B2_METADATA_DRIVEN_ETL: WHEN OTHERS THEN NULL at line 54 suppresses failures - an enabled mapping may never have run"
+
+# STRUCTURED FORM (ADR-0001 amendment 1d).
+expected_boundaries:
+  - kind: dynamic_sql
+    subject: "EXECUTE IMMEDIATE:52"
+    reason: Statement text assembled from ETL_CONFIG rows; valid only as at that config version.
+  - kind: suppressed_error
+    subject: "B2_METADATA_DRIVEN_ETL:54"
+    reason: >
+      WHEN OTHERS THEN NULL swallows failures, so an enabled mapping may never have run and
+      the absence of an edge proves nothing.
