@@ -1,11 +1,21 @@
 # Phase 0 Tracker — Prove the Core
 
 **Timebox:** 3 weeks (+ ~2 days week 0) · **Team:** 1–2 engineers · **Dialect:** Oracle PL/SQL
-**Created:** 2026-09-05 · **Last reconciled:** 2026-09-06 against commit `8916d6c`
+**Created:** 2026-09-05 · **Last reconciled:** 2026-09-09 against commit `3c5b95b`
 
-**Status: weeks 0, 1 and 2 CLOSED. Week 3 not started.**
-Band-1 value precision **95.7%**, recall **100.0%** — above the floor, below the 98% target.
-237 tests green. Measurement of record: `measurements/phase0_week2_final.json`.
+**Status: PHASE CLOSED 2026-09-08. Weeks 0, 1, 2 and 3 all CLOSED.**
+Band-1 value precision **96.2%**, recall **96.2%** — above the 95% floor, below the 98% target.
+**Verdict: GO, conditional** — see [`docs/phase0-verdict.md`](../docs/phase0-verdict.md) (T3.8).
+36 packages · 258 labelled edges · 439 tests. Measurement of record:
+`measurements/t3_6_full_run.json` (re-recorded as `measurements/phase0_final.json`).
+
+> **What is still open at phase close**, in the order the verdict puts them:
+> 1. **No real production package was ever obtained.** The GO is conditional on getting one
+>    and re-running the measurement *before any further feature work*.
+> 2. **The IR match key is under-specified** — deviation 2 in [`docs/ir-v0.md`](../docs/ir-v0.md).
+>    Six packages hit it; deciding it moves every number in this phase.
+> 3. **Third-party corpora were never fetched.** Zero external validation of any kind.
+> 4. Four log-recovery follow-ups from T3.3 were not completed — itemised in that task below.
 
 ---
 
@@ -82,8 +92,11 @@ The output of Phase 0 is **a number, not software**. Build two things only — a
 - [x] **Corpus compiles against real Oracle** — `scripts/load_corpus.py`, 27 loaded,
       2 parse-only by design, 0 failures
 - [x] **Ground-truth package designated** — provisional, see caveat below
-- [ ] Third-party corpora — **blocked on a source decision, see note**
-- [ ] *In parallel:* chase one sanitised real production package via former colleagues
+- [ ] Third-party corpora — **NOT DONE at phase close.** Blocked on a source decision that
+      was never taken; the plan's named sources contain no Oracle PL/SQL (see note)
+- [ ] *In parallel:* chase one sanitised real production package via former colleagues —
+      **NOT DONE at phase close. This is the condition on the GO**, and the single largest
+      unknown in the verdict. Human latency; it did not arrive
 
 **Done when:** a corpus manifest exists listing each package with source, licence, LOC, procedure count and statement count; every band-1 and band-2 construct is represented by at least one package; one package is designated the ground-truth package.
 
@@ -114,9 +127,9 @@ a parse-coverage check.
   outstanding item, and it has human latency that cannot be compressed.
 
   **Superseded in part, 2026-09-06.** The single designated package was abandoned as the
-  unit of measurement — the phase now scores **21 label sets and 149 edges** across every
-  band. The ceiling-not-forecast caveat and the missing production package both stand
-  unchanged.
+  unit of measurement — the phase scores label sets across every band instead. **At phase
+  close that is 36 packages and 258 edges** (149 at end of week 2). The ceiling-not-forecast
+  caveat and the missing production package both stand unchanged.
 
 - **Compiling the corpus caught a design error that parsing did not.** The first
   `s5_positional_union` reversed column types as well as names, so Oracle rejected it —
@@ -173,7 +186,8 @@ every one written before the analyser that would be scored against it.
   by anchoring labels in *observed database change* rather than in a second reading of the
   same code.
 - **Provenance is printed with every score**, never averaged away: 55 observed,
-  15 adjudicated, 79 `source_read`.
+  15 adjudicated, 79 `source_read` at this point — **92 / 21 / 145 at phase close**, a
+  *worse* `source_read` share and predicted to be.
 - **Every label file is hashed against its source** and the harness refuses to score a key
   that has drifted from the code it describes.
 - **Disagreements between key and analyser were adjudicated in the open.** Each time the
@@ -189,7 +203,8 @@ every one written before the analyser that would be scored against it.
 - [x] Guard accuracy reported separately from precision
 - [x] Boundary declaration scored (undeclared known-unknowns are reported)
 - [x] Label provenance (observed / adjudicated / source_read) printed with every score
-- [ ] Parse coverage — deferred to T1.5, needs an analyser to refuse statements
+- [x] Parse coverage — deferred to T1.5, needs an analyser to refuse statements; **closed
+      there**, and re-measured against the refusal classifier in T3.1
 
 **Done when:** it reproduces hand-computed precision/recall exactly on a small fixture with known answers; a single command produces the full report; two runs on identical inputs give byte-identical output; the report records corpus hash and code commit.
 
@@ -407,37 +422,70 @@ value went 92.3% / 88.2% → **100% / 100%**. `tests/test_complex_sql.py`, 22 te
 
 ## Week 3 · Undecidables and the verdict
 
-**Broken into granular tasks in [Week3_tracker.md](Week3_tracker.md)**, which adds **T3.0**
-(ground truth for the fourteen unlabelled band-2 and silent-failure packages — label first,
-as in weeks 1 and 2) and breaks **triggers** out of the band-2 ladder into their own task,
-because they are the largest measured gap in the engine.
+**Status: CLOSED 2026-09-08.** Broken into granular tasks in
+[Week3_tracker.md](Week3_tracker.md), which holds the findings, the defects found while
+building, and the label corrections. Summary only below.
+
+Week 3 added **T3.0** (ground truth for the fourteen unlabelled band-2 and silent-failure
+packages — label first, as in weeks 1 and 2) and broke **triggers** out of the band-2 ladder
+into their own task, because they were the largest measured gap in the engine.
+
+> **Numbering note.** Week 3's execution renumbered two tasks against this plan: the plan's
+> T3.3 is the query-log sub-spike, which actually ran early as **week 2's T2.9**, while
+> `Week3_tracker.md` T3.3 is **triggers**. Both are recorded below under their plan names.
+
+### T3.0 — Ground truth for band 2 and the silent suite *(added; the same omission as T2.0)*
+
+- [x] All six band-2 and all eight silent-failure packages labelled before the analyser existed,
+      each silent case carrying **the wrong answer it was built to elicit** as a forbidden rule
+
+**Closed:** label set **149 → 258 edges across 36 packages**; 29 forbidden-edge rules. The
+gate fell to 75.8% on contact with the fourteen hardest packages, exactly as forecast, and
+T3.2/T3.3 were what brought it back.
 
 ### T3.1 — Unanalysable-construct classifier
 
-- [ ] Detect and declare every construct the analyser cannot resolve
+- [x] Detect and declare every construct the analyser cannot resolve
 
 **Done when:** 100% of injected known-unresolvable constructs are flagged; **zero** edges exist for any statement the classifier flagged — verified by cross-checking flags against emitted edges, not by inspection; the false-abstention rate is measured and reported.
 
 > The classifier that says "I cannot resolve this" is itself a deliverable.
 
+**Closed:** 9-code closed taxonomy, **11 refusals, 0 edges from any refused statement**,
+false-abstention rate **9.1%** (1 of 11). New package `u1_loud_constructs.sql`.
+`measurements/t3_1_refusals.json`.
+
+**Parse coverage fell 94.3% → 75.6% and that fall is the deliverable.** Refusing is never
+free: every refusal costs exactly one statement of coverage. A classifier that abstained
+from everything would report 0% coverage rather than 100% precision.
+
 ### T3.2 — Dynamic SQL, constant string
 
-- [ ] Constant propagation through the CFG, then parse normally
+- [x] Constant propagation through the CFG, then parse normally
 
 **Done when:** the constant-string adversarial package produces edges at mechanism `AST`, indistinguishable from static SQL.
 
 > Cheap win — do this before reaching for the log.
 
+**Closed. The gate went 75.8% → 96.2% and band 2 came off zero for the first time.**
+Band-1 value false positives 8 → 1. The eight were one defect: statement-carrying text was
+being treated as data. `src/lineage/analysis/dynamic.py`.
+
 ### T3.3 — Query-log recovery sub-spike
 
-*Start in parallel from the beginning of week 2, not sequentially.*
+*Start in parallel from the beginning of week 2, not sequentially.* **Ran as T2.9.**
 
 - [x] Attribution via `MODULE` / `ACTION` session attributes — **100% (5 of 5)**
-- [ ] Timing correlation against job-run windows
+- [x] Timing correlation against job-run windows — implemented as signal 3 in the ladder;
+      **no dedicated test, and it never fired on this corpus**
 - [x] Statement-shape matching against literal fragments in code — **tested and rejected**
-- [ ] Schema / user fallback
-- [ ] Truncation detection
-- [ ] Bind-variable structural assumption check
+- [ ] Schema / user fallback — **NOT DONE.** `Signal.SCHEMA` is declared in the enum and
+      ranked, but no code path ever returns it
+- [x] Truncation detection — `LoggedStatement.truncated`, `log_statement_truncated_at: 1000`
+      declared in every report, `test_truncation_is_detected`
+- [ ] Bind-variable structural assumption check — **NOT DONE.** The assumption that bind
+      variables hide values but not structure was never confirmed, and the
+      table-name-position case that would break it was never tested
 
 **Done when:** we have a measured number for what fraction of dynamic statements can be attributed to an emitter with high confidence (**below ~60% the compliance coverage story gets uncomfortable**); attribution signals are ranked by measured strength; truncation is detected and the edge marked partial; the assumption that bind variables hide values but not structure is confirmed, including the table-name-position case that would break it.
 
@@ -462,105 +510,189 @@ candidate list and abstains; only `MODULE`/`ACTION` counts as high confidence. R
 are populated. Elsewhere dynamic SQL is a declared boundary, not a recovered edge. That
 belongs in the coverage statement, the pilot questionnaire and the sales conversation.
 
-**Still open here:** timing correlation, schema/user fallback, truncation detection, and the
-bind-variable structural assumption check.
+**Still open at phase close:** schema/user fallback and the bind-variable structural
+assumption check. Both carry to phase 1.
+
+### T3.3b — Triggers *(broken out in week 3; the largest measured band-2 gap)*
+
+- [x] Trigger bodies parsed as their own analysis units, attached to the **table** not the caller
+- [x] Every writer of that table inherits the trigger's edges
+- [x] `:NEW` / `:OLD` bound to the triggering row; `INSTEAD OF` triggers on updatable views
+
+**Closed. Band 2 went 0% → 57.1% value / 76.5% filter at 100% precision** (and on to 69.4% /
+80.6% after T3.4). Triggers are read from the **dictionary**, not from source files — that
+is the whole design. Eleven label corrections, every one flagged as raising the score.
 
 ### T3.4 — Silent-failure adversarial suite
 
 One small package each:
 
-- [ ] Synonym redirect
-- [ ] Schema context / unqualified name resolution
-- [ ] Shared temp tables across procedures
-- [ ] Partition exchange (DDL as lineage-bearing)
-- [ ] Positional `UNION` binding
-- [ ] Updatable views / `INSTEAD OF` triggers
-- [ ] Unexercised branches
-- [ ] Aggregation vs. row-level transform class
+- [x] Synonym redirect — **s1, 1 miss, declared**
+- [x] Schema context / unqualified name resolution — s2, clean
+- [x] Shared temp tables across procedures — s3, clean
+- [x] Partition exchange (DDL as lineage-bearing) — **s4, was 4 missed with no writer at all; clean**
+- [x] Positional `UNION` binding — s5, clean
+- [x] Updatable views / `INSTEAD OF` triggers — **s6, was 1 miss + 1 FP + 1 forbidden edge; clean**
+- [x] Unexercised branches — s7, clean (closed by T3.5)
+- [x] Aggregation vs. row-level transform class — **s8, 1 miss, declared**
 
 **Done when:** every case either passes or its failure is explicitly declared in the report; each becomes a permanent regression test the day it is written.
 
 > Build the corpus around the *silent* list — loud failures announce themselves during testing. Silent ones surface when a customer catches you.
 
+**Closed. Six of eight score clean; the other two are declared, not skipped.**
+`tests/test_silent_suite.py`, 36 tests. `KNOWN_INCOMPLETE` names both survivors with a
+reason and the suite asserts the list is **exactly** right in both directions — a case that
+starts passing fails the build too, until someone removes it deliberately. Corpus-wide:
+**forbidden edges produced 1 → 0**, whole-corpus false positives 2 → 1.
+
+**The method is the finding.** Labelling before analysing caught something every single time.
+
 ### T3.5 — `unexercised` as a first-class edge state
 
-- [ ] Model it as a separate axis from tier
+- [x] Model it as a separate axis from tier
+- [x] Populated from a real witness against a live database (T3.5b)
 
 **Done when:** an edge can be Tier A *and* never observed running; the harness reports the count.
 
 > That combination is itself a finding, and nobody else reports it.
 
+**Closed. The axis is three-state and the third state is the whole task:** `False` seen
+running · `True` a window was examined and it never appeared · **`None` no window was
+examined**. Two states force a default and both defaults are lies. **Absence of a witness is
+not evidence of non-execution.**
+
+**T3.5b cost four corrections, each learned from a wrong answer first** — `V$SQL` is memory
+not a log and ages out in minutes; `MODULE`/`ACTION` is sticky and mis-tagged `s7`; erasing
+literals reported an unexercised branch as exercised; DDL is absent from `V$SQL` entirely,
+which would have called `s4`'s regulated data movement dead code. All four are now tests.
+Result: **100% axis agreement on 12 comparable edges**, 6 unexercised, 220 with no evidence.
+
+**Only 5 of 37 procedures set the instrumentation.** A production capture needs AWR
+(separately licensed) or a job persisting `V$SQL` before it ages out — **a phase-1 cost line**.
+
 ### T3.6 — Full scoring run
 
-- [ ] Precision, recall, parse coverage per band
-- [ ] Honest-abstention check as pass/fail
-- [ ] Tier distribution examined explicitly
+- [x] Precision, recall, parse coverage per band
+- [x] Honest-abstention check as pass/fail
+- [x] Tier distribution examined explicitly
+- [x] Coverage statement generated from the run, not written by hand
 
 **Done when:** all of the above are reported per band. If 70% of edges land in Tier C or D, the lineage technically works but the evidence story doesn't — flag it.
 
+**Closed. 36 packages · 258 labelled edges · 238 emitted · Tier C/D share 0.0%.** That
+criterion was written down before the distribution was known, so it could not be tuned to
+the result. `src/lineage/harness/coverage.py`. Full grid below.
+
+**The gate held at 96.2% and that deserves revisiting rather than a victory lap.** This
+tracker expected it to fall — T3.0 added the fourteen hardest packages and nearly doubled
+the denominator. It held because T3.2 and T3.3b built the machinery those packages needed
+*after* they were labelled. The number survived a much harder test; the prediction was not
+wrong to make.
+
 ### T3.7 — IR v0 written down
 
-- [ ] Schema documented as a straw-man to argue with
-- [ ] Rationale for keeping `mechanism` and `tier` separate
-- [ ] Every deviation from the draft schema explained by something the corpus actually contained
+- [x] Schema documented as a straw-man to argue with
+- [x] Rationale for keeping `mechanism` and `tier` separate
+- [x] Every deviation from the draft schema explained by something the corpus actually contained
 
 **Done when:** the document exists and each deviation is justified by real code, not preference.
+
+**Closed:** [`docs/ir-v0.md`](../docs/ir-v0.md), nine deviations, each naming the package
+that forced it. **Writing it down found two things reading the code had not:**
+
+- **Three of seven node kinds are declared and never used** — `LITERAL`, `BOUNDARY` and
+  `PROCEDURE` appear in no emitted edge and no label. Counted, not assumed.
+- **`BOUNDARY` is worse than dead — it is a real schema inconsistency.** It carries the whole
+  regulatory pitch and the run declares 71 of them, but they are free-text strings on the
+  result rather than nodes in the graph. A boundary cannot be an edge endpoint or be queried
+  beside the lineage it bounds. **Largest gap between what the schema says and what the code does.**
 
 ### T3.8 — Go / no-go against the kill criteria
 
 Written down before the work started, so the result is a measurement rather than an argument.
 
-| Kill criterion | Measured | Verdict |
-|---|---|---|
-| Band-1 precision < 95% → regulatory positioning dead; engine still sells migration triage and dead-code detection, different buyer and pitch | | |
-| Parse coverage < 70% on real code → parser strategy is wrong, not the idea | | |
-| Dynamic SQL > 30% of statements **and** unrecoverable → coverage too thin for compliance work | | |
-| Interprocedural analysis doesn't terminate at a usable depth → architecture needs rethinking before scale-up | | |
+| Kill criterion | End of wk 2 | **Measured** | Verdict |
+|---|---|---|---|
+| Band-1 precision < 95% → regulatory positioning dead; engine still sells migration triage and dead-code detection, different buyer and pitch | 95.7% | **96.2%** | **PASS** |
+| Band-1 value recall < 85% | 100% | **96.2%** | **PASS** |
+| Parse coverage < 70% on real code → parser strategy is wrong, not the idea | 94.7% | **76.1%** | **PASS** |
+| Dynamic SQL > 30% of statements **and** unrecoverable → coverage too thin for compliance work | not measured | **5.0% of statements, 50% recovered** | **PASS** |
+| Interprocedural analysis doesn't terminate at a usable depth → architecture needs rethinking before scale-up | terminates | terminates, cap 6 declared | **PASS** |
+| *(added T3.1)* Any edge produced from a refused statement | — | **0 of 11 refusals** | **PASS** |
+| *(added T3.6)* Tier C or D above 70% → lineage works, evidence story does not | — | **0.0%** | **PASS** |
 
 **Done when:** each criterion has a measured number beside it and a signed one-page verdict exists.
+
+**Closed. Seven criteria, seven passes, nothing pending.** Two of them did not exist when the
+phase started and were added because the work exposed a way to fail nobody had written down.
+Signed verdict: [`docs/phase0-verdict.md`](../docs/phase0-verdict.md) — **GO, conditional on
+obtaining one real production package and re-running this measurement before any further
+feature work.**
+
+**Three of these numbers moved the wrong way and are still passes**, which matters more than
+the passes:
+
+- **Parse coverage 94.7% → 76.1%** — the T3.1 classifier working. **5.6 points of headroom,
+  and this is the criterion closest to triggering**; the next construct added to the refusal
+  register costs coverage too.
+- **Band-1 recall 100% → 96.2%** — the denominator changed, 149 → 258 edges.
+- **Band-1 precision has one point of headroom.** One false positive from a much harder
+  conversation.
 
 ---
 
 ## Success metrics summary
 
-*Measured at commit `8916d6c`, corpus `025ec055…`, dictionary `46393f45…`.
-Source: `measurements/phase0_week2_final.json`. **End-of-week-2 state, not the final verdict**
-— week 3 is unstarted.*
+*Measured at commit `3c5b95b`, corpus `0c1cf179…`, dictionary `8fddc34e…`, config `eed291d0…`.
+Source: `measurements/t3_6_full_run.json`, re-recorded as `measurements/phase0_final.json`.
+**Final state of the phase.** Reproduce with:*
+`.\.venv\Scripts\python.exe -m lineage.cli measure --witness evidence/witness.json`
 
 | Metric | Target | Gate / floor | Result | |
 |---|---|---|---|---|
-| **Precision (band 1, value)** | ≥ 98% | **≥ 95%** | **95.7%** | above the floor, below target |
-| **Recall (band 1, value)** | ≥ 85% | ≥ 85% | **100.0%** | PASS |
-| Parse coverage | ≥ 90% | ≥ 70% | **94.7%** | PASS |
-| Honest abstention | 100% | pass/fail | **PASS** | 0 edges emitted for any refused statement; 6 boundaries declared |
+| **Precision (band 1, value)** | ≥ 98% | **≥ 95%** | **96.2%** | above the floor, below target |
+| **Recall (band 1, value)** | ≥ 85% | ≥ 85% | **96.2%** | PASS |
+| Parse coverage | ≥ 90% | ≥ 70% | **76.1%** | PASS — below target; the refusal classifier is why |
+| Honest abstention | 100% | pass/fail | **PASS** | 0 edges from any of 11 refused statements; 71 boundaries declared |
+| Weak evidence (Tier C/D) | — | ≤ 70% | **0.0%** | PASS |
+| Dynamic SQL | — | ≤ 30% **and** recoverable | **5.0% of statements, 50% recovered** | PASS |
 | Dynamic SQL attribution | — | ~60% | **100% instrumented / 0% not** | conditional on `MODULE`/`ACTION`; see T3.3 |
 
 **Full grid, per band and per flow — never blended:**
 
 | Band | Flow | TP | FP | FN | Precision | Recall |
 |---|---|---|---|---|---|---|
-| 0 | value | 68 | 0 | 0 | 100.0% | 100.0% |
-| 0 | filter | 30 | 0 | 3 | 100.0% | 90.9% |
-| **1** | **value** | 22 | 1 | 0 | **95.7%** | **100.0%** |
-| 1 | filter | 13 | 0 | 2 | 100.0% | 86.7% |
-| 2 | value | 0 | 0 | 6 | n/a | **0.0%** |
-| 2 | filter | 0 | 0 | 5 | n/a | **0.0%** |
+| 0 | value | 95 | 0 | 0 | 100.0% | 100.0% |
+| 0 | filter | 38 | 0 | 5 | 100.0% | 88.4% |
+| **1** | **value** | 25 | 1 | 1 | **96.2%** | **96.2%** |
+| 1 | filter | 20 | 0 | 2 | 100.0% | 90.9% |
+| 2 | value | 25 | 0 | 11 | 100.0% | **69.4%** |
+| 2 | filter | 29 | 0 | 7 | 100.0% | 80.6% |
 
-Reported outside the gate: guard accuracy **90.9%** (10 of 11) · tier distribution
-**100% A** · mechanism **117 AST / 23 DEF-USE** · label provenance **55 observed,
-15 adjudicated, 79 source_read**.
+Reported outside the gate: guard accuracy **100%** · tier distribution **100% A** ·
+mechanism **215 AST / 23 DEF-USE** · **forbidden edges produced: 0** of 29 rules ·
+label provenance **92 observed, 21 adjudicated, 145 source_read** · execution axis
+**100% agreement on 12 comparable edges**, 6 unexercised, 220 with no evidence.
 
 ### How to read these numbers
 
-- **The 95.7% clears the floor by 0.7 points**, and its single false positive is a *label
-  format* limitation, not an analyser error — `harness/labels.py` still keys on
-  `match_key()` while the IR keys on `identity()`. Fixing it takes the gate to 100%, and
-  that must be reported as a scoring change rather than banked as an improvement.
-- **Band 2 is 0% because triggers are not analysed at all.** Eleven edges. The largest
-  remaining gap and the one that adds real capability.
-- **This is a ceiling, not a forecast.** Synthetic corpus, written knowing what the analyser
-  must handle. Real legacy code is consistently worse, and no real production package has
-  been obtained yet — still the highest-value outstanding item in the phase.
+- **The 96.2% clears the floor by 1.2 points and there is one false positive corpus-wide**
+  (`b1_03`, a transform class computed per statement where it should be per source). One
+  point of headroom means one FP away from a much harder conversation.
+- **Parse coverage fell 18.6 points below its week-2 figure and that is the design working.**
+  Every refusal costs one statement of coverage. **5.6 points above the floor — the criterion
+  closest to triggering.**
+- **Band 2 is the honest weak spot: 100% precision, 69.4% recall.** Everything it says is
+  right and it stays quiet about a third of what is there. That is the correct direction for
+  the failure to point — a missing edge is survivable, an invented one is not — but a third
+  is a lot, and closing it is phase-1 work.
+- **56% of labels are `source_read`** (145 of 258), up from 53%, exactly as forecast: the
+  hardest packages to exercise are the ones where a wrong label costs most. **The answer key
+  is not independent of its author in the way the precision figure implicitly claims.**
+- **This is a ceiling, not a forecast.** Synthetic corpus, self-authored, written knowing what
+  the analyser must handle. Real legacy code is consistently worse, and **no real production
+  package was ever obtained** — the condition on the GO and the largest unknown in the phase.
 
 ---
 
