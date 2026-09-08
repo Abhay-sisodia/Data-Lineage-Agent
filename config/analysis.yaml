@@ -35,3 +35,19 @@ log_recovery:
   # Characters before the log truncates statement text. Oracle V$SQL has historically
   # capped at 1000. Truncation is detected explicitly and marks the edge partial.
   statement_text_truncated_at: 1000
+
+scoring:
+  # Carry the origin UNIT into prediction dedup, so two same-key claims reached in two
+  # units count as two claims rather than one.
+  #
+  # MEASURED HARMFUL, 2026-09-09 - ADR-0001 amendment 1b. It was built to catch the s2
+  # fabrication (a legitimate edge and an invented one, identical in every scored field)
+  # and it caught nothing, because s2 refuses that statement before it can emit an edge.
+  # What it did produce was five false positives out of correct analysis: a callee
+  # summarised at three call sites, and a trigger edge inherited by its table's writer.
+  # Multi-unit origin is the normal case, so origin cannot tell a second ROUTE from a
+  # second FACT.
+  #
+  # Kept switchable, and off, so the finding stays reproducible rather than becoming a
+  # story. Turning it on invalidates comparison with every measurement in phase 0.
+  origin_in_dedup: false

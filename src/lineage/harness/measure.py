@@ -208,7 +208,12 @@ def run_measurement(
         result = analyse_source(
             (corpus / truth.package).read_text(encoding="utf-8"), dictionary, config, witness
         )
-        report = score(truth, result.edges, result.boundaries)
+        report = score(
+            truth,
+            result.edges,
+            result.boundaries,
+            origin_in_dedup=config.scoring.origin_in_dedup,
+        )
 
         measurement.packages += 1
         measurement.statements_seen += result.statements_seen
@@ -315,8 +320,9 @@ def _dynamic_sql_census(corpus: Path) -> tuple[int, int, int]:
             [
                 s
                 for s in found
-                if not any(o is not s and len(o.text) < len(s.text) and o.text in s.text
-                           for o in found)
+                if not any(
+                    o is not s and len(o.text) < len(s.text) and o.text in s.text for o in found
+                )
             ]
         )
         recovered += len(resolve_dynamic_sql(program).statements)
@@ -402,9 +408,7 @@ def kill_criteria(measurement: Measurement) -> list[tuple[str, str, str]]:
             "n/a"
             if share is None
             else f"{share * 100:.1f}% of statements, {_pct(recovered)} recovered",
-            "PENDING"
-            if share is None
-            else ("PASS" if share <= MAX_DYNAMIC_SHARE else "TRIGGERED"),
+            "PENDING" if share is None else ("PASS" if share <= MAX_DYNAMIC_SHARE else "TRIGGERED"),
         )
     )
     rows.append(

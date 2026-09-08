@@ -158,10 +158,82 @@ positive, and is flagged as such in that file.
 
 ---
 
+### Amendment 1b · Origin was tried in the scoring layer, measured, and rejected
+
+*2026-09-09. Measured at commit `8ff5c03`, corpus `0c1cf179…`, full 36-package run.*
+
+Amendment 1 settled that **guard** separates facts without entering precision, and left an
+obvious follow-up: should **origin** do the same? Six packages had said the v0 match key was
+under-specified, and `docs/ir-v0.md` named it "the most likely v1 change". It was built
+behind a config flag and measured rather than argued. **It does not hold.**
+
+**The case for it.** `s2_schema_context` produces `STG_CUSTOMER.CUST_ID →
+TMP_RECENT.CUST_ID` legitimately at line 19 and *fabricates the identical edge* at line 26
+from a schema that was never granted. Same source, target, flow, transform **and** guard, so
+two-stage pairing cannot separate them and the label validator cannot express the second as
+a forbidden edge — it contradicts a required one. Prediction dedup would then collapse the
+pair into one claim, so a fabricated edge could vanish into a legitimate one and still score
+100%. A hole in **precision**, invisible by construction. `b2_05` is the same shape.
+
+**What the measurement said.** Origin unit in prediction dedup:
+
+| | baseline | origin in dedup |
+|---|---|---|
+| band-1 value (the gate) | 96.2% / 96.2% | **96.2% / 96.2%** |
+| band-0 filter precision | 100% | **97.4%** |
+| band-1 filter precision | 100% | **90.9%** |
+| band-2 filter precision | 100% | **93.5%** |
+| false positives, corpus-wide | 1 | **6** |
+| true positives / recall | — | **unchanged in every cell** |
+
+**It caught no fabrication and manufactured five false positives.** Every one is correct
+analysis being punished:
+
+- `b1_08` — `STG_ORDERS.ORDER_ID → STG_ORDERS` reached from `FN_DISCOUNT_RATE`,
+  `FN_NET_AMOUNT` and `B1_NESTED_CALLS`: one callee summarised at three call sites.
+- `b1_09`, `s3` — `DIM_CUSTOMER.CUST_ID → DIM_CUSTOMER` reached from the procedure and again
+  from `TRG_RECENT_AUDIT`: a trigger edge inherited by the table's writer, which is the
+  whole T3.3 design.
+
+**Multi-unit origin is the normal case, not the exceptional one.** Interprocedural
+summarisation and trigger inheritance both reach one true fact by several routes, so origin
+cannot distinguish *a second route* from *a second fact*. The dedup comment written a week
+earlier had already said so; the measurement is what made it a decision.
+
+**And the fabrication it was built for is unreachable here.** `s2` and `b2_05` refuse the
+offending statement before it emits anything, so there was never a second claim to separate.
+**The hole is real but latent** — the flag pays its full cost and none of its benefit.
+
+**A same-unit *pairing* pass was also built, and removed as inert rather than harmless.** It
+cannot change the counts, but it also never fires: `labels._reject_duplicates` makes
+(match key, guard) unique among labels and dedup makes it unique among claims, so a group
+never holds two candidates to choose between. Every cell, the guard figure and the execution
+axis measured byte-identical with it enabled. Config that cannot change an output is
+decoration, not a control.
+
+**Standing conclusion.** Origin has no useful role in the scoring layer. The `s2` / `b2_05`
+hole needs what those label files have said all along — **a direct origin assertion in the
+label format** ("this edge must come from *this* unit"), scored beside the forbidden-edge
+rules rather than inside the match key. That is a label-schema change, not a scoring change.
+
+`scoring.origin_in_dedup` stays in the config, defaulted **off** and declared in every
+report, so this finding is reproducible rather than a story to be taken on trust. Nine tests
+in `tests/test_origin_in_key.py` pin it, including the corpus fact that makes the hole
+latent — because the argument for turning it on is persuasive on paper and only the
+measurement refutes it.
+
+**Effect on the numbers: none.** Every measured key is identical to the signed
+`measurements/phase0_final.json`. The **config fingerprint changes** — `eed291d0…` →
+`4e253979…` — because a new declared limit exists, which is the pinning mechanism working
+as designed rather than a drifted result.
+
+---
+
 ## Consequences
 
 - Edge identity for matching is `(source, target, flow, transform)`, with guard used to
-  pair edges *within* a match-key group (amendment 1a). Band, origin and evidence are
+  pair edges *within* a match-key group (amendment 1a). **Origin is not used at all
+  (amendment 1b), and that is now measured rather than assumed.** Band, origin and evidence are
   carried but compared separately; guard is also reported separately and stays out of
   precision.
 - Reported per band: precision and recall, split by flow kind, plus guard-correct % and

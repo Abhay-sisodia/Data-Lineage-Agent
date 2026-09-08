@@ -59,6 +59,65 @@ from lineage.ir.model import IREdge, MatchKey, Mechanism, Tier
 # The residual cost is stated rather than hidden: three silent failures - s2, b2_05 and
 # b2_02 - turn on origin alone and cannot be expressed here at all. They need direct
 # assertions, not a scoring key.
+#
+# ---------------------------------------------------------------------------------------
+# ORIGIN, RECONSIDERED - AND THE RECONSIDERATION MEASURED AND REJECTED (2026-09-09)
+#
+# The hypothesis. The paragraph above says origin cannot join the EQUALITY test, which is
+# right, but it does not follow that origin has no place here at all. s2 looked like the
+# counter-example:
+#
+#   line 19  STG_CUSTOMER.CUST_ID -> TMP_RECENT.CUST_ID   legitimate
+#   line 26  STG_CUSTOMER.CUST_ID -> TMP_RECENT.CUST_ID   fabricated from a schema that
+#                                                          was never granted
+#
+# Same source, target, flow, transform AND same guard, so two-stage pairing cannot separate
+# them and the label validator cannot express the second as a forbidden edge - it
+# contradicts a required one. Worse, the dedup below would collapse the pair into a single
+# claim, so a fabricated edge could vanish into a legitimate one and still score 100%. A
+# hole in PRECISION rather than recall, and invisible by construction.
+#
+# So origin unit was put into dedup behind `scoring.origin_in_dedup` and MEASURED against
+# the full corpus. THE HYPOTHESIS DID NOT SURVIVE.
+#
+#   * It caught NO fabrication. s2 and b2_05 refuse the offending statement before it can
+#     emit an edge, so there was never a second claim to separate. The hole is LATENT -
+#     real, but not reachable by any input this corpus contains.
+#   * It manufactured FIVE false positives out of correct analysis: 0/filter 100% -> 97.4%,
+#     1/filter 100% -> 90.9%, 2/filter 100% -> 93.5%. Every one is a legitimate fact the
+#     analyser reached by more than one route -
+#         b1_08  STG_ORDERS.ORDER_ID -> STG_ORDERS, from FN_DISCOUNT_RATE, FN_NET_AMOUNT
+#                and B1_NESTED_CALLS - one callee summarised at three call sites
+#         b1_09  DIM_CUSTOMER.CUST_ID -> DIM_CUSTOMER, from the procedure and again from
+#         s3     TRG_RECENT_AUDIT - a trigger edge inherited by the table's writer, which
+#                is the whole T3.3 design
+#
+# Which is exactly what the dedup comment below already warned about, written a week
+# earlier: counting the same true thing twice punishes precision. Multi-unit origin is the
+# NORMAL case for interprocedural summaries and trigger inheritance, not the exceptional
+# one, so origin cannot distinguish a second route from a second fact.
+#
+# A SAME-UNIT PAIRING PASS WAS ALSO TRIED, AND REMOVED AS INERT. It looked free - it only
+# reorders which prediction is credited against which label inside a group, so the counts
+# are arithmetically identical - but it turns out never to fire. `labels._reject_duplicates`
+# makes (match key, guard) unique among LABELS, and dedup makes it unique among CLAIMS, so
+# a group never holds two candidates for a unit test to choose between. Measured across the
+# corpus: every cell, the guard figure and the execution axis byte-identical with it on.
+# Config that cannot change an output is not a control, it is decoration - removed rather
+# than kept as an option nobody can evaluate.
+#
+# THE STANDING CONCLUSION. Origin has no useful role in the scoring layer at all. The
+# s2/b2_05 hole is real, still open, and needs what the label files have said all along: a
+# DIRECT ORIGIN ASSERTION in the label format - "this edge must come from THIS unit" -
+# scored beside the forbidden-edge rules rather than inside the match key. That is a label
+# schema change, not a scoring change, and it is the honest next move.
+#
+# `origin_in_dedup` stays switchable, defaulted off, so this finding stays reproducible
+# rather than becoming a story someone has to take on trust.
+#
+# UNIT, NEVER LINE, in any case. Label and analyser agree on the origin unit for 160 of 170
+# matched edges and on the line for 12.
+# ---------------------------------------------------------------------------------------
 EdgeKey = tuple[str, str, str, str, str]
 
 # The analyser emits IR edges directly (T2.1). The alias is kept because "predicted" is
@@ -73,6 +132,7 @@ __all__ = [
     "PredictedEdge",
     "ScoreReport",
     "Tier",
+    "dedup_key",
     "normalise_guard",
     "render",
     "score",
@@ -93,6 +153,17 @@ def scoring_key(edge: IREdge | LabelledEdge) -> EdgeKey:
     return (*match_key, normalise_guard(edge.guard) or "")
 
 
+def dedup_key(edge: IREdge | LabelledEdge, *, origin_in_dedup: bool = False) -> tuple[str, ...]:
+    """The identity used to collapse predictions that state the same fact twice.
+
+    With ``origin_in_dedup`` the unit is carried, so a legitimate edge and a fabricated one
+    that agree in every other field survive as two claims instead of one. Without it, the
+    fabricated one is absorbed and never counted - see the ORIGIN, RECONSIDERED note above.
+    """
+    key = scoring_key(edge)
+    return (*key, edge.origin.unit) if origin_in_dedup else key
+
+
 def _pair(
     truths: list[LabelledEdge], predictions: list[PredictedEdge]
 ) -> tuple[list[tuple[LabelledEdge, PredictedEdge]], list[LabelledEdge], list[PredictedEdge]]:
@@ -102,6 +173,11 @@ def _pair(
     edge, each is credited against its own counterpart rather than at random. Whatever
     remains is paired positionally: those are edges the analyser found with the wrong
     guard, which must still count as matched - the guard figure is what reports them.
+
+    A same-UNIT pass was tried here (2026-09-09) and removed as provably inert rather than
+    merely harmless: ``labels._reject_duplicates`` makes (match key, guard) unique among
+    labels, and dedup makes it unique among claims, so a group never holds two candidates
+    for a unit test to choose between. See ORIGIN, RECONSIDERED above.
     """
     remaining = list(predictions)
     pairs: list[tuple[LabelledEdge, PredictedEdge]] = []
@@ -284,8 +360,14 @@ def score(
     truth: GroundTruth,
     predicted: list[PredictedEdge],
     declared_boundaries: list[str] | None = None,
+    *,
+    origin_in_dedup: bool = False,
 ) -> ScoreReport:
-    """Score analyser output against a ground-truth label set."""
+    """Score analyser output against a ground-truth label set.
+
+    ``origin_in_dedup`` changes what counts as one claim. Default off: it was measured
+    harmful on this corpus. See ORIGIN, RECONSIDERED above.
+    """
     truth_groups: dict[MatchKey, list[LabelledEdge]] = defaultdict(list)
     for edge in truth.edges:
         truth_groups[edge.key()].append(edge)
@@ -298,9 +380,13 @@ def score(
     # are one claim, and counting them twice would punish precision for saying the same
     # true thing twice. Deduplicating here rather than in the analyser is deliberate: the
     # ledger genuinely wants both, each with its own origin.
-    seen: dict[EdgeKey, PredictedEdge] = {}
+    #
+    # With `origin_in_dedup` the unit joins that key, so two claims the analyser reached in
+    # two different UNITS are two claims. That is the s2 case: absorbing the second one is
+    # how a fabricated edge disappears into a legitimate one.
+    seen: dict[tuple[str, ...], PredictedEdge] = {}
     for claim in sorted(predicted, key=lambda e: (e.origin.unit, e.origin.line)):
-        seen.setdefault(scoring_key(claim), claim)
+        seen.setdefault(dedup_key(claim, origin_in_dedup=origin_in_dedup), claim)
 
     predicted_groups: dict[MatchKey, list[PredictedEdge]] = defaultdict(list)
     for claim in seen.values():
@@ -312,7 +398,8 @@ def score(
 
     for match_key in truth_groups.keys() | predicted_groups.keys():
         pairs, unmatched_truth, surplus = _pair(
-            truth_groups.get(match_key, []), predicted_groups.get(match_key, [])
+            truth_groups.get(match_key, []),
+            predicted_groups.get(match_key, []),
         )
         matched += pairs
         missed += unmatched_truth
@@ -372,8 +459,11 @@ def score(
     # Forbidden edges are checked against everything emitted, not only against the
     # spurious set. An edge could in principle be forbidden here and legitimate
     # elsewhere; what matters is whether THIS package produced it.
+    #
+    # Reported by scoring key, never by the dedup key: the dedup key's shape depends on a
+    # config flag, and a violation must read the same however the run was configured.
     violations: list[tuple[EdgeKey, str]] = []
-    for key in sorted(seen):
+    for key in sorted(scoring_key(claim) for claim in seen.values()):
         for rule in truth.forbidden:
             if rule.matches(key[:4]):
                 violations.append((key, rule.reason))

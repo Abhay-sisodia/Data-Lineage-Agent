@@ -78,6 +78,29 @@ class LogRecovery(BaseModel):
     )
 
 
+class Scoring(BaseModel):
+    """How the harness decides two edges are the same fact (ADR-0001 amendment 1).
+
+    This is the one config section that changes the measurement itself rather than the
+    analysis, which is why it is a declared limit like any other: a score is only
+    comparable to another score taken under the same key.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    origin_in_dedup: bool = Field(
+        default=False,
+        description=(
+            "Carry origin UNIT into prediction dedup, so two same-key claims from two units "
+            "count as two claims. MEASURED HARMFUL on this corpus (2026-09-09): it produces "
+            "5 false positives from legitimate multi-route facts - a callee summarised at "
+            "two call sites, a trigger edge inherited by its table's writer - and catches no "
+            "fabrication, because the s2/b2_05 fabrications are refused before emission. "
+            "Kept switchable so the finding stays reproducible, not because it should be on."
+        ),
+    )
+
+
 class AnalysisConfig(BaseModel):
     """The full configuration for one analysis run."""
 
@@ -86,6 +109,7 @@ class AnalysisConfig(BaseModel):
     dialect: str = Field(default="oracle", description="Source dialect. Phase 0 is Oracle only.")
     budgets: Budgets = Field(default_factory=Budgets)
     log_recovery: LogRecovery = Field(default_factory=LogRecovery)
+    scoring: Scoring = Field(default_factory=Scoring)
 
     @classmethod
     def load(cls, path: Path | None = None) -> Self:
@@ -112,6 +136,7 @@ class AnalysisConfig(BaseModel):
             "log_recovery_enabled": self.log_recovery.enabled,
             "query_log_retention_months": self.log_recovery.retention_months,
             "log_statement_truncated_at": self.log_recovery.statement_text_truncated_at,
+            "scoring_origin_in_dedup": self.scoring.origin_in_dedup,
         }
 
     def fingerprint(self) -> str:
