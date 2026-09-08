@@ -52,6 +52,7 @@ from lineage.ir.model import (
 from lineage.ir.model import NodeKind as IRNodeKind
 from lineage.parsing.plsql import parse_program
 from lineage.resolution.dictionary import Dictionary, TriggerInfo, UnknownObjectError
+from lineage.resolution.views import resolve_views
 
 __all__ = ["TriggerAnalysis", "analyse_trigger", "inherited_edges"]
 
@@ -258,76 +259,10 @@ def analyse_trigger(trigger: TriggerInfo, dictionary: Dictionary) -> TriggerAnal
 
     # An INSTEAD OF trigger's :NEW row belongs to a VIEW. Left alone, every edge names an
     # object that stores nothing and the regulated base table looks unwritten.
-    analysis.edges, unresolved = _resolve_views(analysis.edges, dictionary)
+    analysis.edges, unresolved = resolve_views(analysis.edges, dictionary)
     analysis.boundaries.extend(f"{trigger.qualified}: {item}" for item in unresolved)
 
     return analysis
-
-
-def _base_column(relation: str, column: str, dictionary: Dictionary) -> str | None:
-    """Follow one column of a view down to the base column it projects from.
-
-    An `INSTEAD OF` trigger's `:NEW` row is a row of the VIEW, so without this every edge
-    it produces names an object that stores nothing - and the regulated table it really
-    writes appears to have no writer. That is silent failure s6, arriving through the
-    trigger rather than through the UPDATE.
-    """
-    resolved = dictionary.resolve(relation)
-    if resolved.object_type != "VIEW" or resolved.qualified is None:
-        return None
-    text = dictionary.view_text.get(resolved.qualified)
-    if not text:
-        return None
-    try:
-        parsed = sqlglot.parse_one(text, dialect=DIALECT)
-    except Exception:
-        return None
-    if not isinstance(parsed, exp.Select):
-        return None
-
-    sources = {
-        (alias or table.name).upper(): table.name.upper()
-        for table in parsed.find_all(exp.Table)
-        for alias in [table.alias]
-    }
-
-    for projection in parsed.selects:
-        if (projection.alias_or_name or "").upper() != column.upper():
-            continue
-        for reference in projection.find_all(exp.Column):
-            qualifier = (reference.table or "").upper()
-            base = sources.get(qualifier) or next(iter(sources.values()), None)
-            if base is None:
-                continue
-            return f"{base}.{reference.name.upper()}"
-    return None
-
-
-def _resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IREdge], list[str]]:
-    """Rewrite any view column on either end of an edge to its base column."""
-    rewritten: list[IREdge] = []
-    unresolved: list[str] = []
-
-    for edge in edges:
-        update: dict[str, Node] = {}
-        for side in ("source", "target"):
-            node: Node = getattr(edge, side)
-            if node.kind is not IRNodeKind.COLUMN or "." not in node.name:
-                continue
-            relation, _, column = node.name.rpartition(".")
-            if dictionary.resolve(relation).object_type != "VIEW":
-                continue
-            base = _base_column(relation, column, dictionary)
-            if base is None:
-                unresolved.append(
-                    f"{node.name} is a view column and the view's text could not be "
-                    "expanded - the base table it writes is not known"
-                )
-                continue
-            update[side] = Node(kind=IRNodeKind.COLUMN, name=base)
-        rewritten.append(edge.model_copy(update=update) if update else edge)
-
-    return rewritten, unresolved
 
 
 def _guard_of(cfg: Cfg, node_id: int) -> str | None:

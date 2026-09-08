@@ -26,6 +26,7 @@ from pathlib import Path
 from lineage import __version__
 from lineage.analysis.procedure import analyse_source
 from lineage.config import AnalysisConfig
+from lineage.evidence.witness import ExecutionWitness
 from lineage.harness.labels import Flow, GroundTruth
 from lineage.harness.scoring import Counts, score
 from lineage.resolution.dictionary import Dictionary
@@ -66,11 +67,21 @@ class Measurement:
     spurious: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     missed: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     forbidden: list[tuple[str, tuple[str, ...], str]] = field(default_factory=list)
+    unexercised_claimed: int = 0
+    unexercised_total: int = 0
+    unexercised_correct: int = 0
+    unexercised_unknown: int = 0
+    witness_window: str | None = None
     refusals_total: int = 0
     refusal_codes: dict[str, int] = field(default_factory=dict)
     refusal_violations: list[tuple[str, str]] = field(default_factory=list)
     false_abstentions: list[tuple[str, str, int]] = field(default_factory=list)
     false_abstentions_recovered: int = 0
+
+    @property
+    def unexercised_accuracy(self) -> float | None:
+        """Agreement on the execution axis — None means NOT MEASURED, never 0%."""
+        return self.unexercised_correct / self.unexercised_total if self.unexercised_total else None
 
     @property
     def false_abstention_rate(self) -> float | None:
@@ -135,6 +146,7 @@ def run_measurement(
     ground_truth_dir: Path,
     dictionary: Dictionary,
     config: AnalysisConfig,
+    witness: ExecutionWitness | None = None,
 ) -> Measurement:
     """Score every labelled package and record the result with its inputs."""
     provenance = Provenance(
@@ -147,13 +159,14 @@ def run_measurement(
         declared_limits=config.declared_limits(),
     )
     measurement = Measurement(provenance=provenance)
+    measurement.witness_window = witness.window if witness else None
 
     for path in sorted(ground_truth_dir.glob("*.yaml")):
         truth = GroundTruth.load(path)
         truth.verify_against(corpus)
 
         result = analyse_source(
-            (corpus / truth.package).read_text(encoding="utf-8"), dictionary, config
+            (corpus / truth.package).read_text(encoding="utf-8"), dictionary, config, witness
         )
         report = score(truth, result.edges, result.boundaries)
 
@@ -163,6 +176,10 @@ def run_measurement(
         measurement.boundaries_declared += len(result.boundaries)
         measurement.guard_total += report.guard_total
         measurement.guard_correct += report.guard_correct
+        measurement.unexercised_claimed += report.unexercised_predicted
+        measurement.unexercised_total += report.unexercised_total
+        measurement.unexercised_correct += report.unexercised_correct
+        measurement.unexercised_unknown += report.unexercised_unknown
 
         for key, counts in report.cells.items():
             current = measurement.cells.get(key, Counts(0, 0, 0))
@@ -337,6 +354,19 @@ def render(measurement: Measurement) -> str:
     lines.append(f"  boundaries declared    {measurement.boundaries_declared}")
 
     lines.append("")
+    lines.append("THE EXECUTION AXIS  (T3.5 - orthogonal to tier, never inside the gate)")
+    lines.append(f"  witness window         {measurement.witness_window or 'NONE SUPPLIED'}")
+    lines.append(f"  unexercised claimed    {measurement.unexercised_claimed}")
+    lines.append(
+        f"  axis agreement         {_pct(measurement.unexercised_accuracy)}"
+        f" of {measurement.unexercised_total}"
+    )
+    lines.append(
+        f"  no execution evidence  {measurement.unexercised_unknown}"
+        "   <- not 'ran'; absence of a witness is not evidence of non-execution"
+    )
+
+    lines.append("")
     lines.append("HONEST ABSTENTION  (T3.1 - pass/fail, never traded against the gate)")
     lines.append(f"  refusals               {measurement.refusals_total}")
     lines.append(f"  by code                {measurement.refusal_codes or '-'}")
@@ -417,6 +447,13 @@ def as_json(measurement: Measurement) -> str:
         "mechanism_distribution": measurement.mechanism_distribution,
         "evidence_split": measurement.evidence_split,
         "boundaries_declared": measurement.boundaries_declared,
+        "execution_axis": {
+            "witness_window": measurement.witness_window,
+            "unexercised_claimed": measurement.unexercised_claimed,
+            "agreement": measurement.unexercised_accuracy,
+            "compared": measurement.unexercised_total,
+            "no_execution_evidence": measurement.unexercised_unknown,
+        },
         "honest_abstention": {
             "refusals": measurement.refusals_total,
             "by_code": measurement.refusal_codes,

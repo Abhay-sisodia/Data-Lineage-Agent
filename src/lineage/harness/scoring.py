@@ -230,6 +230,9 @@ class ScoreReport:
     mechanism_distribution: dict[str, int]
     evidence_split: dict[str, int]
     unexercised_predicted: int
+    unexercised_total: int = 0
+    unexercised_correct: int = 0
+    unexercised_unknown: int = 0
     boundaries_expected: list[str] = field(default_factory=list)
     boundaries_declared: list[str] = field(default_factory=list)
     missed_edges: list[EdgeKey] = field(default_factory=list)
@@ -251,6 +254,21 @@ class ScoreReport:
     @property
     def guard_accuracy(self) -> float | None:
         return self.guard_correct / self.guard_total if self.guard_total else None
+
+    @property
+    def unexercised_accuracy(self) -> float | None:
+        """Agreement on the execution axis, over matched edges where BOTH sides state one.
+
+        Returns None when nothing can be compared, which with no execution witness is
+        every edge - and `None` here has to read as *not measured*, never as 0%. Scoring
+        an axis the analyser was given no evidence for would turn a missing input into an
+        analyser failure, and the whole point of the tri-state is to keep those apart.
+
+        Kept out of precision for the same reason guards are (ADR-0001 §5): whether a
+        statement ran is a fact about the estate, not about the analysis, and letting it
+        move the gate would make the headline number depend on how busy last month was.
+        """
+        return self.unexercised_correct / self.unexercised_total if self.unexercised_total else None
 
     @property
     def boundaries_missed(self) -> list[str]:
@@ -335,6 +353,22 @@ def score(
         if normalise_guard(claim.guard) == expected:
             guard_correct += 1
 
+    # The execution axis (T3.5), measured only where both sides say something. A label
+    # states `unexercised: true` as a positive assertion by the labeller; a prediction
+    # carrying None was given no execution window and is counted as unknown rather than
+    # wrong. Labels are two-state and predictions are three-state on purpose - a labeller
+    # writing the key HAS looked, and a run without a witness has not.
+    unexercised_total = 0
+    unexercised_correct = 0
+    unexercised_unknown = 0
+    for edge, claim in matched:
+        if claim.unexercised is None:
+            unexercised_unknown += 1
+            continue
+        unexercised_total += 1
+        if claim.unexercised == edge.unexercised:
+            unexercised_correct += 1
+
     # Forbidden edges are checked against everything emitted, not only against the
     # spurious set. An edge could in principle be forbidden here and legitimate
     # elsewhere; what matters is whether THIS package produced it.
@@ -361,6 +395,9 @@ def score(
         mechanism_distribution=dict(sorted(mechanism_distribution.items())),
         evidence_split=truth.evidence_split(),
         unexercised_predicted=sum(1 for edge in predicted if edge.unexercised),
+        unexercised_total=unexercised_total,
+        unexercised_correct=unexercised_correct,
+        unexercised_unknown=unexercised_unknown,
         boundaries_expected=sorted(truth.boundaries),
         boundaries_declared=sorted(declared_boundaries or []),
         missed_edges=missed_keys,
@@ -404,6 +441,10 @@ def render(report: ScoreReport) -> str:
     lines.append(f"  tier distribution    {report.tier_distribution or '-'}")
     lines.append(f"  mechanism            {report.mechanism_distribution or '-'}")
     lines.append(f"  unexercised claimed  {report.unexercised_predicted}")
+    lines.append(
+        f"  execution axis       {_pct(report.unexercised_accuracy)} of "
+        f"{report.unexercised_total}   {report.unexercised_unknown} with no witness"
+    )
 
     lines.append("")
     lines.append("LABEL PROVENANCE  (what the answer key itself rests on)")

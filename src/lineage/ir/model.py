@@ -152,10 +152,15 @@ class IREdge(BaseModel):
     )
     origin: Origin
 
-    unexercised: bool = Field(
-        default=False,
+    unexercised: bool | None = Field(
+        default=None,
         description="Present in code but never observed executing. A separate axis from "
-        "tier - an edge can be Tier A and unexercised, which is itself a finding.",
+        "tier - an edge can be Tier A and unexercised, which is itself a finding. "
+        "THREE-STATE ON PURPOSE (T3.5): None means no execution window was examined, so "
+        "nothing is known either way. Folding that into False would claim every edge ran, "
+        "which is the exact claim this axis exists to avoid; folding it into True would "
+        "report the whole estate as dead code. Absence of a witness is not evidence of "
+        "non-execution.",
     )
 
     valid_from: datetime = Field(

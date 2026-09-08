@@ -562,15 +562,69 @@ All eight packages exist. **None is scored end to end**, and only three are defe
 | s7 | Unexercised branches | **Not handled** — see T3.5 |
 | s8 | Aggregation vs row-level | Defended by the transform class in ADR-0001 §4 |
 
-- [ ] **T3.4a** Score all eight against the T3.0 key
-- [ ] **T3.4b** `s4` — treat `ALTER TABLE … EXCHANGE PARTITION` as lineage-bearing, or declare
-- [ ] **T3.4c** `s6` — resolve views to base tables through the captured view text
-- [ ] **T3.4d** `s7` — closed by T3.5
-- [ ] **T3.4e** Every case becomes a permanent regression test **the day it is written**
+- [x] **T3.4a** Score all eight against the T3.0 key
+- [x] **T3.4b** `s4` — treat `ALTER TABLE … EXCHANGE PARTITION` as lineage-bearing, or declare
+- [x] **T3.4c** `s6` — resolve views to base tables through the captured view text
+- [x] **T3.4d** `s7` — closed by T3.5
+- [x] **T3.4e** Every case becomes a permanent regression test **the day it is written**
 
 **Done when:** every case either passes or its failure is explicitly declared in the report —
 and each has a named test. A declared failure is an acceptable outcome here; a silent one is
 not.
+
+### CLOSED — `tests/test_silent_suite.py`, 36 tests
+
+**Six of eight score clean; the other two are declared, not skipped.**
+
+| # | Before | After |
+|---|---|---|
+| s1 | 1 miss | 1 miss — **declared** |
+| s2 · s3 · s5 · s7 | clean | clean |
+| **s4** | **4 missed, no writer at all** | **clean** |
+| **s6** | **1 miss, 1 FP, 1 forbidden edge produced** | **clean** |
+| s8 | 1 miss | 1 miss — **declared** |
+
+`KNOWN_INCOMPLETE` in the test module names both survivors with a reason, and the suite
+asserts the list is *exactly* right in both directions: a case that regresses fails, and a
+case that starts passing also fails until someone removes it deliberately. A list that only
+caught regressions would quietly rot into a list of things nobody rechecked.
+
+**Corpus-wide effect:**
+
+| | before | after |
+|---|---|---|
+| band 0 filter precision | 97.4% | **100%** |
+| band 2 value recall | 58.3% | **69.4%** |
+| band 2 filter recall | 77.8% | **80.6%** |
+| false positives, whole corpus | 2 | **1** |
+| forbidden edges produced | 1 | **0** |
+
+**T3.4b — the exchange.** `ALTER TABLE … EXCHANGE PARTITION` moves an entire dataset with
+no `INSERT` anywhere, so `fct_revenue_part` was reported as having **no writer** — worse
+than a missing edge, because it reads as a positive finding. Now `src/lineage/analysis/ddl.py`,
+bound **positionally** (there is no select list to read names from) and banded **2**, since
+in this corpus it also sits inside an `EXECUTE IMMEDIATE`. Two things it refuses to do:
+compose `stg_orders → fct_revenue_part` across the two hops (the key forbids it), and zip
+mismatched shapes — Oracle rejects an exchange between mismatched tables, so a mismatch
+means the *dictionary* is stale and guessing would produce four confident wrong edges.
+The reverse direction of the swap is declared rather than emitted.
+
+**T3.4c — the view.** The fix was a **third** copy of a view-resolution rule, which is the
+real finding. Band 0 inlined view text, the trigger analyser rewrote `:NEW`, and an
+ordinary `UPDATE v_customer_editable` went through neither. All three now share
+`src/lineage/resolution/views.py`: a view is a *naming* fact, so it belongs beside the
+synonym resolver, and the third copy of a naming rule is the one that disagrees with the
+other two. New rule: **the relation end follows the column end**, so
+`V_CUSTOMER_EDITABLE.REGION -> relation:V_CUSTOMER_EDITABLE` becomes
+`DIM_CUSTOMER.REGION -> relation:DIM_CUSTOMER` rather than a half-resolved hybrid. The join
+view's **row correspondence** — which per-column resolution genuinely cannot carry — is
+declared.
+
+**The two declared failures.** `s1` and `s8` each miss one *filter* edge; both packages'
+value edges and transform classes — the thing each case actually tests — are correct.
+Left open rather than patched, because the fix is a general question about when a
+predicate operand becomes a filter influence, and answering it inside a silent-failure
+task would be optimising the number rather than closing the case.
 
 ---
 
@@ -579,13 +633,60 @@ not.
 *Register: "Not a tier — a separate axis. An edge can be Tier A (provably in the code) and
 never observed running. That combination is itself a finding, and nobody else reports it."*
 
-- [ ] **T3.5a** Model as a separate axis on the IR edge, orthogonal to tier
-- [ ] **T3.5b** Populate from observation — an edge whose statement never appeared in a run
-- [ ] **T3.5c** Harness reports the count
-- [ ] **T3.5d** `s7_unexercised_branch` produces a Tier A **and** unexercised edge
+- [x] **T3.5a** Model as a separate axis on the IR edge, orthogonal to tier
+- [~] **T3.5b** Populate from observation — an edge whose statement never appeared in a run
+- [x] **T3.5c** Harness reports the count
+- [x] **T3.5d** `s7_unexercised_branch` produces a Tier A **and** unexercised edge
 
 **Done when:** an edge can be Tier A *and* never observed running, and the harness reports the
 count.
+
+### CLOSED except T3.5b — `tests/test_unexercised.py`, 10 tests
+
+**The axis is three-state, and the third state is the whole task.**
+
+| value | meaning |
+|---|---|
+| `False` | seen executing inside the window |
+| `True` | a window was examined and it never appeared |
+| **`None`** | **no window was examined — nothing is known either way** |
+
+Two states force a default and **both defaults are lies.** `False` claims every edge ran,
+which is the exact claim this axis exists to avoid. `True` reports the whole estate as dead
+code. **Absence of a witness is not evidence of non-execution**, so `IREdge.unexercised` is
+now `bool | None`, defaulting to `None`.
+
+**Why that matters more here than anywhere else in the system.** Everywhere else a bad
+attribution creates a wrong *edge*, and precision catches it. Here a missing attribution
+creates a **silent negative** — "this never ran", asserted about a unit the log could not
+see — and a migration team might act on it by deleting code. So the rule is absolute:
+**no coverage, no verdict**, enforced by `ExecutionWitness.ran()` returning `None` rather
+than by anyone remembering to be careful.
+
+**The window travels with the verdict.** A year-end path absent from 30 days says almost
+nothing; the same path absent from 18 months is a real finding. `window` is a required
+field and the harness prints it beside every count.
+
+**Scored, but never inside the gate.** `unexercised_total` counts what could be compared;
+`unexercised_unknown` counts what could not; `unexercised_accuracy` returns `None` — read
+as **NOT MEASURED, never 0%**. Scoring an axis the analyser was given no evidence for would
+turn a missing input into an analyser failure. It stays out of precision for the same
+reason guards do: whether a statement ran is a fact about the *estate*, not about the
+analysis, and letting it move the gate would make the headline number depend on how busy
+last month was.
+
+**T3.5b is blocked, and the block is the honest outcome.** Populating the axis needs
+`V$SQL`, which needs a live Oracle; Docker is not running on this machine.
+`scripts/capture_witness.py` ships complete — module-level attribution only, shape used
+solely to place a statement *within* an already-covered unit, and it **refuses to write an
+empty witness**, because an empty file reads as "nothing ran" rather than "nothing seen".
+The mechanism is proven against a fixture witness in the tests, which is explicitly labelled
+a fixture and not evidence; **no witness for this corpus is committed**, and the measurement
+therefore reports `witness window: NONE SUPPLIED` and 232 edges with no execution evidence.
+
+Current corpus state: **0 unexercised claimed**, and that is correct — the labels assert 27
+unexercised edges from a deliberate observation protocol, and the analyser has been shown
+none of that evidence.
 
 **The failure this prevents:** the EU path ran 9,120 times and looks strong; the APAC branch
 exists in code, never ran in the window, and looks weak or absent. Demoting it by tier says

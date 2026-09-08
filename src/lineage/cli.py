@@ -149,6 +149,14 @@ def measure(
     dictionary: Annotated[
         Path, typer.Option("--dictionary", help="Captured data dictionary.")
     ] = Path("corpus/dictionary.json"),
+    witness: Annotated[
+        Path | None,
+        typer.Option(
+            "--witness",
+            help="Execution witness (scripts/capture_witness.py). Without one, every edge "
+            "reports no execution evidence rather than reporting that it ran.",
+        ),
+    ] = None,
     output: Annotated[
         Path | None, typer.Option("--output", help="Write the measurement as JSON.")
     ] = None,
@@ -158,11 +166,16 @@ def measure(
     Phase 0's output is a number, not software — and a number without the inputs that
     produced it is not defensible six months later.
     """
+    from lineage.evidence.witness import ExecutionWitness
     from lineage.harness.measure import as_json, render, run_measurement
     from lineage.resolution.dictionary import Dictionary
 
     measurement = run_measurement(
-        corpus, ground_truth, Dictionary.load(dictionary), AnalysisConfig.load()
+        corpus,
+        ground_truth,
+        Dictionary.load(dictionary),
+        AnalysisConfig.load(),
+        ExecutionWitness.load(witness) if witness else None,
     )
     typer.echo(render(measurement))
 

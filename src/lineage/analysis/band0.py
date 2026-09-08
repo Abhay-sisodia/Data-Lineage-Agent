@@ -32,6 +32,7 @@ from sqlglot import exp
 from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import Scope, build_scope
 
+from lineage.analysis.ddl import exchange_partition_edges
 from lineage.analysis.dynamic import resolve_dynamic_sql
 from lineage.analysis.refusal import (
     Refusal,
@@ -744,6 +745,24 @@ def analyse_source(
     ccflag_spans = conditional_compilation_spans(source)
 
     for statement, statement_band in static + recovered:
+        # DDL that moves data (T3.4b). Checked before the SUPPORTED gate because an
+        # exchange is not a DML statement and never will be - and the failure it causes is
+        # the worst-shaped one there is: `fct_revenue_part` acquires its entire contents
+        # and a DML-only reading reports it as having no writer, which reads as a finding.
+        moved, notes = exchange_partition_edges(
+            statement.text,
+            Origin(unit=_enclosing_unit(program, statement), line=statement.line),
+            dictionary,
+            band=max(statement_band, 2),
+        )
+        if moved or notes:
+            result.statements_seen += 1
+            result.edges.extend(moved)
+            for note in notes:
+                if note not in result.boundaries:
+                    result.boundaries.append(note)
+            continue
+
         if statement.kind not in SUPPORTED:
             continue
         result.statements_seen += 1

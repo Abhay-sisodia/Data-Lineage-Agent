@@ -34,9 +34,11 @@ from lineage.analysis.refusal import classify_program
 from lineage.analysis.scratch import find_fusion_hazards
 from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
+from lineage.evidence.witness import ExecutionWitness
 from lineage.ir.model import IREdge
 from lineage.parsing.plsql import Program, parse_program
 from lineage.resolution.dictionary import Dictionary
+from lineage.resolution.views import resolve_views
 
 __all__ = ["AnalysisResult", "Refusal", "analyse_source"]
 
@@ -45,8 +47,13 @@ def analyse_source(
     source: str,
     dictionary: Dictionary,
     config: AnalysisConfig | None = None,
+    witness: ExecutionWitness | None = None,
 ) -> AnalysisResult:
-    """Analyse one PL/SQL source unit for band-0 and band-1 lineage."""
+    """Analyse one PL/SQL source unit for band-0 and band-1 lineage.
+
+    ``witness`` supplies execution evidence (T3.5). Omit it and every edge carries
+    ``unexercised=None`` - nothing was observed, so nothing is claimed either way.
+    """
     settings = config or AnalysisConfig()
 
     program = parse_program(source)
@@ -120,6 +127,19 @@ def analyse_source(
         if entry not in result.boundaries:
             result.boundaries.append(entry)
 
+    # Silent failure s6, closed corpus-wide rather than per analyser (T3.4c). Band 0
+    # inlines view text before analysing a projection and the trigger analyser rewrites an
+    # INSTEAD OF trigger's :NEW row, but an ordinary `UPDATE v_customer_editable` went
+    # through neither and kept the view on both ends of its filter edge - naming an object
+    # that stores nothing, while dim_customer appeared to have no writer.
+    #
+    # Run over every edge from every analyser, because a view is a naming fact and the
+    # third copy of a naming rule is the one that disagrees with the other two.
+    result.edges, view_notes = resolve_views(result.edges, dictionary)
+    for entry in view_notes:
+        if entry not in result.boundaries:
+            result.boundaries.append(entry)
+
     # The set-based analyser works one statement at a time and never sees control flow,
     # so its edges arrive unguarded even when the statement sits inside a branch or a
     # loop. An unguarded edge claims the write always happens, which for a conditional
@@ -138,8 +158,24 @@ def analyse_source(
         unique[key] = edge
         merged.append(edge)
 
+    # `unexercised` is applied last, over the finished edge set (T3.5). It is not an
+    # analysis result - it is a fact about the running system laid alongside one - so it
+    # must not be able to change which edges exist or what they say. An edge whose unit the
+    # witness cannot attribute keeps None, and the harness counts those separately: a
+    # statement the log could not tie to a unit is UNCOVERED, not exercised.
+    if witness is not None:
+        result.edges = [
+            edge.model_copy(update={"unexercised": _unexercised(edge, witness)}) for edge in merged
+        ]
+        result.boundaries.append(
+            f"execution witness covers {len(witness.units)} unit(s) over {witness.window}; "
+            f"edges outside those units carry no execution evidence either way"
+        )
+    else:
+        result.edges = merged
+
     result.edges = sorted(
-        merged, key=lambda e: (e.band, e.flow.value, str(e.source), str(e.target))
+        result.edges, key=lambda e: (e.band, e.flow.value, str(e.source), str(e.target))
     )
 
     # Declared, not silently resolved. Nothing composes paths yet, so nothing is fused -
@@ -151,6 +187,17 @@ def analyse_source(
             result.boundaries.append(entry)
 
     return result
+
+
+def _unexercised(edge: IREdge, witness: ExecutionWitness) -> bool | None:
+    """Whether this edge's statement was seen running, from the witness's point of view.
+
+    Inverted from `ran()` because the axis is named for the interesting case: an edge that
+    is provably in the code and has never fired is a finding, and an edge that fired is
+    just an ordinary edge.
+    """
+    ran = witness.ran(edge.origin.unit, edge.origin.line)
+    return None if ran is None else not ran
 
 
 def _written_relations(program: Program, dynamic: Resolution) -> dict[str, str]:
