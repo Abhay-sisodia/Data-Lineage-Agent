@@ -53,7 +53,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from lineage.ir.model import BoundaryKind, Declared, Flow, IREdge, NodeKind
+from lineage.ir.model import Boundary, BoundaryKind, Flow, IREdge, NodeKind
 from lineage.resolution.dictionary import Dictionary
 
 # Emitted by band0 when a name resolves to nothing the dictionary holds. Shared as a
@@ -81,6 +81,7 @@ class Coverage:
     dangling_references: list[str] = field(default_factory=list)
     orphan_upstream: list[str] = field(default_factory=list)
     untouched_relations: list[str] = field(default_factory=list)
+    bounded_relations: list[str] = field(default_factory=list)
 
     relations_touched: int = 0
     storage_objects: int = 0
@@ -129,7 +130,7 @@ def _relation_of(node) -> str | None:  # type: ignore[no-untyped-def]
 
 def build_coverage(
     edges: list[IREdge],
-    boundaries: list[str],
+    boundaries: list[Boundary],
     dictionary: Dictionary,
     *,
     packages: int = 0,
@@ -178,18 +179,8 @@ def build_coverage(
     # sitting in a document. The marker is kept for boundaries nobody has classified yet.
     dangling: set[str] = set()
     for entry in boundaries:
-        classified = Declared.classified(entry)
-        if classified is not None:
-            kind, subject = classified
-            if kind is BoundaryKind.DANGLING_REFERENCE and subject:
-                dangling.add(subject)
-            continue
-        if DANGLING_MARKER not in entry:
-            continue
-        subject_text = entry.split(":", 1)[-1].split(DANGLING_MARKER)[0].strip()
-        relation = subject_text.rsplit(".", 1)[0] if "." in subject_text else subject_text
-        if relation:
-            dangling.add(relation.upper())
+        if entry.kind is BoundaryKind.DANGLING_REFERENCE:
+            dangling.add(entry.subject)
     coverage.dangling_references = sorted(dangling)
 
     storage = {
@@ -215,6 +206,22 @@ def build_coverage(
     # In the map and in no trace at all. The gap nobody notices, because nothing in a
     # report about tables A and B suggests that table C was never looked at.
     coverage.untouched_relations = sorted(tables - (written | read))
+
+    # Relations whose knowledge demonstrably stops somewhere, read off the boundaries
+    # themselves rather than inferred from what is missing.
+    #
+    # This is what promoting Boundary to a node bought. `orphan_upstream` says "nothing in
+    # scope writes this" and cannot say why - a staging table loaded by an unseen job and a
+    # table fed through a partition exchange we declined to trace look identical from the
+    # edge set. A boundary that names the relation it bounds separates them, and it is the
+    # difference between "we did not find a writer" and "we found where the writer went".
+    coverage.bounded_relations = sorted(
+        {
+            boundary.attaches_to.name
+            for boundary in boundaries
+            if boundary.attaches_to is not None and boundary.attaches_to.kind is NodeKind.RELATION
+        }
+    )
 
     return coverage
 
@@ -246,6 +253,12 @@ def render(coverage: Coverage) -> str:
     )
     for name in coverage.dangling_references:
         lines.append(f"      {name}")
+    lines.append(
+        f"  bounded relations      {len(coverage.bounded_relations)}"
+        "   (a boundary names what stops here)"
+    )
+    for name in coverage.bounded_relations:
+        lines.append(f"    {name}")
     lines.append(
         f"  orphan upstream        {len(coverage.orphan_upstream)}"
         "   <- read in scope, written by nothing in scope"

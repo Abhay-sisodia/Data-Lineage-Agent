@@ -35,7 +35,7 @@ from lineage.analysis.scratch import find_fusion_hazards
 from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
 from lineage.evidence.witness import ExecutionWitness
-from lineage.ir.model import BoundaryKind, Declared, IREdge
+from lineage.ir.model import Boundary, BoundaryKind, IREdge, Node, NodeKind
 from lineage.parsing.plsql import Program, parse_program
 from lineage.resolution.dictionary import Dictionary
 from lineage.resolution.views import resolve_views
@@ -80,11 +80,13 @@ def analyse_source(
             result.refusals.append(refusal)
             already_refused.add((refusal.unit, refusal.line))
     for refusal in result.refusals:
-        refused = Declared(
-            f"{refusal.unit}: line {refusal.line} refused "
-            f"[{refusal.code.value}] - {refusal.reason}",
+        refused = Boundary(
             kind=BoundaryKind.REFUSAL,
             subject=f"{refusal.unit}:{refusal.line}",
+            detail=f"{refusal.unit}: line {refusal.line} refused "
+            f"[{refusal.code.value}] - {refusal.reason}",
+            unit=refusal.unit,
+            line=refusal.line,
         )
         if refused not in result.boundaries:
             result.boundaries.append(refused)
@@ -98,10 +100,16 @@ def analyse_source(
 
     for summary in summaries.values():
         boundary = summary.boundary()
-        if boundary and boundary not in result.boundaries:
-            result.boundaries.append(
-                Declared(boundary, kind=BoundaryKind.DEPTH_CAP, subject=summary.unit)
-            )
+        if boundary is None:
+            continue
+        capped = Boundary(
+            kind=BoundaryKind.DEPTH_CAP,
+            subject=summary.unit,
+            detail=boundary,
+            unit=summary.unit,
+        )
+        if capped not in result.boundaries:
+            result.boundaries.append(capped)
 
     for unit, cfg in graphs.items():
         scope = scopes.get(unit)
@@ -114,8 +122,8 @@ def analyse_source(
             if unresolved not in result.boundaries:
                 result.boundaries.append(unresolved)
 
-        for item in _reaching_findings(cfg, scope, settings):
-            finding = _in_unit(unit, item, BoundaryKind.CROSS_UNIT_STATE)
+        for text in _reaching_findings(cfg, scope, settings):
+            finding = _in_unit(unit, text, BoundaryKind.CROSS_UNIT_STATE)
             if finding not in result.boundaries:
                 result.boundaries.append(finding)
 
@@ -129,12 +137,10 @@ def analyse_source(
     )
     result.edges.extend(trigger_edges)
     for note in trigger_boundaries:
-        trigger_note = (
-            note
-            if isinstance(note, Declared)
-            else Declared(
-                note, kind=BoundaryKind.SOURCE_UNAVAILABLE, subject=str(note).split(":")[0]
-            )
+        trigger_note = Boundary(
+            kind=BoundaryKind.SOURCE_UNAVAILABLE,
+            subject=str(note).split(":")[0],
+            detail=str(note),
         )
         if trigger_note not in result.boundaries:
             result.boundaries.append(trigger_note)
@@ -149,10 +155,10 @@ def analyse_source(
     # third copy of a naming rule is the one that disagrees with the other two.
     result.edges, view_notes = resolve_views(result.edges, dictionary)
     for note in view_notes:
-        view_note = Declared(
-            note,
+        view_note = Boundary(
             kind=BoundaryKind.ROW_CORRESPONDENCE,
             subject=str(note).split(" ")[0],
+            detail=str(note),
         )
         if view_note not in result.boundaries:
             result.boundaries.append(view_note)
@@ -185,8 +191,13 @@ def analyse_source(
             edge.model_copy(update={"unexercised": _unexercised(edge, witness)}) for edge in merged
         ]
         result.boundaries.append(
-            f"execution witness covers {len(witness.units)} unit(s) over {witness.window}; "
-            f"edges outside those units carry no execution evidence either way"
+            Boundary(
+                kind=BoundaryKind.SOURCE_UNAVAILABLE,
+                subject="EXECUTION WITNESS",
+                detail=f"execution witness covers {len(witness.units)} unit(s) over "
+                f"{witness.window}; edges outside those units carry no execution "
+                f"evidence either way",
+            )
         )
     else:
         result.edges = merged
@@ -199,10 +210,11 @@ def analyse_source(
     # but the hazard is recorded now so the constraint exists before the code that would
     # violate it.
     for hazard in find_fusion_hazards(result.edges, dictionary):
-        entry = Declared(
-            f"fusion hazard: {hazard.describe()}",
+        entry = Boundary(
             kind=BoundaryKind.FUSION_HAZARD,
             subject=hazard.relation,
+            detail=f"fusion hazard: {hazard.describe()}",
+            attaches_to=Node(kind=NodeKind.RELATION, name=hazard.relation),
         )
         if entry not in result.boundaries:
             result.boundaries.append(entry)
@@ -210,19 +222,21 @@ def analyse_source(
     return result
 
 
-def _in_unit(unit: str, item: str, default: BoundaryKind) -> Declared:
+def _in_unit(unit: str, item: Boundary | str, default: BoundaryKind) -> Boundary:
     """Prefix a boundary with its unit without losing how it was classified.
 
     An f-string over a ``Declared`` returns a plain ``str`` and drops kind and subject
     silently, which would make the axis unscoreable again one interpolation at a time.
     """
     prefix = f"{unit}: "
-    if isinstance(item, Declared):
+    if isinstance(item, Boundary):
         # A parse failure knows its line and not its unit, and a bare line number is not an
         # identity - so the unit qualifies the subject here, where it is known.
         qualify = f"{unit}:" if item.kind is BoundaryKind.PARSE_FAILURE else ""
-        return item.prefixed(prefix, subject_prefix=qualify)
-    return Declared(f"{prefix}{item}", kind=default, subject=unit)
+        return item.prefixed(prefix, subject_prefix=qualify).model_copy(
+            update={"unit": item.unit or unit}
+        )
+    return Boundary(kind=default, subject=unit, detail=f"{prefix}{item}", unit=unit)
 
 
 def _unexercised(edge: IREdge, witness: ExecutionWitness) -> bool | None:

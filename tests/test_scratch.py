@@ -83,7 +83,7 @@ def test_shared_scratch_relation_is_declared(dictionary: Dictionary) -> None:
     """Nothing composes paths yet, so nothing is fused - but the constraint is recorded
     before the code that would violate it is written."""
     result = _analyse("silent/s3_shared_temp_table.sql", dictionary)
-    hazards = [b for b in result.boundaries if "fusion hazard" in b]
+    hazards = [str(b) for b in result.boundaries if "fusion hazard" in str(b)]
 
     assert len(hazards) == 1
     assert "TMP_RECENT" in hazards[0]
@@ -94,7 +94,7 @@ def test_shared_scratch_relation_is_declared(dictionary: Dictionary) -> None:
 def test_single_writer_is_not_a_hazard(dictionary: Dictionary) -> None:
     """b1_06 writes and reads gtt_stage from one procedure. Nothing can fuse."""
     result = _analyse("band1/b1_06_temp_tables.sql", dictionary)
-    assert [b for b in result.boundaries if "fusion hazard" in b] == []
+    assert [b for b in result.boundaries if "fusion hazard" in str(b)] == []
 
 
 # --- temporary-ness is a fact, not a naming convention --------------------------------

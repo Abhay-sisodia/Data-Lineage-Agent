@@ -92,57 +92,6 @@ class BoundaryKind(StrEnum):
     """The body exists but cannot be read - wrapped PL/SQL, a missing trigger body."""
 
 
-class Declared(str):
-    """A boundary message that also knows what it is ABOUT.
-
-    A ``str`` subclass, and that is a deliberate transitional choice rather than a clever
-    one. Boundaries are produced at a dozen sites and consumed at fifty-odd, and the real
-    fix - a first-class ``Boundary`` node that can be an edge endpoint - is `docs/ir-v0.md`
-    item 1 and an IR change. Carrying ``kind`` and ``subject`` on the string lets the axis
-    be SCORED now, without a refactor of every producer, consumer and test in between.
-
-    Every consumer keeps treating it as the sentence it always was. Anything that wants to
-    compare two statements of the same fact reads ``kind`` and ``subject`` instead, because
-    prose was never comparable: the key says "database link target out of coverage" where
-    the analyser says "(relation not in dictionary)".
-
-    A plain ``str`` where a ``Declared`` was expected is not an error - it is a boundary
-    nobody has classified yet, and ``classified`` says so rather than guessing.
-    """
-
-    __slots__ = ("kind", "subject")
-
-    kind: BoundaryKind
-    subject: str
-
-    def __new__(cls, text: str, *, kind: BoundaryKind, subject: str) -> Declared:
-        boundary = super().__new__(cls, text)
-        boundary.kind = kind
-        boundary.subject = subject.upper()
-        return boundary
-
-    def prefixed(self, prefix: str, *, subject_prefix: str = "") -> Declared:
-        """The same fact with context prepended, keeping its classification.
-
-        Formatting a ``Declared`` into an f-string yields a plain ``str`` and silently
-        loses the structure, which is exactly the bug this class exists to prevent. Every
-        site that decorates a boundary message goes through here instead.
-
-        ``subject_prefix`` qualifies the subject as well, for facts raised somewhere that
-        does not know its own unit - a parse failure knows its line and not much else, and
-        a bare line number is not an identity.
-        """
-        subject = f"{subject_prefix}{self.subject}" if subject_prefix else self.subject
-        return Declared(f"{prefix}{self}", kind=self.kind, subject=subject)
-
-    @staticmethod
-    def classified(entry: str) -> tuple[BoundaryKind, str] | None:
-        """``(kind, subject)`` if this boundary has been classified, else ``None``."""
-        if isinstance(entry, Declared):
-            return entry.kind, entry.subject
-        return None
-
-
 class NodeKind(StrEnum):
     """What a lineage endpoint is.
 
@@ -227,6 +176,85 @@ class Origin(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.unit}:{self.line}"
+
+
+class Boundary(BaseModel):
+    """Where knowledge stops, as a first-class fact rather than a sentence.
+
+    This is `docs/ir-v0.md` item 1, closed. Three things were wrong with boundaries being
+    strings, and the document named all three:
+
+    * **They could not be compared.** The answer key said "database link target out of
+      coverage" where the analyser said "(relation not in dictionary)" - the same fact, no
+      shared words. Measured: all 18 expected read as undeclared while 35 were declared.
+      Fixed by ``kind`` + ``subject`` (ADR-0001 amendment 1d).
+    * **They could not be an edge endpoint.** A boundary is the upstream of a column whose
+      lineage stops - "this regulated column is fed by something we were never given" is
+      the claim the whole product rests on - and a string cannot be one end of an edge.
+      Fixed by ``as_node``.
+    * **They could not be queried beside the lineage they bound.** Fixed by
+      ``attaches_to``: the relation or column whose knowledge stops here.
+
+    ``detail`` is the human sentence, unchanged from when it was the whole object. It is
+    what ``__str__`` returns, so reports read as they always did - but it is no longer the
+    identity, and nothing compares it.
+
+    **Boundary edges are never scored.** They are held separately from
+    ``AnalysisResult.edges`` because a boundary edge is a declaration about absent
+    knowledge, not a lineage claim, and folding it into precision would mean an analyser
+    scored better for admitting what it could not see.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: BoundaryKind
+    subject: str = Field(min_length=1, description="The object or statement this is about.")
+    detail: str = Field(min_length=1, description="The human sentence. Never the identity.")
+    unit: str | None = None
+    line: int | None = Field(default=None, ge=1)
+    attaches_to: Node | None = Field(
+        default=None,
+        description="The relation or column whose lineage stops here, when it is known. "
+        "None means the boundary is real but not yet tied to what it bounds - stated "
+        "rather than guessed at.",
+    )
+
+    @model_validator(mode="after")
+    def _normalise_subject(self) -> Self:
+        if self.subject != self.subject.upper():
+            object.__setattr__(self, "subject", self.subject.upper())
+        return self
+
+    def identity(self) -> tuple[str, str]:
+        """What makes two statements of the same boundary the same fact."""
+        return (self.kind.value, self.subject.upper())
+
+    def as_node(self) -> Node:
+        """The boundary as a graph endpoint, so lineage can actually terminate on it."""
+        return Node(kind=NodeKind.BOUNDARY, name=f"{self.kind.value}:{self.subject}")
+
+    def prefixed(self, prefix: str, *, subject_prefix: str = "") -> Boundary:
+        """The same fact with context prepended to its prose, and optionally its subject.
+
+        A boundary raised deep in the analysis often knows its line and not its unit - and
+        a bare line number is not an identity - so the caller that does know the unit
+        qualifies it here.
+        """
+        return self.model_copy(
+            update={
+                "detail": f"{prefix}{self.detail}",
+                "subject": f"{subject_prefix}{self.subject}" if subject_prefix else self.subject,
+            }
+        )
+
+    def attached_to(self, node: Node | None) -> Boundary:
+        """Tie this boundary to the lineage it bounds, if the caller knows it."""
+        if node is None or self.attaches_to is not None:
+            return self
+        return self.model_copy(update={"attaches_to": node})
+
+    def __str__(self) -> str:
+        return self.detail
 
 
 MatchKey = tuple[str, str, str, str]

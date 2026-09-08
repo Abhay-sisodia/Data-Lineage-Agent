@@ -26,8 +26,8 @@ from __future__ import annotations
 import re
 
 from lineage.ir.model import (
+    Boundary,
     BoundaryKind,
-    Declared,
     Flow,
     IREdge,
     Mechanism,
@@ -57,7 +57,7 @@ def exchange_partition_edges(
     origin: Origin,
     dictionary: Dictionary,
     band: int = 2,
-) -> tuple[list[IREdge], list[str]]:
+) -> tuple[list[IREdge], list[Boundary]]:
     """Edges for one `EXCHANGE PARTITION`, plus whatever it forces us to declare.
 
     Returns `([], [])` for any statement that is not an exchange - callers hand this every
@@ -77,8 +77,14 @@ def exchange_partition_edges(
         source_columns = dictionary.columns_of(staging)
     except Exception as exc:
         return [], [
-            f"EXCHANGE PARTITION {partition}: {exc} - the exchange moves a whole dataset "
-            f"and its column mapping cannot be stated"
+            Boundary(
+                kind=BoundaryKind.DDL_SEMANTICS,
+                subject=f"{_simple(match.group('partitioned'))}:{partition}",
+                detail=f"EXCHANGE PARTITION {partition}: {exc} - the exchange moves a "
+                f"whole dataset and its column mapping cannot be stated",
+                unit=origin.unit,
+                line=origin.line,
+            )
         ]
 
     if len(target_columns) != len(source_columns):
@@ -87,9 +93,17 @@ def exchange_partition_edges(
         # Zipping them anyway would produce a full set of confident, wrong, positional
         # edges, which is precisely the failure mode this corpus exists to catch.
         return [], [
-            f"EXCHANGE PARTITION {partition}: {staging} has {len(source_columns)} columns "
-            f"and {partitioned} has {len(target_columns)} - the exchange cannot be bound "
-            f"positionally against this dictionary snapshot, so no edge is claimed"
+            Boundary(
+                kind=BoundaryKind.DDL_SEMANTICS,
+                subject=f"{partitioned}:{partition}",
+                detail=f"EXCHANGE PARTITION {partition}: {staging} has "
+                f"{len(source_columns)} columns and {partitioned} has "
+                f"{len(target_columns)} - the exchange cannot be bound positionally "
+                f"against this dictionary snapshot, so no edge is claimed",
+                unit=origin.unit,
+                line=origin.line,
+                attaches_to=Node(kind=NodeKind.RELATION, name=partitioned),
+            )
         ]
 
     edges = [
@@ -110,20 +124,31 @@ def exchange_partition_edges(
     # the partition was empty, so that direction carries nothing and emitting it would be
     # inventing rows. Declared instead of guessed, because on a non-empty partition it is
     # a real flow and the next reader of this code needs to know it was considered.
-    boundaries: list[str] = [
-        Declared(
-            f"EXCHANGE PARTITION {partition}: an exchange swaps segments both ways. The "
-            f"reverse flow {partitioned} -> {staging} carries whatever the partition held "
-            f"before the exchange, which no static reading can know",
+    #
+    # Attached to the partitioned table, because that is the object whose knowledge stops
+    # here - "who writes FCT_REVENUE_PART" is the auditor's question, and a boundary that
+    # cannot be queried beside that relation does not answer it.
+    bounded = Node(kind=NodeKind.RELATION, name=partitioned)
+    boundaries = [
+        Boundary(
             kind=BoundaryKind.DDL_SEMANTICS,
             subject=f"{partitioned}:{partition}",
+            detail=f"EXCHANGE PARTITION {partition}: an exchange swaps segments both "
+            f"ways. The reverse flow {partitioned} -> {staging} carries whatever the "
+            f"partition held before the exchange, which no static reading can know",
+            unit=origin.unit,
+            line=origin.line,
+            attaches_to=bounded,
         ),
-        Declared(
-            f"EXCHANGE PARTITION {partition}: rows enter {partitioned} through DDL, so no "
-            f"INSERT names it as a target - a DML-only reading reports it as having no "
-            f"writer",
+        Boundary(
             kind=BoundaryKind.DDL_SEMANTICS,
             subject=f"{partitioned}:{partition}",
+            detail=f"EXCHANGE PARTITION {partition}: rows enter {partitioned} through "
+            f"DDL, so no INSERT names it as a target - a DML-only reading reports it as "
+            f"having no writer",
+            unit=origin.unit,
+            line=origin.line,
+            attaches_to=bounded,
         ),
     ]
     return edges, boundaries

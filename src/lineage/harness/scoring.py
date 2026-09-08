@@ -25,7 +25,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from lineage.harness.labels import Flow, GroundTruth, LabelledEdge
-from lineage.ir.model import BoundaryKind, Declared, IREdge, MatchKey, Mechanism, Tier
+from lineage.ir.model import Boundary, IREdge, MatchKey, Mechanism, Tier
 
 # ADR-0001 amendment 1, implemented at the scoring boundary.
 #
@@ -369,7 +369,7 @@ class ScoreReport:
 def score(
     truth: GroundTruth,
     predicted: list[PredictedEdge],
-    declared_boundaries: list[str] | None = None,
+    declared_boundaries: list[Boundary] | None = None,
     *,
     origin_in_dedup: bool = False,
 ) -> ScoreReport:
@@ -483,18 +483,14 @@ def score(
     # for the human report and simply cannot be matched, which is honest: nobody has said
     # what it is about.
     declared_identities = {
-        classified
-        for entry in (declared_boundaries or [])
-        if (classified := Declared.classified(entry)) is not None
+        entry.identity() for entry in (declared_boundaries or []) if isinstance(entry, Boundary)
     }
     expected_structured = [
         (expected.kind.value, expected.subject.upper(), expected.reason)
         for expected in truth.expected_boundaries
     ]
     boundaries_undeclared = [
-        item
-        for item in expected_structured
-        if (BoundaryKind(item[0]), item[1]) not in declared_identities
+        item for item in expected_structured if (item[0], item[1]) not in declared_identities
     ]
 
     # Origin assertions (ADR-0001 amendment 1c). Checked against EVERY emitted edge, before
@@ -536,7 +532,7 @@ def score(
         unexercised_correct=unexercised_correct,
         unexercised_unknown=unexercised_unknown,
         boundaries_expected=sorted(truth.boundaries),
-        boundaries_declared=sorted(declared_boundaries or []),
+        boundaries_declared=sorted(str(entry) for entry in declared_boundaries or []),
         missed_edges=missed_keys,
         spurious_edges=spurious_keys,
         forbidden_violations=violations,

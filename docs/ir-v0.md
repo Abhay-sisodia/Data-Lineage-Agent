@@ -128,6 +128,29 @@ marker constant.
 That is the largest single gap between what this schema *says* and what the code *does*, and
 it is listed below as a v1 change rather than papered over here.
 
+> **CLOSED 2026-09-09.** `Boundary` is a model in `lineage/ir/model.py`, and all three
+> complaints above are answered rather than argued with:
+>
+> - **Comparable.** `kind` (closed enum) + `subject`, so the answer key and the analyser can
+>   state the same fact in different prose and still match. ADR-0001 amendment 1d; before it,
+>   all 18 expected boundaries read as undeclared while 35 were declared.
+> - **An edge endpoint.** `as_node()` returns `Node(kind=BOUNDARY, …)`, so `BOUNDARY` is no
+>   longer a declared-and-never-used node kind. Two of the three dead kinds remain —
+>   `LITERAL` and `PROCEDURE` — and they are still dead.
+> - **Queryable beside what it bounds.** `attaches_to` names the relation or column whose
+>   knowledge stops there. The coverage statement now reports **bounded relations** from the
+>   boundaries themselves: `FCT_REVENUE_PART` (partition exchange) and `TMP_RECENT` (fusion
+>   hazard). That is the query a string could not answer — `orphan_upstream` can only say
+>   *"nothing in scope writes this"*, which makes a staging table loaded by an unseen job
+>   indistinguishable from a table fed through DDL we declined to trace.
+>
+> **What is still not done:** boundary edges are not emitted into the scored edge set, on
+> purpose. A boundary edge is a declaration about absent knowledge, not a lineage claim, and
+> folding it into precision would mean an analyser scored *better* for admitting what it
+> could not see. `attaches_to` carries the same information without that hazard.
+>
+> Every number in the phase is unchanged — cells identical, gate 96.2%, parse coverage 76.1%.
+
 ### 2 · `identity()` is not `match_key()`
 
 **Forced by:** `b1_03_loops` (accumulation vs decay of the same variable), `b1_09_exception_handlers`
@@ -285,10 +308,10 @@ representation is a string list.
 *Re-ranked 2026-09-09. The match key was #1 here until it was measured; it is now #4, and
 the reason it moved is worth more than its old position was.*
 
-1. **Boundaries are strings, not nodes.** The concept carries the regulatory pitch and the
-   representation cannot be queried, cannot be an edge endpoint, and forces the coverage
-   statement to recover structure by string-matching. Largest gap between what this schema
-   claims and what the code does — and now the largest open item outright.
+1. ~~**Boundaries are strings, not nodes.**~~ **CLOSED 2026-09-09** (deviation 1 above).
+   `Boundary` is a model: comparable by kind + subject, an edge endpoint via `as_node()`,
+   and queryable beside what it bounds via `attaches_to`. Every number unchanged.
+   **`guard` is now #1 by default, and nothing has measured it.**
 2. **`guard` is a string.** Compared by a four-rule normaliser that stops well short of a
    solver, on purpose — a half-clever normaliser that silently equates two different
    conditions is worse than an honest one that reports a difference. But a string is not a

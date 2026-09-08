@@ -14,6 +14,7 @@ import typer
 
 from lineage import __version__
 from lineage.config import AnalysisConfig
+from lineage.ir.model import Boundary, BoundaryKind
 
 app = typer.Typer(
     help="Phase 0 lineage spike - analyser and scoring harness.",
@@ -129,13 +130,23 @@ def score(
     ground_truth.verify_against(corpus)
 
     predicted: list[PredictedEdge] = []
-    declared: list[str] = []
+    declared: list[Boundary] = []
     if predictions is not None:
         payload = json.loads(predictions.read_text(encoding="utf-8"))
         rows = payload["edges"] if isinstance(payload, dict) else payload
         predicted = [PredictedEdge.model_validate(row) for row in rows]
         if isinstance(payload, dict):
-            declared = payload.get("boundaries", [])
+            # Prose from a JSON prediction file carries no kind or subject, so it
+            # cannot satisfy a structured expectation. Reported as undeclared
+            # rather than assumed satisfied - see ADR-0001 amendment 1d.
+            declared = [
+                Boundary(
+                    kind=BoundaryKind.SOURCE_UNAVAILABLE,
+                    subject=str(item)[:60] or "UNSPECIFIED",
+                    detail=str(item),
+                )
+                for item in payload.get("boundaries", [])
+            ]
 
     typer.echo(render(score_edges(ground_truth, predicted, declared)))
 

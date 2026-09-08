@@ -27,7 +27,7 @@ from lineage.analysis.procedure import analyse_source
 from lineage.config import AnalysisConfig
 from lineage.harness.labels import GroundTruth
 from lineage.harness.scoring import score
-from lineage.ir.model import BoundaryKind, Declared
+from lineage.ir.model import Boundary, BoundaryKind, Node, NodeKind
 from lineage.resolution.dictionary import Dictionary
 
 CORPUS = Path("corpus")
@@ -53,41 +53,66 @@ def _analyse(stem: str, dictionary: Dictionary):
 # --- the carrier ------------------------------------------------------------------------
 
 
-def test_a_declared_boundary_is_still_the_sentence_it_was() -> None:
-    """Fifty-odd consumers treat boundaries as strings; that must keep working."""
-    boundary = Declared(
-        "insert_statement@24: REPORTING.STG_CUSTOMER.CUST_ID (relation not in dictionary)",
+def test_a_boundary_still_reads_as_the_sentence_it_was() -> None:
+    """Reports print boundaries; the prose has to survive the promotion to a node."""
+    boundary = Boundary(
         kind=BoundaryKind.DANGLING_REFERENCE,
         subject="reporting.stg_customer",
+        detail="insert_statement@24: REPORTING.STG_CUSTOMER.CUST_ID (relation not in dictionary)",
     )
-    assert boundary.startswith("insert_statement@24")
-    assert "not in dictionary" in boundary
-    assert boundary == str(boundary)
+    assert str(boundary).startswith("insert_statement@24")
+    assert "not in dictionary" in str(boundary)
+
+
+def test_a_boundary_is_a_graph_endpoint() -> None:
+    """The point of the promotion: lineage can terminate ON a boundary.
+
+    ir-v0 item 1 - the concept carried the regulatory pitch while being unable to be one
+    end of an edge, so "this column is fed by something we were never given" could not be
+    stated in the graph at all.
+    """
+    boundary = Boundary(
+        kind=BoundaryKind.DANGLING_REFERENCE,
+        subject="remote_customer@crm_link",
+        detail="out of coverage",
+    )
+    node = boundary.as_node()
+    assert node.kind is NodeKind.BOUNDARY
+    assert node.name == "DANGLING_REFERENCE:REMOTE_CUSTOMER@CRM_LINK"
+
+
+def test_a_boundary_can_name_the_lineage_it_bounds() -> None:
+    """The other half: queryable beside the thing whose knowledge stops."""
+    bounded = Node(kind=NodeKind.RELATION, name="fct_revenue_part")
+    boundary = Boundary(kind=BoundaryKind.DDL_SEMANTICS, subject="x", detail="y").attached_to(
+        bounded
+    )
+    assert boundary.attaches_to == bounded
+    # Never overwritten - the first caller that knows is the one that knows.
+    assert boundary.attached_to(Node(kind=NodeKind.RELATION, name="other")).attaches_to == bounded
 
 
 def test_the_subject_is_case_insensitive() -> None:
     """The key writes `reporting.stg_customer`; the analyser resolves to upper case."""
-    boundary = Declared("x", kind=BoundaryKind.DANGLING_REFERENCE, subject="reporting.x")
+    boundary = Boundary(kind=BoundaryKind.DANGLING_REFERENCE, subject="reporting.x", detail="x")
     assert boundary.subject == "REPORTING.X"
+    assert boundary.identity() == ("dangling_reference", "REPORTING.X")
 
 
 def test_prefixing_keeps_the_classification() -> None:
-    """An f-string over a Declared silently returns a plain str and drops the structure.
+    """A boundary raised deep in the analysis knows its line and not its unit.
 
-    That is how this axis would quietly become unscoreable again, one interpolation at a
-    time, so decoration goes through `prefixed` instead.
+    A bare line number is not an identity, so the caller that knows the unit qualifies the
+    subject - and the kind must survive that.
     """
-    boundary = Declared("line 26: unreadable", kind=BoundaryKind.PARSE_FAILURE, subject="26")
+    boundary = Boundary(
+        kind=BoundaryKind.PARSE_FAILURE, subject="26", detail="line 26: unreadable", line=26
+    )
     prefixed = boundary.prefixed("MY_UNIT: ", subject_prefix="MY_UNIT:")
 
-    assert prefixed == "MY_UNIT: line 26: unreadable"
+    assert str(prefixed) == "MY_UNIT: line 26: unreadable"
     assert prefixed.kind is BoundaryKind.PARSE_FAILURE
     assert prefixed.subject == "MY_UNIT:26"
-    assert Declared.classified(f"{boundary}") is None  # the bug this method prevents
-
-
-def test_an_unclassified_boundary_is_reported_as_such_not_guessed() -> None:
-    assert Declared.classified("some boundary nobody classified") is None
 
 
 # --- the analyser classifies everything it declares --------------------------------------
@@ -102,7 +127,7 @@ def test_every_boundary_the_corpus_produces_is_classified(dictionary: Dictionary
     unclassified: list[str] = []
     for path in sorted(GROUND_TRUTH.glob("*.yaml")):
         _, result = _analyse(path.stem, dictionary)
-        unclassified += [b for b in result.boundaries if Declared.classified(b) is None]
+        unclassified += [str(b) for b in result.boundaries if not isinstance(b, Boundary)]
 
     assert unclassified == []
 
@@ -145,8 +170,7 @@ def test_the_ungranted_schema_is_declared_after_the_qualifier_fix(
         (kind, subject) for kind, subject, _ in report.boundaries_undeclared
     ]
     assert any(
-        Declared.classified(b) == (BoundaryKind.DANGLING_REFERENCE, "REPORTING.STG_CUSTOMER")
-        for b in result.boundaries
+        b.identity() == ("dangling_reference", "REPORTING.STG_CUSTOMER") for b in result.boundaries
     )
 
 
@@ -171,3 +195,32 @@ def test_the_corpus_wide_gap_is_four_and_they_are_named(dictionary: Dictionary) 
         ("context_dependent_binding", "S2_SCHEMA_CONTEXT:20"),
         ("source_unavailable", "U1_WRAPPED"),
     }
+
+
+# --- what the promotion to a node actually bought ----------------------------------------
+
+
+def test_boundaries_name_the_relations_whose_knowledge_stops(dictionary: Dictionary) -> None:
+    """`orphan_upstream` says nothing in scope writes this, and cannot say why.
+
+    A staging table loaded by an unseen ingestion job and a table fed through a partition
+    exchange the analyser declined to trace look identical from the edge set. Only a
+    boundary that names the relation it bounds separates them - which is the difference
+    between "we did not find a writer" and "we found where the writer went".
+
+    This is the query a string could not answer, and the reason `Boundary` is a node.
+    """
+    from lineage.harness.coverage import build_coverage
+
+    edges = []
+    boundaries = []
+    for path in sorted(GROUND_TRUTH.glob("*.yaml")):
+        _, result = _analyse(path.stem, dictionary)
+        edges += result.edges
+        boundaries += result.boundaries
+
+    coverage = build_coverage(edges, boundaries, dictionary)
+
+    # The partition exchange (s4) and the shared scratch table (s3): both have a boundary
+    # that names them, and both would otherwise be indistinguishable from a staging table.
+    assert coverage.bounded_relations == ["FCT_REVENUE_PART", "TMP_RECENT"]

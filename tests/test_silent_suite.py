@@ -164,7 +164,7 @@ def test_the_reverse_direction_of_the_swap_is_declared(dictionary: Dictionary) -
     than forgotten.
     """
     _, result, _ = _score("s4_partition_exchange", dictionary)
-    assert any("swaps segments both ways" in b for b in result.boundaries)
+    assert any("swaps segments both ways" in b for b in map(str, result.boundaries))
 
 
 def test_a_shape_mismatch_refuses_rather_than_zipping(dictionary: Dictionary) -> None:
@@ -181,7 +181,7 @@ def test_a_shape_mismatch_refuses_rather_than_zipping(dictionary: Dictionary) ->
     )
 
     assert edges == []
-    assert notes and "cannot be bound positionally" in notes[0]
+    assert notes and "cannot be bound positionally" in str(notes[0])
 
 
 # --- s6: updatable views and INSTEAD OF triggers (T3.4c) -------------------------------
@@ -213,7 +213,7 @@ def test_the_join_view_declares_what_a_per_column_mapping_cannot_carry(
     is stated rather than assumed away.
     """
     _, result, _ = _score("s6_updatable_view", dictionary)
-    assert any("row correspondence" in b for b in result.boundaries)
+    assert any("row correspondence" in b for b in map(str, result.boundaries))
 
 
 def test_the_view_resolver_is_idempotent(dictionary: Dictionary) -> None:

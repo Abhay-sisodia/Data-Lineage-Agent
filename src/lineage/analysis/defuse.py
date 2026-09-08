@@ -27,8 +27,8 @@ from sqlglot import exp
 from lineage.analysis.cfg import Cfg, CfgNode, NodeKind
 from lineage.analysis.dynamic import Resolution
 from lineage.ir.model import (
+    Boundary,
     BoundaryKind,
-    Declared,
     Flow,
     IREdge,
     Mechanism,
@@ -273,7 +273,11 @@ def _within_package(ctx: Any, package: str) -> bool:
 @dataclass
 class DefUseResult:
     edges: list[IREdge] = field(default_factory=list)
-    unresolved: list[str] = field(default_factory=list)
+    # Boundary where this module knows the kind, prose where it does not: a def-use
+    # finding about a variable is classified by `procedure._in_unit`, which also knows the
+    # unit that a bare line number needs to become an identity. The union is the honest
+    # type - claiming every entry is already classified would be a lie mypy would believe.
+    unresolved: list[Boundary | str] = field(default_factory=list)
 
 
 def _transform_of(expression: Any) -> Transform:
@@ -484,11 +488,12 @@ def analyse_statement(
         statement: Any = sqlglot.parse_one(text, dialect=DIALECT)
     except Exception:
         result.unresolved.append(
-            Declared(
-                f"line {node.line}: SQLGlot could not parse the statement",
+            Boundary(
                 kind=BoundaryKind.PARSE_FAILURE,
                 # Qualified with the unit by `procedure._in_unit`, which knows it.
                 subject=str(node.line),
+                detail=f"line {node.line}: SQLGlot could not parse the statement",
+                line=node.line,
             )
         )
         return result

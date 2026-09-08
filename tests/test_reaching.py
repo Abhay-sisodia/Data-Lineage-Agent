@@ -143,7 +143,7 @@ def test_conditional_assignment_is_reported_as_partial(dictionary: Dictionary) -
       UPDATE dim_customer SET is_active = 1 WHERE region = v_sql;
     END;
     """
-    boundaries = analyse_source(source, dictionary, AnalysisConfig()).boundaries
+    boundaries = [str(b) for b in analyse_source(source, dictionary, AnalysisConfig()).boundaries]
     partial = [b for b in boundaries if "only assigned on some paths" in b]
     assert partial, "a conditionally assigned variable was reported as unconditional"
     assert "V_SQL" in partial[0]
@@ -152,21 +152,21 @@ def test_conditional_assignment_is_reported_as_partial(dictionary: Dictionary) -
 def test_declaration_default_counts_as_assigned(dictionary: Dictionary) -> None:
     """`v_total NUMBER := 0` is assigned before the first statement runs."""
     source = (BAND1 / "b1_03_loops.sql").read_text(encoding="utf-8")
-    boundaries = analyse_source(source, dictionary, AnalysisConfig()).boundaries
+    boundaries = [str(b) for b in analyse_source(source, dictionary, AnalysisConfig()).boundaries]
     assert not [b for b in boundaries if "V_TOTAL" in b and "read at line" in b]
 
 
 def test_for_loop_index_is_not_uninitialised(dictionary: Dictionary) -> None:
     """The index is defined by the loop header, not by any statement."""
     source = (BAND1 / "b1_03_loops.sql").read_text(encoding="utf-8")
-    boundaries = analyse_source(source, dictionary, AnalysisConfig()).boundaries
+    boundaries = [str(b) for b in analyse_source(source, dictionary, AnalysisConfig()).boundaries]
     assert not [b for b in boundaries if b.strip().startswith("B1_LOOPS: I is read")]
 
 
 def test_parameters_are_not_uninitialised(dictionary: Dictionary) -> None:
     """A parameter is assigned by the caller, outside this CFG."""
     source = (BAND1 / "b1_01_local_variables.sql").read_text(encoding="utf-8")
-    boundaries = analyse_source(source, dictionary, AnalysisConfig()).boundaries
+    boundaries = [str(b) for b in analyse_source(source, dictionary, AnalysisConfig()).boundaries]
     assert not [b for b in boundaries if "P_REGION is read" in b]
 
 
@@ -179,7 +179,7 @@ def test_package_state_is_reported_as_cross_unit_not_wrong(dictionary: Dictionar
     observation harness hit before the calls were run in one session.
     """
     source = (BAND1 / "b1_07_package_variables.sql").read_text(encoding="utf-8")
-    boundaries = analyse_source(source, dictionary, AnalysisConfig()).boundaries
+    boundaries = [str(b) for b in analyse_source(source, dictionary, AnalysisConfig()).boundaries]
 
     # Two boundaries mention this variable: the band-0 analyser declares it as an
     # identifier it could not resolve, and the reaching analysis explains why.
@@ -224,5 +224,5 @@ def test_uninitialised_read_is_reported(dictionary: Dictionary) -> None:
       UPDATE dim_customer SET is_active = 1 WHERE region = v_never;
     END;
     """
-    boundaries = analyse_source(source, dictionary, AnalysisConfig()).boundaries
+    boundaries = [str(b) for b in analyse_source(source, dictionary, AnalysisConfig()).boundaries]
     assert [b for b in boundaries if "V_NEVER" in b and "no assignment reaching it" in b]

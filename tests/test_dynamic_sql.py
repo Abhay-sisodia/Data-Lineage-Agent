@@ -144,7 +144,7 @@ def test_a_runtime_assembled_statement_is_refused_with_a_reason() -> None:
 
 def test_a_refusal_becomes_a_declared_boundary(dictionary: Dictionary) -> None:
     result = _analyse("band2/b2_02_dynamic_concatenated.sql", dictionary)
-    assert any("EXECUTE IMMEDIATE" in entry for entry in result.boundaries)
+    assert any("EXECUTE IMMEDIATE" in str(entry) for entry in result.boundaries)
 
 
 def test_no_edge_is_invented_from_a_refused_statement(dictionary: Dictionary) -> None:
@@ -236,7 +236,7 @@ def test_the_metadata_driven_pipeline_invents_nothing(dictionary: Dictionary) ->
     """The worst case in the corpus must produce a boundary, not a guess."""
     result = _analyse("band2/b2_04_metadata_driven_etl.sql", dictionary)
     assert not [e for e in result.edges if str(e.target) == "variable:V_SQL"]
-    assert any("EXECUTE IMMEDIATE" in entry for entry in result.boundaries)
+    assert any("EXECUTE IMMEDIATE" in str(entry) for entry in result.boundaries)
 
 
 # --- s4: dynamic DDL -------------------------------------------------------------------

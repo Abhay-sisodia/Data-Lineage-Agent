@@ -195,7 +195,7 @@ def test_the_window_travels_with_the_verdict(
     months is a real finding.
     """
     result = _analyse(eu_only, dictionary)
-    assert any("18 months to 2026-09-08" in b for b in result.boundaries)
+    assert any("18 months to 2026-09-08" in b for b in map(str, result.boundaries))
 
 
 def test_a_witness_round_trips_through_its_file_form(tmp_path: Path) -> None:

@@ -19,7 +19,17 @@ from lineage.harness.coverage import (
     build_coverage,
     render,
 )
-from lineage.ir.model import Flow, IREdge, Mechanism, Node, NodeKind, Origin, Tier
+from lineage.ir.model import (
+    Boundary,
+    BoundaryKind,
+    Flow,
+    IREdge,
+    Mechanism,
+    Node,
+    NodeKind,
+    Origin,
+    Tier,
+)
 from lineage.resolution.dictionary import Dictionary
 
 CORPUS = Path("corpus")
@@ -58,7 +68,14 @@ def test_a_dangling_reference_is_counted(dictionary: Dictionary) -> None:
     """
     coverage = build_coverage(
         [],
-        ["insert_statement@20: REMOTE_CUSTOMER@CRM_LINK.CUST_ID (relation not in dictionary)"],
+        [
+            Boundary(
+                kind=BoundaryKind.DANGLING_REFERENCE,
+                subject="remote_customer@crm_link",
+                detail="insert_statement@20: REMOTE_CUSTOMER@CRM_LINK.CUST_ID "
+                "(relation not in dictionary)",
+            )
+        ],
         dictionary,
     )
 
@@ -109,7 +126,13 @@ def test_the_three_signals_do_not_double_count(dictionary: Dictionary) -> None:
     """
     coverage = build_coverage(
         [_edge("STG_ORDERS.CUST_ID", "FCT_REVENUE.CUST_ID")],
-        ["x: REMOTE_CUSTOMER@CRM_LINK.CUST_ID (relation not in dictionary)"],
+        [
+            Boundary(
+                kind=BoundaryKind.DANGLING_REFERENCE,
+                subject="remote_customer@crm_link",
+                detail="x: REMOTE_CUSTOMER@CRM_LINK.CUST_ID (relation not in dictionary)",
+            )
+        ],
         dictionary,
     )
 

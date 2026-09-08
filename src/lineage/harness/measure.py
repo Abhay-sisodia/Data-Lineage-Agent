@@ -37,6 +37,7 @@ from lineage.harness.coverage import (
 from lineage.harness.coverage import render as coverage_render
 from lineage.harness.labels import Flow, GroundTruth
 from lineage.harness.scoring import Counts, score
+from lineage.ir.model import Boundary
 from lineage.parsing.plsql import parse_program
 from lineage.resolution.dictionary import Dictionary
 
@@ -203,7 +204,7 @@ def run_measurement(
     # writer, and asking the question per package would report it as an orphan and
     # manufacture a finding out of how the corpus happens to be split into files.
     all_edges: list = []
-    all_boundaries: list[str] = []
+    all_boundaries: list[Boundary] = []
 
     for path in sorted(ground_truth_dir.glob("*.yaml")):
         truth = GroundTruth.load(path)
@@ -625,6 +626,7 @@ def as_json(measurement: Measurement) -> str:
             "dangling_references": measurement.coverage.dangling_references,
             "orphan_upstream": measurement.coverage.orphan_upstream,
             "untouched_relations": measurement.coverage.untouched_relations,
+            "bounded_relations": measurement.coverage.bounded_relations,
             "views_resolved_through": measurement.coverage.views_resolved_through,
             "tier_distribution": measurement.coverage.tier_distribution,
             "weak_evidence_share": measurement.coverage.weak_evidence_share,

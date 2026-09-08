@@ -45,7 +45,7 @@ from lineage.analysis.refusal import (
 from lineage.config import AnalysisConfig
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
-from lineage.ir.model import BoundaryKind, Declared
+from lineage.ir.model import Boundary, BoundaryKind
 from lineage.parsing.plsql import ParsedStatement, Program, parse_program
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
@@ -72,7 +72,7 @@ CONDITIONAL_EXPRESSIONS = (exp.Case, exp.If)
 class AnalysisResult:
     edges: list[PredictedEdge] = field(default_factory=list)
     refusals: list[Refusal] = field(default_factory=list)
-    boundaries: list[str] = field(default_factory=list)
+    boundaries: list[Boundary] = field(default_factory=list)
     statements_seen: int = 0
 
     @property
@@ -229,7 +229,7 @@ def _trace(
     column: exp.Column,
     scope: Scope,
     dictionary: Dictionary,
-    unresolved: list[str],
+    unresolved: list[Boundary],
     depth: int = 0,
 ) -> list[tuple[str, str, Transform]]:
     """Follow a column reference down to base-table columns.
@@ -283,10 +283,10 @@ def _trace(
             known = dictionary.columns_of(lookup)
         except UnknownObjectError:
             unresolved.append(
-                Declared(
-                    f"{lookup}.{name} (relation not in dictionary)",
+                Boundary(
                     kind=BoundaryKind.DANGLING_REFERENCE,
                     subject=lookup,
+                    detail=f"{lookup}.{name} (relation not in dictionary)",
                 )
             )
             return []
@@ -298,10 +298,10 @@ def _trace(
             # Not a column of this table. Almost always a PL/SQL variable, which is
             # band-1 territory and must be resolved by def-use analysis, not guessed at.
             unresolved.append(
-                Declared(
-                    f"{name} (not a column of {table} - unresolved identifier)",
+                Boundary(
                     kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
                     subject=f"{table}.{name}",
+                    detail=f"{name} (not a column of {table} - unresolved identifier)",
                 )
             )
             return []
@@ -318,10 +318,10 @@ def _trace(
         projection = _projection_named(source, column.name)
         if projection is None:
             unresolved.append(
-                Declared(
-                    f"{column.name.upper()} (no matching projection in subquery)",
+                Boundary(
                     kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
                     subject=column.name.upper(),
+                    detail=f"{column.name.upper()} (no matching projection in subquery)",
                 )
             )
             return []
@@ -333,10 +333,10 @@ def _trace(
         return traced
 
     unresolved.append(
-        Declared(
-            f"{column.name.upper()} (could not resolve which relation it belongs to)",
+        Boundary(
             kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
             subject=column.name.upper(),
+            detail=f"{column.name.upper()} (could not resolve which relation it belongs to)",
         )
     )
     return []
@@ -358,7 +358,7 @@ def _trace_through_set_operation(
     column: exp.Column,
     arms: list[Any],
     dictionary: Dictionary,
-    unresolved: list[str],
+    unresolved: list[Boundary],
     depth: int,
 ) -> list[tuple[str, str, Transform]]:
     """Follow a column into every arm of a UNION / INTERSECT / MINUS.
@@ -381,10 +381,10 @@ def _trace_through_set_operation(
     )
     if position is None:
         unresolved.append(
-            Declared(
-                f"{name} (no matching position in the set operation)",
+            Boundary(
                 kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
                 subject=name,
+                detail=f"{name} (no matching position in the set operation)",
             )
         )
         return []
@@ -394,7 +394,12 @@ def _trace_through_set_operation(
         projections = getattr(arm.expression, "selects", []) or []
         if position >= len(projections):
             unresolved.append(
-                f"{name} (set operation arm has fewer columns than position {position + 1})"
+                Boundary(
+                    kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                    subject=name,
+                    detail=f"{name} (set operation arm has fewer columns than position "
+                    f"{position + 1})",
+                )
             )
             continue
         projection = projections[position]
@@ -455,7 +460,7 @@ def _analyse_insert(
     statement: exp.Insert,
     dictionary: Dictionary,
     band: int,
-    unresolved: list[str],
+    unresolved: list[Boundary],
     origin: Origin,
     summaries: dict[str, Any],
 ) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
@@ -553,7 +558,7 @@ def _call_site_edges(
     origin: Origin,
     summaries: dict[str, Any],
     dictionary: Dictionary,
-    unresolved: list[str],
+    unresolved: list[Boundary],
 ) -> tuple[list[PredictedEdge], bool]:
     """Inline a callee's summary at the call site.
 
@@ -583,9 +588,13 @@ def _call_site_edges(
     if unknown and not called:
         for name in dict.fromkeys(unknown):
             unresolved.append(
-                f"call to {name} could not be summarised - its source is not in this "
-                f"analysis, so the value it supplies is out of coverage rather than "
-                f"derived from the arguments at the call site"
+                Boundary(
+                    kind=BoundaryKind.SOURCE_UNAVAILABLE,
+                    subject=name,
+                    detail=f"call to {name} could not be summarised - its source is not "
+                    f"in this analysis, so the value it supplies is out of coverage "
+                    f"rather than derived from the arguments at the call site",
+                )
             )
         return [], True
 
@@ -638,7 +647,7 @@ def _filter_edges(
     target_name: str,
     band: int,
     dictionary: Dictionary,
-    unresolved: list[str],
+    unresolved: list[Boundary],
     origin: Origin,
 ) -> list[PredictedEdge]:
     """Columns that decide WHICH rows land, rather than what value they carry.
@@ -681,7 +690,7 @@ def _analyse_merge(
     statement: exp.Merge,
     dictionary: Dictionary,
     band: int,
-    unresolved: list[str],
+    unresolved: list[Boundary],
     origin: Origin,
     summaries: dict[str, Any],
 ) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
@@ -869,13 +878,13 @@ def analyse_source(
             prefix = f"{statement.kind}@{statement.line}: "
             entry = (
                 item.prefixed(prefix)
-                if isinstance(item, Declared)
-                else Declared(
-                    f"{prefix}{item}",
+                if isinstance(item, Boundary)
+                else Boundary(
                     kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
                     subject=str(item),
+                    detail=f"{prefix}{item}",
                 )
-            )
+            ).model_copy(update={"unit": unit, "line": statement.line})
             if entry not in result.boundaries:
                 result.boundaries.append(entry)
         if refusal is not None:
@@ -922,8 +931,8 @@ def _analyse_statement(
     band: int,
     origin: Origin,
     summaries: dict[str, Any],
-) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None, list[str]]:
-    unresolved: list[str] = []
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None, list[Boundary]]:
+    unresolved: list[Boundary] = []
     try:
         parsed: Any = sqlglot.parse_one(statement.text, dialect=DIALECT)
     except Exception as exc:
@@ -972,4 +981,20 @@ def _analyse_statement(
 
     # Notes from view inlining are boundaries too - a view left unexpanded means the
     # lineage below it was not reached.
-    return edges, None, unresolved + notes
+    #
+    # View-inlining notes arrive as prose from the resolver; classify them here, where the
+    # reason they exist is still in scope. A view left unexpanded means the lineage below
+    # it was never reached, which is a source that was unavailable to us.
+    return (
+        edges,
+        None,
+        unresolved
+        + [
+            Boundary(
+                kind=BoundaryKind.SOURCE_UNAVAILABLE,
+                subject=str(note).split(" ")[1] if " " in str(note) else str(note),
+                detail=str(note),
+            )
+            for note in notes
+        ],
+    )
