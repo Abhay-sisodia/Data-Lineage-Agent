@@ -1,0 +1,143 @@
+{
+  "boundaries_declared": 71,
+  "cells": {
+    "0/filter": {
+      "false_negatives": 5,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.8837209302325582,
+      "true_positives": 38
+    },
+    "0/value": {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positives": 95
+    },
+    "1/filter": {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.9090909090909091,
+      "true_positives": 20
+    },
+    "1/value": {
+      "false_negatives": 1,
+      "false_positives": 1,
+      "precision": 0.9615384615384616,
+      "recall": 0.9615384615384616,
+      "true_positives": 25
+    },
+    "2/filter": {
+      "false_negatives": 7,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.8055555555555556,
+      "true_positives": 29
+    },
+    "2/value": {
+      "false_negatives": 11,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.6944444444444444,
+      "true_positives": 25
+    }
+  },
+  "evidence_split": {
+    "adjudicated": 21,
+    "observed": 92,
+    "source_read": 145
+  },
+  "execution_axis": {
+    "agreement": 1.0,
+    "compared": 12,
+    "no_execution_evidence": 220,
+    "unexercised_claimed": 6,
+    "witness_window": "V$SQL shared pool, instance up since 2026-09-08 00:59, captured 2026-09-08 01:20"
+  },
+  "forbidden_edges_produced": [],
+  "gate": {
+    "band1_value_precision": 0.9615384615384616,
+    "band1_value_recall": 0.9615384615384616,
+    "precision_floor": 0.95,
+    "recall_floor": 0.85
+  },
+  "guard_accuracy": 1.0,
+  "honest_abstention": {
+    "by_code": {
+      "CONTEXT_DEPENDENT": 3,
+      "SHAPE_NOT_DECIDABLE": 2,
+      "SOURCE_UNAVAILABLE": 1,
+      "UNSUPPORTED_CONSTRUCT": 5
+    },
+    "edges_from_refused_statements": [],
+    "false_abstention_rate": 0.09090909090909091,
+    "false_abstentions": [
+      {
+        "labelled_edges": 1,
+        "package": "s6_updatable_view",
+        "refusal": "TRG_CUSTOMER_EDITABLE:39 [UNSUPPORTED_CONSTRUCT] INSERT ... VALUES carries no column lineage from a relation"
+      }
+    ],
+    "false_abstentions_recovered": 0,
+    "refusals": 11
+  },
+  "kill_criteria": [
+    {
+      "criterion": "Band-1 value precision < 95% -> regulatory positioning dead",
+      "measured": "96.2%",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Band-1 value recall < 85%",
+      "measured": "96.2%",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Parse coverage < 70% on real code -> parser strategy wrong",
+      "measured": "76.1%",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Any edge produced from a refused statement -> the refusal means nothing",
+      "measured": "0 of 11 refusals",
+      "verdict": "PASS"
+    },
+    {
+      "criterion": "Dynamic SQL > 30% of statements AND unrecoverable",
+      "measured": "not yet measured",
+      "verdict": "PENDING"
+    },
+    {
+      "criterion": "Interprocedural analysis does not terminate at a usable depth",
+      "measured": "terminates; recursion and depth cap both declared",
+      "verdict": "PASS"
+    }
+  ],
+  "mechanism_distribution": {
+    "AST": 215,
+    "DEF-USE": 23
+  },
+  "parse_coverage": 0.7608695652173914,
+  "provenance": {
+    "commit": "5b081ee",
+    "config_fingerprint": "eed291d00fb6a073d18f09989752d29d69e737c95e6f1b7911e25cdcb3aaa497",
+    "corpus_fingerprint": "0c1cf179117b8166b182387054d1a16a84a92d1d5bde1971670df28de259d03d",
+    "declared_limits": {
+      "dialect": "oracle",
+      "interprocedural_depth_cap": 6,
+      "log_recovery_enabled": true,
+      "log_statement_truncated_at": 1000,
+      "loop_fixpoint_iteration_cap": 10,
+      "query_log_retention_months": 18,
+      "view_expansion_depth_cap": 10
+    },
+    "dictionary_fingerprint": "8fddc34ebbcb4b1e1fa7a75cd570eed40f5c58d653afa9dfa2d04e29fbc6d9b5",
+    "engine_version": "0.0.0",
+    "measured_at": "2026-09-08T01:27:59+00:00"
+  },
+  "tier_distribution": {
+    "A": 238
+  }
+}
