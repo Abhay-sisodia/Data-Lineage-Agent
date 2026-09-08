@@ -634,7 +634,7 @@ task would be optimising the number rather than closing the case.
 never observed running. That combination is itself a finding, and nobody else reports it."*
 
 - [x] **T3.5a** Model as a separate axis on the IR edge, orthogonal to tier
-- [~] **T3.5b** Populate from observation — an edge whose statement never appeared in a run
+- [x] **T3.5b** Populate from observation — an edge whose statement never appeared in a run
 - [x] **T3.5c** Harness reports the count
 - [x] **T3.5d** `s7_unexercised_branch` produces a Tier A **and** unexercised edge
 
@@ -675,18 +675,50 @@ reason guards do: whether a statement ran is a fact about the *estate*, not abou
 analysis, and letting it move the gate would make the headline number depend on how busy
 last month was.
 
-**T3.5b is blocked, and the block is the honest outcome.** Populating the axis needs
-`V$SQL`, which needs a live Oracle; Docker is not running on this machine.
-`scripts/capture_witness.py` ships complete — module-level attribution only, shape used
-solely to place a statement *within* an already-covered unit, and it **refuses to write an
-empty witness**, because an empty file reads as "nothing ran" rather than "nothing seen".
-The mechanism is proven against a fixture witness in the tests, which is explicitly labelled
-a fixture and not evidence; **no witness for this corpus is committed**, and the measurement
-therefore reports `witness window: NONE SUPPLIED` and 232 edges with no execution evidence.
+### T3.5b — CLOSED against a live database, and it cost four corrections
 
-Current corpus state: **0 unexercised claimed**, and that is correct — the labels assert 27
-unexercised edges from a deliberate observation protocol, and the analyser has been shown
-none of that evidence.
+`evidence/witness.json` is real, captured from `V$SQL` after `scripts/exercise_corpus.py`
+ran 37 procedures under a written protocol. Result: **100% axis agreement on 12 comparable
+edges**, 6 claimed unexercised, 220 with no execution evidence.
+
+**Two scripts, one causal direction.** `exercise_corpus.py` causes executions;
+`capture_witness.py` only reads the log. Merged, the witness would be a record of its own
+footprints and "unexercised" would mean "the capture script did not think to call it".
+
+**The protocol is the evidence.** `s7_unexercised_branch` is called with `'EU'` and nothing
+else — the APAC and YEAR_END arms must stay unexercised, and calling them "to be thorough"
+would destroy the only unexercised evidence in the corpus.
+
+**Four things the live database taught, every one of them by producing a wrong answer
+first.** None was anticipated; all four are now tests.
+
+| # | What happened | Why it is dangerous |
+|---|---|---|
+| 1 | **`V$SQL` is memory, not a log.** Coverage fell 5 units → 1 in six minutes as the pool aged out. | The first script took `--months`. That was fiction: nothing older than the last restart exists to be found. |
+| 2 | **`MODULE`/`ACTION` is sticky.** `s7` set it and never cleared it; every later statement in the session — all of `s8`, all of `sq_*` — is tagged `s7`. | The strongest signal in the ladder credited `s7` with `INSERT INTO fct_product_sales`, which it does not contain. |
+| 3 | **Erasing literals equated different statements.** `TRUNC(d,'YYYY')` matched `TRUNC(d,'MM')`. | It reported `s7`'s YEAR_END arm as **exercised when it had never been called** — destroying the case. |
+| 4 | **DDL is absent from `V$SQL` entirely.** The `EXCHANGE PARTITION` ran and appears nowhere. | `s4` is a silent failure *because* DML-only reading misses the exchange. The witness would then call the movement of a whole regulated dataset **dead code**. |
+
+**And a fifth, which overturned the coverage rule itself.** Every cursor tagged
+`s4_partition_exchange` turned out to belong to `s5`, `s6` or `s7`, while `s4`'s own INSERT
+had aged out seconds after running. So a unit now earns a verdict **only if the pool still
+holds at least one of its statements** — otherwise absence describes the shared pool, not
+the estate. Three units that demonstrably ran are reported as *no verdict* for exactly that
+reason.
+
+**What survives is a two-part rule, and the weaker half does the work.** Coverage comes
+from the action tag (it exists only because that unit executed `SET_MODULE`, so the unit
+really ran). The per-statement sighting comes from **shape matched inside a resident unit**
+— which is precisely where T2.9 left shape after demoting it: a corroborating constraint,
+never an attributor.
+
+**Only 5 of 37 procedures call `DBMS_APPLICATION_INFO` at all.** The blind-spot register
+predicted this exactly, and it caps what this evidence source can ever cover.
+
+**Standing limitation for the verdict.** Every negative this witness produces is bounded by
+an instance uptime measured in minutes. A production capture needs `DBA_HIST_SQLSTAT` (AWR,
+separately licensed) or a scheduled job that persists `V$SQL` before it ages out. That is a
+cost line for phase 1, not a detail.
 
 **The failure this prevents:** the EU path ran 9,120 times and looks strong; the APAC branch
 exists in code, never ran in the window, and looks weak or absent. Demoting it by tier says

@@ -81,6 +81,26 @@ class ExecutionWitness:
     was never seen at all, and nothing about its edges can be concluded.
     """
 
+    unobservable: frozenset[StatementSighting] = field(default_factory=frozenset)
+    """Statements this evidence source cannot see *even inside a covered unit*.
+
+    MEASURED, NOT ANTICIPATED. `V$SQL` does not hold
+    `ALTER TABLE ... EXCHANGE PARTITION` at all - Oracle parses DDL, runs it, and does not
+    keep it as a shareable cursor. `s4_partition_exchange` ran successfully and its
+    exchange appears nowhere in the log.
+
+    Without this field the consequences compound in the worst possible direction. `s4` is a
+    silent-failure case precisely BECAUSE a DML-only reading misses the exchange; the
+    analyser now finds those four edges statically and correctly; and then the witness,
+    seeing a covered unit and no sighting, would stamp them **unexercised** - reporting
+    the movement of an entire regulated dataset as dead code. Two independent blind spots
+    landing on the same statement.
+
+    So coverage is not one question but two: *was the unit seen* and *can this source see
+    a statement of this kind at all*. A negative verdict requires both, and this set
+    records the second.
+    """
+
     note: str | None = None
 
     def covers(self, unit: str) -> bool:
@@ -90,12 +110,17 @@ class ExecutionWitness:
     def ran(self, unit: str, line: int) -> bool | None:
         """Did the statement at (unit, line) execute inside the window?
 
-        `None` when the witness does not cover the unit - the caller must propagate that
-        rather than substituting a default, which is the entire point of the tri-state.
+        `None` when the witness does not cover the unit, and `None` again when the source
+        cannot observe this statement's kind. The caller must propagate that rather than
+        substituting a default, which is the entire point of the tri-state.
         """
         if not self.covers(unit):
             return None
-        return StatementSighting(unit.upper(), line) in self.sightings
+        sighting = StatementSighting(unit.upper(), line)
+        if sighting in self.sightings:
+            return True
+        # Absence is only evidence where presence was possible.
+        return None if sighting in self.unobservable else False
 
     @classmethod
     def load(cls, path: Path) -> ExecutionWitness:
@@ -107,6 +132,10 @@ class ExecutionWitness:
                 for item in payload.get("sightings", [])
             ),
             units=frozenset(unit.upper() for unit in payload.get("units", [])),
+            unobservable=frozenset(
+                StatementSighting(unit=item["unit"].upper(), line=int(item["line"]))
+                for item in payload.get("unobservable", [])
+            ),
             note=payload.get("note"),
         )
 
@@ -118,6 +147,10 @@ class ExecutionWitness:
             "sightings": [
                 {"unit": s.unit, "line": s.line}
                 for s in sorted(self.sightings, key=lambda s: (s.unit, s.line))
+            ],
+            "unobservable": [
+                {"unit": s.unit, "line": s.line}
+                for s in sorted(self.unobservable, key=lambda s: (s.unit, s.line))
             ],
         }
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")

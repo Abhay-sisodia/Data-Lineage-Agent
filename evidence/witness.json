@@ -1,0 +1,19 @@
+{
+  "note": "Units attributed by DBMS_APPLICATION_INFO action; statements confirmed by shape within a covered unit, because MODULE/ACTION is sticky and tags every later statement in the session. A unit absent here is UNCOVERED, not unexercised. A unit earns a verdict only if the pool still holds at least one of its statements; otherwise absence describes the shared pool rather than the estate. Bounded by instance uptime: V$SQL is memory, not a log.",
+  "sightings": [
+    {
+      "line": 26,
+      "unit": "B2_DBMS_SQL"
+    },
+    {
+      "line": 26,
+      "unit": "S7_UNEXERCISED_BRANCH"
+    }
+  ],
+  "units": [
+    "B2_DBMS_SQL",
+    "S7_UNEXERCISED_BRANCH"
+  ],
+  "unobservable": [],
+  "window": "V$SQL shared pool, instance up since 2026-09-08 00:59, captured 2026-09-08 01:20"
+}

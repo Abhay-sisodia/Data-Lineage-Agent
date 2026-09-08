@@ -211,3 +211,95 @@ def test_a_witness_round_trips_through_its_file_form(tmp_path: Path) -> None:
     original.dump(path)
 
     assert ExecutionWitness.load(path) == original
+
+
+# --- what the LIVE database taught this, and what protects against it (T3.5b) ----------
+#
+# Every rule below was written after a real capture produced a wrong answer. They are kept
+# as tests rather than as comments because each one is a property of the evidence SOURCE,
+# and a future source (AWR, a persisted capture job) has to be checked against the same
+# list before it is trusted.
+
+WITNESS = Path("evidence") / "witness.json"
+
+
+def test_the_committed_witness_is_real_and_states_its_window() -> None:
+    """Captured from `V$SQL` after `scripts/exercise_corpus.py`, not hand-written.
+
+    The window is the caveat that travels with every negative it produces: `V$SQL` is the
+    shared pool, so it empties at instance restart and ages out under memory pressure.
+    Nothing older than the last restart exists to be found, whatever the retention setting
+    says.
+    """
+    witness = ExecutionWitness.load(WITNESS)
+
+    assert "V$SQL" in witness.window
+    assert "instance up since" in witness.window
+    assert witness.units
+
+
+def test_the_real_witness_leaves_s7s_unrun_branches_unexercised() -> None:
+    """T3.5d against real evidence rather than a fixture.
+
+    `exercise_corpus.py` calls `s7_unexercised_branch('EU')` and deliberately never calls
+    the APAC or YEAR_END arms - that restraint is the case.
+    """
+    witness = ExecutionWitness.load(WITNESS)
+
+    assert witness.covers("S7_UNEXERCISED_BRANCH")
+    assert witness.ran("S7_UNEXERCISED_BRANCH", 26) is True  # the EU UPDATE
+    assert witness.ran("S7_UNEXERCISED_BRANCH", 32) is False  # APAC
+    assert witness.ran("S7_UNEXERCISED_BRANCH", 40) is False  # YEAR_END
+
+
+def test_a_unit_with_nothing_resident_gets_no_verdict() -> None:
+    """MEASURED, AND IT OVERTURNED THE FIRST RULE.
+
+    Every cursor tagged `s4_partition_exchange` turned out to belong to `s5`, `s6` or `s7`
+    - statements that ran AFTER it in the same session and inherited its sticky action tag
+    - while `s4`'s own INSERT had aged out of the pool seconds after running. Coverage by
+    tag alone would have marked all four exchange edges unexercised: false, and false in
+    the expensive direction.
+
+    If nothing of a unit is resident, absence describes the SHARED POOL, not the estate.
+    """
+    witness = ExecutionWitness.load(WITNESS)
+
+    assert not witness.covers("S4_PARTITION_EXCHANGE")
+    assert witness.ran("S4_PARTITION_EXCHANGE", 51) is None
+
+
+def test_ddl_gets_no_verdict_because_the_source_cannot_see_it() -> None:
+    """`V$SQL` does not hold `ALTER TABLE ... EXCHANGE PARTITION` at all.
+
+    Oracle parses DDL, runs it, and does not keep it as a shareable cursor. Two blind
+    spots would otherwise land on the same statement: `s4` is a silent failure BECAUSE a
+    DML-only reading misses the exchange, and the witness would then report the movement
+    of an entire regulated dataset as dead code.
+    """
+    witness = ExecutionWitness(
+        window="w",
+        units=frozenset({"U"}),
+        sightings=frozenset({StatementSighting("U", 10)}),
+        unobservable=frozenset({StatementSighting("U", 20)}),
+    )
+
+    assert witness.ran("U", 10) is True
+    assert witness.ran("U", 20) is None  # cannot be seen either way
+    assert witness.ran("U", 30) is False  # observable, covered, absent
+
+
+def test_shape_matching_keeps_literals_because_the_literal_is_the_difference() -> None:
+    """The normaliser that erased literals equated two genuinely different statements:
+
+        TRUNC(order_date, 'YYYY')   s7, YEAR_END branch - never called
+        TRUNC(order_date, 'MM')     s8_aggregated_copy  - called
+
+    and with the sticky action tag it reported s7's YEAR_END arm as exercised, destroying
+    the only unexercised evidence in the corpus.
+    """
+    from scripts.capture_witness import shape
+
+    assert shape("SELECT TRUNC(d, 'YYYY') FROM t") != shape("SELECT TRUNC(d, 'MM') FROM t")
+    assert shape("select  a\n  from  t;") == shape("SELECT A FROM T")
+    assert shape("WHERE r = 'EU'") != shape("WHERE r = 'eu'")
