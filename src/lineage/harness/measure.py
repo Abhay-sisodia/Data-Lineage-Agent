@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 from lineage import __version__
+from lineage.analysis.dynamic import resolve_dynamic_sql
 from lineage.analysis.procedure import analyse_source
 from lineage.config import AnalysisConfig
 from lineage.evidence.witness import ExecutionWitness
@@ -35,6 +37,7 @@ from lineage.harness.coverage import (
 from lineage.harness.coverage import render as coverage_render
 from lineage.harness.labels import Flow, GroundTruth
 from lineage.harness.scoring import Counts, score
+from lineage.parsing.plsql import parse_program
 from lineage.resolution.dictionary import Dictionary
 
 # From the spike document. Written before the work started, on purpose.
@@ -42,6 +45,7 @@ GATE_PRECISION = 0.95
 GATE_RECALL = 0.85
 TARGET_PRECISION = 0.98
 MIN_PARSE_COVERAGE = 0.70
+MAX_DYNAMIC_SHARE = 0.30
 
 
 @dataclass
@@ -79,11 +83,33 @@ class Measurement:
     unexercised_unknown: int = 0
     witness_window: str | None = None
     coverage: Coverage = field(default_factory=Coverage)
+    dynamic_sites: int = 0
+    dynamic_recovered: int = 0
+    statements_total: int = 0
     refusals_total: int = 0
     refusal_codes: dict[str, int] = field(default_factory=dict)
     refusal_violations: list[tuple[str, str]] = field(default_factory=list)
     false_abstentions: list[tuple[str, str, int]] = field(default_factory=list)
     false_abstentions_recovered: int = 0
+
+    @property
+    def dynamic_share(self) -> float | None:
+        """Dynamic-SQL sites as a share of all statements the parser located.
+
+        Denominator is EVERY statement, not only the ones an analyser claimed: the kill
+        criterion asks how much of the code is dynamic, which is a property of the estate
+        rather than of our coverage of it.
+        """
+        if not self.statements_total:
+            return None
+        return self.dynamic_sites / self.statements_total
+
+    @property
+    def dynamic_recovered_share(self) -> float | None:
+        """Of those sites, how many yielded a statement we could analyse."""
+        if not self.dynamic_sites:
+            return None
+        return self.dynamic_recovered / self.dynamic_sites
 
     @property
     def unexercised_accuracy(self) -> float | None:
@@ -249,6 +275,9 @@ def run_measurement(
             (path.stem, key, reason) for key, reason in report.forbidden_violations
         ]
 
+    measurement.dynamic_sites, measurement.dynamic_recovered, measurement.statements_total = (
+        _dynamic_sql_census(corpus)
+    )
     measurement.coverage = build_coverage(
         all_edges,
         all_boundaries,
@@ -257,6 +286,42 @@ def run_measurement(
         refusals=measurement.refusals_total,
     )
     return measurement
+
+
+# EXECUTE IMMEDIATE and the DBMS_SQL entry points. Deliberately a text match rather than a
+# grammar rule: the criterion asks how much of the estate is dynamic, and a site the parser
+# choked on is still a dynamic site - counting only the ones we could parse would answer a
+# flattering question instead of the real one.
+_DYNAMIC = re.compile(r"EXECUTE\s+IMMEDIATE|DBMS_SQL\.(PARSE|EXECUTE)", re.IGNORECASE)
+
+
+def _dynamic_sql_census(corpus: Path) -> tuple[int, int, int]:
+    """(dynamic sites, sites recovered, statements) across every corpus file.
+
+    Over the WHOLE corpus, not only the labelled packages: this is a claim about how much
+    PL/SQL is dynamic, which is a property of the code rather than of our answer key.
+    """
+    sites = recovered = statements = 0
+
+    for path in sorted(corpus.rglob("*.sql")):
+        program = parse_program(path.read_text(encoding="utf-8"))
+        statements += len(program.statements)
+
+        found = [s for s in program.statements if _DYNAMIC.search(s.text)]
+        # An `EXECUTE IMMEDIATE` inside an `IF` matches both statements. The innermost one
+        # is the site; counting the enclosing block as a second would inflate the share
+        # this criterion turns on.
+        sites += len(
+            [
+                s
+                for s in found
+                if not any(o is not s and len(o.text) < len(s.text) and o.text in s.text
+                           for o in found)
+            ]
+        )
+        recovered += len(resolve_dynamic_sql(program).statements)
+
+    return sites, recovered, statements
 
 
 def kill_criteria(measurement: Measurement) -> list[tuple[str, str, str]]:
@@ -325,11 +390,21 @@ def kill_criteria(measurement: Measurement) -> list[tuple[str, str, str]]:
         )
     )
 
+    # Measured at last, at T3.8. The criterion is a CONJUNCTION and both halves have to
+    # hold for it to trigger, which matters: half of the dynamic sites in this corpus are
+    # statically unrecoverable, and on its own that reads alarming. It is not the test.
+    # The test is whether dynamic SQL is common enough for that to sink the approach.
+    share = measurement.dynamic_share
+    recovered = measurement.dynamic_recovered_share
     rows.append(
         (
             "Dynamic SQL > 30% of statements AND unrecoverable",
-            "not yet measured",
-            "PENDING",
+            "n/a"
+            if share is None
+            else f"{share * 100:.1f}% of statements, {_pct(recovered)} recovered",
+            "PENDING"
+            if share is None
+            else ("PASS" if share <= MAX_DYNAMIC_SHARE else "TRIGGERED"),
         )
     )
     rows.append(
@@ -506,6 +581,14 @@ def as_json(measurement: Measurement) -> str:
             "weak_evidence_share": measurement.coverage.weak_evidence_share,
             "weak_evidence_ceiling": WEAK_EVIDENCE_CEILING,
             "evidence_story_holds": measurement.coverage.evidence_story_holds,
+        },
+        "dynamic_sql": {
+            "sites": measurement.dynamic_sites,
+            "statements": measurement.statements_total,
+            "share_of_statements": measurement.dynamic_share,
+            "recovered": measurement.dynamic_recovered,
+            "recovered_share": measurement.dynamic_recovered_share,
+            "ceiling": MAX_DYNAMIC_SHARE,
         },
         "execution_axis": {
             "witness_window": measurement.witness_window,

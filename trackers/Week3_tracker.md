@@ -2,7 +2,7 @@
 
 **Companion to** [Phase0_tracker.md](Phase0_tracker.md) and [Week2_tracker.md](Week2_tracker.md).
 
-**Status:** not started · **Created:** 2026-09-06 · **Baseline commit:** `8772b46`
+**Status:** CLOSED 2026-09-08 · **Created:** 2026-09-06 · **Baseline commit:** `8772b46`
 **Entering with:** band-1 value **95.7% / 100%** · 237 tests · 21 label sets, 149 edges
 
 ---
@@ -817,12 +817,38 @@ writer, and asking the question per file would manufacture orphans out of the co
 
 ## T3.7 — IR v0 written down
 
-- [ ] **T3.7a** Schema documented as a straw-man to argue with
-- [ ] **T3.7b** Rationale for keeping `mechanism` and `tier` separate
-- [ ] **T3.7c** **Every deviation from the spike's draft schema explained by something the
+- [x] **T3.7a** Schema documented as a straw-man to argue with
+- [x] **T3.7b** Rationale for keeping `mechanism` and `tier` separate
+- [x] **T3.7c** **Every deviation from the spike's draft schema explained by something the
       corpus actually contained**
 
 **Done when:** the document exists and each deviation is justified by real code, not preference.
+
+### CLOSED — [`docs/ir-v0.md`](../docs/ir-v0.md)
+
+Nine deviations, each naming the package that forced it. **Writing it down found two things
+that reading the code had not.**
+
+**Three of seven node kinds are declared and never used.** `LITERAL`, `BOUNDARY` and
+`PROCEDURE` appear in no edge the analyser emits and in no label — counted, not assumed.
+`LITERAL` is the sharpest case: the corpus forced the *rule* (a literal supplies a value and
+produces **no** edge, because there is no upstream to trace), and that rule needs no node at
+all. It was added in anticipation of a requirement that turned out not to exist, which is
+exactly what a document promising "every field earns its place" has to catch.
+
+**`BOUNDARY` is worse than dead — it is a real schema inconsistency.** The concept carries
+the entire regulatory pitch and the current run declares 71 of them, but they are a list of
+**free-text strings on the analysis result**, not nodes in the graph. So a boundary cannot be
+an edge endpoint, cannot be queried beside the lineage it bounds, and T3.6's coverage
+statement has to recover their structure by string-matching a shared marker constant. That
+is the largest gap between what the schema says and what the code does.
+
+**`mechanism` vs `tier` (T3.7b)** — the two are asked in one breath and answer different
+questions. Mechanism is *how we found it*; tier is *how well it is corroborated*, assigned by
+evidence **type** and never by model confidence. Collapsing them would make `AST` imply Tier A
+permanently, so an AST edge the runtime *contradicts* would still read as the strongest thing
+we have — the exact failure tiering exists to prevent. This run proves the point cheaply:
+mechanism `{AST: 215, DEF-USE: 23}`, tier `{A: 238}`. One field could not say that.
 
 **Deviations to account for so far** (all forced by the corpus, all already implemented):
 
@@ -848,9 +874,9 @@ Written down before the work started, so the result is a measurement rather than
 | Dynamic SQL > 30% **and** unrecoverable | not >30%; recoverability conditional | PARTIAL | |
 | Interprocedural analysis doesn't terminate | terminates, cap declared | PASS | |
 
-- [ ] **T3.8a** Re-evaluate every criterion against the T3.6 run
-- [ ] **T3.8b** Signed one-page verdict
-- [ ] **T3.8c** State the caveats *in the verdict*, not in an appendix
+- [x] **T3.8a** Re-evaluate every criterion against the T3.6 run
+- [x] **T3.8b** Signed one-page verdict
+- [x] **T3.8c** State the caveats *in the verdict*, not in an appendix
 
 **Done when:** each criterion has a measured number beside it and a signed one-page verdict
 exists.
