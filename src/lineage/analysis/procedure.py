@@ -30,6 +30,7 @@ from lineage.analysis.defuse import (
 from lineage.analysis.dynamic import Resolution, resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
+from lineage.analysis.refusal import classify_program
 from lineage.analysis.scratch import find_fusion_hazards
 from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
@@ -56,6 +57,27 @@ def analyse_source(
     summaries = build_summaries(program, dictionary, settings.budgets.interprocedural_depth_cap)
 
     result = band0.analyse_source(source, dictionary, settings, summaries=summaries)
+
+    # The unanalysable-construct classifier (T3.1), run over the whole program rather than
+    # over one module's statement list. A `MODEL` clause is refused whether it appears in a
+    # band-0 INSERT or inside a cursor a band-1 loop drives, and a refusal that depended on
+    # which analyser happened to look first would not be a property of the statement.
+    #
+    # Only flagged statements are counted, and each one costs exactly one statement of
+    # parse coverage. Refusing is never free: a classifier that abstained from everything
+    # would report 0% coverage, not 100% precision.
+    already_refused = {(refusal.unit, refusal.line) for refusal in result.refusals}
+    for refusal in classify_program(program):
+        if (refusal.unit, refusal.line) not in already_refused:
+            result.statements_seen += 1
+            result.refusals.append(refusal)
+            already_refused.add((refusal.unit, refusal.line))
+    for refusal in result.refusals:
+        entry = (
+            f"{refusal.unit}: line {refusal.line} refused [{refusal.code.value}] - {refusal.reason}"
+        )
+        if entry not in result.boundaries:
+            result.boundaries.append(entry)
 
     scopes = collect_scopes(program)
     graphs = build_all(program)

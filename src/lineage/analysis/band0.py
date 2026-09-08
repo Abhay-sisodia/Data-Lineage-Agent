@@ -33,6 +33,14 @@ from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import Scope, build_scope
 
 from lineage.analysis.dynamic import resolve_dynamic_sql
+from lineage.analysis.refusal import (
+    Refusal,
+    RefusalCode,
+    classify_statement,
+    conditional_compilation_spans,
+    last_line,
+    violations,
+)
 from lineage.config import AnalysisConfig
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
@@ -58,20 +66,6 @@ AGGREGATE_FUNCTIONS = (exp.Sum, exp.Count, exp.Avg, exp.Min, exp.Max, exp.AggFun
 CONDITIONAL_EXPRESSIONS = (exp.Case, exp.If)
 
 
-@dataclass(frozen=True)
-class Refusal:
-    """A statement the analyser declined to interpret.
-
-    The classifier that says "I cannot resolve this" is itself a deliverable. A refusal
-    is a declared boundary; a silent omission is a hole.
-    """
-
-    kind: str
-    line: int
-    reason: str
-    excerpt: str
-
-
 @dataclass
 class AnalysisResult:
     edges: list[PredictedEdge] = field(default_factory=list)
@@ -82,6 +76,17 @@ class AnalysisResult:
     @property
     def statements_analysed(self) -> int:
         return self.statements_seen - len(self.refusals)
+
+    def refusal_violations(self) -> list[tuple[Refusal, list[PredictedEdge]]]:
+        """Flagged statements that produced edges anyway (T3.1c). Must be empty."""
+        return violations(self.refusals, self.edges)
+
+    def refusal_codes(self) -> dict[str, int]:
+        """How many refusals of each kind. The taxonomy is closed so this is comparable."""
+        counts: dict[str, int] = {}
+        for refusal in self.refusals:
+            counts[refusal.code.value] = counts.get(refusal.code.value, 0) + 1
+        return counts
 
     @property
     def parse_coverage(self) -> float | None:
@@ -402,28 +407,32 @@ def _analyse_insert(
     unresolved: list[str],
     origin: Origin,
     summaries: dict[str, Any],
-) -> tuple[list[PredictedEdge], str | None]:
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
     target_name, target_columns = _target_of(statement, dictionary)
 
     select = statement.expression
     if not isinstance(select, exp.Select):
-        return [], "INSERT ... VALUES carries no column lineage from a relation"
+        return [], (
+            RefusalCode.UNSUPPORTED_CONSTRUCT,
+            "INSERT ... VALUES carries no column lineage from a relation",
+        )
 
     scope = build_scope(select)
     if scope is None:
-        return [], "could not build a scope for the SELECT"
+        return [], (RefusalCode.PARSE_FAILED, "could not build a scope for the SELECT")
 
     if target_columns is None:
         try:
             target_columns = dictionary.columns_of(target_name)
         except UnknownObjectError as exc:
-            return [], str(exc)
+            return [], (RefusalCode.NAME_NOT_RESOLVED, str(exc))
 
     projections = select.selects
     if len(projections) != len(target_columns):
         return [], (
+            RefusalCode.SHAPE_NOT_DECIDABLE,
             f"projection/target arity mismatch: {len(projections)} selected into "
-            f"{len(target_columns)} columns"
+            f"{len(target_columns)} columns",
         )
 
     edges: list[PredictedEdge] = []
@@ -624,7 +633,7 @@ def _analyse_merge(
     unresolved: list[str],
     origin: Origin,
     summaries: dict[str, Any],
-) -> tuple[list[PredictedEdge], str | None]:
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
     """MERGE has multiple targets and conditional arms inside one statement.
 
     The arms are analysed separately: collapsing them would lose which source populates
@@ -635,13 +644,13 @@ def _analyse_merge(
 
     using = statement.args.get("using")
     if using is None:
-        return [], "MERGE without a USING clause"
+        return [], (RefusalCode.UNSUPPORTED_CONSTRUCT, "MERGE without a USING clause")
 
     # Build a scope over the USING source so its projections can be traced.
     wrapper = exp.Select().select(exp.Star()).from_(using)
     scope = build_scope(wrapper)
     if scope is None:
-        return [], "could not build a scope for the MERGE source"
+        return [], (RefusalCode.PARSE_FAILED, "could not build a scope for the MERGE source")
 
     whens = statement.args.get("whens")
     when_clauses = getattr(whens, "expressions", whens) or []
@@ -727,11 +736,60 @@ def analyse_source(
     recovered = [(statement, 2) for statement in dynamic.statements]
     static = [(statement, band) for statement in program.statements]
 
+    # `$IF` poisons the statements around it rather than itself, so the span is computed
+    # once here and every statement inside it is refused. Measured, not assumed: without
+    # this the analyser emitted edges for BOTH arms of `u1_conditional_compilation` - two
+    # contradictory answers, each stated as fact, and only one of them is in the compiled
+    # unit.
+    ccflag_spans = conditional_compilation_spans(source)
+
     for statement, statement_band in static + recovered:
         if statement.kind not in SUPPORTED:
             continue
         result.statements_seen += 1
-        origin = Origin(unit=_enclosing_unit(program, statement), line=statement.line)
+        unit = _enclosing_unit(program, statement)
+        origin = Origin(unit=unit, line=statement.line)
+
+        # The classifier gates the analyser rather than auditing it (T3.1). Checking
+        # afterwards would mean the guessed edge had already been built, and something
+        # would have to remember to throw it away. Found by measurement: `CONNECT BY`
+        # parsed cleanly and emitted three `x -> x` self-edges, which look entirely
+        # ordinary next to a real projection.
+        conditional = next(
+            (span for span in ccflag_spans if span[0] <= statement.line <= span[1]), None
+        )
+        if conditional is not None:
+            result.refusals.append(
+                Refusal(
+                    kind=statement.kind,
+                    line=statement.line,
+                    reason=f"inside the conditional-compilation block at line "
+                    f"{conditional[0]} - which arm is compiled depends on PLSQL_CCFLAGS, "
+                    f"so claiming this statement's edges would state one of several "
+                    f"possible programs as fact",
+                    excerpt=" ".join(statement.text.split())[:80],
+                    code=RefusalCode.CONTEXT_DEPENDENT,
+                    unit=unit,
+                    end_line=last_line(statement),
+                )
+            )
+            continue
+
+        construct = classify_statement(statement.text)
+        if construct is not None:
+            result.refusals.append(
+                Refusal(
+                    kind=statement.kind,
+                    line=statement.line,
+                    reason=construct.reason,
+                    excerpt=" ".join(statement.text.split())[:80],
+                    code=construct.code,
+                    unit=unit,
+                    end_line=last_line(statement),
+                )
+            )
+            continue
+
         edges, refusal, unresolved = _analyse_statement(
             statement, dictionary, settings, statement_band, origin, known_calls
         )
@@ -743,12 +801,16 @@ def analyse_source(
             if entry not in result.boundaries:
                 result.boundaries.append(entry)
         if refusal is not None:
+            code, reason = refusal
             result.refusals.append(
                 Refusal(
                     kind=statement.kind,
                     line=statement.line,
-                    reason=refusal,
+                    reason=reason,
                     excerpt=" ".join(statement.text.split())[:80],
+                    code=code,
+                    unit=unit,
+                    end_line=last_line(statement),
                 )
             )
             continue
@@ -782,12 +844,16 @@ def _analyse_statement(
     band: int,
     origin: Origin,
     summaries: dict[str, Any],
-) -> tuple[list[PredictedEdge], str | None, list[str]]:
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None, list[str]]:
     unresolved: list[str] = []
     try:
         parsed: Any = sqlglot.parse_one(statement.text, dialect=DIALECT)
     except Exception as exc:
-        return [], f"SQLGlot could not parse: {str(exc).splitlines()[0]}", unresolved
+        return (
+            [],
+            (RefusalCode.PARSE_FAILED, f"SQLGlot could not parse: {str(exc).splitlines()[0]}"),
+            unresolved,
+        )
 
     parsed, notes = _inline_views(parsed, dictionary, config.budgets.view_expansion_depth_cap)
 
@@ -800,14 +866,28 @@ def _analyse_statement(
             infer_schema=True,
         )
     except Exception as exc:
-        return [], f"could not qualify names: {str(exc).splitlines()[0]}", unresolved
+        return (
+            [],
+            (
+                RefusalCode.NAME_NOT_RESOLVED,
+                f"could not qualify names: {str(exc).splitlines()[0]}",
+            ),
+            unresolved,
+        )
 
     if isinstance(parsed, exp.Insert):
         edges, refusal = _analyse_insert(parsed, dictionary, band, unresolved, origin, summaries)
     elif isinstance(parsed, exp.Merge):
         edges, refusal = _analyse_merge(parsed, dictionary, band, unresolved, origin, summaries)
     else:
-        return [], f"unsupported statement type {type(parsed).__name__}", unresolved
+        return (
+            [],
+            (
+                RefusalCode.UNSUPPORTED_CONSTRUCT,
+                f"unsupported statement type {type(parsed).__name__}",
+            ),
+            unresolved,
+        )
 
     if refusal is not None:
         return [], refusal, unresolved

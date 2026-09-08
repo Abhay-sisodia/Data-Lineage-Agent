@@ -66,6 +66,24 @@ class Measurement:
     spurious: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     missed: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     forbidden: list[tuple[str, tuple[str, ...], str]] = field(default_factory=list)
+    refusals_total: int = 0
+    refusal_codes: dict[str, int] = field(default_factory=dict)
+    refusal_violations: list[tuple[str, str]] = field(default_factory=list)
+    false_abstentions: list[tuple[str, str, int]] = field(default_factory=list)
+    false_abstentions_recovered: int = 0
+
+    @property
+    def false_abstention_rate(self) -> float | None:
+        """Refusals the ground truth says were analysable, over all refusals (T3.1d).
+
+        The other half of the honesty measure. Refusing too little is a silent guess and
+        shows up as a false positive; refusing too much shows up nowhere at all unless
+        this number exists, because the score IMPROVES when the hard statements stop
+        competing.
+        """
+        if not self.refusals_total:
+            return None
+        return len(self.false_abstentions) / self.refusals_total
 
     def cell(self, band: int, flow: Flow) -> Counts:
         return self.cells.get((band, flow.value), Counts(0, 0, 0))
@@ -162,6 +180,35 @@ def run_measurement(
         for kind, count in report.evidence_split.items():
             measurement.evidence_split[kind] = measurement.evidence_split.get(kind, 0) + count
 
+        # T3.1c and T3.1d, both mechanical, both scored against the same refusal list.
+        #
+        # A violation is a flagged statement that produced an edge anyway - the classifier
+        # said one thing and the analyser did another, and the packet would carry the edge.
+        # A false abstention is a flagged statement the ANSWER KEY has edges for, which
+        # makes the ground truth the referee here exactly as it is everywhere else.
+        measurement.refusals_total += len(result.refusals)
+        for code, count in result.refusal_codes().items():
+            measurement.refusal_codes[code] = measurement.refusal_codes.get(code, 0) + count
+        measurement.refusal_violations += [
+            (path.stem, f"{refusal} -> {len(edges)} edge(s) emitted anyway")
+            for refusal, edges in result.refusal_violations()
+        ]
+
+        produced = {(edge.origin.unit, edge.origin.line) for edge in result.edges}
+        for refusal in result.refusals:
+            labelled = [
+                edge for edge in truth.edges if refusal.covers(edge.origin.unit, edge.origin.line)
+            ]
+            if not labelled:
+                continue
+            measurement.false_abstentions.append((path.stem, str(refusal), len(labelled)))
+            # Another analyser may have produced the edges regardless - band 0 refusing an
+            # `INSERT ... VALUES` that def-use then resolves through a variable, say. That
+            # is a real recovery and it is counted separately rather than netted off,
+            # because the refusal was still wrong and the next statement may not be so lucky.
+            if any(refusal.covers(unit, line) for unit, line in produced):
+                measurement.false_abstentions_recovered += 1
+
         measurement.spurious += [(path.stem, key) for key in report.spurious_edges]
         measurement.missed += [(path.stem, key) for key in report.missed_edges]
         measurement.forbidden += [
@@ -208,6 +255,17 @@ def kill_criteria(measurement: Measurement) -> list[tuple[str, str, str]]:
             "PENDING"
             if coverage is None
             else ("PASS" if coverage >= MIN_PARSE_COVERAGE else "TRIGGERED"),
+        )
+    )
+
+    # Not a percentage to maximise. Zero or it failed - a 97% honest-abstention rate is a
+    # failure, not an A-minus, because the 3% are edges asserted from statements the
+    # analyser had already said it could not read.
+    rows.append(
+        (
+            "Any edge produced from a refused statement -> the refusal means nothing",
+            f"{len(measurement.refusal_violations)} of {measurement.refusals_total} refusals",
+            "PASS" if not measurement.refusal_violations else "TRIGGERED",
         )
     )
 
@@ -279,6 +337,24 @@ def render(measurement: Measurement) -> str:
     lines.append(f"  boundaries declared    {measurement.boundaries_declared}")
 
     lines.append("")
+    lines.append("HONEST ABSTENTION  (T3.1 - pass/fail, never traded against the gate)")
+    lines.append(f"  refusals               {measurement.refusals_total}")
+    lines.append(f"  by code                {measurement.refusal_codes or '-'}")
+    lines.append(
+        f"  edges from refused     {len(measurement.refusal_violations)}"
+        "   <- must be 0; checked mechanically, not by inspection"
+    )
+    lines.append(
+        f"  false abstentions      {len(measurement.false_abstentions)}"
+        f"  ({_pct(measurement.false_abstention_rate)} of refusals)"
+        f"   {measurement.false_abstentions_recovered} recovered elsewhere"
+    )
+    for package, refusal, count in measurement.false_abstentions:
+        lines.append(f"    {package:<28} {refusal[:88]}  ({count} labelled edge(s))")
+    for package, detail in measurement.refusal_violations:
+        lines.append(f"    VIOLATION {package:<20} {detail[:88]}")
+
+    lines.append("")
     lines.append("LABEL PROVENANCE  (what the answer key itself rests on)")
     for kind, count in sorted(measurement.evidence_split.items()):
         lines.append(f"  {kind:<22} {count}")
@@ -341,6 +417,20 @@ def as_json(measurement: Measurement) -> str:
         "mechanism_distribution": measurement.mechanism_distribution,
         "evidence_split": measurement.evidence_split,
         "boundaries_declared": measurement.boundaries_declared,
+        "honest_abstention": {
+            "refusals": measurement.refusals_total,
+            "by_code": measurement.refusal_codes,
+            "edges_from_refused_statements": [
+                {"package": package, "detail": detail}
+                for package, detail in measurement.refusal_violations
+            ],
+            "false_abstentions": [
+                {"package": package, "refusal": refusal, "labelled_edges": count}
+                for package, refusal, count in measurement.false_abstentions
+            ],
+            "false_abstention_rate": measurement.false_abstention_rate,
+            "false_abstentions_recovered": measurement.false_abstentions_recovered,
+        },
         "forbidden_edges_produced": [
             {"package": package, "edge": list(edge), "reason": " ".join(reason.split())}
             for package, edge, reason in measurement.forbidden

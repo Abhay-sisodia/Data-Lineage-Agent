@@ -248,12 +248,12 @@ fix the number — it made three untestable failures testable.
 *The spike calls this out as a deliverable in its own right: "the classifier that says 'I
 cannot resolve this construct' is itself a deliverable. never emit a guessed edge."*
 
-- [ ] **T3.1a** Enumerate the refusal taxonomy — one code per reason, closed list
-- [ ] **T3.1b** Detect and declare every construct in the corpus the analyser cannot resolve
-- [ ] **T3.1c** **Cross-check flags against emitted edges** — zero edges may exist for any
+- [x] **T3.1a** Enumerate the refusal taxonomy — one code per reason, closed list
+- [x] **T3.1b** Detect and declare every construct in the corpus the analyser cannot resolve
+- [x] **T3.1c** **Cross-check flags against emitted edges** — zero edges may exist for any
       statement the classifier flagged
-- [ ] **T3.1d** Measure the false-abstention rate: statements refused that were analysable
-- [ ] **T3.1e** Loud-failure constructs from the register get explicit refusals, not crashes:
+- [x] **T3.1d** Measure the false-abstention rate: statements refused that were analysable
+- [x] **T3.1e** Loud-failure constructs from the register get explicit refusals, not crashes:
       `MODEL`, `PIVOT` with a subquery column list, `MATCH_RECOGNIZE`, `CONNECT BY`,
       conditional compilation, `XMLTABLE`/`JSON_TABLE`, wrapped PL/SQL
 
@@ -267,6 +267,72 @@ assert the edge set produced from it is empty.
 
 **Watch for the two-sided failure.** Refusing too little is a silent guess. Refusing too much
 is a quiet recall collapse that *looks* like discipline. Both need a number.
+
+### CLOSED — commit `t3.1`, `measurements/t3_1_refusals.json`
+
+**Result.** 11 refusals across the corpus in 4 codes · **0 edges from any refused
+statement** · **1 false abstention (9.1%)** · gate unchanged at **96.2% / 96.2%** ·
+375 tests (was 346).
+
+| | |
+|---|---|
+| Taxonomy | 9 codes, each with a written meaning a test asserts exists |
+| Corpus | new package `u1_loud_constructs.sql` — 7 constructs, 1 control, 1 key |
+| Coverage | **94.3% → 75.6%**, and that fall is the design working |
+
+**Parse coverage fell 19 points and that is the deliverable, not a regression.** Refusing
+is never free: every classifier refusal counts one more statement seen and one fewer
+analysed. A classifier that abstained from everything would report 0% coverage rather than
+100% precision. The floor is 70% and the number now sits 5.6 points above it — worth
+saying plainly, because the next construct added to the register costs coverage too.
+
+**Three defects the classifier found in the analyser, all by measurement:**
+
+1. **`CONNECT BY` emitted three `x -> x` self-edges.** It parses cleanly, so the analyser
+   walked the select list and produced edges that look exactly like an ordinary projection.
+   One of them was `CONNECT_BY_ROOT root_name -> root_name [identity]`, where identity is
+   the one transform class it certainly is not. This is why the classifier **gates** band 0
+   rather than auditing it afterwards: an audit means the guessed edge was already built
+   and something has to remember to throw it away.
+2. **Conditional compilation emitted BOTH arms.** Two contradictory answers, each stated as
+   fact, and nothing in the file says which one is in the compiled unit — `PLSQL_CCFLAGS`
+   decides that at compile time. `$IF` is the one construct here that poisons its
+   *neighbours* rather than itself, so it is refused as a line span.
+3. **Wrapped PL/SQL was invisible to a statement-level pass.** It produces no statement at
+   all, which is backwards — failing to parse is *more* reason to refuse, not less. Hence
+   the source-level sweep. It also derails the grammar for every unit declared after it,
+   which is why `u1`'s control sits above the wrapped body: with the control below it, the
+   file proved nothing.
+
+**One design decision reversed by the corpus.** The first draft of the construct list
+refused any statement touching a DB link. `b2_06` refuted it: the local half of
+`INSERT INTO dim_customer ... FROM remote_customer@crm_link` is fully provable — target
+columns, projection and filter are all in the local text — and refusing it would have
+destroyed seven labelled edges to buy nothing. **A remote reference is a boundary node, not
+a refused statement.** `REMOTE_OBJECT` stays in the taxonomy with that written into it.
+
+**The one false abstention is real and is left standing.** `s6`'s
+`INSERT ... VALUES (:NEW.cust_id, USER, SYSDATE)` is refused by band 0 at line 39, and the
+key has an edge there. The trigger analyser *does* produce that edge — but at a
+body-relative origin line, so the harness cannot see the recovery and reports
+`0 recovered`. Two analysers numbering lines against different origins is a modelling seam,
+not a scoring bug, and it is recorded rather than papered over.
+
+**`end_line` exists because the first version of the metric read 0.0%.** A refusal is
+recorded at the line a statement *starts* on; a labelled edge carries the line its own
+expression sits on. `b2_06` labels four projections at lines 21, 22 and 24 of a statement
+beginning at line 20. Addressing a refusal by its first line alone made both T3.1 checks
+silently vacuous.
+
+**Also new:** a sixth kill criterion — *any edge produced from a refused statement* —
+evaluated as pass/fail rather than as a percentage. A 97% honest-abstention rate is a
+failure, not an A-minus.
+
+**Recurring theme, sixth instance.** `u1` has two named wrong answers that cannot be
+written down: the `$ELSE` arm and the naive `XMLTABLE` binding are both character for
+character the control's required edge, differing only in origin. After `s2`, `b2_05`,
+`b1_09` (origin) and `b1_03`, `s7` (guard), this is the strongest case yet for amending the
+match key — here the right and wrong answers come from the same analyser on the same run.
 
 ---
 

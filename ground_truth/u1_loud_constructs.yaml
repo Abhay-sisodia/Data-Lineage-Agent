@@ -1,0 +1,167 @@
+# Ground truth for adversarial/unanalysable/u1_loud_constructs.sql
+#
+# PARSE-ONLY. Nothing here is compiled - MODEL, MATCH_RECOGNIZE and XMLTABLE all reference
+# shapes the seed schema does not carry, and the point of the file is what the analyser
+# SAYS about them rather than what the database does with them. Every label is source_read.
+#
+# THIS KEY IS MOSTLY BOUNDARIES, AND THAT IS THE DELIVERABLE. Seven of the eight procedures
+# must produce nothing at all. An answer key whose main assertion is an absence sounds
+# weak, so it is worth being exact about what is being asserted: not "we found nothing
+# here", which is what a broken analyser also reports, but "we named the construct, gave
+# it a code, and emitted no edge from its line" - which a broken analyser cannot fake.
+#
+# The two halves are scored by different machinery on purpose. The edges below are scored
+# like any other package's. The refusals are scored by the cross-check in T3.1c: for every
+# flagged statement, the edge set produced from it must be empty. Neither check subsumes
+# the other, and a package that passed one while failing the other would look fine.
+
+package: adversarial/unanalysable/u1_loud_constructs.sql
+source_sha256: bde2289d0f1c0f71e9adb6311015f64a6ea8da25451335005bc501fa09bf9690
+labelled_by: claude+abhay (source_read - the package is parse-only by design)
+labelled_at: "2026-09-08"
+
+note: >
+  Seven constructs, seven refusals, and one control that must survive them. The control is
+  the half of this file that can go wrong quietly: refusing too much reads as discipline
+  and shows up only as recall that nobody attributes to the classifier.
+
+edges:
+  # --- THE CONTROL, and the only lineage this file legitimately carries ----------------
+  #
+  # u1_control is an ordinary INSERT ... SELECT. Six refused procedures sit above it and
+  # a wrapped body below it, and none of that may cost it a single edge.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: U1_CONTROL, line: 125}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: U1_CONTROL, line: 125}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: U1_CONTROL, line: 128}
+    evidence: source_read
+    unexercised: true
+
+  # --- trigger side effects, inherited from the control's write to tmp_recent ----------
+  #
+  # trg_recent_audit fires on the control's INSERT, exactly as it does in every other
+  # package that writes tmp_recent. Included because omitting it here would let this file
+  # score well while the analyser had quietly stopped inheriting triggers.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 18}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 19}
+    evidence: source_read
+    unexercised: true
+
+# THE NAMED WRONG ANSWERS.
+#
+# Every construct here parses into something that LOOKS like an ordinary projection, which
+# is why refusing them has to be deliberate. Three of the four below were measured, not
+# imagined - the analyser produced them before the classifier gated it.
+
+forbidden:
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    flow: value
+    transform: identity
+    reason: >
+      MEASURED. Before the classifier gated the analyser, CONNECT BY produced three
+      self-edges exactly like this one. It is indistinguishable from a legitimate
+      self-referential copy, and it is wrong: the row it copies from is at an arbitrary
+      depth in a hierarchy the statement walks at runtime, so "cust_id came from cust_id"
+      states a one-hop fact about an unbounded traversal.
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    transform: identity
+    reason: >
+      MEASURED, and worse than the one above. CONNECT_BY_ROOT root_name returns the value
+      from the top of the tree, not from this row. Identity is the one transform class it
+      certainly is not, and ADR-0001 4 makes a wrong transform class a MISS rather than a
+      near miss.
+
+  - source: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: identity
+    reason: >
+      The MODEL clause's select list says net_amount, and the rule beneath it says
+      net_amount[ANY] = net_amount[CV(period_month)] * 1.1. Reading the projection and
+      stopping there gives an edge with the right endpoints and the wrong transform - the
+      most dangerous shape a false positive can take, because the endpoints are what a
+      reviewer checks.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DW_AUDIT_LOG.CUST_ID}
+    flow: value
+    transform: identity
+    reason: >
+      MEASURED. The $IF arm of u1_conditional_compilation. The analyser emitted BOTH arms
+      before spans were refused, which is two contradictory answers stated as fact - and
+      the file cannot say which one exists in the compiled unit, because PLSQL_CCFLAGS
+      decides that and it is not in the file.
+
+# TWO WRONG ANSWERS THAT CANNOT BE WRITTEN DOWN, AND THE REASON IS THE FINDING.
+#
+# The $ELSE arm of the conditional compilation is
+#     STG_CUSTOMER.CUST_ID -> TMP_RECENT.CUST_ID [value/identity]
+# and so is the naive reading of the XMLTABLE, which binds x.cust_id straight back to the
+# table in the same FROM clause. Both are character for character the CONTROL's required
+# edge, differing only in origin - line 96 or line 110 rather than line 125.
+#
+# The label validator rejects a key that both requires and forbids the same edge, correctly:
+# such a package is unscoreable in a way no number reveals. So they are recorded here.
+#
+# This is now the SIXTH package to say the v0 match key is under-specified - after s2,
+# b2_05, b1_09 (origin) and b1_03, s7 (guard). It is the strongest instance yet, because
+# here the right answer and the wrong answer are produced by the same analyser on the same
+# run and only the line number separates them.
+
+boundaries:
+  - "U1_MODEL_CLAUSE: line 31 refused [UNSUPPORTED_CONSTRUCT] - MODEL clause"
+  - "U1_MATCH_RECOGNIZE: line 48 refused [UNSUPPORTED_CONSTRUCT] - MATCH_RECOGNIZE"
+  - "U1_PIVOT_SUBQUERY: line 68 refused [SHAPE_NOT_DECIDABLE] - PIVOT with a subquery column list"
+  - "U1_HIERARCHICAL: line 79 refused [UNSUPPORTED_CONSTRUCT] - CONNECT BY"
+  - "U1_CONDITIONAL_COMPILATION: lines 95-101 refused [CONTEXT_DEPENDENT] - $IF block, both arms"
+  - "U1_XMLTABLE: line 110 refused [SHAPE_NOT_DECIDABLE] - XMLTABLE"
+  - "U1_WRAPPED: line 136 refused [SOURCE_UNAVAILABLE] - wrapped PL/SQL"
+  - "U1_WRAPPED: the wrapped blob is not valid PL/SQL, so the grammar derails on it and every unit declared after it is lost - which is why the control sits above it"
