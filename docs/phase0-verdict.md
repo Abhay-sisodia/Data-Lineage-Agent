@@ -158,6 +158,21 @@ one package than from a quarter of engineering.
 Second, in order: **decide the match key** (deviation 2 in `docs/ir-v0.md`), because it
 moves every number and every month of delay makes it more expensive.
 
+> **Addendum, 2026-09-09 — the second item is now decided, and the answer was no.**
+> The verdict body above is left exactly as signed; this note records what happened next.
+>
+> The match key was measured rather than argued (ADR-0001 amendment 1b). **Putting origin in
+> it was rejected**: it caught no fabrication and cost five false positives, because
+> multi-unit origin is the normal output of interprocedural summarisation and trigger
+> inheritance. The guard half of the residual was already closed by amendment 1a. **Every
+> number in this verdict is unchanged** — the measurement was re-run and every cell is
+> identical.
+>
+> So caveat 7 below stands but shrinks: the hole is real and **latent**, not live, and the
+> fix is a direct origin assertion in the *label* format rather than a match-key change.
+> **The condition on the GO — one real production package — is unaffected and still
+> outstanding.** It is now the only thing ahead of feature work.
+
 ---
 
 ## Signed

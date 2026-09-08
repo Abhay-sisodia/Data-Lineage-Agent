@@ -2,6 +2,8 @@
 
 **Date:** 2026-09-08 · **Status:** straw-man, argue with it · **Task:** T3.7
 **Measured against:** `measurements/t3_6_full_run.json` — 36 packages, 258 labelled edges
+**Reconciled:** 2026-09-09 — deviation 2 and the "most likely wrong" ranking, against
+ADR-0001 amendment 1b. The document was argued with, as intended, and lost.
 
 The IR is the compounding asset. A new source dialect becomes a new parser rather than a
 rewrite; when migration becomes a product, transpilation is IR out to a target dialect.
@@ -147,14 +149,35 @@ purely on phrasing — `P_REGION <> 'EU'` against `NOT (p_region = 'EU')`.
 for 160 of 170 matched edges but on the *line* for only 12. Requiring line would collapse
 recall for a reason unrelated to lineage being right.
 
-**The residual cost, stated rather than hidden.** Six packages now need something the v0
-match key deliberately does not carry — `s2`, `b2_05`, `b1_09` need origin; `b1_03`, `s7`
-need guard; `u1_loud_constructs` needs origin twice over, where the `$ELSE` arm and the
-naive `XMLTABLE` binding are character for character the *control's required edge*. **This
-is the strongest open argument against the schema as it stands**, and v1 should probably
-carry origin in the key with a unit-level comparison. It is not changed here because
-changing the match key changes every number in the phase, and that is a decision to take
-deliberately rather than in passing.
+**The residual cost, stated rather than hidden.** Six packages need something the v0 match
+key deliberately does not carry — `s2`, `b2_05`, `b1_09` need origin; `b1_03`, `s7` need
+guard; `u1_loud_constructs` needs origin twice over, where the `$ELSE` arm and the naive
+`XMLTABLE` binding are character for character the *control's required edge*.
+
+> **Reconciled 2026-09-09 — half of this residual was already closed, and the other half
+> does not close the way this section proposed.** Both corrections come from measurement,
+> and both are recorded in **ADR-0001 amendment 1b**.
+>
+> **The guard half is closed.** `b1_03` and `s7` were resolved by amendment 1a's two-stage
+> pairing, which landed in T3.0b before this document was written. Re-measured across all
+> 258 labels: **zero labelled edges are unreachable** once guard pairs within a match-key
+> group. The four packages whose labels collide on the match key — `b1_02`, `b1_03`,
+> `b1_09`, `s7` — every one is separated by its guard.
+>
+> **The origin half was tried and rejected.** This section's own recommendation — *"v1
+> should probably carry origin in the key with a unit-level comparison"* — was built behind
+> `scoring.origin_in_dedup` and measured against the full corpus. **It caught no fabrication
+> and manufactured five false positives.** `s2` and `b2_05` refuse the offending statement
+> before it emits an edge, so there was never a second claim to separate; meanwhile a callee
+> summarised at three call sites (`b1_08`) and a trigger edge inherited by its table's
+> writer (`b1_09`, `s3`) each became false positives. **Multi-unit origin is the normal case
+> for interprocedural summarisation and trigger inheritance, so origin cannot distinguish a
+> second *route* to one fact from a second *fact*.**
+>
+> **What the residual actually needs** is a **direct origin assertion in the label format** —
+> *"this edge must come from this unit"* — scored beside the forbidden-edge rules. That is a
+> label-schema change, not a match-key change, and it leaves every number in the phase
+> untouched.
 
 ### 3 · `origin` is mandatory, not optional
 
@@ -259,19 +282,33 @@ representation is a string list.
 
 ## The four things most likely to be wrong
 
-1. **The match key is under-specified.** Six packages say so (deviation 2). Most likely v1
-   change, and it moves every number in the phase.
-2. **Boundaries are strings, not nodes.** The concept carries the regulatory pitch and the
+*Re-ranked 2026-09-09. The match key was #1 here until it was measured; it is now #4, and
+the reason it moved is worth more than its old position was.*
+
+1. **Boundaries are strings, not nodes.** The concept carries the regulatory pitch and the
    representation cannot be queried, cannot be an edge endpoint, and forces the coverage
    statement to recover structure by string-matching. Largest gap between what this schema
-   claims and what the code does.
-3. **`guard` is a string.** Compared by a four-rule normaliser that stops well short of a
+   claims and what the code does — and now the largest open item outright.
+2. **`guard` is a string.** Compared by a four-rule normaliser that stops well short of a
    solver, on purpose — a half-clever normaliser that silently equates two different
    conditions is worse than an honest one that reports a difference. But a string is not a
-   condition, and anything past those four rules needs a real representation.
-4. **`band` conflates difficulty with construct class.** Currently "the hardest construct on
+   condition, and anything past those four rules needs a real representation. Note that
+   guard is doing *more* load-bearing work than this document assumed: it is the only thing
+   separating the four match-key collisions in the corpus (deviation 2, reconciled).
+3. **`band` conflates difficulty with construct class.** Currently "the hardest construct on
    the path", doing two jobs: bucketing the score, and describing the analysis. Those may
    need to separate.
+4. **The match key is under-specified — but not in the way this document claimed.**
+   Demoted on measurement (ADR-0001 amendment 1b). The guard half of the residual was
+   already closed by amendment 1a, and putting origin in the key was built, measured, and
+   **rejected**: it caught nothing and cost five false positives. What remains is real but
+   **latent** — `s2` and `b2_05` could in principle fabricate an edge identical to a
+   legitimate one, and today they refuse it before emission instead. The fix is a direct
+   origin assertion in the *label* format, which moves no numbers at all.
+
+   **The general lesson is the one worth keeping:** this document called the match key "the
+   most likely v1 change" from reading the code, and one measurement moved it to last.
+   Everything else on this list is also unmeasured.
 
 ## Dead weight to remove in v1
 

@@ -12,8 +12,11 @@ Band-1 value precision **96.2%**, recall **96.2%** — above the 95% floor, belo
 > **What is still open at phase close**, in the order the verdict puts them:
 > 1. **No real production package was ever obtained.** The GO is conditional on getting one
 >    and re-running the measurement *before any further feature work*.
-> 2. **The IR match key is under-specified** — deviation 2 in [`docs/ir-v0.md`](../docs/ir-v0.md).
->    Six packages hit it; deciding it moves every number in this phase.
+> 2. ~~**The IR match key is under-specified**~~ — **DECIDED 2026-09-09, and the answer was
+>    no.** Measured, not argued: origin in the key caught no fabrication and cost five false
+>    positives (ADR-0001 amendment 1b). Guard was already closed by amendment 1a. Every
+>    number in the phase is unchanged. What remains is latent and needs a **label-schema**
+>    change — a direct origin assertion — not a scoring change.
 > 3. **Third-party corpora were never fetched.** Zero external validation of any kind.
 > 4. Four log-recovery follow-ups from T3.3 were not completed — itemised in that task below.
 
