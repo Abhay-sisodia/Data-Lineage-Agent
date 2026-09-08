@@ -263,11 +263,30 @@ def _trace(
     if isinstance(source, exp.Table):
         table = source.name.upper()
         name = column.name.upper()
+
+        # AN EXPLICIT SCHEMA QUALIFIER IS PART OF THE NAME (silent failure s2).
+        #
+        # `_schema_for_sqlglot` keys on the bare table name, so SQLGlot happily binds
+        # `reporting.stg_customer` to the local `stg_customer` and the qualifier vanishes.
+        # Measured 2026-09-09: that produced three edges sourced from a table the statement
+        # never named, with no boundary, no refusal, and the statement counted as analysed.
+        # In s2 they then merged onto the identical edges of the statement above, so the
+        # whole thing was invisible - the exact "most dangerous repair" that package's key
+        # warns about, silently merging a refused schema into one we own.
+        #
+        # So resolve the QUALIFIED name. An unqualified name is untouched and still binds
+        # through the execution schema, which is the other half of s2 and is correct.
+        qualifier = (source.text("db") or "").upper()
+        lookup = f"{qualifier}.{table}" if qualifier else table
         try:
-            known = dictionary.columns_of(table)
+            known = dictionary.columns_of(lookup)
         except UnknownObjectError:
-            unresolved.append(f"{table}.{name} (relation not in dictionary)")
+            unresolved.append(f"{lookup}.{name} (relation not in dictionary)")
             return []
+        if qualifier:
+            # Granted after all - report it under the object it really is, not the
+            # qualifier the code happened to spell.
+            table = dictionary.resolve(lookup).name or table
         if name not in known:
             # Not a column of this table. Almost always a PL/SQL variable, which is
             # band-1 territory and must be resolved by def-use analysis, not guessed at.
