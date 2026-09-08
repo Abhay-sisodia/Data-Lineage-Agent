@@ -123,5 +123,43 @@ forbidden:
 #
 # So a correct-looking 100% here would be consistent with the design error the register
 # warns about most explicitly. T3.3 has to assert the origin directly.
+#
+# ASSERTED DIRECTLY, 2026-09-09 — ADR-0001 amendment 1c. `origin_assertions` below is the
+# mechanism this note was asking for. Unit-level, with no line range: a trigger's edges
+# belong to the trigger wherever inside it they arose, and the labels and the analyser
+# disagree on the line anyway (18-19 against 3) for reasons that have nothing to do with
+# lineage being right.
+#
+# NOTE THE DIRECTION. The assertion says these edges must come FROM TRG_RECENT_AUDIT - it
+# does not say they may appear nowhere else. Other packages inherit this same trigger
+# legitimately, which is the whole T3.3 design, and ADR-0001 amendment 1b measured what
+# happens when a second route is mistaken for a second fact: five false positives out of
+# correct analysis. `must_come_from` is a list for exactly that reason.
+
+origin_assertions:
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    must_come_from: [{unit: TRG_RECENT_AUDIT}]
+    reason: >
+      The regulated write. Attaching it to B2_TRIGGERS credits this procedure with a write
+      it never issued, and silently drops the same trigger for the six other writers of
+      tmp_recent in this corpus. The edge is identical either way - only the origin says
+      which of those two systems you have built.
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    must_come_from: [{unit: TRG_RECENT_AUDIT}]
+    reason: >
+      The trigger's correlation to the row that fired it. Sourced to the caller, it reads as
+      the caller filtering dim_customer, which is a different and wrong claim.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    must_come_from: [{unit: TRG_RECENT_AUDIT}]
+    reason: >
+      The trigger's own WHERE against dim_customer. Same failure as the correlation edge.
 
 boundaries: []

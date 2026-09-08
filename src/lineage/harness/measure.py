@@ -77,6 +77,8 @@ class Measurement:
     spurious: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     missed: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     forbidden: list[tuple[str, tuple[str, ...], str]] = field(default_factory=list)
+    wrongly_derived: list[tuple[str, tuple[str, ...], str, str, str]] = field(default_factory=list)
+    origin_assertions_checked: int = 0
     unexercised_claimed: int = 0
     unexercised_total: int = 0
     unexercised_correct: int = 0
@@ -279,6 +281,11 @@ def run_measurement(
         measurement.forbidden += [
             (path.stem, key, reason) for key, reason in report.forbidden_violations
         ]
+        measurement.wrongly_derived += [
+            (path.stem, key, actual, allowed, reason)
+            for key, actual, allowed, reason in report.origin_violations
+        ]
+        measurement.origin_assertions_checked += report.origin_assertions_checked
 
     measurement.dynamic_sites, measurement.dynamic_recovered, measurement.statements_total = (
         _dynamic_sql_census(corpus)
@@ -523,6 +530,23 @@ def render(measurement: Measurement) -> str:
             lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
             lines.append(f"    {' '.join(reason.split())[:96]}")
 
+    if measurement.wrongly_derived:
+        lines.append("")
+        lines.append(
+            f"WRONGLY DERIVED ({len(measurement.wrongly_derived)})"
+            "  <- the right edge reached the wrong way"
+        )
+        for package, edge, actual, allowed, reason in measurement.wrongly_derived:
+            lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]")
+            lines.append(f"    came from {actual}, must come from {allowed}")
+            lines.append(f"    {' '.join(reason.split())[:96]}")
+    elif measurement.origin_assertions_checked:
+        lines.append("")
+        lines.append(
+            f"  origin assertions      {measurement.origin_assertions_checked} checked, "
+            "all satisfied"
+        )
+
     if measurement.spurious:
         lines.append("")
         lines.append(f"FALSE POSITIVES ({len(measurement.spurious)})")
@@ -619,6 +643,19 @@ def as_json(measurement: Measurement) -> str:
             {"package": package, "edge": list(edge), "reason": " ".join(reason.split())}
             for package, edge, reason in measurement.forbidden
         ],
+        "origin_assertions": {
+            "checked": measurement.origin_assertions_checked,
+            "wrongly_derived": [
+                {
+                    "package": package,
+                    "edge": list(edge),
+                    "came_from": actual,
+                    "must_come_from": allowed,
+                    "reason": " ".join(reason.split()),
+                }
+                for package, edge, actual, allowed, reason in measurement.wrongly_derived
+            ],
+        },
         "kill_criteria": [
             {"criterion": c, "measured": m, "verdict": v} for c, m, v in kill_criteria(measurement)
         ],

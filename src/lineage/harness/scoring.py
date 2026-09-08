@@ -314,6 +314,8 @@ class ScoreReport:
     missed_edges: list[EdgeKey] = field(default_factory=list)
     spurious_edges: list[EdgeKey] = field(default_factory=list)
     forbidden_violations: list[tuple[EdgeKey, str]] = field(default_factory=list)
+    origin_violations: list[tuple[EdgeKey, str, str, str]] = field(default_factory=list)
+    origin_assertions_checked: int = 0
 
     def cell(self, band: int, flow: Flow) -> Counts:
         return self.cells.get((band, flow.value), Counts(0, 0, 0))
@@ -468,6 +470,24 @@ def score(
             if rule.matches(key[:4]):
                 violations.append((key, rule.reason))
 
+    # Origin assertions (ADR-0001 amendment 1c). Checked against EVERY emitted edge, before
+    # dedup, because dedup keeps one claim per key and the whole question here is which of
+    # several same-key claims the analyser derived. A wrongly-derived edge that dedup
+    # happened to discard would otherwise pass.
+    #
+    # Universally quantified on purpose: every matching edge must have an allowed origin.
+    # Asking whether SOME edge does would pass with a fabricated one sitting beside it.
+    origin_violations: list[tuple[EdgeKey, str, str, str]] = []
+    for claim in sorted(predicted, key=lambda e: (e.origin.unit, e.origin.line)):
+        key = scoring_key(claim)
+        for assertion in truth.origin_assertions:
+            if not assertion.matches(key[:4]):
+                continue
+            if not assertion.admits(claim.origin.unit, claim.origin.line):
+                origin_violations.append(
+                    (key, str(claim.origin), assertion.allowed_description(), assertion.reason)
+                )
+
     tier_distribution: dict[str, int] = {}
     mechanism_distribution: dict[str, int] = {}
     for claim in predicted:
@@ -493,6 +513,8 @@ def score(
         missed_edges=missed_keys,
         spurious_edges=spurious_keys,
         forbidden_violations=violations,
+        origin_violations=origin_violations,
+        origin_assertions_checked=len(truth.origin_assertions),
     )
 
 
@@ -558,6 +580,22 @@ def render(report: ScoreReport) -> str:
         for key, reason in report.forbidden_violations:
             lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]{_guard_suffix(key)}")
             lines.append(f"      {reason}")
+
+    if report.origin_violations:
+        lines.append("")
+        lines.append(
+            f"WRONGLY DERIVED ({len(report.origin_violations)})"
+            "  <- the right edge reached the wrong way"
+        )
+        for key, actual, allowed, reason in report.origin_violations:
+            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]{_guard_suffix(key)}")
+            lines.append(f"      came from {actual}, must come from {allowed}")
+            lines.append(f"      {reason}")
+    elif report.origin_assertions_checked:
+        lines.append("")
+        lines.append(
+            f"origin assertions   {report.origin_assertions_checked} checked, all satisfied"
+        )
 
     if report.missed_edges:
         lines.append("")

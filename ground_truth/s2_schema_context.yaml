@@ -116,8 +116,64 @@ edges:
 # a forbidden rule that contradicts a required edge would make the package unscoreable -
 # the label validator rejects exactly that.
 #
+# SUPERSEDED IN PART, 2026-09-09 — ADR-0001 amendment 1c.
+#
+# "It cannot be expressed as a forbidden edge" is still true, and the conclusion drawn from
+# it — that the match key must carry origin — was built and MEASURED and rejected
+# (amendment 1b: it caught nothing and cost five false positives, because one true fact
+# legitimately arrives from several units). What this package actually needed was never a
+# key change. It was an assertion about DERIVATION, and `origin_assertions` below is it:
+# statement 1's edges must come from statement 1's lines, so the identical edge arriving
+# from line 26 is reported by name rather than absorbed.
+#
 # What CAN be checked today is the boundary below: if the analyser declares the refused
 # schema, it did not silently absorb it.
+#
+# AND TODAY IT DOES NOT. Measured 2026-09-09: this package declares ZERO boundaries, raises
+# ZERO refusals, and reports 2 statements seen and 2 ANALYSED — while emitting no edge at
+# all for statement 2. The ungranted schema is dropped with no symptom anywhere, and the
+# statement is counted as analysed, so it inflates parse coverage too. That is the silent
+# absorption this package exists to catch, in its purest form. Recorded here rather than
+# fixed in passing: see the boundary-representation finding.
+
+# WHERE THESE EDGES ARE ALLOWED TO COME FROM (ADR-0001 amendment 1c).
+#
+# The trap: statement 2 binds `reporting.stg_customer` to the LOCAL stg_customer by dropping
+# a qualifier it could not resolve, producing an edge character-for-character identical to
+# statement 1's legitimate one. Only the line differs.
+#
+# Lines 17-22 are statement 1, from its comment to its terminating semicolon. The range is
+# deliberately wider than any single line because the analyser attributes an INSERT ...
+# SELECT to the INSERT (line 18) while this key was hand-read at the SELECT (19-20) - a
+# disagreement with nothing to do with lineage being right, and exactly why the match key
+# must not carry line numbers. It is safe HERE because `source_sha256` pins the file: the
+# harness refuses to score this key if the source moves under it, so 17-22 cannot silently
+# come to mean a different statement.
+origin_assertions:
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    must_come_from: [{unit: S2_SCHEMA_CONTEXT, lines: [17, 22]}]
+    reason: >
+      Statement 2 selects cust_id from reporting.stg_customer, a schema that was never
+      granted. Binding it to the local stg_customer produces this exact edge from line 26.
+      The edge is right; the derivation is a refused schema silently merged into one we own.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    must_come_from: [{unit: S2_SCHEMA_CONTEXT, lines: [17, 22]}]
+    reason: >
+      The same fabrication as cust_id, on the other projected column. Both must be asserted
+      or the trap is only half covered.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    must_come_from: [{unit: S2_SCHEMA_CONTEXT, lines: [17, 22]}]
+    reason: >
+      `WHERE last_login IS NOT NULL` appears in both statements, so the filter edge is
+      fabricable from line 27 exactly as the value edges are from line 26.
 
 boundaries:
   - "S2_SCHEMA_CONTEXT: reporting.stg_customer - schema not granted, 1 dangling reference"

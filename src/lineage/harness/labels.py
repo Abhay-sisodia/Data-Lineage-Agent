@@ -127,6 +127,99 @@ class ForbiddenEdge(BaseModel):
         return self.transform is None or transform == self.transform.value
 
 
+class AllowedOrigin(BaseModel):
+    """One place an asserted edge is permitted to come from.
+
+    ``lines`` is optional and inclusive. Omitted, the whole unit is allowed, which is what
+    ``b2_05`` needs - a trigger's edges belong to the trigger wherever in it they arose.
+    Given, it narrows to a statement, which is what ``s2`` needs, where the legitimate and
+    the fabricated edge share a unit and differ only by line.
+
+    **Line numbers are safe here in a way they are not in the match key.** They are unusable
+    for matching because label and analyser agree on the line for only 12 of 170 matched
+    edges - the labeller hand-reads them. But an assertion is written against one pinned
+    source: ``GroundTruth.verify_against`` refuses to score a key whose source hash has
+    moved, so a line range cannot silently come to mean a different statement.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    unit: str = Field(min_length=1)
+    lines: tuple[int, int] | None = Field(
+        default=None,
+        description="Inclusive line range within the unit. Omit to allow the whole unit.",
+    )
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Self:
+        if self.lines is not None and self.lines[0] > self.lines[1]:
+            raise ValueError(f"line range is inverted: {self.lines}")
+        return self
+
+    def admits(self, unit: str, line: int) -> bool:
+        if unit != self.unit:
+            return False
+        return self.lines is None or self.lines[0] <= line <= self.lines[1]
+
+    def __str__(self) -> str:
+        return self.unit if self.lines is None else f"{self.unit}:{self.lines[0]}-{self.lines[1]}"
+
+
+class OriginAssertion(BaseModel):
+    """Where an edge is allowed to have come from (ADR-0001 amendment 1c).
+
+    The gap this closes. A forbidden edge names a wrong ANSWER; some packages invite a
+    wrong DERIVATION of the right answer, and the two are indistinguishable by the match
+    key. ``s2`` fabricates ``STG_CUSTOMER.CUST_ID -> TMP_RECENT.CUST_ID`` by dropping an
+    ungranted schema qualifier and binding to the local table - character for character its
+    own legitimate edge from the statement above. ``b2_05`` attaches a trigger's edges to
+    the caller instead of the table, which credits a procedure with a write it never issued
+    and misses the same trigger for the six other writers of that table.
+
+    Neither can be written as a forbidden edge: the rule would ban the required edge too,
+    and ``_reject_self_contradiction`` correctly refuses that.
+
+    So the assertion is on ORIGIN, not on the key, and it is universally quantified: EVERY
+    emitted edge with this key must come from one of ``must_come_from``. That direction
+    matters. Checking that *some* edge has an allowed origin would pass while a fabricated
+    one sat beside it - which is precisely the failure being hunted.
+
+    Multiple origins are allowed because one true fact legitimately arrives by several
+    routes: a callee summarised at three call sites, a trigger edge inherited by every
+    writer of its table. ADR-0001 amendment 1b measured what happens when that is treated
+    as a contradiction - five false positives out of correct analysis - so the list is the
+    whole reason this mechanism can exist where a match-key change could not.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source: Node
+    target: Node
+    flow: Flow = Flow.VALUE
+    transform: Transform | None = Field(
+        default=None,
+        description="Omit to assert this pair of endpoints under any transform class.",
+    )
+    must_come_from: list[AllowedOrigin] = Field(
+        min_length=1,
+        description="Every emitted edge with this key must originate in one of these.",
+    )
+    reason: str = Field(description="What the wrong derivation is, and why it looks right.")
+
+    def matches(self, key: tuple[str, str, str, str]) -> bool:
+        """Does an emitted edge's match key fall under this assertion?"""
+        source, target, flow, transform = key
+        if (source, target, flow) != (str(self.source), str(self.target), self.flow.value):
+            return False
+        return self.transform is None or transform == self.transform.value
+
+    def admits(self, unit: str, line: int) -> bool:
+        return any(allowed.admits(unit, line) for allowed in self.must_come_from)
+
+    def allowed_description(self) -> str:
+        return " or ".join(str(allowed) for allowed in self.must_come_from)
+
+
 class GroundTruth(BaseModel):
     """The complete answer key for one corpus package."""
 
@@ -153,7 +246,33 @@ class GroundTruth(BaseModel):
         description="Edges that must NOT be produced - the plausible wrong answer this "
         "package was written to elicit. Scored by presence, not by absence.",
     )
+    origin_assertions: list[OriginAssertion] = Field(
+        default_factory=list,
+        description="Where an edge is allowed to come FROM - for packages that invite a "
+        "wrong derivation of the right answer, which no forbidden edge can express.",
+    )
     note: str | None = None
+
+    @model_validator(mode="after")
+    def _origin_assertions_agree_with_the_labels(self) -> Self:
+        """An assertion that contradicts its own key is a trap for whoever edits next.
+
+        If a labelled edge carries this key, its own origin must be one the assertion
+        admits - otherwise the key requires an edge that the assertion would then report as
+        wrongly derived, and the package becomes unscoreable in a way no number reveals.
+        Same class of error as ``_reject_self_contradiction``, caught the same way.
+        """
+        for assertion in self.origin_assertions:
+            for edge in self.edges:
+                if assertion.matches(edge.key()) and not assertion.admits(
+                    edge.origin.unit, edge.origin.line
+                ):
+                    raise ValueError(
+                        f"{self.package}: origin assertion for {edge.key()} does not admit "
+                        f"the labelled origin {edge.origin} "
+                        f"(allowed: {assertion.allowed_description()})"
+                    )
+        return self
 
     @model_validator(mode="after")
     def _reject_duplicates(self) -> Self:

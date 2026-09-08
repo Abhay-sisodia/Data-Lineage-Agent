@@ -229,6 +229,82 @@ as designed rather than a drifted result.
 
 ---
 
+### Amendment 1c · Origin assertions — where an edge is allowed to come *from*
+
+*2026-09-09. The mechanism amendment 1b said was needed instead of a match-key change.*
+
+**The gap.** A forbidden edge names a wrong **answer**. Two packages invite a wrong
+**derivation of the right answer**, which no forbidden rule can express — the rule would ban
+the required edge too, and `_reject_self_contradiction` correctly refuses it.
+
+- `s2_schema_context` fabricates `STG_CUSTOMER.CUST_ID → TMP_RECENT.CUST_ID` by dropping an
+  ungranted schema qualifier and binding to the local table. Character for character its own
+  legitimate edge from the statement above; **only the line differs**.
+- `b2_05_triggers` attaches a trigger's edges to the caller rather than the table — crediting
+  a procedure with a write it never issued, and losing that trigger for the six other writers
+  of `tmp_recent`.
+
+**The mechanism.** `origin_assertions` in the label format:
+
+```yaml
+origin_assertions:
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    must_come_from: [{unit: S2_SCHEMA_CONTEXT, lines: [17, 22]}]
+    reason: >
+      Statement 2 selects cust_id from a schema that was never granted...
+```
+
+Four decisions in it, each load-bearing:
+
+1. **Universally quantified.** *Every* emitted edge with this key must have an allowed
+   origin. Asking whether *some* edge does would pass with a fabricated one beside it —
+   precisely the failure being hunted.
+2. **`must_come_from` is a list.** One true fact legitimately arrives by several routes: a
+   callee summarised at three call sites, a trigger edge inherited by every writer of its
+   table. **This is the whole reason the mechanism works where the match-key change failed**
+   — amendment 1b measured that collapse at five false positives.
+3. **Checked before dedup.** Dedup keeps one claim per key and picks by line order, so a
+   fabricated edge could be the one discarded. Checking after it would let the defect through
+   on an implementation detail.
+4. **Reported on its own axis, never folded into precision.** The wrongly-derived edge still
+   matches its label, because it *is* the right edge. Counting it as a false positive would
+   claim the analyser invented something — a different and weaker claim. Same treatment as
+   forbidden edges.
+
+**Line ranges are safe here and not in the match key**, which looks inconsistent and is not.
+Lines are unusable for *matching* — label and analyser agree on the line for 12 of 170
+matched edges, because labellers hand-read them. An assertion is written against **one pinned
+source**: `verify_against` refuses to score a key whose `source_sha256` has moved, so a range
+cannot silently come to mean a different statement. `s2` needs a range because both
+statements share a unit; `b2_05` uses unit-only because a trigger owns its edges wherever
+inside it they arose.
+
+**Effect on the numbers: none.** Six assertions across two packages, all satisfied, and no
+cell moves — the axis is orthogonal by construction.
+
+**The honest reading: this is a guard, not a catch.** Both holes are **latent**. `b2_05`
+already attributes correctly, and `s2` emits nothing at all for statement 2. Tests feed the
+fabrication in directly, because a guard nobody has seen fire is a guard nobody has tested.
+
+> **And measuring this found a live defect that is worse than the one being guarded against.**
+> `s2` reports **2 statements seen, 2 analysed, 0 refusals, 0 boundaries** — and emits no edge
+> for statement 2. The ungranted schema is dropped with no symptom anywhere, and the statement
+> counts as *analysed*, so it inflates parse coverage. That is the silent absorption `s2`
+> exists to catch, and nothing in the harness reports it, because `run_measurement` counts
+> boundaries declared and never compares them against `boundaries_expected`. Corpus-wide,
+> **18 of 18 expected boundaries are "not declared"** while 35 boundaries are declared — the
+> two vocabularies simply do not match as strings (`b2_06` declares
+> `insert_statement@20: REMOTE_CUSTOMER@CRM_LINK.CUST_ID (relation not in dictionary)` where
+> the key expects `B2_DB_LINKS: remote_customer@crm_link - database link target out of
+> coverage`). **The boundary axis is unscored across the entire corpus.** This is
+> `docs/ir-v0.md`'s #1 open item — boundaries are strings, not nodes — with a measurement
+> behind it for the first time. Recorded here, not fixed in passing: it touches parse
+> coverage and the verdict's evidence claims, and deserves its own decision.
+
+---
+
 ## Consequences
 
 - Edge identity for matching is `(source, target, flow, transform)`, with guard used to
