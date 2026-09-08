@@ -732,12 +732,12 @@ on the exception-handler and rare-branch edges. The IR has nowhere to put it.
 
 ## T3.6 — Full scoring run
 
-- [ ] **T3.6a** Precision, recall, parse coverage **per band** across all 35 packages
-- [ ] **T3.6b** Honest-abstention check as pass/fail
-- [ ] **T3.6c** Tier distribution examined explicitly
-- [ ] **T3.6d** Boundary counts: declared, and the three "count what you were never given"
+- [x] **T3.6a** Precision, recall, parse coverage **per band** across all 35 packages
+- [x] **T3.6b** Honest-abstention check as pass/fail
+- [x] **T3.6c** Tier distribution examined explicitly
+- [x] **T3.6d** Boundary counts: declared, and the three "count what you were never given"
       signals — dangling references, unattributed writers, orphan upstream
-- [ ] **T3.6e** Coverage statement generated from the run, not written by hand
+- [x] **T3.6e** Coverage statement generated from the run, not written by hand
 
 **Done when:** all of the above are reported per band. **If 70% of edges land in Tier C or D,
 the lineage technically works but the evidence story doesn't — flag it.**
@@ -745,6 +745,73 @@ the lineage technically works but the evidence story doesn't — flag it.**
 **Expect the number to fall, and say so before it does.** T3.0 roughly doubles the label set
 by adding the fourteen *hardest* packages. Band-1 value precision measured against 149 edges
 and against ~250 edges are not the same claim, and the second is the one that counts.
+
+### CLOSED — `src/lineage/harness/coverage.py`, `tests/test_coverage.py` (11 tests)
+
+**36 packages · 258 labelled edges · 238 emitted.**
+
+| band / flow | TP | FP | FN | precision | recall |
+|---|---|---|---|---|---|
+| 0 value | 95 | 0 | 0 | **100%** | **100%** |
+| 0 filter | 38 | 0 | 5 | 100% | 88.4% |
+| **1 value — THE GATE** | 25 | 1 | 1 | **96.2%** | **96.2%** |
+| 1 filter | 20 | 0 | 2 | 100% | 90.9% |
+| 2 value | 25 | 0 | 11 | 100% | 69.4% |
+| 2 filter | 29 | 0 | 7 | 100% | 80.6% |
+
+**The number did not fall, and that prediction deserves revisiting rather than a victory
+lap.** The tracker expected it to: T3.0 added the fourteen hardest packages and the label
+set went 149 → 258. The gate held at 96.2% because T3.2 and T3.3 built the machinery those
+packages needed *after* they were labelled. The honest reading is that the number survived
+a much harder test, not that the prediction was wrong to make.
+
+**Six kill criteria, five PASS and one PENDING.** The new one is T3.6c's, written down
+before the distribution was known so it could not be tuned to the result: *Tier C or D above
+70% → the lineage works and the evidence story does not.* Measured **0.0%** — every edge
+rests on a resolved AST path or a def-use chain, none on inference.
+
+### T3.6d — the three signals, and the one that could not be built
+
+| signal | count | what it means |
+|---|---|---|
+| dangling references | **2** | `REMOTE_CUSTOMER@CRM_LINK`, `CUSTOMER_ACTIVITY` — named by the code, absent from the dictionary |
+| orphan upstream | **8** | read in scope, written by nothing in scope |
+| untouched relations | **1** | `ETL_CONFIG` — in the map, in no trace at all |
+| *unattributed writers* | **n/a** | **cannot arise** |
+
+**"Unattributed writers" is reported as impossible rather than as zero.** `Origin` is
+mandatory on every `IREdge`, so a write either names its unit and its line or does not
+exist. An always-empty list would imply a check that never runs — a quieter version of the
+dishonesty this whole statement exists to prevent.
+
+**Two of these are findings precision never could have surfaced:**
+
+- **`DW_DIM_CUSTOMER_V2` has no writer in scope.** `s1`'s `UPDATE customer_target SET
+  is_active = 1` assigns a *literal*, so there is no value edge and never should be. The
+  synonym's target is therefore read by lineage and written by nothing — correct, and
+  exactly the shape of "who populates this regulated table?" answered with silence.
+- **`ETL_CONFIG` is touched by nothing at all.** `b2_04` reads it to drive a
+  metadata-driven ETL that the analyser cannot see through, so the config table that
+  decides the mappings is invisible to the trace. A gap in the map, not in a trace.
+
+**Views are excluded and counted separately (5 resolved through).** A view is never written
+and its upstream is its own definition, which T3.4c's resolver follows to base tables. An
+earlier draft listed all five as "no writer in scope" — five false gaps out of fourteen,
+and a coverage statement full of false gaps is one nobody reads. Same argument that
+excluded triggers from the fusion hazards.
+
+**One category was dropped for double-counting.** The first draft reported *no writer in
+scope* and *orphan upstream* as separate lists when every member of the second was a member
+of the first. One gap under two headings doubles its apparent size; a test now asserts the
+three lists are disjoint.
+
+### T3.6e — generated, and it has to stay that way
+
+The statement is derived from the finished corpus-wide edge set plus the dictionary, and it
+is deterministic — a test renders it from a reversed edge list and requires byte equality,
+because a statement compared between runs is worthless if the diff is full of reordering.
+**Corpus-wide, not per package:** a table written in one package and read in another has a
+writer, and asking the question per file would manufacture orphans out of the corpus layout.
 
 ---
 

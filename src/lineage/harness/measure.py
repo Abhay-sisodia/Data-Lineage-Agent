@@ -27,6 +27,12 @@ from lineage import __version__
 from lineage.analysis.procedure import analyse_source
 from lineage.config import AnalysisConfig
 from lineage.evidence.witness import ExecutionWitness
+from lineage.harness.coverage import (
+    WEAK_EVIDENCE_CEILING,
+    Coverage,
+    build_coverage,
+)
+from lineage.harness.coverage import render as coverage_render
 from lineage.harness.labels import Flow, GroundTruth
 from lineage.harness.scoring import Counts, score
 from lineage.resolution.dictionary import Dictionary
@@ -72,6 +78,7 @@ class Measurement:
     unexercised_correct: int = 0
     unexercised_unknown: int = 0
     witness_window: str | None = None
+    coverage: Coverage = field(default_factory=Coverage)
     refusals_total: int = 0
     refusal_codes: dict[str, int] = field(default_factory=dict)
     refusal_violations: list[tuple[str, str]] = field(default_factory=list)
@@ -161,6 +168,13 @@ def run_measurement(
     measurement = Measurement(provenance=provenance)
     measurement.witness_window = witness.window if witness else None
 
+    # The corpus-wide graph, accumulated as we go. Every coverage signal is a statement
+    # about the WHOLE estate: a table written in one package and read in another has a
+    # writer, and asking the question per package would report it as an orphan and
+    # manufacture a finding out of how the corpus happens to be split into files.
+    all_edges: list = []
+    all_boundaries: list[str] = []
+
     for path in sorted(ground_truth_dir.glob("*.yaml")):
         truth = GroundTruth.load(path)
         truth.verify_against(corpus)
@@ -226,12 +240,22 @@ def run_measurement(
             if any(refusal.covers(unit, line) for unit, line in produced):
                 measurement.false_abstentions_recovered += 1
 
+        all_edges.extend(result.edges)
+        all_boundaries.extend(result.boundaries)
+
         measurement.spurious += [(path.stem, key) for key in report.spurious_edges]
         measurement.missed += [(path.stem, key) for key in report.missed_edges]
         measurement.forbidden += [
             (path.stem, key, reason) for key, reason in report.forbidden_violations
         ]
 
+    measurement.coverage = build_coverage(
+        all_edges,
+        all_boundaries,
+        dictionary,
+        packages=measurement.packages,
+        refusals=measurement.refusals_total,
+    )
     return measurement
 
 
@@ -283,6 +307,21 @@ def kill_criteria(measurement: Measurement) -> list[tuple[str, str, str]]:
             "Any edge produced from a refused statement -> the refusal means nothing",
             f"{len(measurement.refusal_violations)} of {measurement.refusals_total} refusals",
             "PASS" if not measurement.refusal_violations else "TRIGGERED",
+        )
+    )
+
+    # T3.6c. Written down before the distribution was known, so it cannot be adjusted to
+    # whatever came out: if most edges rest on inference the lineage technically works and
+    # the evidence story does not.
+    share = measurement.coverage.weak_evidence_share
+    rows.append(
+        (
+            f"Tier C or D above {WEAK_EVIDENCE_CEILING:.0%} -> lineage works, evidence "
+            "story does not",
+            "n/a" if share is None else f"{share * 100:.1f}%",
+            "PENDING"
+            if share is None
+            else ("PASS" if measurement.coverage.evidence_story_holds else "TRIGGERED"),
         )
     )
 
@@ -419,6 +458,12 @@ def render(measurement: Measurement) -> str:
             guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
             lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
 
+    # Last, and generated rather than written (T3.6e). It answers the question the
+    # confusion matrix above cannot: not "were our claims right" but "what was never in
+    # front of us at all".
+    lines.append("")
+    lines.append(coverage_render(measurement.coverage))
+
     return "\n".join(lines) + "\n"
 
 
@@ -447,6 +492,21 @@ def as_json(measurement: Measurement) -> str:
         "mechanism_distribution": measurement.mechanism_distribution,
         "evidence_split": measurement.evidence_split,
         "boundaries_declared": measurement.boundaries_declared,
+        "coverage_statement": {
+            "packages": measurement.coverage.packages,
+            "edges": measurement.coverage.edges,
+            "storage_objects": measurement.coverage.storage_objects,
+            "relations_touched": measurement.coverage.relations_touched,
+            "relation_coverage": measurement.coverage.relation_coverage,
+            "dangling_references": measurement.coverage.dangling_references,
+            "orphan_upstream": measurement.coverage.orphan_upstream,
+            "untouched_relations": measurement.coverage.untouched_relations,
+            "views_resolved_through": measurement.coverage.views_resolved_through,
+            "tier_distribution": measurement.coverage.tier_distribution,
+            "weak_evidence_share": measurement.coverage.weak_evidence_share,
+            "weak_evidence_ceiling": WEAK_EVIDENCE_CEILING,
+            "evidence_story_holds": measurement.coverage.evidence_story_holds,
+        },
         "execution_axis": {
             "witness_window": measurement.witness_window,
             "unexercised_claimed": measurement.unexercised_claimed,
