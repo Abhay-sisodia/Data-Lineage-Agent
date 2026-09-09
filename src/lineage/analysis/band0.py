@@ -599,6 +599,57 @@ def _analyse_insert(
     )
 
 
+def _pivot_columns(select: exp.Select) -> tuple[dict[str, tuple[list[Any], Transform]], list[Any]]:
+    """What a PIVOT or UNPIVOT's output columns are actually fed by (stress finding S2-03).
+
+    Returns ``(output column -> (source expressions, transform), FOR columns)``.
+
+    The transposed columns are the whole point of the construct and the one part the
+    ordinary projection walk cannot see: they exist only in the pivot clause, so tracing
+    the outer select list finds the pass-through columns and silently nothing for the
+    rest. That partial answer is worse than the refusal it replaced - a reader sees two
+    columns traced and reasonably assumes the statement was understood.
+
+    **PIVOT** ``PIVOT (SUM(line_amount) FOR currency IN ('GBP' AS gbp, 'USD' AS usd))``
+    gives one output column per IN-list alias, each fed by the aggregate's argument. The
+    FOR column decides WHICH output column a row lands in, so it is filter influence.
+
+    **UNPIVOT** ``UNPIVOT (amount FOR measure IN (net_amount, order_count))`` is the
+    reverse: one output column fed by SEVERAL inputs at once. `measure` is a generated
+    label naming which input a row came from and has no upstream at all.
+
+    Only the literal IN-list form is handled. The subquery form stays refused by
+    `PIVOT_SUBQUERY` in the register, because there the output columns ARE the data.
+    """
+    mapping: dict[str, tuple[list[Any], Transform]] = {}
+    for_columns: list[Any] = []
+
+    for pivot in select.find_all(exp.Pivot):
+        fields = pivot.args.get("fields") or []
+        for clause in fields:
+            if not isinstance(clause, exp.In):
+                continue
+            for_columns.append(clause.this)
+
+            if pivot.unpivot:
+                # The value column is named in the pivot's expressions; every column in
+                # the IN list feeds it, unchanged.
+                for value_column in pivot.expressions:
+                    mapping[value_column.alias_or_name.upper()] = (
+                        list(clause.expressions),
+                        Transform.IDENTITY,
+                    )
+                continue
+
+            for alias in clause.expressions:
+                name = alias.alias_or_name
+                if not name:
+                    continue
+                mapping[name.upper()] = (list(pivot.expressions), Transform.AGGREGATED)
+
+    return mapping, for_columns
+
+
 def _analyse_select_into(
     select: exp.Select,
     target_name: str,
@@ -628,8 +679,33 @@ def _analyse_select_into(
             f"{len(target_columns)} columns",
         )
 
+    pivot_map, pivot_for_columns = _pivot_columns(select)
+
     edges: list[PredictedEdge] = []
     for target_column, projection in zip(target_columns, projections, strict=True):
+        # A transposed column's sources live in the pivot clause, not in the select list,
+        # so the ordinary walk below would find nothing for it and say nothing about it.
+        pivoted = pivot_map.get(projection.alias_or_name.upper())
+        if pivoted is not None:
+            expressions, pivot_transform = pivoted
+            for expression in expressions:
+                for column in expression.find_all(exp.Column):
+                    for source_table, source_column, traced in _trace(
+                        column, scope, dictionary, unresolved
+                    ):
+                        edges.append(
+                            _edge(
+                                source_table,
+                                source_column,
+                                target_name,
+                                target_column,
+                                _combine(pivot_transform, traced),
+                                band,
+                                origin,
+                            )
+                        )
+            continue
+
         own = _transform_of(projection)
 
         # A scalar UDF looks like a column expression and contains a query. Its ARGUMENTS
@@ -669,6 +745,24 @@ def _analyse_select_into(
         # Partition/order columns and correlated predicates decide which row, so they
         # are filter influence on the written relation rather than value sources.
         for column in _influence_columns(projection):
+            for source_table, source_column, _ in _trace(column, scope, dictionary, unresolved):
+                edges.append(
+                    _edge(
+                        source_table,
+                        source_column,
+                        target_name,
+                        "",
+                        Transform.IDENTITY,
+                        band,
+                        origin,
+                        flow=Flow.FILTER,
+                    )
+                )
+
+    # The pivot's FOR column decides WHICH output column a row lands in. It supplies no
+    # value to any of them, which is exactly what a filter edge says.
+    for for_column in pivot_for_columns:
+        for column in for_column.find_all(exp.Column):
             for source_table, source_column, _ in _trace(column, scope, dictionary, unresolved):
                 edges.append(
                     _edge(

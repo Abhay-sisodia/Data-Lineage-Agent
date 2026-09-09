@@ -101,7 +101,6 @@ def test_no_construct_refuses_a_database_link() -> None:
             "SELECT * FROM t PIVOT (SUM(x) FOR c IN (SELECT c FROM u))",
             RefusalCode.SHAPE_NOT_DECIDABLE,
         ),
-        ("SELECT * FROM t PIVOT (SUM(x) FOR c IN ('A', 'B'))", RefusalCode.UNSUPPORTED_CONSTRUCT),
         (
             "SELECT x FROM t START WITH p IS NULL CONNECT BY PRIOR id = p",
             RefusalCode.UNSUPPORTED_CONSTRUCT,
@@ -385,3 +384,19 @@ END bulk_select;
 
     assert result.refusals == []
     assert any(str(e.target) == "variable:V_IDS" for e in result.edges)
+
+
+def test_a_literal_list_pivot_is_no_longer_refused() -> None:
+    """The register used to refuse every PIVOT. Stress finding S2-03 removed half of it.
+
+    This case sat in `test_each_loud_construct_is_refused_by_name` asserting
+    `UNSUPPORTED_CONSTRUCT`, and it is moved here rather than deleted, because the change
+    of behaviour is the point: a literal IN-list fixes the output columns at parse time, so
+    refusing it was a false abstention (T3.1d) that also cost parse coverage.
+
+    The subquery form stays in that list. There the output columns ARE the data.
+    """
+    assert classify_statement("SELECT * FROM t PIVOT (SUM(x) FOR c IN ('A', 'B'))") is None
+    assert (
+        classify_statement("SELECT * FROM t PIVOT (SUM(x) FOR c IN (SELECT c FROM u))") is not None
+    )

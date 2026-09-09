@@ -29,7 +29,7 @@ with the code has stopped measuring anything.
 | S1-06 | `key-error` | closed | two gaps in my own key, stated rather than quietly fixed |
 | S2-01 | `construct-coverage` | open | `MERGE` with a `DELETE` arm fails to parse at all |
 | S2-02 | `construct-coverage` | open | `INSERT ALL` unsupported — declared, but 7 edges lost |
-| S2-03 | `refusal-taxonomy` | open | `PIVOT`/`UNPIVOT` refused even with a static column list |
+| S2-03 | `refusal-taxonomy` | **fixed** | `PIVOT`/`UNPIVOT` refused even with a static column list |
 | S2-04 | `silent-loss` | **fixed** | `BULK COLLECT` into a record collection yielded nothing, silently |
 | S2-05 | `transform-classification` | **fixed** | `DECODE`/`NULLIF`/`GREATEST` read as derived, not conditional |
 | S2-06 | `key-error` | closed | `s2_locking` unlabelled; two window-transform disagreements |
@@ -326,7 +326,7 @@ multi-table insert, says so, and the boundary is counted. The finding is a cover
 correctness defect, and it is the shape ETL uses to fan one source into staging and reject
 tables.
 
-## S2-03 · `refusal-taxonomy` · OPEN — `PIVOT`/`UNPIVOT` refused even when decidable
+## S2-03 · `refusal-taxonomy` · FIXED — `PIVOT`/`UNPIVOT` refused even when decidable
 
 Both `s2_pivot_static` and the `UNPIVOT` in `s2_unpivot_listagg` are refused under the rule
 u1 established for `PIVOT` with a **subquery** column list — where the output shape is genuinely
@@ -337,6 +337,45 @@ This is over-refusal — a **false abstention**, the axis T3.1d exists to measur
 three labelled edges and, unlike a wrong edge, it costs parse coverage too. The refusal
 register needs to distinguish the decidable form from the undecidable one, exactly as the
 dynamic-SQL classifier already distinguishes a constant string from an assembled one.
+
+**Un-refusing alone would have been worse than the refusal, and that was measured before
+writing any code.** With the register entry disabled, the pass-through columns
+(`period_month`, `product_id`, `cust_id`) trace correctly and the **transposed** columns —
+`gbp`, `usd`, `amount` — silently produce nothing, because their sources live in the pivot
+clause and not in the select list. A reader would see two columns traced and reasonably
+conclude the statement was understood. That is the S2-04 shape, so the fix had to be an
+implementation rather than a deletion.
+
+**Implemented** in `band0._pivot_columns`:
+
+* **PIVOT** — one output column per IN-list alias, each fed by the aggregate's argument at
+  `aggregated`. The `FOR` column decides *which* output column a row lands in, so it is
+  filter influence and never a value source.
+* **UNPIVOT** — the reverse of every other construct here: one output column fed by
+  **several** inputs at once, at `identity`. This is convention (b) from the stress-2 key,
+  written before the code existed. The `FOR` column is a generated label naming which input
+  a row came from, and has no upstream at all.
+
+**The subquery form stays refused.** There the output columns *are* the data, so no
+positional binding is possible. `u1_pivot_subquery` still refuses and the phase-0 refusal
+count is unchanged at 11 — the over-refusal guard, tested.
+
+**Effect.**
+
+| | before | after |
+|---|---|---|
+| phase-0 measurement | — | **every key identical** |
+| stress 2 band-0 value recall | 68.3% | **75.6%** |
+| stress 2 parse coverage | 58.6% | **65.5%** |
+| stress 2 band-0 value precision | 96.6% | 93.9% |
+
+**The precision dip is mine, not the analyser's.** `s2_pivot_static` was never labelled —
+the same omission as `s2_locking` — so its correct edges score as false positives. Logged
+under S2-06 rather than corrected here, because the run stands as measured.
+
+One existing test asserted the old behaviour and was **moved rather than deleted**:
+`test_a_literal_list_pivot_is_no_longer_refused` now records that the change of behaviour is
+deliberate, and keeps the subquery case refused beside it.
 
 ## S2-04 · `silent-loss` · FIXED — `BULK COLLECT` into a record collection yielded nothing
 
@@ -442,6 +481,11 @@ Exactly the eight cells predicted, recovered. Eleven regression tests, including
 - **`s2_locking` was never labelled.** I wrote the unit and skipped it in the key; its two
   correct edges (`DIM_CUSTOMER.CUST_ID → V_ID`, `LIFETIME_VALUE → V_VAL`) score as false
   positives. My omission.
+- **`s2_pivot_static` was never labelled either**, which only became visible once S2-03 was
+  fixed and the unit started producing edges. Seven units are unlabelled in total (14, 15,
+  16, 17, 18, 21, 27); the refused ones cost nothing, but any that later get implemented
+  will surface the same way. The key's header claims labels are "written out in full" for
+  refused units, and that claim is false — stated here rather than quietly amended.
 - **`FIRST_VALUE` and `LAST_VALUE` transform.** I labelled them `derived`; the analyser says
   `aggregated`. Both defensible — they are window functions that select a value rather than
   compute one. Recorded as undecided rather than scored against the analyser.

@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from lineage.analysis.procedure import analyse_source
+from lineage.analysis.refusal import RefusalCode
 from lineage.config import AnalysisConfig
 from lineage.harness.labels import Flow, GroundTruth
 from lineage.harness.scoring import score
@@ -286,3 +287,111 @@ END three_arms;
         "column:STG_ORDERS.CUST_ID",
         "column:STG_RETURNS.CUST_ID",
     }
+
+
+# --- S2-03: PIVOT and UNPIVOT with a literal column list are decidable -------------------
+
+
+def test_static_pivot_traces_its_transposed_columns(dictionary: Dictionary) -> None:
+    """Found by stress 2. Both forms were refused although their shape is fixed by the text.
+
+    The register's own reason admitted it — "the literal-list form is decidable in
+    principle but is not implemented" — which made it a false abstention (T3.1d), costing
+    parse coverage on top of the lost edges.
+
+    Note what un-refusing alone would have produced: the pass-through columns trace and the
+    transposed ones silently do not, because their sources live in the pivot clause rather
+    than the select list. A partial answer where the missing part is the whole point of the
+    construct is worse than the refusal, which is why this needed implementing.
+    """
+    source = """CREATE OR REPLACE PROCEDURE pivot_writer IS
+BEGIN
+    INSERT INTO fct_product_sales (period_month, product_id, gross_sales, net_sales)
+    SELECT period_month, product_id, gbp, usd
+      FROM (
+            SELECT TRUNC(o.order_date, 'MM') AS period_month,
+                   l.product_id              AS product_id,
+                   o.currency                AS currency,
+                   l.line_amount             AS line_amount
+              FROM stg_orders o
+              JOIN stg_order_lines l ON l.order_id = o.order_id
+           )
+     PIVOT (SUM(line_amount) FOR currency IN ('GBP' AS gbp, 'USD' AS usd));
+END pivot_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    by_target = {
+        (str(e.source), str(e.target), e.transform.value)
+        for e in result.edges
+        if e.flow is Flow.VALUE
+    }
+    # Each pivoted output column is fed by the aggregate's argument.
+    assert (
+        "column:STG_ORDER_LINES.LINE_AMOUNT",
+        "column:FCT_PRODUCT_SALES.GROSS_SALES",
+        "aggregated",
+    ) in by_target
+    assert (
+        "column:STG_ORDER_LINES.LINE_AMOUNT",
+        "column:FCT_PRODUCT_SALES.NET_SALES",
+        "aggregated",
+    ) in by_target
+    # The FOR column decides WHICH output column a row lands in: filter, not value.
+    assert any(
+        str(e.source) == "column:STG_ORDERS.CURRENCY" and e.flow is Flow.FILTER
+        for e in result.edges
+    )
+    assert not any(
+        str(e.source) == "column:STG_ORDERS.CURRENCY" and e.flow is Flow.VALUE for e in result.edges
+    )
+
+
+def test_unpivot_feeds_one_column_from_several(dictionary: Dictionary) -> None:
+    """UNPIVOT is the reverse of every other construct here: many inputs, one output.
+
+    `measure` is a generated label naming which input each row came from, and has no
+    upstream at all.
+    """
+    source = """CREATE OR REPLACE PROCEDURE unpivot_writer IS
+BEGIN
+    INSERT INTO gtt_stage (cust_id, period_month, amount)
+    SELECT u.cust_id, TRUNC(SYSDATE, 'MM'), u.amount
+      FROM (SELECT f.cust_id, f.net_amount AS net_amount, f.order_count AS order_count
+              FROM fct_revenue f)
+    UNPIVOT (amount FOR measure IN (net_amount, order_count)) u;
+END unpivot_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    feeding_amount = {
+        str(e.source) for e in result.edges if str(e.target) == "column:GTT_STAGE.AMOUNT"
+    }
+    assert feeding_amount == {
+        "column:FCT_REVENUE.NET_AMOUNT",
+        "column:FCT_REVENUE.ORDER_COUNT",
+    }
+
+
+def test_pivot_with_a_subquery_column_list_is_still_refused(dictionary: Dictionary) -> None:
+    """The over-refusal guard. Only the DECIDABLE form was un-refused.
+
+    With a subquery IN-list the output columns ARE the data, so the statement's shape is
+    not fixed by its text and no positional binding is possible. `u1_pivot_subquery` still
+    refuses, and the phase-0 refusal count is unchanged at 11.
+    """
+    source = """CREATE OR REPLACE PROCEDURE pivot_dynamic IS
+BEGIN
+    INSERT INTO fct_product_sales (period_month, product_id, gross_sales, net_sales)
+    SELECT period_month, product_id, a, b
+      FROM (SELECT TRUNC(o.order_date, 'MM') AS period_month, l.product_id AS product_id,
+                   o.currency AS currency, l.line_amount AS line_amount
+              FROM stg_orders o JOIN stg_order_lines l ON l.order_id = o.order_id)
+     PIVOT (SUM(line_amount) FOR currency IN (SELECT currency FROM stg_orders));
+END pivot_dynamic;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert [r.code for r in result.refusals] == [RefusalCode.SHAPE_NOT_DECIDABLE]

@@ -182,13 +182,15 @@ CONSTRUCTS: tuple[Construct, ...] = (
         reason="PIVOT with a subquery or ANY column list - the output columns are the "
         "DATA in the pivot column, so the statement's shape is not fixed by its text",
     ),
-    Construct(
-        name="PIVOT",
-        pattern=_rx(r"\b(?:UN)?PIVOT\s*\("),
-        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
-        reason="PIVOT/UNPIVOT - the column set is transposed from row values; the "
-        "literal-list form is decidable in principle but is not implemented",
-    ),
+    # NOTE the absence of a blanket PIVOT entry, which this register carried until
+    # 2026-09-09. Its own reason admitted the problem - "the literal-list form is decidable
+    # in principle but is not implemented" - and stress 2 measured the cost: a static
+    # `PIVOT (SUM(x) FOR c IN ('GBP' AS gbp))` and an `UNPIVOT (v FOR m IN (a, b))` were
+    # both refused although their output columns are fixed by the text. That is a false
+    # abstention (T3.1d), and it costs parse coverage on top of the lost edges.
+    #
+    # Now implemented in `band0._pivot_columns`. `PIVOT_SUBQUERY` above still catches the
+    # undecidable form, where the output columns ARE the data.
     Construct(
         name="CONNECT_BY",
         pattern=_rx(r"\bCONNECT\s+BY\b|\bSTART\s+WITH\b"),
