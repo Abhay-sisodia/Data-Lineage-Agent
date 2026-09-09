@@ -138,3 +138,42 @@ def test_unsupported_statement_is_refused_not_guessed() -> None:
     assert result.edges == []
     assert len(result.refusals) == 1
     assert result.parse_coverage == 0.0
+
+
+def test_two_units_writing_the_same_columns_both_survive(dictionary: Dictionary) -> None:
+    """Band 0 used to deduplicate on match_key() alone, and it destroyed facts.
+
+    Found by the stress corpus, 2026-09-09. `match_key()` is (source, target, flow,
+    transform) - no guard, no origin - so a static INSERT in one procedure and a recovered
+    dynamic INSERT in another, writing the same columns, collapsed into one edge. The
+    survivor kept one origin, one band and one guard; the other fact was gone before it
+    ever reached the IR. Not refused, not declared, not counted.
+
+    That is strictly worse than the scoring-layer collision ADR-0001 amendment 1b
+    measured, because the ledger never sees the second fact at all - and it made
+    `procedure.py`'s "merge on ledger identity so two facts differing only by guard or
+    origin both survive" a comment about something that had already happened.
+
+    Deduplicating on identity() instead was free on the phase-0 corpus - every cell
+    byte-identical - because its packages are small enough that two statements rarely
+    write the same pair. Real packages are not.
+    """
+    source = """CREATE OR REPLACE PROCEDURE writer_one IS
+BEGIN
+    INSERT INTO tmp_recent (cust_id, last_login)
+    SELECT cust_id, last_login FROM stg_customer WHERE status_code = 'A';
+END writer_one;
+/
+
+CREATE OR REPLACE PROCEDURE writer_two IS
+BEGIN
+    INSERT INTO tmp_recent (cust_id, last_login)
+    SELECT cust_id, last_login FROM stg_customer WHERE region = 'EU';
+END writer_two;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    units = {
+        edge.origin.unit for edge in result.edges if str(edge.target) == "column:TMP_RECENT.CUST_ID"
+    }
+    assert units == {"WRITER_ONE", "WRITER_TWO"}

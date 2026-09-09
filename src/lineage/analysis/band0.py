@@ -905,9 +905,9 @@ def analyse_source(
 
     # De-duplicate: the same edge derived twice is one fact, and counting it twice would
     # inflate nothing but confusion.
-    unique: dict[tuple[str, str, str, str], PredictedEdge] = {}
+    unique: dict[tuple[str, ...], PredictedEdge] = {}
     for edge in result.edges:
-        unique.setdefault(edge.match_key(), edge)
+        unique.setdefault(edge.identity(), edge)
     result.edges = [unique[key] for key in sorted(unique)]
 
     return result

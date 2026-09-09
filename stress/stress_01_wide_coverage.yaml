@@ -1,0 +1,881 @@
+# Ground truth for stress/stress_01_wide_coverage.sql
+#
+# WRITTEN FROM SOURCE, BEFORE THE ANALYSER WAS RUN OVER THIS FILE. That ordering is the
+# only thing that makes the result mean anything: if the key is written after seeing the
+# output, it records what the analyser did rather than what is true, and the exercise
+# becomes a very expensive way of agreeing with yourself.
+#
+# Every label here is `source_read`. The package is parse-only - nothing was executed, no
+# database observed it - so this key carries LESS authority than the phase-0 corpus, where
+# 92 of 258 labels are anchored in observed database change. Stated up front because
+# `source_read` is exactly the provenance that lets an author's misunderstanding score
+# 100%, and a stress test is where that is most likely.
+#
+# CONVENTIONS APPLIED (all pre-existing, none invented here):
+#   * match key is (source, target, flow, transform)  - ADR-0001 4
+#   * a filter edge targets the relation the STATEMENT WRITES; when the statement writes a
+#     variable, it targets the relation read (b1_03 does both)
+#   * join conditions `ON a.x = b.x` are structural, not filter lineage
+#   * COUNT(*) and literals produce no edge - there is no upstream to name
+#   * a window function's PARTITION BY / ORDER BY are not value sources; its ARGUMENT is
+#   * a correlated predicate decides WHICH row, so it is filter, not value
+#   * band is the hardest construct on the path: set-based 0, variable/cursor/loop 1,
+#     dynamic SQL and triggers 2
+#
+# WHERE THIS KEY IS UNCERTAIN, IT SAYS SO in a note rather than picking the answer that
+# would score best. Three constructs have no precedent in the phase-0 corpus - HAVING,
+# BULK COLLECT/FORALL, and MERGE against a subquery source - and they are flagged.
+
+package: stress_01_wide_coverage.sql
+source_sha256: b1b57f9820810aaa2aa6c36c77ebd151e1b54aa074be8cafa002b1341f54e90b
+labelled_by: claude (source_read; parse-only, nothing executed)
+labelled_at: "2026-09-09"
+
+note: >
+  A breadth test, not a difficulty test. The phase-0 corpus is one construct per package,
+  which is right for attributing a failure and wrong for finding the ones that only appear
+  when constructs are stacked.
+
+# ------------------------------------------------------------------------------------
+# FIVE FACTS THIS KEY CANNOT STATE, AND THE VALIDATOR CAUGHT THEM (2026-09-09).
+#
+# The first draft of this key was REJECTED by `labels._reject_duplicates`. Five genuine
+# facts, each written by two different procedures in this one file, collide on the match
+# key - and unlike b1_02/b1_03/b1_09/s7, GUARD DOES NOT SEPARATE THEM. All ten edges are
+# unconditional. Only origin distinguishes them, and origin was measured out of the key
+# (ADR-0001 amendment 1b).
+#
+#   STG_ORDERS.CUST_ID    -> FCT_REVENUE.CUST_ID       stress_set_ops : stress_udf_caller
+#   STG_ORDERS.ORDER_DATE -> FCT_REVENUE.PERIOD_MONTH  stress_set_ops : stress_udf_caller
+#   STG_ORDERS.CURRENCY   -> FCT_REVENUE (filter)      stress_set_ops : stress_udf_caller
+#   STG_CUSTOMER.EMAIL    -> DIM_CUSTOMER.EMAIL        stress_merge_upsert : stress_cursor_for_loop
+#   DIM_CUSTOMER.CUST_ID  -> DIM_CUSTOMER (filter)     trg_recent_audit : stress_cursor_for_loop
+#
+# Two of them differ in BAND as well (0 against 1, and 1 against 2), so the collision is
+# not cosmetic: it forces a choice about which band the fact is scored in, and the losing
+# band's recall is charged for a fact that is genuinely there.
+#
+# THIS IS THE FINDING, NOT AN INCONVENIENCE. Amendment 1b concluded origin has no useful
+# role in the scoring layer, and it was right about the phase-0 corpus - where every
+# package holds one to three procedures and two of them almost never write the same thing.
+# This file holds thirteen units, which is ordinary for real code, and the collision
+# appears immediately. The conclusion does not survive contact with package size.
+#
+# Kept as the FIRST occurrence in source order, deliberately rather than by picking
+# whichever copy the analyser's dedup happens to keep - tuning a key to an implementation
+# is how a benchmark stops measuring anything.
+# ------------------------------------------------------------------------------------
+
+edges:
+  # ================================================================================
+  # stress_cte_window - CTE x2, JOIN, LEFT JOIN, GROUP BY, HAVING, SUM, ROW_NUMBER, LAG
+  # ================================================================================
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: TRUNC(o.order_date,'MM') carried through the `monthly` CTE.
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CATEGORIES.CATEGORY_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: >
+      m.gross - NVL(f.refunds,0). Aggregated outranks derived on the same path (ADR-0001
+      4 with the transform ladder), so the SUM wins over the subtraction.
+
+  - source: {kind: column, name: STG_RETURNS.REFUND_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_RETURNS.REFUND_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.REFUND_TOTAL}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRIOR_MONTH}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: >
+      LAG(m.gross) - the window function's ARGUMENT is a genuine value source, unlike its
+      PARTITION BY and ORDER BY. rank_in_month gets no edge at all: ROW_NUMBER() takes no
+      column, so there is no upstream to name.
+
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_RETURNS.STATUS_CODE}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+
+  # ================================================================================
+  # stress_set_ops - UNION ALL, positional binding
+  # ================================================================================
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_RETURNS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+    note: The second UNION arm. Missing it is a silent under-report of a whole feed (s5).
+
+  - source: {kind: column, name: STG_RETURNS.REFUND_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_RETURNS.STATUS_CODE}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+
+  # ================================================================================
+  # stress_merge_upsert - MERGE, both arms, CASE, parameter filter, INSERT trigger
+  # ================================================================================
+
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: column, name: DIM_CUSTOMER.EMAIL}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_MERGE_UPSERT, line: 93}
+    evidence: source_read
+    note: Both arms write it; the same fact from two arms is deduplicated, not counted twice.
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: STRESS_MERGE_UPSERT, line: 93}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_MERGE_UPSERT, line: 93}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.REGION}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_MERGE_UPSERT, line: 93}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_MERGE_UPSERT, line: 93}
+    evidence: source_read
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: STRESS_MERGE_UPSERT, line: 93}
+    evidence: source_read
+    note: A parameter on the path makes this band 1 even though the statement is set-based.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 2
+    origin: {unit: TRG_CUSTOMER_DEFAULT, line: 1}
+    evidence: source_read
+    note: >
+      Inherited from the dictionary, not from this file. trg_customer_default is BEFORE
+      INSERT on dim_customer and defaults is_active from :NEW.region. Nothing in this
+      source mentions it, which is the whole point of attaching triggers to the table.
+
+  # ================================================================================
+  # stress_view_and_synonym - three-deep view chain and a synonym
+  # ================================================================================
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_VIEW_AND_SYNONYM, line: 119}
+    evidence: source_read
+    note: >
+      Neither name in the statement survives: customer_target is a synonym for
+      dw_dim_customer_v2, and v_cust_l3 resolves through l2 and l1 to stg_customer.
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.REGION}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_VIEW_AND_SYNONYM, line: 119}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: STRESS_VIEW_AND_SYNONYM, line: 119}
+    evidence: source_read
+    note: >
+      Two CASE expressions stack - one in v_cust_l2 building status_flag, one here reading
+      it. Conditional either way; email and lifetime_value receive literals and get none.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_VIEW_AND_SYNONYM, line: 119}
+    evidence: source_read
+    note: The predicate is on the view column; the lineage must land on the base column.
+
+  # ================================================================================
+  # stress_cursor_and_handler - explicit cursor, FETCH INTO, WHILE, exception write
+  # ================================================================================
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: variable, name: V_CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 145}
+    evidence: source_read
+    note: FETCH INTO binds POSITIONALLY to the cursor's select list, not by name.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: variable, name: V_LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 145}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: variable, name: V_STATUS}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 145}
+    evidence: source_read
+
+  - source: {kind: variable, name: V_CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    guard: "v_status = 'A'"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 153}
+    evidence: source_read
+    note: >
+      EXPECTED TO MISS. INSERT ... VALUES is on the refusal register as "carries no column
+      lineage from a relation", which is true of relations and false of variables - and
+      the phase-0 measurement already counts that refusal as its one false abstention
+      (s6). Labelled as it should be so the gap is measured rather than assumed away.
+
+  - source: {kind: variable, name: V_LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 1
+    guard: "v_status = 'A'"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 153}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: GTT_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    guard: "v_seen > 0"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 161}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 1
+    guard: "v_seen > 0"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 161}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 1
+    guard: "v_seen > 0"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 161}
+    evidence: source_read
+
+  - source: {kind: variable, name: V_CUST_ID}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "v_seen > 0"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 161}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "v_seen > 0"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 161}
+    evidence: source_read
+
+  - source: {kind: variable, name: V_CUST_ID}
+    target: {kind: column, name: DW_AUDIT_LOG.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    guard: "EXCEPTION NO_DATA_FOUND"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 176}
+    evidence: source_read
+    note: >
+      An error path that writes, and it appears nowhere on the happy path. Same INSERT ...
+      VALUES gap as above, so also expected to miss.
+
+  - source: {kind: variable, name: V_SEEN}
+    target: {kind: variable, name: V_SEEN}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 149}
+    evidence: source_read
+    note: v_seen := v_seen + 1, the accumulation.
+
+  - source: {kind: variable, name: V_SEEN}
+    target: {kind: variable, name: V_SEEN}
+    flow: value
+    transform: derived
+    band: 1
+    guard: "v_seen > 0"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 168}
+    evidence: source_read
+    note: >
+      v_seen := v_seen - 1, the decay. Identical to the accumulation above in every scored
+      field, separated only by guard - the b1_03 case, and the reason ADR-0001 amendment 1
+      exists.
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 1}
+    evidence: source_read
+    note: trg_recent_audit fires on the tmp_recent insert; inherited from the dictionary.
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 1}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 1}
+    evidence: source_read
+
+  # ================================================================================
+  # stress_cursor_for_loop - cursor FOR loop record fields
+  # ================================================================================
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: STRESS_CURSOR_FOR_LOOP, line: 193}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: STRESS_CURSOR_FOR_LOOP, line: 193}
+    evidence: source_read
+    note: The cursor's own WHERE decides which rows the loop body ever sees.
+
+  # ================================================================================
+  # stress_self_join_and_scalar - self join, scalar subquery, EXISTS correlation
+  # ================================================================================
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SELF_JOIN_AND_SCALAR, line: 207}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.PARENT_CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SELF_JOIN_AND_SCALAR, line: 207}
+    evidence: source_read
+    note: >
+      The self-join limit, recorded before the analyser saw it (sq_06 recorded the same).
+      `child` and `parent` are different rows of one relation and the IR carries no row
+      identity, so these two edges are indistinguishable in the schema. depth receives the
+      literal 1 and gets no edge.
+
+  - source: {kind: column, name: STG_PRODUCTS.PRODUCT_NAME}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_SELF_JOIN_AND_SCALAR, line: 207}
+    evidence: source_read
+    note: A scalar subquery in the select list resolves against its OWN scope, not the outer one.
+
+  - source: {kind: column, name: STG_PRODUCTS.CATEGORY_ID}
+    target: {kind: relation, name: DIM_CUSTOMER_HIER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SELF_JOIN_AND_SCALAR, line: 207}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.SIGNUP_DATE}
+    target: {kind: relation, name: DIM_CUSTOMER_HIER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SELF_JOIN_AND_SCALAR, line: 207}
+    evidence: source_read
+    note: child.signup_date > parent.signup_date - a real predicate, not a join key.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER_HIER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SELF_JOIN_AND_SCALAR, line: 207}
+    evidence: source_read
+    note: >
+      The EXISTS correlation. It decides WHICH rows survive and supplies no value - the
+      error that has now appeared four times in this project.
+
+  # ================================================================================
+  # stress_transaction_control - SAVEPOINT / ROLLBACK TO / guarded branches / DELETE
+  # ================================================================================
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    guard: "v_count <> 0 AND p_strict = 1"
+    origin: {unit: STRESS_TRANSACTION_CONTROL, line: 239}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 1
+    guard: "v_count <> 0 AND p_strict = 1"
+    origin: {unit: STRESS_TRANSACTION_CONTROL, line: 239}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 1
+    guard: "v_count <> 0 AND p_strict = 1"
+    origin: {unit: STRESS_TRANSACTION_CONTROL, line: 239}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 1
+    guard: "v_count <> 0 AND p_strict = 1"
+    origin: {unit: STRESS_TRANSACTION_CONTROL, line: 239}
+    evidence: source_read
+
+  # ================================================================================
+  # stress_dynamic_mixed - constant EXECUTE IMMEDIATE recovered, variable one refused
+  # ================================================================================
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: STRESS_DYNAMIC_MIXED, line: 262}
+    evidence: source_read
+    note: >
+      Recovered by constant propagation and then parsed normally - but BAND 2, not band 0.
+      The path runs through EXECUTE IMMEDIATE whether or not we could see through it, and
+      crediting band 0 would let that band claim work it did not do.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: STRESS_DYNAMIC_MIXED, line: 262}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 2
+    origin: {unit: STRESS_DYNAMIC_MIXED, line: 262}
+    evidence: source_read
+
+  # ================================================================================
+  # pkg_stress_state - package state written in one unit, read in another
+  # ================================================================================
+
+  - source: {kind: column, name: REF_POLICY.WINDOW_DAYS}
+    target: {kind: variable, name: V_DAYS}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: SET_WINDOW, line: 311}
+    evidence: source_read
+
+  - source: {kind: variable, name: V_DAYS}
+    target: {kind: variable, name: PKG_STRESS_STATE.G_CUTOFF}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: SET_WINDOW, line: 316}
+    evidence: source_read
+    note: SYSDATE - v_days. Package state is qualified by its package.
+
+  - source: {kind: column, name: REF_POLICY.REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: SET_WINDOW, line: 311}
+    evidence: source_read
+    note: The statement writes a VARIABLE, so the filter edge targets the relation read.
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: SET_WINDOW, line: 311}
+    evidence: source_read
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: variable, name: PKG_STRESS_STATE.G_REGION}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: SET_WINDOW, line: 317}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: APPLY_WINDOW, line: 321}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: APPLY_WINDOW, line: 321}
+    evidence: source_read
+
+  - source: {kind: variable, name: PKG_STRESS_STATE.G_CUTOFF}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: APPLY_WINDOW, line: 321}
+    evidence: source_read
+    note: >
+      The cross-unit read. Nothing in apply_window assigns g_cutoff, and nothing in the
+      statement connects it to set_window - the edge is real and the ORDER of the two
+      calls is a condition on it that static reading cannot settle.
+
+  - source: {kind: variable, name: PKG_STRESS_STATE.G_REGION}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: APPLY_WINDOW, line: 321}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: APPLY_WINDOW, line: 321}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: APPLY_WINDOW, line: 321}
+    evidence: source_read
+
+  # ================================================================================
+  # fn_stress_net + stress_udf_caller - interprocedural summary
+  # ================================================================================
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: variable, name: V_NET}
+    flow: value
+    transform: aggregated
+    band: 1
+    origin: {unit: FN_STRESS_NET, line: 338}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: variable, name: V_NET}
+    flow: value
+    transform: aggregated
+    band: 1
+    origin: {unit: FN_STRESS_NET, line: 338}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
+    target: {kind: relation, name: STG_ORDERS}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: FN_STRESS_NET, line: 338}
+    evidence: source_read
+
+  - source: {kind: variable, name: P_ORDER_ID}
+    target: {kind: relation, name: STG_ORDERS}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: FN_STRESS_NET, line: 338}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 1
+    origin: {unit: STRESS_UDF_CALLER, line: 352}
+    evidence: source_read
+    note: >
+      The interprocedural point: fn_stress_net contributes the columns its RETURN VALUE
+      depends on, not the column passed as its argument.
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 1
+    origin: {unit: STRESS_UDF_CALLER, line: 352}
+    evidence: source_read
+
+
+# ====================================================================================
+# THE WRONG ANSWERS THIS FILE INVITES. Named in advance, because a wrong edge that
+# happens to be absent from the key is only ever one anonymous false positive among
+# others - and naming it changes what a regression means.
+# ====================================================================================
+
+forbidden:
+  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    reason: >
+      The UDF's ARGUMENT read as a value source. fn_stress_net(o.order_id) returns a value
+      derived from line_amount and discount_amt; order_id only selects which order. This
+      exact error has appeared four times in this project.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    reason: >
+      The scalar subquery resolved against the OUTER scope instead of its own. root_name
+      comes from stg_products and nothing in the outer query feeds it.
+
+  - source: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: value
+    reason: >
+      A window function's PARTITION BY read as a value source. ROW_NUMBER() takes no
+      column argument at all, so rank_in_month has no upstream - inventing one from the
+      partition key is the defect the complex-SQL band already caught once.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER.EMAIL}
+    flow: value
+    reason: >
+      The MERGE's ON condition read as value lineage. cust_id matches rows; email is what
+      is written, and joining on one does not make it the source of the other.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    reason: >
+      Path fusion through tmp_recent. stg_customer feeds tmp_recent and trg_recent_audit
+      reads tmp_recent, but lifetime_value is derived from its OWN prior value - nothing
+      upstream of tmp_recent supplies it. Composing at emission time is how an unprovable
+      edge acquires a provable-looking origin.
+
+  - source: {kind: variable, name: V_SQL_BAD}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    reason: >
+      Guessing the target of the non-constant EXECUTE IMMEDIATE. `'UPDATE dim_customer SET
+      ' || p_column` has constant fragments and a variable in the middle; folding the
+      parts that are available and assuming a column is the plausible-wrong-answer failure
+      this whole project is organised against.
+
+# ====================================================================================
+# WHAT THIS FILE SHOULD DECLARE IT CANNOT SEE
+# ====================================================================================
+
+expected_boundaries:
+  - kind: dynamic_sql
+    subject: "EXECUTE IMMEDIATE:267"
+    reason: >
+      v_sql_bad is assembled from a parameter, so the target column is not statically
+      decidable and no edge may be claimed for it.
+
+  - kind: suppressed_error
+    subject: "STRESS_BULK_OPERATIONS:291"
+    reason: >
+      WHEN OTHERS THEN NULL swallows every failure in the bulk load, so the absence of an
+      edge below it proves nothing about whether the write happened.
+
+  - kind: cross_unit_state
+    subject: "APPLY_WINDOW"
+    reason: >
+      g_cutoff and g_region are read here and assigned in set_window. The edge is real and
+      the call ORDER is a condition on it that no static reading can settle.
