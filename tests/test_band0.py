@@ -12,10 +12,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import sqlglot
 
-from lineage.analysis.band0 import analyse_source
+from lineage.analysis.band0 import _transform_of, analyse_source
 from lineage.config import AnalysisConfig
-from lineage.harness.labels import Flow, GroundTruth
+from lineage.harness.labels import Flow, GroundTruth, Transform
 from lineage.harness.scoring import ScoreReport, score
 from lineage.resolution.dictionary import Dictionary
 
@@ -177,3 +178,56 @@ END writer_two;
         edge.origin.unit for edge in result.edges if str(edge.target) == "column:TMP_RECENT.CUST_ID"
     }
     assert units == {"WRITER_ONE", "WRITER_TWO"}
+
+
+# --- S2-05: what counts as a conditional transform ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        # Oracle's own documentation defines DECODE as equivalent to CASE.
+        ("DECODE(status_code, 'A', 1, 0)", Transform.CONDITIONAL),
+        # Replaces the value with NULL on a test.
+        ("NULLIF(region, 'XX')", Transform.CONDITIONAL),
+        # Choose between two SOURCES by comparison.
+        ("GREATEST(gross_amount, discount_amt)", Transform.CONDITIONAL),
+        ("LEAST(gross_amount, discount_amt)", Transform.CONDITIONAL),
+        # Tests one argument, returns one of two others.
+        ("NVL2(region, 1, 0)", Transform.CONDITIONAL),
+        ("CASE WHEN status_code = 'A' THEN 1 ELSE 0 END", Transform.CONDITIONAL),
+        # Not conditional: the input flows through an expression.
+        ("TRUNC(order_date, 'MM')", Transform.DERIVED),
+        ("cust_id", Transform.IDENTITY),
+        # Aggregation still outranks everything (ADR-0001 §4 transform ladder).
+        ("NVL(SUM(gross_amount), 0)", Transform.AGGREGATED),
+    ],
+)
+def test_conditional_transform_classification(expression: str, expected: Transform) -> None:
+    """Found by stress 2. These were all `derived`, and a wrong transform is a MISS.
+
+    ADR-0001 §4 makes transform part of the match key, so mis-classifying one costs a
+    false positive AND a false negative - eight cells of damage from four expressions in
+    stress 2. It is also the error that reads as correct in a report: the edge is there,
+    the endpoints are right, and only the word describing what happened is wrong.
+    """
+    parsed = sqlglot.parse_one(f"SELECT {expression} FROM t", dialect="oracle").selects[0]
+    assert _transform_of(parsed) is expected
+
+
+def test_coalesce_is_conditional_only_when_two_columns_can_supply() -> None:
+    """The one that needed a rule rather than a list, because NVL and COALESCE share a node.
+
+    `COALESCE(a, b)` over two columns is a genuine choice of source. `NVL(x, 0)` has a
+    constant floor: the column flows through unchanged whenever it exists, and the literal
+    is null-safety rather than business logic. Calling that conditional would tell a reader
+    there is a branch in the rule when the only branch is a null guard.
+
+    Measured, not asserted: classifying every COALESCE as conditional costs one phase-0
+    label — `sq_06`'s `NVL(parent.depth, 0) + 1` — and this rule leaves it alone.
+    """
+    two_columns = sqlglot.parse_one("SELECT COALESCE(email, region) FROM t", dialect="oracle")
+    literal_floor = sqlglot.parse_one("SELECT NVL(lifetime_value, 0) + 1 FROM t", dialect="oracle")
+
+    assert _transform_of(two_columns.selects[0]) is Transform.CONDITIONAL
+    assert _transform_of(literal_floor.selects[0]) is Transform.DERIVED

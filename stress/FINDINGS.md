@@ -31,7 +31,7 @@ with the code has stopped measuring anything.
 | S2-02 | `construct-coverage` | open | `INSERT ALL` unsupported — declared, but 7 edges lost |
 | S2-03 | `refusal-taxonomy` | open | `PIVOT`/`UNPIVOT` refused even with a static column list |
 | S2-04 | `silent-loss` | **fixed** | `BULK COLLECT` into a record collection yielded nothing, silently |
-| S2-05 | `transform-classification` | open | `DECODE`/`NULLIF`/`COALESCE`/`GREATEST` read as derived, not conditional |
+| S2-05 | `transform-classification` | **fixed** | `DECODE`/`NULLIF`/`GREATEST` read as derived, not conditional |
 | S2-06 | `key-error` | closed | `s2_locking` unlabelled; two window-transform disagreements |
 
 ### Recurrence — what stress 2 settled
@@ -386,7 +386,7 @@ cells do not move because the edges were already missing — what changed is tha
 now says so. Pinned by three tests in `tests/test_refusals.py`, including the over-refusal
 guard.
 
-## S2-05 · `transform-classification` · OPEN — `DECODE`, `NULLIF`, `COALESCE`, `GREATEST` are read as derived
+## S2-05 · `transform-classification` · FIXED — `DECODE`, `NULLIF`, `GREATEST` were read as derived
 
 Four of the eleven false positives are the same disagreement:
 
@@ -404,6 +404,38 @@ Under ADR-0001 §4 a wrong transform class is a **MISS, not partial credit**, so
 costs a false positive *and* a false negative — eight cells of damage from four expressions.
 It is also the kind of error that reads as correct in a report: the edge is there, the
 endpoints are right, and only the word describing what happened to the value is wrong.
+
+**Fix.** `DECODE`, `NULLIF`, `GREATEST`, `LEAST` and `NVL2` join `CASE` and `IF` as
+conditional. Each selects the output from alternatives on a test rather than computing it
+from the input.
+
+**`COALESCE` needed a rule rather than a list**, because sqlglot gives `NVL` the same node
+and the two cannot be told apart by type:
+
+* `COALESCE(a, b)` over two **columns** is a genuine choice of source — the value comes from
+  `a` or from `b` on a test. Conditional.
+* `NVL(x, 0)` has one column and a **constant floor**. The column's value flows through
+  unchanged whenever it exists; the literal is null-safety, not business logic. Calling that
+  conditional would tell a reader there is a branch in the rule when the only branch is a
+  null guard. Derived.
+
+So: conditional when more than one argument can actually supply a column.
+
+**That line was chosen on the merits and then checked against the cost, in that order.**
+Classifying *every* `COALESCE` as conditional was measured first and costs one phase-0 label
+— `sq_06`'s `NVL(parent.depth, 0) + 1`, band-0 value precision 100% → 98.9%. The rule above
+leaves it alone, but the reason it is right is the semantic one, not the free one.
+
+**Effect.**
+
+| | before | after |
+|---|---|---|
+| phase-0 measurement | — | **every key identical** |
+| stress 2 band-0 value precision | 82.8% | **96.6%** |
+| stress 2 band-0 value recall | 58.5% | **68.3%** |
+
+Exactly the eight cells predicted, recovered. Eleven regression tests, including the
+`COALESCE`-versus-`NVL` distinction and the ladder check that aggregation still outranks.
 
 ## S2-06 · `key-error` · CLOSED — my key again
 

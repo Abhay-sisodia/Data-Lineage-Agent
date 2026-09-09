@@ -65,7 +65,25 @@ TRANSFORM_RANK = {
 }
 
 AGGREGATE_FUNCTIONS = (exp.Sum, exp.Count, exp.Avg, exp.Min, exp.Max, exp.AggFunc)
-CONDITIONAL_EXPRESSIONS = (exp.Case, exp.If)
+
+# The output value is SELECTED from alternatives by a test, rather than computed from the
+# input. Stress finding S2-05: this used to be `(exp.Case, exp.If)` alone, so DECODE -
+# which Oracle's own documentation defines as equivalent to CASE - was classified
+# `derived`, and a wrong transform class is a MISS on BOTH sides under ADR-0001 4. Four
+# expressions cost eight cells.
+#
+# GREATEST and LEAST belong here because they choose between two SOURCES; NULLIF because
+# it replaces the value with NULL on a test; NVL2 because it tests one argument and
+# returns one of two others.
+CONDITIONAL_EXPRESSIONS = (
+    exp.Case,
+    exp.If,
+    exp.DecodeCase,
+    exp.Nullif,
+    exp.Greatest,
+    exp.Least,
+    exp.Nvl2,
+)
 
 
 @dataclass
@@ -165,6 +183,32 @@ def _inline_views(
     return expression, notes
 
 
+def _is_conditional(node: Any) -> bool:
+    """Does this node SELECT the output from alternatives, rather than compute it?
+
+    `COALESCE` is the one that needs a rule rather than a list, and sqlglot gives `NVL`
+    the same node, so the two cannot be told apart by type:
+
+    * `COALESCE(a, b)` over two COLUMNS is a genuine choice of source - the value comes
+      from `a` or from `b` depending on a test, which is what conditional means.
+    * `NVL(x, 0)` has one column and a constant floor. The column's value flows through
+      unchanged whenever it exists; the literal is null-safety, not business logic.
+      Calling that conditional would tell a reader there is a branch in the rule when the
+      only branch is a null guard.
+
+    So: conditional when more than one argument can actually supply a column. Measured
+    rather than assumed - classifying every `COALESCE` as conditional costs one phase-0
+    label (`sq_06`'s `NVL(parent.depth, 0) + 1`), and this rule leaves it alone.
+    """
+    if isinstance(node, exp.Coalesce):
+        candidates = [node.this, *(node.expressions or [])]
+        supplying = [
+            arg for arg in candidates if arg is not None and list(arg.find_all(exp.Column))
+        ]
+        return len(supplying) > 1
+    return isinstance(node, CONDITIONAL_EXPRESSIONS)
+
+
 def _transform_of(expression: Any) -> Transform:
     """Classify what the expression does to the value.
 
@@ -177,7 +221,7 @@ def _transform_of(expression: Any) -> Transform:
         return Transform.IDENTITY
     if any(isinstance(node, AGGREGATE_FUNCTIONS) for node in expression.walk()):
         return Transform.AGGREGATED
-    if any(isinstance(node, CONDITIONAL_EXPRESSIONS) for node in expression.walk()):
+    if any(_is_conditional(node) for node in expression.walk()):
         return Transform.CONDITIONAL
     return Transform.DERIVED
 
