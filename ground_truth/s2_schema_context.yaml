@@ -189,8 +189,13 @@ expected_boundaries:
     reason: >
       Explicitly qualified against a schema that was never granted. Binding it to the local
       stg_customer is the silent absorption this package exists to catch.
+  # Line 18 is the INSERT; the prose above says "line 20" because it was hand-read at the
+  # FROM clause. The analyser attributes a statement to its first line, which is the same
+  # convention origins already use, so the subject follows the analyser rather than the
+  # prose - the alternative is a key that can never be satisfied for a reason that has
+  # nothing to do with lineage being right.
   - kind: context_dependent_binding
-    subject: "S2_SCHEMA_CONTEXT:20"
+    subject: "S2_SCHEMA_CONTEXT:18"
     reason: >
       The unqualified stg_customer in statement 1 resolves through whichever schema
       executes the procedure. The lineage is correct only for the schema it was bound

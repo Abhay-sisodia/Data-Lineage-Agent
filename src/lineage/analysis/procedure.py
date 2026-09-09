@@ -14,6 +14,8 @@ them separate is what lets the score say which one broke.
 
 from __future__ import annotations
 
+import re
+
 import sqlglot
 from sqlglot import exp
 
@@ -30,13 +32,14 @@ from lineage.analysis.defuse import (
 from lineage.analysis.dynamic import Resolution, resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
-from lineage.analysis.refusal import classify_program
+from lineage.analysis.refusal import classify_program, enclosing_unit_at
 from lineage.analysis.scratch import find_fusion_hazards
 from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
 from lineage.evidence.witness import ExecutionWitness
 from lineage.ir.model import Boundary, BoundaryKind, IREdge, Node, NodeKind
-from lineage.parsing.plsql import Program, parse_program
+from lineage.parsing.generated.PlSqlParser import PlSqlParser
+from lineage.parsing.plsql import Program, iter_contexts, parse_program, source_slice
 from lineage.resolution.dictionary import Dictionary
 from lineage.resolution.views import resolve_views
 
@@ -144,6 +147,14 @@ def analyse_source(
         )
         if trigger_note not in result.boundaries:
             result.boundaries.append(trigger_note)
+
+    for suppressed in _suppressed_errors(program):
+        if suppressed not in result.boundaries:
+            result.boundaries.append(suppressed)
+
+    for contextual in _context_dependent_names(program, result):
+        if contextual not in result.boundaries:
+            result.boundaries.append(contextual)
 
     # Silent failure s6, closed corpus-wide rather than per analyser (T3.4c). Band 0
     # inlines view text before analysing a projection and the trigger analyser rewrites an
@@ -292,6 +303,86 @@ def _written_relations(program: Program, dynamic: Resolution) -> dict[str, str]:
             written[name] = event if name not in written else f"{written[name]} {event}"
 
     return written
+
+
+def _suppressed_errors(program: Program) -> list[Boundary]:
+    """Exception handlers that swallow the failure whole.
+
+    `WHEN OTHERS THEN NULL` is not a style complaint here, it is a coverage fact. The
+    handler catches every error and does nothing, so a mapping that was enabled and failed
+    leaves the estate looking exactly like one that ran and wrote nothing. **Absence of an
+    edge stops being evidence** anywhere downstream of it - which is precisely the claim a
+    coverage statement exists to qualify.
+
+    Detected structurally rather than by matching source text, because `WHEN OTHERS THEN
+    NULL;` and a handler whose body is a bare NULL across three lines are the same fact.
+    """
+    handler_ctx = getattr(PlSqlParser, "Exception_handlerContext", None)
+    if handler_ctx is None:  # pragma: no cover - grammar always has it
+        return []
+
+    found: list[Boundary] = []
+    for ctx in iter_contexts(program.tree, handler_ctx):
+        body = " ".join(source_slice(ctx).split()).upper()
+        if "OTHERS" not in body.split("THEN")[0]:
+            continue
+        statements = body.split("THEN", 1)[1] if "THEN" in body else ""
+        if re.fullmatch(r"\s*NULL\s*;?\s*", statements) is None:
+            continue
+        line = ctx.start.line
+        unit = enclosing_unit_at(program, line)
+        found.append(
+            Boundary(
+                kind=BoundaryKind.SUPPRESSED_ERROR,
+                subject=f"{unit}:{line}",
+                detail=f"{unit}: WHEN OTHERS THEN NULL at line {line} swallows every "
+                f"failure - a write that was attempted and rejected is indistinguishable "
+                f"from one that never ran, so a missing edge below here proves nothing",
+                unit=unit,
+                line=line,
+            )
+        )
+    return found
+
+
+def _context_dependent_names(program: Program, result: AnalysisResult) -> list[Boundary]:
+    """Units whose lineage is only valid for the schema that executed them.
+
+    Silent failure s2, the half that survives a correct analyser. An unqualified name binds
+    through the EXECUTING user's schema, so two jobs running identical code against
+    different schemas touch different tables - and a single observation shows one of them
+    and looks definitive. The resolution is not a defect to fix; it is a condition on the
+    answer, and a condition nobody states is a condition nobody knows about.
+
+    One boundary per unit, at the first unqualified reference. Per-reference would be
+    accurate and unreadable - the same reason fusion hazards are declared per relation.
+    """
+    seen: dict[str, int] = {}
+    for statement in program.statements:
+        if statement.kind not in band0.SUPPORTED:
+            continue
+        try:
+            parsed = sqlglot.parse_one(statement.text, dialect=band0.DIALECT)
+        except Exception:
+            continue
+        for table in parsed.find_all(exp.Table):
+            if table.text("db") or not table.name:
+                continue
+            unit = enclosing_unit_at(program, statement.line)
+            seen.setdefault(unit, statement.line)
+
+    return [
+        Boundary(
+            kind=BoundaryKind.CONTEXT_DEPENDENT_BINDING,
+            subject=f"{unit}:{line}",
+            detail=f"{unit}: unqualified names from line {line} resolve through whichever "
+            f"schema executes this unit, so the lineage below is valid for the schema it "
+            f"was bound against and is a different answer under another",
+            unit=unit,
+            line=line,
+        )
+        for unit, line in sorted(seen.items())
+    ]
 
 
 def _reaching_findings(cfg: Cfg, scope: UnitScope, config: AnalysisConfig) -> list[str]:

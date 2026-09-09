@@ -190,8 +190,15 @@ expected_boundaries:
   - kind: refusal
     subject: "U1_WRAPPED:136"
     reason: Wrapped PL/SQL - the body is stored obfuscated.
-  - kind: source_unavailable
-    subject: "U1_WRAPPED"
-    reason: >
-      The wrapped blob is not valid PL/SQL, so the grammar derails and every unit declared
-      after it is lost - which is why the control sits above it.
+  # WITHDRAWN 2026-09-09. A `source_unavailable: U1_WRAPPED` expectation was written here
+  # and then checked. Two reasons it does not stand:
+  #
+  # 1. It duplicates the refusal above at a coarser subject. The wrapped body IS declared -
+  #    `U1_WRAPPED:136 [SOURCE_UNAVAILABLE]` - and counting the same fact twice under two
+  #    subjects inflates the boundary count for nothing.
+  # 2. The stronger half of the claim - "every unit declared after it is lost" - is a
+  #    HAZARD this file deliberately avoids by putting the control at position 7 of 8. It
+  #    does not happen here, and declaring it would state a loss that did not occur.
+  #
+  # The hazard is real and remains recorded in the prose above. It needs a package where a
+  # unit actually follows a wrapped body, which this corpus does not have.

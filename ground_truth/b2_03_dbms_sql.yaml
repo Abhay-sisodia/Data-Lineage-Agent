@@ -94,10 +94,23 @@ forbidden:
 boundaries:
   - "B2_DBMS_SQL: DBMS_SQL statement assembled through an opaque cursor handle - no static route to the text"
 
-# STRUCTURED FORM (ADR-0001 amendment 1d).
-expected_boundaries:
-  - kind: dynamic_sql
-    subject: "B2_DBMS_SQL"
-    reason: >
-      Statement assembled through an opaque DBMS_SQL cursor handle - there is no static
-      route to the text at all, which is a stronger claim than EXECUTE IMMEDIATE.
+# STRUCTURED FORM (ADR-0001 amendment 1d) - AND THIS PACKAGE EXPECTS NO BOUNDARY.
+#
+# WITHDRAWN 2026-09-09, and the withdrawal is the finding. A `dynamic_sql` expectation was
+# written here on 2026-09-09 from this file's own header, which says "there is not even a
+# single string expression to inspect" and "no static route exists". Checking it against
+# the analyser showed the header is WRONG for the package as written.
+#
+# v_stmt is assembled from four string LITERALS and nothing else. Constant propagation
+# folds it, the recovered text parses, and the analyser emits all five labelled edges
+# correctly. There is no boundary here because nothing is out of reach - the opaque handle
+# never carries anything the source does not already state.
+#
+# So the honest correction is to this key, not to the analyser. Forcing a declaration that
+# "no static route exists" would make the tool assert something it had just disproved,
+# which is the failure this whole project is organised against, pointed inward.
+#
+# What WOULD need a boundary is a DBMS_SQL statement assembled from a variable - and this
+# corpus does not contain one. Recorded as a corpus gap rather than papered over: the
+# construct the header describes is real, common, and untested here.
+expected_boundaries: []

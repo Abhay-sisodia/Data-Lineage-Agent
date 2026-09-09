@@ -45,6 +45,7 @@ __all__ = [
     "classify_program",
     "classify_statement",
     "conditional_compilation_spans",
+    "enclosing_unit_at",
     "last_line",
     "violations",
 ]
@@ -412,7 +413,7 @@ def classify_program(program: Program) -> list[Refusal]:
                     reason=construct.reason,
                     excerpt=" ".join(program.source.splitlines()[line - 1].split())[:80],
                     code=construct.code,
-                    unit=_enclosing_unit_at(program, line),
+                    unit=enclosing_unit_at(program, line),
                 )
             )
 
@@ -432,7 +433,8 @@ def _deduplicate(refusals: list[Refusal]) -> list[Refusal]:
     return sorted(seen.values(), key=lambda refusal: (refusal.line, refusal.code.value))
 
 
-def _enclosing_unit_at(program: Program, line: int) -> str:
+def enclosing_unit_at(program: Program, line: int) -> str:
+    """The program unit a line falls inside. Public: procedure.py needs it too."""
     candidates = [unit for unit in program.units if unit.line <= line]
     return candidates[-1].name.upper() if candidates else "<anonymous>"
 

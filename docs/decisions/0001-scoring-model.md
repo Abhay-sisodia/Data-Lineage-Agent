@@ -362,6 +362,43 @@ analyser work with its own measurement; recording them as a known, counted gap i
 amendment is for. A check that is switched on and immediately silenced by fixing the label to
 match the code would have proved nothing.
 
+> **Closed 2026-09-09, and it went two ways.** Two of the four were real analyser gaps and
+> were built. **Two were errors in the expectations themselves** — which is the more useful
+> half of the result, because it says the new check works in both directions.
+>
+> | expectation | outcome |
+> |---|---|
+> | `b2_04` `suppressed_error` | **built** — `WHEN OTHERS THEN NULL` detected structurally |
+> | `s2` `context_dependent_binding` | **built** — one per unit, at its first unqualified reference |
+> | `b2_03` `dynamic_sql` | **withdrawn** — the expectation was wrong |
+> | `u1` `source_unavailable` | **withdrawn** — duplicated a refusal already declared |
+>
+> **`b2_03` is the one worth reading.** Its expectation was written from the package's own
+> header: *"there is not even a single string expression to inspect… no static route
+> exists."* Checked against the analyser, the header is **wrong for the package as written** —
+> `v_stmt` is assembled from four string literals, constant propagation folds it, and all
+> five labelled edges come out correctly. Forcing a declaration that "no static route exists"
+> would have made the tool assert something it had just disproved. The construct the header
+> describes is real and common; **this corpus does not contain it**, and that is now recorded
+> as a corpus gap rather than papered over with a boundary.
+>
+> **`u1` was double-counting.** The wrapped body is already declared as
+> `U1_WRAPPED:136 [SOURCE_UNAVAILABLE]`. The stronger half of the claim — *"every unit after
+> it is lost"* — is a hazard the file deliberately avoids by putting the control at position 7
+> of 8, so declaring it would state a loss that did not occur.
+>
+> **Boundaries declared 73 → 110, and 35 of the 37 are one fact restated per unit:**
+> context-dependent binding. Every unqualified name binds through the executing schema, so it
+> is true everywhere, and it is per-unit because a filing about one column needs to know
+> whether *its* path crosses it. If that ever reads as noise the fix is presentation, not
+> suppression — the report prints a count, not 110 sentences.
+>
+> **Every cell identical, gate 96.2%, parse coverage 76.1%.** Expectations 18 → 16, all
+> satisfied. The test that pinned "the gap is four" now pins **zero**, and the test that
+> proved undeclared expectations get reported was repointed at a synthetic expectation — a
+> test that passes only while a real gap stays open starts failing the moment the analyser
+> improves.
+
 ---
 
 ## Consequences

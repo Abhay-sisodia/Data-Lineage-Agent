@@ -25,7 +25,7 @@ import pytest
 
 from lineage.analysis.procedure import analyse_source
 from lineage.config import AnalysisConfig
-from lineage.harness.labels import GroundTruth
+from lineage.harness.labels import ExpectedBoundary, GroundTruth
 from lineage.harness.scoring import score
 from lineage.ir.model import Boundary, BoundaryKind, Node, NodeKind
 from lineage.resolution.dictionary import Dictionary
@@ -151,12 +151,30 @@ def test_prose_and_structure_disagree_and_structure_is_right(dictionary: Diction
 def test_an_expectation_the_analyser_does_not_declare_is_reported(
     dictionary: Dictionary,
 ) -> None:
-    """s2's context-dependent binding: expected for weeks, never declared, never noticed."""
-    truth, result = _analyse("s2_schema_context", dictionary)
-    report = score(truth, result.edges, result.boundaries)
+    """The check itself, pinned against a synthetic expectation.
 
-    kinds = [kind for kind, _, _ in report.boundaries_undeclared]
-    assert kinds == [BoundaryKind.CONTEXT_DEPENDENT_BINDING.value]
+    It used to assert s2's context-dependent binding was undeclared - which was true, and
+    is the gap that got built. Pointing this at a real package again would mean the test
+    passes only while some gap remains open, and starts failing the moment the analyser
+    improves. The mechanism is what needs pinning, not the estate's current shortfall.
+    """
+    truth, result = _analyse("s2_schema_context", dictionary)
+    invented = truth.model_copy(
+        update={
+            "expected_boundaries": [
+                ExpectedBoundary(
+                    kind=BoundaryKind.DEPTH_CAP,
+                    subject="NOTHING_DECLARES_THIS",
+                    reason="a known unknown no analyser in this corpus produces",
+                )
+            ]
+        }
+    )
+    report = score(invented, result.edges, result.boundaries)
+
+    assert [(kind, subject) for kind, subject, _ in report.boundaries_undeclared] == [
+        ("depth_cap", "NOTHING_DECLARES_THIS")
+    ]
 
 
 def test_the_ungranted_schema_is_declared_after_the_qualifier_fix(
@@ -174,11 +192,17 @@ def test_the_ungranted_schema_is_declared_after_the_qualifier_fix(
     )
 
 
-def test_the_corpus_wide_gap_is_four_and_they_are_named(dictionary: Dictionary) -> None:
-    """The number this work exists to produce, pinned so it cannot drift unnoticed.
+def test_no_expectation_is_left_undeclared(dictionary: Dictionary) -> None:
+    """The gap is closed, and closing it went two ways.
 
-    Four expectations the analyser stays silent about. Each is a real gap, not a
-    vocabulary mismatch, and each was invisible before the axis was scored at all.
+    Scoring the axis produced four undeclared expectations. Two were real analyser gaps and
+    were built: `WHEN OTHERS THEN NULL` (b2_04) and context-dependent binding (s2). **Two
+    were errors in the expectations themselves**, withdrawn with the reason recorded in
+    each key - b2_03 claimed no static route to a statement that constant propagation folds
+    from four literals, and u1 duplicated a refusal it had already declared.
+
+    Pinned at zero so a new expectation cannot be added without either the analyser
+    learning to declare it or someone stating why it does not stand.
     """
     undeclared: set[tuple[str, str]] = set()
     expected = 0
@@ -188,13 +212,8 @@ def test_the_corpus_wide_gap_is_four_and_they_are_named(dictionary: Dictionary) 
         expected += len(report.boundaries_expected_structured)
         undeclared |= {(kind, subject) for kind, subject, _ in report.boundaries_undeclared}
 
-    assert expected == 18
-    assert undeclared == {
-        ("dynamic_sql", "B2_DBMS_SQL"),
-        ("suppressed_error", "B2_METADATA_DRIVEN_ETL:54"),
-        ("context_dependent_binding", "S2_SCHEMA_CONTEXT:20"),
-        ("source_unavailable", "U1_WRAPPED"),
-    }
+    assert expected == 16
+    assert undeclared == set()
 
 
 # --- what the promotion to a node actually bought ----------------------------------------
@@ -224,3 +243,81 @@ def test_boundaries_name_the_relations_whose_knowledge_stops(dictionary: Diction
     # The partition exchange (s4) and the shared scratch table (s3): both have a boundary
     # that names them, and both would otherwise be indistinguishable from a staging table.
     assert coverage.bounded_relations == ["FCT_REVENUE_PART", "TMP_RECENT"]
+
+
+# --- the two gaps the scored axis exposed, now closed -------------------------------------
+
+
+def test_when_others_then_null_is_declared(dictionary: Dictionary) -> None:
+    """A handler that swallows everything makes absence of an edge stop being evidence.
+
+    b2_04 enables mappings from a config table and catches every failure with `WHEN OTHERS
+    THEN NULL`. A mapping that ran and was rejected looks exactly like one that never ran,
+    so nothing below this handler can be read as "did not happen".
+    """
+    _, result = _analyse("b2_04_metadata_driven_etl", dictionary)
+
+    assert ("suppressed_error", "B2_METADATA_DRIVEN_ETL:54") in {
+        b.identity() for b in result.boundaries
+    }
+
+
+def test_a_bare_null_handler_is_matched_structurally_not_by_text(
+    dictionary: Dictionary,
+) -> None:
+    """`WHEN OTHERS THEN NULL;` on one line and across three are the same fact."""
+    source = """CREATE OR REPLACE PROCEDURE spread_out IS
+BEGIN
+    INSERT INTO tmp_recent (cust_id, last_login)
+    SELECT cust_id, last_login FROM stg_customer;
+EXCEPTION
+    WHEN OTHERS
+    THEN
+        NULL;
+END spread_out;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig.load(), None)
+
+    assert any(b.kind is BoundaryKind.SUPPRESSED_ERROR for b in result.boundaries)
+
+
+def test_a_handler_that_does_something_is_not_a_suppressed_error(
+    dictionary: Dictionary,
+) -> None:
+    """The check must not fire on every exception handler, or it says nothing.
+
+    b1_09's handler writes on the error path - that is lineage, not suppression, and
+    flagging it would bury the real signal under one boundary per TRY block in the estate.
+    """
+    _, result = _analyse("b1_09_exception_handlers", dictionary)
+
+    assert not [b for b in result.boundaries if b.kind is BoundaryKind.SUPPRESSED_ERROR]
+
+
+def test_unqualified_names_declare_their_execution_schema_dependency(
+    dictionary: Dictionary,
+) -> None:
+    """s2's surviving half: a correct analyser still owes the caller this condition.
+
+    The lineage is right for the schema it was bound against and is a different answer
+    under another. That is a property of the run, and a condition nobody states is a
+    condition nobody knows about.
+    """
+    _, result = _analyse("s2_schema_context", dictionary)
+
+    assert ("context_dependent_binding", "S2_SCHEMA_CONTEXT:18") in {
+        b.identity() for b in result.boundaries
+    }
+
+
+def test_context_dependent_binding_is_declared_once_per_unit(dictionary: Dictionary) -> None:
+    """Per reference would be accurate and unreadable.
+
+    Same reasoning as fusion hazards being declared per relation: a coverage statement full
+    of the same sentence is one nobody reads, and unreadable is indistinguishable from
+    undeclared for the person who needed to know.
+    """
+    _, result = _analyse("b2_06_db_links", dictionary)
+
+    contextual = [b for b in result.boundaries if b.kind is BoundaryKind.CONTEXT_DEPENDENT_BINDING]
+    assert len(contextual) == len({b.subject for b in contextual})
