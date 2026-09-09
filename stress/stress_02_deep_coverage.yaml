@@ -1,0 +1,1278 @@
+# Ground truth for stress/stress_02_deep_coverage.sql
+#
+# WRITTEN FROM SOURCE, BEFORE THE ANALYSER WAS RUN OVER IT. Same rule as stress 1 and the
+# phase-0 corpus: a key written after seeing the output records what the analyser did
+# rather than what is true.
+#
+# All source_read. Parse-only, nothing executed.
+#
+# CONVENTIONS CARRIED FROM STRESS 1 (none invented, except where flagged):
+#   * match key is (source, target, flow, transform)
+#   * a filter edge targets the relation the STATEMENT WRITES; when the statement writes a
+#     variable, it targets the relation read
+#   * join conditions are structural, not filter lineage
+#   * literals, COUNT(*), ROWNUM and FETCH FIRST produce no edge - no upstream to name
+#   * a window function's ARGUMENT is a value source; its PARTITION BY and ORDER BY are not
+#   * a correlated or IN/EXISTS predicate decides WHICH row, so it is filter, not value
+#   * transform is the STRONGEST on the path: aggregated > conditional > derived > identity
+#   * band: set-based 0, variable/cursor/loop 1, dynamic SQL and triggers 2
+#
+# THREE CONVENTIONS HAVE NO PRECEDENT AND ARE PROPOSED HERE, flagged in place:
+#   (a) INTERSECT / MINUS second arm contributes FILTER, not value. The output values all
+#       come from the first arm; the second decides which rows survive.
+#   (b) UNPIVOT feeds one output column from several input columns - so several value
+#       edges into one target, which is the reverse of every other construct here.
+#   (c) A DELETE writes no lineage, but its predicate columns are a real dependency of the
+#       resulting table state. Labelled as filter edges against the deleted relation.
+#
+# WHERE A UNIT IS EXPECTED TO BE REFUSED the labels are still written out in full. A
+# refusal that loses ten edges and a refusal that loses one are different facts, and only
+# a complete key can tell them apart.
+
+package: stress_02_deep_coverage.sql
+source_sha256: c73a04095561679001111d7d06f8e38a74948a85e809d33973b697ef004b9bd8
+labelled_by: claude (source_read; parse-only, nothing executed)
+labelled_at: "2026-09-09"
+
+note: >
+  753 lines, 28 units. Aimed at what stress 1 did not reach: recursive CTEs, the analytic
+  suite, INTERSECT/MINUS, multi-table insert, collections, REF CURSOR, autonomous
+  transactions, nested handlers, a three-deep call chain, and six constructs that should
+  be refused.
+
+edges:
+  # === 1. s2_recursive_cte ==================================================
+  # Anchor and recursive arm feed the same output columns; the recursive arm's
+  # depth traces to the anchor's literal 1, so depth has no column source.
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_RECURSIVE_CTE, line: 24}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.PARENT_CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.PARENT_CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_RECURSIVE_CTE, line: 24}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_RECURSIVE_CTE, line: 24}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.PARENT_CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER_HIER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_RECURSIVE_CTE, line: 24}
+    evidence: source_read
+
+  # === 2. s2_analytics_suite ================================================
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_PRODUCTS.PRODUCT_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: FIRST_VALUE's argument is a real value source; its PARTITION BY and ORDER BY are not.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: Windowed SUM with an explicit ROWS frame. Still an aggregation.
+
+  - source: {kind: column, name: STG_ORDER_LINES.UNIT_PRICE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+
+  # refund_total <- NTILE(4): the argument is a literal and ORDER BY is not a source.
+  # rank_in_month <- RANK(), prior_month <- DENSE_RANK(): no argument at all.
+  # Three target columns with NO edge, deliberately.
+
+  # === 3. s2_intersect_minus ================================================
+  # PROPOSED CONVENTION (a): the second arm of INTERSECT/MINUS contributes filter,
+  # not value. Output values come from the first arm; the second decides survival.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 97}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 97}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_RETURNS.CUST_ID}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 97}
+    evidence: source_read
+    note: Convention (a) - the INTERSECT's second arm constrains, it does not supply.
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 97}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_RETURNS.STATUS_CODE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 97}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: GTT_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 106}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 106}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 106}
+    evidence: source_read
+
+  - source: {kind: column, name: GTT_STAGE.CUST_ID}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 106}
+    evidence: source_read
+    note: Convention (a) again - MINUS removes rows the second arm matches.
+
+  # === 4. s2_multi_table_insert =============================================
+  # One SELECT, two targets, each behind its own WHEN.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    guard: "gross_amount > 100"
+    origin: {unit: S2_MULTI_TABLE_INSERT, line: 123}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    guard: "gross_amount > 100"
+    origin: {unit: S2_MULTI_TABLE_INSERT, line: 123}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: value
+    transform: identity
+    band: 0
+    guard: "gross_amount > 100"
+    origin: {unit: S2_MULTI_TABLE_INSERT, line: 123}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: GTT_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    guard: "gross_amount <= 100"
+    origin: {unit: S2_MULTI_TABLE_INSERT, line: 123}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    guard: "gross_amount <= 100"
+    origin: {unit: S2_MULTI_TABLE_INSERT, line: 123}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: identity
+    band: 0
+    guard: "gross_amount <= 100"
+    origin: {unit: S2_MULTI_TABLE_INSERT, line: 123}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: relation, name: FCT_REVENUE_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_MULTI_TABLE_INSERT, line: 123}
+    evidence: source_read
+
+  # === 5. s2_merge_with_delete ==============================================
+
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: column, name: DIM_CUSTOMER.EMAIL}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_MERGE_WITH_DELETE, line: 146}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.REGION}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_MERGE_WITH_DELETE, line: 146}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_MERGE_WITH_DELETE, line: 146}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_MERGE_WITH_DELETE, line: 146}
+    evidence: source_read
+    note: Two predicates on it - the USING WHERE and the update arm's own WHERE.
+
+  - source: {kind: variable, name: P_CUTOFF}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_MERGE_WITH_DELETE, line: 146}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_MERGE_WITH_DELETE, line: 146}
+    evidence: source_read
+    note: The DELETE arm's predicate. It removes rows; it supplies nothing.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 2
+    origin: {unit: TRG_CUSTOMER_DEFAULT, line: 1}
+    evidence: source_read
+    note: trg_customer_default fires on the NOT MATCHED insert arm.
+
+  # === 6. s2_subquery_forms =================================================
+  # Five subquery forms, every one of them a filter and none a value source.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+    note: The IN subquery.
+
+  - source: {kind: column, name: STG_RETURNS.CUST_ID}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+    note: The NOT IN subquery.
+
+  - source: {kind: column, name: REF_POLICY.EFFECTIVE_FROM}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+    note: The ANY subquery.
+
+  - source: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+    note: The ALL subquery.
+
+  - source: {kind: column, name: STG_PRODUCTS.STATUS_CODE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+    note: The scalar subquery in the WHERE - still a filter, not a value.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+    note: The outer operand of IN / NOT IN.
+
+  - source: {kind: column, name: STG_CUSTOMER.SIGNUP_DATE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SUBQUERY_FORMS, line: 176}
+    evidence: source_read
+    note: Inside the IN subquery - the filter is still a dependency of the outer result.
+
+  # === 7. s2_scalar_functions ===============================================
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_SCALAR_FUNCTIONS, line: 195}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.REGION}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_SCALAR_FUNCTIONS, line: 195}
+    evidence: source_read
+    note: SUBSTR is a derivation, not a copy.
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S2_SCALAR_FUNCTIONS, line: 195}
+    evidence: source_read
+    note: DECODE is CASE by another name.
+
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.EMAIL}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_SCALAR_FUNCTIONS, line: 195}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.SIGNUP_DATE}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_SCALAR_FUNCTIONS, line: 195}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SCALAR_FUNCTIONS, line: 195}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.SIGNUP_DATE}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SCALAR_FUNCTIONS, line: 195}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_SCALAR_FUNCTIONS, line: 195}
+    evidence: source_read
+
+  # === 8. s2_nested_expressions =============================================
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_NESTED_EXPRESSIONS, line: 216}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.REGION}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S2_NESTED_EXPRESSIONS, line: 216}
+    evidence: source_read
+    note: NULLIF is a conditional; NVL wraps it. Strongest on the path wins.
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S2_NESTED_EXPRESSIONS, line: 216}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S2_NESTED_EXPRESSIONS, line: 216}
+    evidence: source_read
+    note: The inner CASE. Both operands of a nested CASE are sources.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S2_NESTED_EXPRESSIONS, line: 216}
+    evidence: source_read
+    note: GREATEST is a conditional selection between its arguments.
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S2_NESTED_EXPRESSIONS, line: 216}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 2
+    origin: {unit: TRG_CUSTOMER_DEFAULT, line: 1}
+    evidence: source_read
+
+  # === 9. s2_update_correlated ==============================================
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S2_UPDATE_CORRELATED, line: 241}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S2_UPDATE_CORRELATED, line: 241}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_UPDATE_CORRELATED, line: 241}
+    evidence: source_read
+    note: The correlation predicate - it selects the row, it does not supply the value.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_UPDATE_CORRELATED, line: 241}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_UPDATE_CORRELATED, line: 241}
+    evidence: source_read
+    note: Inside the EXISTS, joining orders to lines.
+
+  # is_active receives the literal 1 - no edge.
+
+  # === 10. s2_delete_with_subquery ==========================================
+  # PROPOSED CONVENTION (c): a DELETE writes nothing, but its predicate columns
+  # are a real dependency of the resulting table state.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: FCT_REVENUE_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_DELETE_WITH_SUBQUERY, line: 261}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: FCT_REVENUE_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_DELETE_WITH_SUBQUERY, line: 261}
+    evidence: source_read
+
+  - source: {kind: column, name: FCT_REVENUE_STAGE.CUST_ID}
+    target: {kind: relation, name: FCT_REVENUE_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_DELETE_WITH_SUBQUERY, line: 261}
+    evidence: source_read
+
+  # === 11. s2_bulk_limit ====================================================
+  # BULK COLLECT into a collection of records, then FORALL out of it.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: variable, name: V_BATCH}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_BULK_LIMIT, line: 289}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: variable, name: V_BATCH}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_BULK_LIMIT, line: 289}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: STG_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_BULK_LIMIT, line: 289}
+    evidence: source_read
+
+  - source: {kind: variable, name: V_BATCH}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_BULK_LIMIT, line: 293}
+    evidence: source_read
+    note: >
+      EXPECTED TO MISS - the S1-04 shape. INSERT ... VALUES from a collection element.
+      The refusal reason names relations, and a collection is not one.
+
+  - source: {kind: variable, name: V_BATCH}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_BULK_LIMIT, line: 293}
+    evidence: source_read
+
+  # === 12. s2_ref_cursor ====================================================
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: variable, name: V_ID}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: S2_REF_CURSOR, line: 318}
+    evidence: source_read
+    note: >
+      The cursor is opened over dynamic text that IS constant, so the select list is
+      recoverable and FETCH INTO binds positionally against it. Band 2: the path runs
+      through OPEN ... FOR a string.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: variable, name: V_LOGIN}
+    flow: value
+    transform: identity
+    band: 2
+    origin: {unit: S2_REF_CURSOR, line: 318}
+    evidence: source_read
+
+  - source: {kind: variable, name: V_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_REF_CURSOR, line: 321}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_REF_CURSOR, line: 321}
+    evidence: source_read
+
+  # === 13. s2_nested_blocks =================================================
+
+  - source: {kind: column, name: REF_POLICY.WINDOW_DAYS}
+    target: {kind: variable, name: V_DAYS}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_NESTED_BLOCKS, line: 340}
+    evidence: source_read
+
+  - source: {kind: column, name: REF_POLICY.REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_NESTED_BLOCKS, line: 340}
+    evidence: source_read
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: REF_POLICY}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_NESTED_BLOCKS, line: 340}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_NESTED_BLOCKS, line: 352}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_NESTED_BLOCKS, line: 352}
+    evidence: source_read
+
+  - source: {kind: variable, name: V_DAYS}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_NESTED_BLOCKS, line: 352}
+    evidence: source_read
+    note: >
+      v_days reaches here on TWO paths - the SELECT INTO on the happy path and the
+      literal 30 assigned in the inner handler. Only one of them has a column source.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_NESTED_BLOCKS, line: 352}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_NESTED_BLOCKS, line: 352}
+    evidence: source_read
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_NESTED_BLOCKS, line: 352}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 1}
+    evidence: source_read
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 1}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 1}
+    evidence: source_read
+
+  # The two audit writes are INSERT ... VALUES of literals only - no column source,
+  # so no edge, and they are NOT part of the S1-04 gap.
+
+  # === 19. pkg_s2_pipeline ==================================================
+
+  - source: {kind: column, name: GTT_STAGE.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: PUBLISH, line: 496}
+    evidence: source_read
+
+  - source: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: PUBLISH, line: 496}
+    evidence: source_read
+
+  - source: {kind: column, name: GTT_STAGE.AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: PUBLISH, line: 496}
+    evidence: source_read
+
+  - source: {kind: variable, name: PKG_S2_PIPELINE.G_CUTOFF}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: PUBLISH, line: 496}
+    evidence: source_read
+    note: Package state read three call levels below where it was set.
+
+  - source: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: PUBLISH, line: 496}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: GTT_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: STAGE, line: 505}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: STAGE, line: 505}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 1
+    origin: {unit: STAGE, line: 505}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 1
+    origin: {unit: STAGE, line: 505}
+    evidence: source_read
+
+  - source: {kind: variable, name: PKG_S2_PIPELINE.G_REGION}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: STAGE, line: 505}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: STAGE, line: 505}
+    evidence: source_read
+
+  - source: {kind: variable, name: P_REGION}
+    target: {kind: variable, name: PKG_S2_PIPELINE.G_REGION}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: LOAD, line: 526}
+    evidence: source_read
+    note: >
+      Two overloads of `load` both assign this. They are different units with the same
+      name, and summarising them as one would merge two call signatures.
+
+  - source: {kind: variable, name: P_CUTOFF}
+    target: {kind: variable, name: PKG_S2_PIPELINE.G_CUTOFF}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: LOAD, line: 537}
+    evidence: source_read
+
+  # === 20. s2_recursive_walk ================================================
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.PARENT_CUST_ID}
+    target: {kind: variable, name: V_PARENT}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_RECURSIVE_WALK, line: 556}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER_HIER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_RECURSIVE_WALK, line: 556}
+    evidence: source_read
+
+  - source: {kind: variable, name: P_CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER_HIER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_RECURSIVE_WALK, line: 556}
+    evidence: source_read
+
+  - source: {kind: variable, name: V_PARENT}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.PARENT_CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_RECURSIVE_WALK, line: 560}
+    evidence: source_read
+    note: EXPECTED TO MISS - S1-04 again, INSERT ... VALUES from variables.
+
+  - source: {kind: variable, name: P_CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_RECURSIVE_WALK, line: 560}
+    evidence: source_read
+
+  # === 22. s2_three_way_resolution ==========================================
+  # The same base table reached three ways in one statement.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_THREE_WAY_RESOLUTION, line: 595}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_THREE_WAY_RESOLUTION, line: 595}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_THREE_WAY_RESOLUTION, line: 595}
+    evidence: source_read
+    note: >
+      Two predicates land here: v.status_flag (a CASE over status_code, inside v_cust_l2)
+      and s.status_code directly. All three routes must reach the same base column.
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_THREE_WAY_RESOLUTION, line: 595}
+    evidence: source_read
+    note: v_recent_raw's own WHERE, inlined.
+
+  # === 23. s2_unpivot_listagg ===============================================
+  # PROPOSED CONVENTION (b): UNPIVOT feeds one output column from several
+  # inputs, so several value edges converge on one target.
+
+  - source: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_UNPIVOT_LISTAGG, line: 617}
+    evidence: source_read
+
+  - source: {kind: column, name: FCT_REVENUE.ORDER_COUNT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_UNPIVOT_LISTAGG, line: 617}
+    evidence: source_read
+
+  - source: {kind: column, name: FCT_REVENUE.CUST_ID}
+    target: {kind: column, name: GTT_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_UNPIVOT_LISTAGG, line: 617}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_UNPIVOT_LISTAGG, line: 627}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_PRODUCTS.PRODUCT_NAME}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S2_UNPIVOT_LISTAGG, line: 627}
+    evidence: source_read
+    note: LISTAGG is an aggregation that happens to return a string.
+
+  # === 24. s2_keep_dense_rank ===============================================
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_KEEP_DENSE_RANK, line: 649}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_KEEP_DENSE_RANK, line: 649}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_PRODUCTS.PRODUCT_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S2_KEEP_DENSE_RANK, line: 649}
+    evidence: source_read
+    note: >
+      MAX ... KEEP (DENSE_RANK FIRST ORDER BY line_amount). The ORDER BY picks WHICH row
+      the value comes from, so line_amount is a filter influence on this column and not a
+      source of its value - the same distinction as a window ORDER BY.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S2_KEEP_DENSE_RANK, line: 649}
+    evidence: source_read
+
+  # === 25. s2_row_limiting ==================================================
+  # ROWNUM and FETCH FIRST limit the result set and name no column.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_ROW_LIMITING, line: 671}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_ROW_LIMITING, line: 671}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_ROW_LIMITING, line: 671}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: GTT_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_ROW_LIMITING, line: 677}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_ROW_LIMITING, line: 677}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_ROW_LIMITING, line: 677}
+    evidence: source_read
+
+  # === 26. s2_truncate_reload ===============================================
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: GTT_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_TRUNCATE_RELOAD, line: 696}
+    evidence: source_read
+    note: >
+      Collides on match key with the s2_row_limiting and s2_intersect_minus writes to the
+      same column - the S1-05 shape again. Kept here because this is the aggregating
+      reload and the others are not; only origin separates them.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S2_TRUNCATE_RELOAD, line: 696}
+    evidence: source_read
+
+  # === 28. s2_goto_flow =====================================================
+
+  - source: {kind: variable, name: V_FLAG}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_GOTO_FLOW, line: 747}
+    evidence: source_read
+    note: >
+      v_flag is assigned on both paths - 1 under p_strict = 1, 0 otherwise - and the GOTO
+      skips the second assignment. Both are literals, so the edge carries no column
+      source; what matters is that the write is reached on both paths and the guard is
+      therefore NOT `p_strict = 1`.
+
+  - source: {kind: column, name: DIM_CUSTOMER.REGION}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S2_GOTO_FLOW, line: 747}
+    evidence: source_read
+
+forbidden:
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: value
+    reason: >
+      A window ORDER BY read as a value source. RANK() takes no argument; the ORDER BY
+      decides the ranking, not the value. Same defect the complex-SQL band caught once.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRIOR_MONTH}
+    flow: value
+    reason: >
+      DENSE_RANK()'s ORDER BY read as a value source. prior_month receives a rank number
+      derived from no column at all.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    reason: >
+      The INTERSECT's arms bound by NAME rather than by position. Arm 2 selects
+      (cust_id, SYSDATE); reading the alias instead of the position puts cust_id into
+      last_login. The s5 failure in the top-level form.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    reason: >
+      The EXISTS join key read as a value source. order_id links lines to orders inside
+      the predicate; lifetime_value comes from the correlated SUM in the SET clause.
+
+  - source: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    target: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    flow: value
+    reason: >
+      UNPIVOT's measure column bound to the wrong output. The unpivoted value feeds
+      `amount`; period_month is a literal TRUNC(SYSDATE) and has no source.
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
+    flow: value
+    transform: identity
+    reason: >
+      The nested CASE flattened to identity. Two CASE expressions stack in
+      s2_nested_expressions, and reporting the transform as a copy would say the value
+      passes through unchanged when it is being recoded twice. Wrong transform is a MISS
+      under ADR-0001 4, and this states the wrong answer explicitly.
+
+expected_boundaries:
+  - kind: refusal
+    subject: "S2_HIERARCHICAL:445"
+    reason: >
+      CONNECT BY generates rows by walking a relationship, so a column's value can come
+      from a row that exists in no base table.
+
+  - kind: refusal
+    subject: "S2_MODEL_CLAUSE:712"
+    reason: >
+      MODEL computes cells from other cells of the same result set. The source of a value
+      may be a row that does not exist in any base table.
+
+  - kind: dynamic_sql
+    subject: "EXECUTE IMMEDIATE:581"
+    reason: >
+      Assembled inside a loop from the loop counter, so it is a different statement on
+      every pass and constant on none. Constant-ness is a MUST property.
+
+  - kind: cross_unit_state
+    subject: "PUBLISH"
+    reason: >
+      g_cutoff is read three call levels below where it is assigned, and which overload of
+      `load` ran decides its value.
