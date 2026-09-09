@@ -27,14 +27,49 @@ with the code has stopped measuring anything.
 | S1-04 | `refusal-taxonomy` | open | `INSERT … VALUES` from variables refused; §3 makes variables first-class |
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
 | S1-06 | `key-error` | closed | two gaps in my own key, stated rather than quietly fixed |
+| S2-01 | `construct-coverage` | open | `MERGE` with a `DELETE` arm fails to parse at all |
+| S2-02 | `construct-coverage` | open | `INSERT ALL` unsupported — declared, but 7 edges lost |
+| S2-03 | `refusal-taxonomy` | open | `PIVOT`/`UNPIVOT` refused even with a static column list |
+| S2-04 | `silent-loss` | open | `BULK COLLECT` into a record collection yields nothing, silently |
+| S2-05 | `transform-classification` | open | `DECODE`/`NULLIF`/`COALESCE`/`GREATEST` read as derived, not conditional |
+| S2-06 | `key-error` | closed | `s2_locking` unlabelled; two window-transform disagreements |
 
-**`identity` has two entries already, and they are the same weakness at two layers** —
-band 0 deduplicates on `match_key()`, and the label format keys on `match_key()`. S1-01 was
-the analyser half and is fixed; S1-05 is the harness half and is not. If a third turns up in
-stress 2, the match key stops being a scoring decision and becomes an IR decision.
+### Recurrence — what stress 2 settled
 
-**Categories, so far.** `identity` · `construct-coverage` · `flow-classification` ·
-`refusal-taxonomy` · `key-error`. Add one only when nothing existing fits, and say why.
+**`identity` reached three, and the rule said what to do about it.** The register's own
+condition was *"if a third turns up in stress 2, the match key stops being a scoring decision
+and becomes an IR decision."* It turned up, and it scaled badly:
+
+| | labels | colliding keys | facts unstatable | share |
+|---|---|---|---|---|
+| stress 1 (362 lines, 13 units) | 68 | 5 | 5 | **7%** |
+| stress 2 (753 lines, 28 units) | 130 | 15 | 27 | **21%** |
+
+The file doubled and the loss tripled, because collisions grow with the number of *pairs* of
+writers to a table, not with the number of writers. One key in stress 2 has **five** members —
+`STG_CUSTOMER.CUST_ID → TMP_RECENT.CUST_ID`, written by five different units. Bands differ
+within collisions (0, 1 and 2 all appear), so the collision also forces a choice about which
+band is charged for the fact.
+
+**S1-02 is not about `UNION`.** Stress 2 was built to ask that, and `INTERSECT` and `MINUS`
+fail identically — both refused as *"INSERT … VALUES carries no column lineage from a
+relation"*. The defect is **any top-level set operator under an INSERT**, which is a much
+larger surface than the original finding suggested.
+
+**S1-03 and S1-04 both recurred** unchanged: `GROUP BY` columns as filter edges (3 more false
+positives), and `INSERT … VALUES` from variables (`s2_recursive_walk`).
+
+**Nothing in the register has yet failed to recur.** Every open finding from stress 1
+reappeared in stress 2, which is the strongest argument available for fixing them before
+writing stress 3.
+
+**Categories.** `identity` · `construct-coverage` · `flow-classification` ·
+`refusal-taxonomy` · `key-error` · **`silent-loss`** (new) · **`transform-classification`**
+(new). `silent-loss` earns its own name because the distinguishing feature is not the missing
+construct but the **absence of a refusal** — the failure mode the product exists to prevent,
+and the only one a coverage statement cannot report. `transform-classification` is a
+different axis from `flow-classification`: one is value-versus-filter, the other is which
+transform class, and ADR-0001 §4 makes a wrong transform a MISS rather than partial credit.
 
 ---
 
@@ -190,13 +225,141 @@ difficulty, and the corpus cannot see them because every package in it is small.
 sharper version of the caveat the verdict already carries: the corpus is synthetic, and its
 *shape* is as unrepresentative as its content.
 
+---
+
+## Stress test 2
+
+753 lines, 28 program units, 130 hand-labelled edges written from source before the analyser
+was run over the file. Six forbidden-edge rules, four expected boundaries. Twice the size of
+stress 1 and aimed at what stress 1 did not reach.
+
+| band / flow | precision | recall |
+|---|---|---|
+| 0 value | 82.8% | 58.5% |
+| 0 filter | 81.8% | 72.0% |
+| **1 value — the gate** | **81.8%** | **56.2%** |
+| 1 filter | 100% | 75.0% |
+| 2 value | 100% | 50.0% |
+| 2 filter | 100% | 100% |
+
+**The gate fails both floors** — 81.8% against 95%, 56.2% against 85%. **Parse coverage is
+55.6%** (27 statements seen, 15 analysed), which is below the 70% kill-criterion floor.
+
+Read that carefully before drawing a conclusion from it. This file was written to be hostile
+and roughly a third of it is constructs that *should* be refused; the kill criterion is
+phrased about **real code**, and this is not real code. What it does say is that the
+criterion's 5.6 points of headroom on the phase-0 corpus is a property of that corpus's
+construct mix, not of the analyser.
+
+**Zero forbidden edges produced**, again — including the window `ORDER BY` traps, the
+positional-binding trap on `INTERSECT`, and the flattened nested `CASE`. Six named wrong
+answers, none fired. That result has now held twice at increasing size, and it is the part
+of the phase-0 verdict that is standing up best.
+
+**Twelve refusals, and only five of them are correct.** `CONNECT BY`, `MODEL`, and three
+`INSERT … VALUES` of literals only (which carry no lineage anyway) are right. The other seven
+are S1-02, S1-04, S2-01, S2-02 and S2-03 below.
+
+## S2-01 · `construct-coverage` · OPEN — `MERGE` with a `DELETE` arm does not parse
+
+`s2_merge_with_delete` is refused `PARSE_FAILED`: *"SQLGlot could not parse: Invalid
+expression / Unexpected token."* The statement is a `MERGE` whose matched arm carries both an
+`UPDATE … WHERE` and a `DELETE WHERE`, which is standard Oracle and standard in slowly-
+changing-dimension loads.
+
+**Seven labelled edges lost**, including the whole `NOT MATCHED` insert arm and the trigger
+edge it inherits.
+
+Unlike S1-02 this is a genuine parser limitation rather than a mis-branch — the text never
+becomes a tree — so the fix is either a SQLGlot version bump, a pre-parse rewrite that strips
+the `DELETE` clause before analysing the rest, or an explicit refusal code that says what
+actually happened. The current message is at least honest about being a parse failure.
+
+## S2-02 · `construct-coverage` · OPEN — `INSERT ALL` is unsupported
+
+`s2_multi_table_insert` is refused as *"unsupported statement type MultitableInserts"*. That
+is an honest, correctly-coded refusal and it costs **seven labelled edges** — one `SELECT`
+feeding two targets, each behind its own `WHEN`.
+
+Worth separating from S1-02: this refusal is **true**. The analyser genuinely does not handle
+multi-table insert, says so, and the boundary is counted. The finding is a coverage gap, not a
+correctness defect, and it is the shape ETL uses to fan one source into staging and reject
+tables.
+
+## S2-03 · `refusal-taxonomy` · OPEN — `PIVOT`/`UNPIVOT` refused even when decidable
+
+Both `s2_pivot_static` and the `UNPIVOT` in `s2_unpivot_listagg` are refused under the rule
+u1 established for `PIVOT` with a **subquery** column list — where the output shape is genuinely
+not static. These two have **literal** column lists (`IN ('GBP' AS gbp, 'USD' AS usd)` and
+`IN (net_amount, order_count)`), so the output columns are knowable at parse time.
+
+This is over-refusal — a **false abstention**, the axis T3.1d exists to measure. It costs
+three labelled edges and, unlike a wrong edge, it costs parse coverage too. The refusal
+register needs to distinguish the decidable form from the undecidable one, exactly as the
+dynamic-SQL classifier already distinguishes a constant string from an assembled one.
+
+## S2-04 · `silent-loss` · OPEN — `BULK COLLECT` into a record collection yields nothing
+
+`s2_bulk_limit` produces **zero edges and zero refusals**. Not one of its 27 statements is
+flagged, and the unit does not appear in the output at all.
+
+Stress 1's `BULK COLLECT INTO v_ids` — a `TABLE OF NUMBER` — worked correctly. The difference
+here is `TABLE OF <record>` with `LIMIT`, fetched inside a loop and then written out by
+`FORALL`. The collection element is a record, and the def-use analysis models neither the
+record nor the collection.
+
+**This is the category that matters most.** A refusal is a deliberate statement that
+knowledge stops; silence is indistinguishable from having found nothing. Five labelled edges
+disappear with no symptom anywhere in the report — which is the exact failure mode `s2`,
+`s3`, `s6` and the whole silent-failure suite exist to catch, arriving through a construct
+the suite does not contain.
+
+## S2-05 · `transform-classification` · OPEN — `DECODE`, `NULLIF`, `COALESCE`, `GREATEST` are read as derived
+
+Four of the eleven false positives are the same disagreement:
+
+| expression | key says | analyser says |
+|---|---|---|
+| `DECODE(status_code, 'A', 1, 0)` | conditional | derived |
+| `NVL(NULLIF(region, 'XX'), 'UNKNOWN')` | conditional | derived |
+| `COALESCE(GREATEST(gross_amount, discount_amt), 0)` | conditional | derived |
+
+`_transform_of` treats only `exp.Case` and `exp.If` as conditional. **`DECODE` is `CASE`
+written differently** — Oracle's own documentation defines it that way — and `NULLIF`,
+`COALESCE` and `GREATEST` all select one of several inputs on a condition.
+
+Under ADR-0001 §4 a wrong transform class is a **MISS, not partial credit**, so each of these
+costs a false positive *and* a false negative — eight cells of damage from four expressions.
+It is also the kind of error that reads as correct in a report: the edge is there, the
+endpoints are right, and only the word describing what happened to the value is wrong.
+
+## S2-06 · `key-error` · CLOSED — my key again
+
+- **`s2_locking` was never labelled.** I wrote the unit and skipped it in the key; its two
+  correct edges (`DIM_CUSTOMER.CUST_ID → V_ID`, `LIFETIME_VALUE → V_VAL`) score as false
+  positives. My omission.
+- **`FIRST_VALUE` and `LAST_VALUE` transform.** I labelled them `derived`; the analyser says
+  `aggregated`. Both defensible — they are window functions that select a value rather than
+  compute one. Recorded as undecided rather than scored against the analyser.
+- **Proposed convention (c) was rejected by the code.** I labelled a `DELETE`'s predicate
+  columns as filter edges against the deleted relation; the analyser emits none.
+  `s2_delete_with_subquery` produces zero edges and no refusal. That is a convention question
+  I raised and the analyser answered differently — not a defect until someone decides.
+
 ## Fix order, and why not simply oldest first
 
 Ordered by what each one would teach, not by how annoying it is.
 
-1. **S1-02** (`construct-coverage`). Smallest, most certain, and the only one losing a whole
-   statement. `INSERT … SELECT … UNION ALL` is ordinary ETL and the analyser already has the
-   set-operation machinery — `s5` proves it works one level down.
+0. **S2-04** (`silent-loss`) — promoted to first after stress 2. Everything else here is
+   declared: a refusal, a boundary, a wrong-but-visible edge. This one loses five facts with
+   **no symptom anywhere**, and a coverage statement that cannot report it is the one thing
+   the product must never ship.
+1. **S1-02** (`construct-coverage`). Small, certain, and now known to cover **every** top-level
+   set operator rather than just `UNION` — `INTERSECT` and `MINUS` fail identically. Ordinary
+   ETL, and the machinery already exists: `s5` proves it works one level down.
+1b. **S2-05** (`transform-classification`). Cheap and mechanical — extend `_transform_of` to
+   treat `DECODE`, `NULLIF`, `COALESCE` and `GREATEST` as conditional. Costs two cells per
+   expression today because a wrong transform is a MISS on both sides.
 2. **S1-04** (`refusal-taxonomy`). Needs a decision before code: the refusal is not wrong so
    much as *coarse*, and narrowing it costs parse coverage, which has **5.6 points of
    headroom against a kill criterion**. Measure before touching.
