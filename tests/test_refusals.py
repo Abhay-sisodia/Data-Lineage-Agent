@@ -311,3 +311,77 @@ def test_violations_ignores_an_edge_from_a_different_unit(loud) -> None:
     elsewhere = [e for e in loud.edges if e.origin.unit != model.unit]
 
     assert violations([model], elsewhere) == []
+
+
+# --- S2-04: collections were SILENT, which is the one thing they must not be -------------
+
+
+def test_fetch_bulk_collect_is_refused_not_ignored(dictionary: Dictionary) -> None:
+    """Found by stress 2. The statement produced no edges AND no refusal.
+
+    Neither analyser claimed it: `forall_statement` and the collection form of FETCH are
+    absent from band 0's SUPPORTED set, and a collection of records is a memory location
+    def-use does not model. So both statements were skipped by both passes, five labelled
+    facts vanished, and nothing in the report said so.
+
+    A missing edge is survivable and a declared boundary is the product. An undeclared
+    absence is neither - it is indistinguishable from having correctly found nothing.
+    """
+    source = """CREATE OR REPLACE PROCEDURE bulk_reader IS
+    TYPE t_row IS RECORD (cust_id NUMBER, last_login DATE);
+    TYPE t_rows IS TABLE OF t_row;
+    v_batch t_rows;
+    CURSOR c_src IS SELECT s.cust_id, s.last_login FROM stg_customer s;
+BEGIN
+    OPEN c_src;
+    LOOP
+        FETCH c_src BULK COLLECT INTO v_batch LIMIT 100;
+        EXIT WHEN v_batch.COUNT = 0;
+    END LOOP;
+    CLOSE c_src;
+END bulk_reader;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert [r.code for r in result.refusals] == [RefusalCode.UNSUPPORTED_CONSTRUCT]
+    assert "BULK COLLECT" in result.refusals[0].reason
+
+
+def test_forall_is_refused_not_ignored(dictionary: Dictionary) -> None:
+    """The other half: the DML is driven by a collection subscript."""
+    source = """CREATE OR REPLACE PROCEDURE bulk_writer IS
+    TYPE t_ids IS TABLE OF NUMBER;
+    v_ids t_ids;
+BEGIN
+    FORALL i IN 1 .. v_ids.COUNT
+        INSERT INTO tmp_recent (cust_id, last_login)
+        VALUES (v_ids(i), SYSDATE);
+END bulk_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert any(r.code is RefusalCode.UNSUPPORTED_CONSTRUCT for r in result.refusals)
+    assert any("FORALL" in r.reason for r in result.refusals)
+
+
+def test_select_bulk_collect_still_works(dictionary: Dictionary) -> None:
+    """The over-refusal guard, and the reason the FETCH pattern is FETCH-specific.
+
+    `SELECT ... BULK COLLECT INTO` is analysed correctly today - stress 1 traces
+    `stg_customer.cust_id -> v_ids` through it. A pattern matching BULK COLLECT generally
+    would have refused a statement the analyser already gets right, which is the failure
+    the register's DB-link note warns about: refusing too much looks like discipline.
+    """
+    source = """CREATE OR REPLACE PROCEDURE bulk_select IS
+    TYPE t_ids IS TABLE OF NUMBER;
+    v_ids t_ids;
+BEGIN
+    SELECT cust_id BULK COLLECT INTO v_ids
+      FROM stg_customer
+     WHERE status_code = 'A';
+END bulk_select;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    assert any(str(e.target) == "variable:V_IDS" for e in result.edges)

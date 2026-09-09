@@ -219,7 +219,40 @@ CONSTRUCTS: tuple[Construct, ...] = (
         reason="wrapped PL/SQL - the body is stored obfuscated and there is no source to "
         "read; only runtime evidence can say what it touches",
     ),
+    # --- collections (stress finding S2-04) --------------------------------------------
+    #
+    # Added because these two were SILENT, not because they are hard. Neither band 0 nor
+    # def-use claims them: `forall_statement` is not in band 0's SUPPORTED set, and the
+    # collection is a memory location def-use does not model - so the statements were
+    # skipped by both, produced no edges, and raised no refusal. Five labelled facts
+    # vanished from `s2_bulk_limit` with no symptom anywhere in the report.
+    #
+    # A missing edge is survivable and a declared boundary is the product; an undeclared
+    # absence is neither. Refusing is the honest floor here, not the ambition - both are
+    # implementable, and the reasons say so rather than implying the language beat us.
+    Construct(
+        name="FETCH_BULK_COLLECT",
+        pattern=_rx(r"\bFETCH\b[^;]{0,400}?\bBULK\s+COLLECT\b"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="FETCH ... BULK COLLECT INTO - the whole result set lands in a collection, "
+        "and a collection of records is a memory location this analysis does not model; "
+        "the cursor's select list is known, so this is implementable and simply is not "
+        "implemented",
+    ),
+    Construct(
+        name="FORALL",
+        pattern=_rx(r"\bFORALL\s+\w+\s+IN\b"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="FORALL - the DML is driven by a collection subscript, so its values come "
+        "from elements def-use does not track; SAVE EXCEPTIONS makes it worse, because "
+        "the loop continues past failures and the absence of a row proves nothing",
+    ),
 )
+# NOTE what is deliberately NOT here: `SELECT ... BULK COLLECT INTO`. It works today -
+# stress 1 traces `stg_customer.cust_id -> v_ids` correctly - and a pattern matching BULK
+# COLLECT generally would refuse a statement the analyser already gets right. Refusing too
+# much looks like discipline, which is what makes it hard to notice; the FETCH form is
+# named specifically for that reason.
 # NOTE the absence of a DB-link entry, which the first draft had. `b2_06` refuted it:
 # the local half of `INSERT INTO dim_customer ... FROM remote_customer@crm_link` is fully
 # provable, and refusing the statement would have destroyed seven labelled edges to buy

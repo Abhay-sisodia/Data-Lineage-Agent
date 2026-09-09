@@ -30,7 +30,7 @@ with the code has stopped measuring anything.
 | S2-01 | `construct-coverage` | open | `MERGE` with a `DELETE` arm fails to parse at all |
 | S2-02 | `construct-coverage` | open | `INSERT ALL` unsupported — declared, but 7 edges lost |
 | S2-03 | `refusal-taxonomy` | open | `PIVOT`/`UNPIVOT` refused even with a static column list |
-| S2-04 | `silent-loss` | open | `BULK COLLECT` into a record collection yields nothing, silently |
+| S2-04 | `silent-loss` | **fixed** | `BULK COLLECT` into a record collection yielded nothing, silently |
 | S2-05 | `transform-classification` | open | `DECODE`/`NULLIF`/`COALESCE`/`GREATEST` read as derived, not conditional |
 | S2-06 | `key-error` | closed | `s2_locking` unlabelled; two window-transform disagreements |
 
@@ -298,7 +298,7 @@ three labelled edges and, unlike a wrong edge, it costs parse coverage too. The 
 register needs to distinguish the decidable form from the undecidable one, exactly as the
 dynamic-SQL classifier already distinguishes a constant string from an assembled one.
 
-## S2-04 · `silent-loss` · OPEN — `BULK COLLECT` into a record collection yields nothing
+## S2-04 · `silent-loss` · FIXED — `BULK COLLECT` into a record collection yielded nothing
 
 `s2_bulk_limit` produces **zero edges and zero refusals**. Not one of its 27 statements is
 flagged, and the unit does not appear in the output at all.
@@ -313,6 +313,38 @@ knowledge stops; silence is indistinguishable from having found nothing. Five la
 disappear with no symptom anywhere in the report — which is the exact failure mode `s2`,
 `s3`, `s6` and the whole silent-failure suite exist to catch, arriving through a construct
 the suite does not contain.
+
+**Root cause.** `forall_statement` is not in band 0's `SUPPORTED` set, so band 0 skips it —
+and skipping is `continue` *before* `statements_seen += 1`, so it is not even counted as
+seen. Def-use does not claim it either, because the values arrive through a collection
+subscript it does not model. `FETCH … BULK COLLECT INTO` falls through both the same way.
+Two passes, each correctly deciding the statement is not theirs, and nothing owning the
+result.
+
+**Fix: refuse both, by name, in the register.** Two constructs added — `FETCH_BULK_COLLECT`
+and `FORALL` — with reasons that say these are *implementable and not implemented* rather
+than implying the language beat us. Refusing is the honest floor here, not the ambition.
+
+**`SELECT … BULK COLLECT INTO` is deliberately left alone.** It works today — stress 1
+traces `stg_customer.cust_id → v_ids` through it — and a pattern matching `BULK COLLECT`
+generally would have refused a statement the analyser already gets right. That is the
+over-refusal the register's own DB-link note warns about, so the FETCH pattern is
+FETCH-specific and a test pins the distinction.
+
+**Effect.**
+
+| | before | after |
+|---|---|---|
+| phase-0 measurement | — | **every key identical**, verified by stash-and-compare |
+| stress 1 parse coverage | 75.0% | 69.2% |
+| stress 2 parse coverage | 55.6% | 51.7% |
+| stress 1 / stress 2 cells | — | unchanged |
+
+**The coverage drop is the fix working.** Every refusal costs exactly one statement of
+coverage, and these statements were previously free because nobody counted them. The score
+cells do not move because the edges were already missing — what changed is that the report
+now says so. Pinned by three tests in `tests/test_refusals.py`, including the over-refusal
+guard.
 
 ## S2-05 · `transform-classification` · OPEN — `DECODE`, `NULLIF`, `COALESCE`, `GREATEST` are read as derived
 
@@ -350,10 +382,10 @@ endpoints are right, and only the word describing what happened to the value is 
 
 Ordered by what each one would teach, not by how annoying it is.
 
-0. **S2-04** (`silent-loss`) — promoted to first after stress 2. Everything else here is
-   declared: a refusal, a boundary, a wrong-but-visible edge. This one loses five facts with
-   **no symptom anywhere**, and a coverage statement that cannot report it is the one thing
-   the product must never ship.
+0. ~~**S2-04**~~ (`silent-loss`) — **done.** Was promoted to first because everything else
+   here is declared: a refusal, a boundary, a wrong-but-visible edge. This one lost five
+   facts with no symptom anywhere, and a coverage statement that cannot report that is the
+   one thing the product must never ship.
 1. **S1-02** (`construct-coverage`). Small, certain, and now known to cover **every** top-level
    set operator rather than just `UNION` — `INTERSECT` and `MINUS` fail identically. Ordinary
    ETL, and the machinery already exists: `s5` proves it works one level down.
