@@ -34,6 +34,72 @@ with the code has stopped measuring anything.
 | S2-05 | `transform-classification` | **fixed** | `DECODE`/`NULLIF`/`GREATEST` read as derived, not conditional |
 | S2-06 | `key-error` | closed | `s2_locking` unlabelled; two window-transform disagreements |
 
+## Open work — what is left, and what each one needs
+
+**Six open. Five fixed. Nothing in the register has yet failed to recur across stress runs.**
+
+| ID | Category | Blocked on | Cost if left |
+|---|---|---|---|
+| **S1-04** | `refusal-taxonomy` | a decision — narrowing a refusal **costs parse coverage**, which has 5.6 points against a kill criterion | 3 edges in stress 1, 2 in stress 2; the one false abstention in the signed phase-0 measurement |
+| **S1-03** | `flow-classification` | a decision — must land in the analyser **and** the phase-0 keys in one change, or they disagree silently | 3 false positives per stress run; double-counts columns already scored as value sources |
+| **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
+| **S2-02** | `construct-coverage` | real work — `INSERT ALL` is genuinely unimplemented | 7 edges; the honest refusal makes this a coverage gap, not a defect |
+| **S1-05** | `identity` | **the production package.** Moves every number in the phase | 21% of the stress-2 key unstatable; also *hides* whether fixes worked |
+| **S2-06** | `key-error` | me — seven stress-2 units are unlabelled | inflates false positives against my own key, not the analyser's fault |
+
+### What each open finding is waiting for, in one line
+
+- **S1-04** — is `INSERT … VALUES` from variables lineage? ADR-0001 §3 says variables are
+  first-class, so probably yes. **The cost is parse coverage**, so measure before touching.
+- **S1-03** — is a `GROUP BY` column filter influence? It does not select rows, and two of the
+  three are already value sources for the projection. Likely "no", but it is a convention and
+  the phase-0 keys encode the current answer.
+- **S2-01** — needs a SQLGlot bump, a pre-parse rewrite that strips the `DELETE` clause, or a
+  refusal code that names the real reason. Currently honest but uninformative.
+- **S2-02** — needs multi-table-insert support. The refusal is *true*, so this is capability,
+  not correctness.
+- **S1-05** — the match key. **Do not start before the production package**: it is the decision
+  that most wants real code in front of it, and the verdict's condition still stands.
+- **S2-06** — label the seven missing units, and correct the key header's false claim that
+  refused units are "written out in full".
+
+### Fix log
+
+| ID | Commit | Phase-0 impact |
+|---|---|---|
+| S1-01 `identity` | `a510049` | none — every cell identical |
+| S2-04 `silent-loss` | `11314b3` | none |
+| S1-02 `construct-coverage` | `46f4617` | none |
+| S2-05 `transform-classification` | `1108223` | none |
+| S2-03 `refusal-taxonomy` | `cda24a3` | none |
+
+**Five fixes, and the phase-0 measurement has not moved once.** That is a statement about the
+corpus, not about the analyser: none of these five constructs appears in it in the form that
+breaks. It sharpens the verdict's existing caveat considerably — the corpus is not just
+synthetic, its *construct mix and package shape* are unrepresentative in ways that hide real
+defects.
+
+### Where the stress packages stand now
+
+Both re-scored after the five fixes. The per-run tables further down are the **first-run**
+figures and are left as measured.
+
+| | stress 1 | stress 2 |
+|---|---|---|
+| 0 value | 100% / 100% | 93.9% / 75.6% |
+| 0 filter | 61.5% / 88.9% | 76.0% / 76.0% |
+| **1 value — the gate** | **95.5% / 87.5%** | **81.8% / 56.2%** |
+| 1 filter | 100% / 84.6% | 100% / 75.0% |
+| 2 value | 100% / 100% | 100% / 50.0% |
+| 2 filter | 100% / 100% | 100% / 100% |
+| parse coverage | 76.9% | 65.5% |
+
+Stress 1 clears the gate; **stress 2 still fails both floors.** Most of what remains there is
+S1-04, S2-01 and S2-02 — lost statements rather than wrong answers — plus my own unlabelled
+units under S2-06.
+
+---
+
 ### Recurrence — what stress 2 settled
 
 **`identity` reached three, and the rule said what to do about it.** The register's own
@@ -129,8 +195,8 @@ the same pair. Band-2 value recall here went **40% → 100%**. Pinned by
 
 ## S1-02 · `construct-coverage` · FIXED — top-level set operators under `INSERT` were refused
 
-`stress_set_ops` is refused as **"INSERT ... VALUES carries no column lineage from a
-relation"**. It is not an `INSERT ... VALUES`; it is an `INSERT ... SELECT` whose expression
+**As first measured:** `stress_set_ops` was refused as **"INSERT ... VALUES carries no
+column lineage from a relation"**. It is not an `INSERT ... VALUES`; it is an `INSERT ... SELECT` whose expression
 SQLGlot parses as `exp.Union` rather than `exp.Select`, and the band-0 analyser treats
 anything that is not a `Select` as `VALUES`.
 
@@ -296,9 +362,10 @@ positional-binding trap on `INTERSECT`, and the flattened nested `CASE`. Six nam
 answers, none fired. That result has now held twice at increasing size, and it is the part
 of the phase-0 verdict that is standing up best.
 
-**Twelve refusals, and only five of them are correct.** `CONNECT BY`, `MODEL`, and three
-`INSERT … VALUES` of literals only (which carry no lineage anyway) are right. The other seven
-are S1-02, S1-04, S2-01, S2-02 and S2-03 below.
+**Twelve refusals as first measured, and only five of them correct.** `CONNECT BY`, `MODEL`,
+and three `INSERT … VALUES` of literals only (which carry no lineage anyway) are right. The
+other seven were S1-02, S1-04, S2-01, S2-02 and S2-03 below — four of those five are now
+fixed, and the refusals that remain are S1-04, S2-01 and S2-02.
 
 ## S2-01 · `construct-coverage` · OPEN — `MERGE` with a `DELETE` arm does not parse
 
@@ -328,8 +395,8 @@ tables.
 
 ## S2-03 · `refusal-taxonomy` · FIXED — `PIVOT`/`UNPIVOT` refused even when decidable
 
-Both `s2_pivot_static` and the `UNPIVOT` in `s2_unpivot_listagg` are refused under the rule
-u1 established for `PIVOT` with a **subquery** column list — where the output shape is genuinely
+**As first measured:** both `s2_pivot_static` and the `UNPIVOT` in `s2_unpivot_listagg` were
+refused under the rule u1 established for `PIVOT` with a **subquery** column list — where the output shape is genuinely
 not static. These two have **literal** column lists (`IN ('GBP' AS gbp, 'USD' AS usd)` and
 `IN (net_amount, order_count)`), so the output columns are knowable at parse time.
 
@@ -494,30 +561,40 @@ Exactly the eight cells predicted, recovered. Eleven regression tests, including
   `s2_delete_with_subquery` produces zero edges and no refusal. That is a convention question
   I raised and the analyser answered differently — not a defect until someone decides.
 
-## Fix order, and why not simply oldest first
+## Fix order for what remains
 
-Ordered by what each one would teach, not by how annoying it is.
+Ordered by what each one would teach, not by how annoying it is. The first five are done;
+this is the queue from here.
 
-0. ~~**S2-04**~~ (`silent-loss`) — **done.** Was promoted to first because everything else
-   here is declared: a refusal, a boundary, a wrong-but-visible edge. This one lost five
-   facts with no symptom anywhere, and a coverage statement that cannot report that is the
-   one thing the product must never ship.
-1. **S1-02** (`construct-coverage`). Small, certain, and now known to cover **every** top-level
-   set operator rather than just `UNION` — `INTERSECT` and `MINUS` fail identically. Ordinary
-   ETL, and the machinery already exists: `s5` proves it works one level down.
-1b. **S2-05** (`transform-classification`). Cheap and mechanical — extend `_transform_of` to
-   treat `DECODE`, `NULLIF`, `COALESCE` and `GREATEST` as conditional. Costs two cells per
-   expression today because a wrong transform is a MISS on both sides.
-2. **S1-04** (`refusal-taxonomy`). Needs a decision before code: the refusal is not wrong so
-   much as *coarse*, and narrowing it costs parse coverage, which has **5.6 points of
-   headroom against a kill criterion**. Measure before touching.
-3. **S1-03** (`flow-classification`). A convention question, not a defect. Whatever is decided
-   must be applied to the analyser *and* the phase-0 keys in the same change, or the two
-   disagree silently.
-4. **S1-05** (`identity`). Last, because it is the largest and the only one that moves every
-   number in the phase. Do not start it until the production package has been measured — the
-   verdict's condition still stands, and this is precisely the decision that wants real code
-   in front of it rather than more synthetic evidence.
+1. **S1-04** (`refusal-taxonomy`). Needs a decision before code. The refusal is not wrong so
+   much as **coarse** — "carries no column lineage from a relation" is true of relations and
+   false of variables, which ADR-0001 §3 makes first-class. Narrowing it costs parse coverage,
+   which has **5.6 points of headroom against a kill criterion**, so measure before touching.
+2. **S1-03** (`flow-classification`). A convention question, not a defect. Whatever is decided
+   must be applied to the analyser **and** the phase-0 keys in the same change, or the two
+   disagree silently — which is how a benchmark stops measuring anything.
+3. **S2-01** (`construct-coverage`). `MERGE … DELETE` never becomes a tree, so this is a
+   SQLGlot bump, a pre-parse rewrite, or at minimum a refusal code that names the real reason.
+4. **S2-02** (`construct-coverage`). `INSERT ALL` is capability work. The refusal is true, so
+   nothing is *wrong* today — it is a gap, and the shape ETL uses to fan one source into
+   staging and reject tables.
+5. **S2-06** (`key-error`). Label the seven missing stress-2 units and correct the key
+   header's false claim. Cheap, and it stops my own omissions being read as analyser defects.
+6. **S1-05** (`identity`). Last, because it is the largest and the only one that moves every
+   number in the phase. **Do not start it until the production package has been measured** —
+   the verdict's condition still stands, and this is precisely the decision that wants real
+   code in front of it rather than more synthetic evidence.
 
 **A finding is not closed until a regression test fails without the fix.** Reproducing it
 once in a stress run is a symptom; the test is the fix's only durable statement.
+
+## Before stress 3
+
+Every open finding from stress 1 recurred in stress 2, so a third package will mostly restate
+what is already here. **Clear S1-04, S1-03 and S2-06 first** — then a stress 3 measures
+something new rather than re-reporting known gaps.
+
+The two things stress 3 should reach that neither predecessor did: **more units writing the
+same tables** (to put a number on S1-05's growth curve — 7% at 13 units, 21% at 28), and
+**a package whose control flow is genuinely deep** rather than wide, since both stress files
+are broad and shallow.
