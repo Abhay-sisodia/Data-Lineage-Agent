@@ -456,6 +456,47 @@ def _target_of(insert: exp.Insert, dictionary: Dictionary) -> tuple[str, list[st
     return (resolved.name or name.upper()), columns
 
 
+def _set_operation_arms(node: Any) -> list[tuple[Any, bool]]:
+    """Flatten a set operation into its arms, in source order, with what each one does.
+
+    The boolean is **whether this arm supplies values**, and the distinction is the whole
+    point (stress finding S1-02):
+
+    * A `UNION` arm ADDS rows, so it genuinely supplies the values of the rows it
+      contributes. Every arm is a source.
+    * `INTERSECT` and `MINUS` only REMOVE rows from the first arm. The value written
+      always comes from arm 1; the later arms decide which of those rows survive, which is
+      filter influence and not lineage. Claiming `gtt_stage.cust_id -> gtt_stage.cust_id`
+      for a `MINUS` against the target itself would be a value edge for rows that were
+      specifically EXCLUDED.
+
+    sqlglot nests these left-associatively - `A UNION B UNION C` is `Union(Union(A,B),C)` -
+    so the left side recurses and keeps its own flags.
+    """
+    if isinstance(node, exp.SetOperation):
+        adds_rows = isinstance(node, exp.Union)
+        return [*_set_operation_arms(node.this), (node.expression, adds_rows)]
+    return [(node, True)]
+
+
+def _as_filter_influence(edge: PredictedEdge, target_name: str) -> PredictedEdge:
+    """Restate a value edge as filter influence on the written relation.
+
+    Used for the constraining arms of INTERSECT and MINUS. Their columns are a real
+    dependency of what ends up in the table and supply none of its values, which is
+    exactly what a filter edge says.
+    """
+    if edge.flow is Flow.FILTER:
+        return edge
+    return edge.model_copy(
+        update={
+            "target": Node(kind=NodeKind.RELATION, name=target_name),
+            "flow": Flow.FILTER,
+            "transform": Transform.IDENTITY,
+        }
+    )
+
+
 def _analyse_insert(
     statement: exp.Insert,
     dictionary: Dictionary,
@@ -466,13 +507,65 @@ def _analyse_insert(
 ) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
     target_name, target_columns = _target_of(statement, dictionary)
 
-    select = statement.expression
-    if not isinstance(select, exp.Select):
+    body = statement.expression
+
+    # A TOP-LEVEL SET OPERATION IS AN `INSERT ... SELECT`, NOT AN `INSERT ... VALUES`.
+    #
+    # Stress finding S1-02. sqlglot parses `INSERT INTO t SELECT ... UNION ALL SELECT ...`
+    # with an `exp.Union` where the plain form has an `exp.Select`, and the check below
+    # treated everything that was not a Select as VALUES - so the whole statement was
+    # refused, with a reason naming a clause that is not in it.
+    #
+    # The corpus could not see this because `s5_positional_union` wraps its UNION in a
+    # subquery, which keeps the INSERT's expression a Select and reaches the set-operation
+    # path through `_trace`. The form real ETL writes was never covered. Stress 2 then
+    # showed the failure is not UNION-specific: INTERSECT and MINUS failed identically.
+    #
+    # Each arm is analysed as its own SELECT against the same target - the same treatment
+    # MERGE's two arms already get - and identical facts are deduplicated downstream.
+    if isinstance(body, exp.SetOperation):
+        arms = _set_operation_arms(body)
+        edges: list[PredictedEdge] = []
+        for arm, supplies_values in arms:
+            if not isinstance(arm, exp.Select):
+                return [], (
+                    RefusalCode.UNSUPPORTED_CONSTRUCT,
+                    f"set-operation arm is {type(arm).__name__}, not a SELECT",
+                )
+            arm_edges, refusal = _analyse_select_into(
+                arm, target_name, target_columns, dictionary, band, unresolved, origin, summaries
+            )
+            if refusal is not None:
+                return [], refusal
+            edges.extend(
+                arm_edges
+                if supplies_values
+                else [_as_filter_influence(edge, target_name) for edge in arm_edges]
+            )
+        return edges, None
+
+    if not isinstance(body, exp.Select):
         return [], (
             RefusalCode.UNSUPPORTED_CONSTRUCT,
             "INSERT ... VALUES carries no column lineage from a relation",
         )
 
+    return _analyse_select_into(
+        body, target_name, target_columns, dictionary, band, unresolved, origin, summaries
+    )
+
+
+def _analyse_select_into(
+    select: exp.Select,
+    target_name: str,
+    target_columns: list[str] | None,
+    dictionary: Dictionary,
+    band: int,
+    unresolved: list[Boundary],
+    origin: Origin,
+    summaries: dict[str, Any],
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
+    """One SELECT feeding one target. Also one arm of a set operation."""
     scope = build_scope(select)
     if scope is None:
         return [], (RefusalCode.PARSE_FAILED, "could not build a scope for the SELECT")

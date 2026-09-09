@@ -189,3 +189,100 @@ def test_unqualified_columns_bind_to_the_statement_scope(dictionary: Dictionary)
 
     wrong = {s for s, _ in filters if s.startswith(("column:STG_CUSTOMER.", "column:STG_RETURNS."))}
     assert not wrong, f"bound an unqualified column outside the statement's scope: {wrong}"
+
+
+# --- S1-02: a top-level set operation is an INSERT ... SELECT ----------------------------
+
+
+def test_top_level_union_all_is_analysed_not_refused(dictionary: Dictionary) -> None:
+    """Found by stress 1. Both arms were lost and the reason named a clause not present.
+
+    sqlglot gives `INSERT INTO t SELECT ... UNION ALL SELECT ...` an `exp.Union` where the
+    plain form has an `exp.Select`, and band 0 treated everything that was not a Select as
+    `VALUES`. `s5_positional_union` could not catch it because it wraps its UNION in a
+    subquery, which keeps the INSERT's expression a Select - so the form real ETL writes
+    was the one form never covered.
+    """
+    source = """CREATE OR REPLACE PROCEDURE union_writer IS
+BEGIN
+    INSERT INTO fct_revenue (cust_id, period_month, net_amount, order_count)
+    SELECT o.cust_id, TRUNC(o.order_date, 'MM'), SUM(o.gross_amount), COUNT(*)
+      FROM stg_orders o
+     GROUP BY o.cust_id, TRUNC(o.order_date, 'MM')
+    UNION ALL
+    SELECT r.cust_id, SYSDATE, -SUM(r.refund_amount), COUNT(*)
+      FROM stg_returns r
+     GROUP BY r.cust_id;
+END union_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    sources = {str(e.source) for e in result.edges if str(e.target) == "column:FCT_REVENUE.CUST_ID"}
+    assert sources == {"column:STG_ORDERS.CUST_ID", "column:STG_RETURNS.CUST_ID"}
+
+
+def test_intersect_and_minus_fail_the_same_way_they_used_to(dictionary: Dictionary) -> None:
+    """Stress 2 asked whether the defect was UNION-specific. It was not."""
+    source = """CREATE OR REPLACE PROCEDURE setop_writer IS
+BEGIN
+    INSERT INTO tmp_recent (cust_id, last_login)
+    SELECT s.cust_id, s.last_login FROM stg_customer s
+    INTERSECT
+    SELECT r.cust_id, SYSDATE FROM stg_returns r;
+END setop_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    assert any(str(e.target) == "column:TMP_RECENT.CUST_ID" for e in result.edges)
+
+
+def test_a_minus_arm_constrains_and_does_not_supply(dictionary: Dictionary) -> None:
+    """The semantic half of the fix, and the reason arms are not treated uniformly.
+
+    A `UNION` arm ADDS rows, so it supplies the values of the rows it contributes.
+    `MINUS` only REMOVES rows from the first arm - no value in the result ever came from
+    it. Treating every arm as a feed would claim `gtt_stage.cust_id -> gtt_stage.cust_id`
+    here, a value edge for rows that were specifically excluded.
+    """
+    source = """CREATE OR REPLACE PROCEDURE minus_writer IS
+BEGIN
+    INSERT INTO gtt_stage (cust_id, period_month, amount)
+    SELECT o.cust_id, TRUNC(o.order_date, 'MM'), o.gross_amount FROM stg_orders o
+    MINUS
+    SELECT g.cust_id, g.period_month, g.amount FROM gtt_stage g;
+END minus_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    into_cust_id = {
+        (str(e.source), e.flow.value)
+        for e in result.edges
+        if str(e.target) in ("column:GTT_STAGE.CUST_ID", "relation:GTT_STAGE")
+    }
+    assert ("column:STG_ORDERS.CUST_ID", "value") in into_cust_id
+    assert ("column:GTT_STAGE.CUST_ID", "filter") in into_cust_id
+    assert ("column:GTT_STAGE.CUST_ID", "value") not in into_cust_id
+
+
+def test_three_armed_union_keeps_every_arm(dictionary: Dictionary) -> None:
+    """sqlglot nests set operations left-associatively, so flattening has to recurse."""
+    source = """CREATE OR REPLACE PROCEDURE three_arms IS
+BEGIN
+    INSERT INTO tmp_recent (cust_id, last_login)
+    SELECT s.cust_id, s.last_login FROM stg_customer s
+    UNION ALL
+    SELECT o.cust_id, o.order_date FROM stg_orders o
+    UNION ALL
+    SELECT r.cust_id, SYSDATE FROM stg_returns r;
+END three_arms;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    sources = {str(e.source) for e in result.edges if str(e.target) == "column:TMP_RECENT.CUST_ID"}
+    assert sources == {
+        "column:STG_CUSTOMER.CUST_ID",
+        "column:STG_ORDERS.CUST_ID",
+        "column:STG_RETURNS.CUST_ID",
+    }

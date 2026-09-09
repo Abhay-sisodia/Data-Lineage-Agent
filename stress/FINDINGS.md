@@ -22,7 +22,7 @@ with the code has stopped measuring anything.
 | ID | Category | Status | One line |
 |---|---|---|---|
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
-| S1-02 | `construct-coverage` | open | top-level `INSERT … SELECT … UNION ALL` refused, wrong reason |
+| S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
 | S1-03 | `flow-classification` | open | `GROUP BY` columns emitted as filter edges |
 | S1-04 | `refusal-taxonomy` | open | `INSERT … VALUES` from variables refused; §3 makes variables first-class |
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
@@ -127,7 +127,7 @@ byte-identical**, because those packages are small enough that two statements ra
 the same pair. Band-2 value recall here went **40% → 100%**. Pinned by
 `tests/test_band0.py::test_two_units_writing_the_same_columns_both_survive`.
 
-## S1-02 · `construct-coverage` · OPEN — top-level `INSERT … SELECT … UNION ALL` is refused, with the wrong reason
+## S1-02 · `construct-coverage` · FIXED — top-level set operators under `INSERT` were refused
 
 `stress_set_ops` is refused as **"INSERT ... VALUES carries no column lineage from a
 relation"**. It is not an `INSERT ... VALUES`; it is an `INSERT ... SELECT` whose expression
@@ -143,6 +143,46 @@ the INSERT — was never covered.
 
 It is at least declared rather than silent, so it is a loud failure. But the reason given is
 false, and anyone reading the boundary would look for a `VALUES` clause that is not there.
+
+**Confirmed general by stress 2:** `INTERSECT` and `MINUS` fail identically. The defect is
+every top-level set operator, not `UNION`.
+
+**Fix.** Each arm is analysed as its own `SELECT` against the same target — the treatment
+`MERGE`'s two arms already get — and identical facts deduplicate downstream. Arms are
+flattened recursively, because sqlglot nests them left-associatively.
+
+**Arms are not treated uniformly, and that is the semantic half.** A `UNION` arm **adds
+rows**, so it genuinely supplies the values of the rows it contributes. `INTERSECT` and
+`MINUS` only **remove** rows from the first arm: the value written always comes from arm 1,
+and the later arms decide which of those survive. Treating every arm as a feed would have
+claimed `gtt_stage.cust_id → gtt_stage.cust_id` for a `MINUS` against the target itself — a
+value edge for rows that were specifically **excluded**. Later arms of `INTERSECT`/`MINUS`
+therefore become filter influence on the written relation.
+
+That rule was written into the stress-2 key *before* this code existed (convention (a)), so
+implementing it is not the key being tuned to the analyser.
+
+**Effect.**
+
+| | before | after |
+|---|---|---|
+| phase-0 measurement | — | **every key identical**, verified by stash-and-compare |
+| stress 1 band-0 value recall | 87.5% | **100%** |
+| stress 1 parse coverage | 69.2% | **76.9%** |
+| stress 2 parse coverage | 51.7% | **58.6%** |
+
+**Phase 0 could not have caught this and still cannot show it.** Both `s5_positional_union`
+and `sq_05_set_operations` wrap their set operations in a subquery, so the corpus has no
+top-level form at all — which is why the measurement is byte-identical before and after.
+
+**And stress 2 barely moved, which is itself a finding.** `s2_intersect_minus` now emits
+exactly the nine edges its key predicted, and band-0 value TP did not change — because those
+match keys were **already satisfied by other units** writing the same columns. A fix that
+recovered nine real edges is invisible to the score. That is S1-05's cost, demonstrated
+rather than argued: the collision does not just lose facts, it hides whether they came back.
+
+Four regression tests in `tests/test_complex_sql.py`, including the `MINUS`-arm semantics
+and a three-armed `UNION` for the recursive flattening.
 
 ## S1-03 · `flow-classification` · OPEN — `GROUP BY` columns are emitted as filter edges
 
