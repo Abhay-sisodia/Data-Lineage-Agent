@@ -1082,6 +1082,31 @@ edges:
     origin: {unit: S2_RECURSIVE_WALK, line: 560}
     evidence: source_read
 
+  - source: {kind: variable, name: P_DEPTH}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.DEPTH}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_RECURSIVE_WALK, line: 560}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-10, under finding S2-09, AND IT RAISES PRECISION - stated for
+      that reason.
+
+      `VALUES (p_cust_id, v_parent, p_depth)` binds three columns and this key labelled
+      two. p_depth is a parameter, which ADR-0001 §3 makes a first-class node, and it is
+      written into `depth` by exactly the rule that makes the two edges above true. There
+      is no reading of the statement under which two of its three bindings are lineage and
+      the third is not.
+
+      The omission is the same shape as `s2_pivot_static` under S2-03: the unit was
+      expected to be REFUSED, so the key was written to size the refusal and not to be
+      complete, and the gap only became visible when the statement started producing
+      edges. Third instance of that shape - see S1-06 and S2-06.
+
+      Not to be confused with unit 1, where `depth` receives the recursive CTE's literal 1
+      and correctly has no source.
+
   # === 21. s2_dynamic_in_loop ===============================================
   # EXPECTED TO BE REFUSED, and the refusal is CORRECT - the text is assembled from
   # the loop counter, so it is a different statement on every pass and constant on

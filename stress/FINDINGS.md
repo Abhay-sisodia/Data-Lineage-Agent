@@ -24,7 +24,7 @@ with the code has stopped measuring anything.
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
 | S1-03 | `flow-classification` | open | `GROUP BY` columns emitted as filter edges |
-| S1-04 | `refusal-taxonomy` | open | `INSERT … VALUES` from variables refused; §3 makes variables first-class |
+| S1-04 | `refusal-taxonomy` | **fixed** | `INSERT … VALUES` from variables refused; §3 makes variables first-class |
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
 | S1-06 | `key-error` | **fixed** | two gaps in my own key, stated rather than quietly fixed — corrected 2026-09-09 |
 | S2-01 | `construct-coverage` | open | `MERGE` with a `DELETE` arm fails to parse at all |
@@ -35,6 +35,8 @@ with the code has stopped measuring anything.
 | S2-06 | `key-error` | **fixed** | ten units unlabelled, not seven; the header claim made true |
 | S2-07 | `transform-classification` | **fixed** | `FIRST_VALUE`/`LAST_VALUE` — the key says `derived`, the analyser `aggregated` |
 | S2-08 | `transform-classification` | open | two `_transform_of` copies, already drifted; and `LAG` reads like `FIRST_VALUE` but scores `aggregated` |
+| S2-09 | `key-error` | **fixed** | `p_depth → DIM_CUSTOMER_HIER.DEPTH` never labelled — two of three bindings |
+| S2-10 | `measurement-error` | open | trigger edges carry body-relative lines, so the refusal cross-checks cannot match them |
 
 ## Decisions taken — 2026-09-10
 
@@ -45,6 +47,10 @@ are written before the analyser runs.
 
 None of the three is implemented yet. Each is still `open` in the register until a regression
 test fails without it.
+
+> **Status, 2026-09-10, later the same day.** D-3 and D-1 are landed (S2-07, S1-04); D-2 is
+> not. The text below is left exactly as it was written before any code, including the one
+> claim implementation proved wrong — flagged in place rather than edited out.
 
 ### D-1 · S1-04 — row-level DML carries lineage; stop refusing it
 
@@ -73,6 +79,15 @@ undecided convention question into an ordinary defect.
 buys edges and spends coverage, and coverage has 5.6 points of headroom against a kill
 criterion. Measure before touching, as the finding said — the decision changes what to build,
 not whether to check what it costs.
+
+> **WRONG, AND MEASURED WRONG WITHIN THE HOUR — left standing because the point of writing
+> decisions down before the code is that they can be checked against it.** There is no cost.
+> Parse coverage is `analysed / seen` and a refused statement is *already* counted as seen, so
+> un-refusing moves it into the numerator: phase-0 coverage went **76.1% → 80.4%** and the
+> headroom against the kill criterion went from 5.6 points to 10.4. The sign was inherited
+> from S2-04, where the change ran the other way — that fix ADDED refusals and did cost
+> coverage. **The instruction to measure first was right for the wrong reason**, and it is the
+> instruction rather than the reasoning that is worth keeping.
 
 ### D-2 · S1-03 — a filter edge must say WHICH phase it acts in
 
@@ -124,13 +139,15 @@ identity` — and with `MAX … KEEP (DENSE_RANK FIRST …)`, which the stress-2
 
 ## Open work — what is left, and what each one needs
 
-**Five open. Eight fixed. Nothing in the register has yet failed to recur across stress runs.**
-**D-3 is landed** (S2-07). D-1 and D-2 are decided and not yet implemented — see above.
-Implementing D-3 turned up **S2-08**, which is new and undecided.
+**Five open. Ten fixed. Nothing in the register has yet failed to recur across stress runs.**
+**D-1 and D-3 are landed** (S1-04, S2-07). D-2 is decided and not yet implemented.
+Each implementation turned up a new finding — **S2-08** from D-3, **S2-09** and **S2-10**
+from D-1 — which is the pattern worth noticing: the defects were being hidden by the
+refusals and omissions in front of them.
 
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
-| **S1-04** | `refusal-taxonomy` | **decided (D-1)** — implementation. Measure the parse-coverage cost first; it has 5.6 points against a kill criterion | 3 edges in stress 1, 2 in stress 2; the one false abstention in the signed phase-0 measurement |
+| **S2-10** | `measurement-error` | someone reconciling two line-number spaces in `measure.py` | `false_abstentions_recovered` and `edges_from_refused_statements` cannot see trigger edges at all — two reported zeros that are artifacts |
 | **S1-03** | `flow-classification` | **decided (D-2)** — implementation, and it must land in the analyser **and** the phase-0 keys in one change | 3 false positives per stress run, and a report that cannot tell a pre- from a post-aggregation filter |
 | **S2-08** | `transform-classification` | a decision on `LAG`/`LEAD`, and a refactor for the duplicated classifier | S2-05 never reached band 1 at all; and a rule that reads as arbitrary from outside |
 | **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
@@ -139,8 +156,9 @@ Implementing D-3 turned up **S2-08**, which is new and undecided.
 
 ### What each open finding is waiting for, in one line
 
-- **S1-04** — **D-1: row-level DML carries lineage.** `INSERT … VALUES`, `UPDATE` and `DELETE`
-  all get read rather than refused. Measure the parse-coverage cost before touching.
+- **S2-09** — done with S1-04; kept in the register because a key error is evidence.
+- **S2-10** — `false_abstentions_recovered: 0` is not a measurement. Trigger edges number
+  their lines from the trigger BODY and refusals number theirs from the FILE.
 - **S1-03** — **D-2: the filter flow gains a phase.** `pre-aggregation` / `post-aggregation` /
   `grouping`, all three kept and distinguishable. Analyser and phase-0 keys in one change.
 - **S2-01** — needs a SQLGlot bump, a pre-parse rewrite that strips the `DELETE` clause, or a
@@ -163,13 +181,20 @@ Implementing D-3 turned up **S2-08**, which is new and undecided.
 | S2-05 `transform-classification` | `1108223` | none |
 | S2-03 `refusal-taxonomy` | `cda24a3` | none |
 | S2-06 + S1-06 `key-error` | `d1b591f` | none — `cells` byte-identical to `phase0_final.json` |
-| S2-07 `transform-classification` (D-3) | *this change* | none — `cells`, `gate`, `parse_coverage` and `honest_abstention` all identical |
+| S2-07 `transform-classification` (D-3) | `3e9187e` | none — `cells`, `gate`, `parse_coverage` and `honest_abstention` all identical |
+| S1-04 + S2-09 `refusal-taxonomy` (D-1) | *this change* | **`cells` identical — and the first fix to move a phase-0 number.** Parse coverage 76.1% → 80.4%; false-abstention rate 9.1% → 0% |
 
-**Eight fixes, and the phase-0 measurement has not moved once.** That is a statement about the
-corpus, not about the analyser: none of these five constructs appears in it in the form that
-breaks. It sharpens the verdict's existing caveat considerably — the corpus is not just
-synthetic, its *construct mix and package shape* are unrepresentative in ways that hide real
-defects.
+**Ten fixes, and the phase-0 GRID has not moved once.** That is a statement about the corpus,
+not about the analyser: none of these constructs appears in it in the form that breaks. It
+sharpens the verdict's existing caveat considerably — the corpus is not just synthetic, its
+*construct mix and package shape* are unrepresentative in ways that hide real defects.
+
+**S1-04 is the first to move a phase-0 number of any kind**, and it moved the two that are
+not on the grid: parse coverage 76.1% → 80.4%, and the false-abstention rate to zero. Worth
+noticing what that says about which axes the corpus can actually exercise. Nine fixes'
+worth of recovered lineage was invisible to precision and recall, and the tenth showed up
+only on the honesty axes — the ones ADR-0001 added because the grid alone cannot tell a
+correct answer from a lucky one.
 
 ### Where the stress packages stand now
 
@@ -183,11 +208,15 @@ directions.
 | | before S2-06 | now | before S2-06 | now |
 | 0 value | 100% / 100% | 100% / 100% | 93.9% / 75.6% | **100% / 69.4%** |
 | 0 filter | 61.5% / 88.9% | **75.0% / 90.0%** | 76.0% / 76.0% | 76.0% / **73.1%** |
-| **1 value — the gate** | **95.5% / 87.5%** | **100% / 84.6%** | **81.8% / 56.2%** | **100% / 55.0%** |
+| **1 value — the gate** | **95.5% / 87.5%** | **100% / 96.2%** | **81.8% / 56.2%** | **100% / 71.4%** |
 | 1 filter | 100% / 84.6% | 100% / 85.7% | 100% / 75.0% | 100% / 75.0% |
 | 2 value | 100% / 100% | 100% / 100% | 100% / 50.0% | 100% / 50.0% |
 | 2 filter | 100% / 100% | 100% / 100% | 100% / 100% | 100% / **50.0%** |
-| parse coverage | 76.9% | 76.9% | 65.5% | 65.5% |
+| parse coverage | 76.9% | **92.3%** | 65.5% | **79.3%** |
+
+**Precision is now 100% on every band and flow of both packages except band-0 filter**, and
+what remains there is S1-03's `GROUP BY` columns — three false positives in each file, the
+thing D-2 exists to settle.
 
 **The `now` column includes D-3 (S2-07), which moved four cells and only in stress 2.**
 Band-0 value went 97.0% / 65.3% → **100% / 69.4%** — two false positives removed and the two
@@ -405,7 +434,7 @@ than one relationship counted twice.
 Not yet implemented. Both the analyser and every phase-0 key encoding the flat `filter` flow
 have to move in the same change.
 
-## S1-04 · `refusal-taxonomy` · OPEN — `INSERT … VALUES` from variables is still refused
+## S1-04 · `refusal-taxonomy` · FIXED — `INSERT … VALUES` from variables was refused
 
 Three misses, all of the same shape: `INSERT INTO tmp_recent VALUES (v_cust_id,
 v_last_login)` and the audit write inside the exception handler. The refusal reason —
@@ -429,7 +458,113 @@ makes `s2_delete_with_subquery`'s zero edges and zero refusals an ordinary defec
 a disagreement. **Note the shape of that failure: not a refusal, but silence** — the
 `silent-loss` category, in a unit nobody had classified that way.
 
-Not yet implemented. The parse-coverage cost is the thing to measure first.
+**THE PARSE-COVERAGE COST DOES NOT EXIST, AND THE FINDING HAD THE SIGN BACKWARDS.** Both
+this section and D-1 said to measure the cost first because "narrowing a refusal costs parse
+coverage, which has 5.6 points of headroom against a kill criterion". It was measured first,
+and coverage went **up**. Parse coverage is `analysed / seen`, and a refused statement is
+already counted as *seen*; un-refusing it moves it into the numerator. The claim appears to
+have been inherited from S2-04, where the change ran the other way — that fix ADDED refusals
+and did cost coverage. **Phase-0 parse coverage 76.1% → 80.4%**, and the headroom against the
+kill criterion went from 5.6 points to 10.4.
+
+**Implemented in `defuse._analyse_insert_values`, not in band 0, and that placement is the
+whole design.** An unqualified name in a VALUES list is a PL/SQL variable far more often than
+a column, and band 0 has no unit scope to tell the two apart — binding `v_cust_id` to
+whichever relation is in scope is exactly the silent failure `defuse` exists to prevent. So
+band 0 stops refusing and **claims nothing**, which is not the same as claiming there is
+nothing: the statement is counted as *analysed*, and def-use owns the VALUES list
+(`triggers._insert_values_edges` already owned the `:NEW.` case).
+
+Binding is **positional** against the target column list — the rule a `UNION` arm and a
+`FETCH INTO` already follow. `INSERT INTO t VALUES (…)` with **no column list** is declared
+as unresolved rather than bound against the dictionary's column order: that order would
+usually be right and would sometimes write a value into the wrong column, which is a false
+edge that type-checks and reads perfectly.
+
+**Effect.**
+
+| | before | after |
+|---|---|---|
+| phase-0 `cells` | — | **identical**, every one |
+| phase-0 parse coverage | 76.1% | **80.4%** |
+| phase-0 false-abstention rate | 9.1% (1 of 11) | **0%** |
+| phase-0 refusals | 11 | 9 |
+| stress 1 parse coverage | 76.9% | **92.3%** |
+| stress 1 band-1 value — the gate | 100% / 84.6% | **100% / 96.2%** |
+| stress 2 parse coverage | 65.5% | **79.3%** |
+| stress 2 band-1 value — the gate | 100% / 55.0% | **100% / 71.4%** |
+
+**The phase-0 grid did not move and the phase-0 REPORT did.** Ninth fix in a row with
+byte-identical cells — and the first one to move a phase-0 number at all. `s6_updatable_view`
+was the signed measurement's only false abstention; it is gone, and the axis reads zero.
+
+**`s6`'s cells could not move, for a reason worth stating.** The edge that refusal was
+costing — `DIM_CUSTOMER.CUST_ID → DW_AUDIT_LOG.CUST_ID` — **was already being produced**, by
+the trigger path, from the very statement band 0 was refusing. The package was simultaneously
+declaring "I could not read this" and reporting an edge from it. See **S2-10**: the check
+that exists to catch precisely that contradiction cannot see it.
+
+**Stress 1 is back over the gate** — 96.2% against the 85% floor, from 84.6%. Three guarded
+writes recovered with their guards intact (`when 'A' = V_STATUS`, `when EXCEPTION
+NO_DATA_FOUND`), which matters because the guard is part of the match key: recovering the
+edge without it would have scored as a miss *and* a false positive.
+
+**Only `INSERT … VALUES` is done. D-1's `UPDATE` and `DELETE` halves are not.** `UPDATE` is
+already handled by `defuse._analyse_update` and the remaining misses there are a separate
+question; `DELETE` is handled nowhere and convention (c) is now decided in the key's favour.
+Split out deliberately, one fix per measurement — see the fix order.
+
+Five regression tests in `tests/test_refusals.py` (the positional binding asserted
+column-by-column, because an off-by-one produces the right *number* of edges into the wrong
+columns; the literal case; the missing-column-list case; and the guard). One existing test in
+`tests/test_band0.py` asserted the old behaviour and was **rewritten rather than deleted** —
+`test_unsupported_statement_is_refused_not_guessed` still tests the abstention path, now with
+a construct the register genuinely refuses, and
+`test_a_literal_insert_values_is_analysed_not_refused` records beside it that the change is
+deliberate.
+
+## S2-09 · `key-error` · FIXED — two of three bindings labelled
+
+`s2_recursive_walk` writes `INSERT INTO dim_customer_hier (cust_id, parent_cust_id, depth)
+VALUES (p_cust_id, v_parent, p_depth)`. The key labelled the first two and not the third.
+
+`p_depth` is a parameter, which ADR-0001 §3 makes a first-class node, and it is written into
+`depth` by exactly the rule that makes the other two edges true. There is no reading of the
+statement under which two of its three bindings are lineage and the third is not.
+
+**Third instance of the same shape** — after S1-06 and S2-06 — and the same cause each time:
+**the unit was expected to be refused, so its key was written to size the refusal rather
+than to be complete.** It surfaced the moment the statement started producing edges, exactly
+as `s2_pivot_static` did under S2-03.
+
+`tests/test_stress_keys.py` cannot catch this one. It counts units, and this unit was
+labelled — just not fully. **A completeness check at unit granularity does not catch an
+incomplete unit**, and no cheap check does: knowing a VALUES list has three bindings and the
+key has two means parsing the source, which is the analyser's job. Recorded rather than
+solved.
+
+## S2-10 · `measurement-error` · OPEN — the refusal cross-checks cannot see trigger edges
+
+Found while measuring S1-04. `s6_updatable_view` produced an edge from the same statement it
+refused, and **both** guards against that reported clean:
+
+* `edges_from_refused_statements` — `[]`
+* `false_abstentions_recovered` — `0`
+
+Neither is a measurement. Both compare a refusal's line against an edge's `origin.line`, and
+**the two are numbered in different spaces**: a trigger body comes from the dictionary, so its
+edges carry lines relative to the BODY (3, 7), while the refusal carries the line in the FILE
+(39). `refusal.covers()` can never match, so every trigger-sourced edge is invisible to both
+checks.
+
+**The consequence is not a wrong score — it is a guard that reports PASS without looking.**
+`edges from refused` is rendered in the measurement as a kill-criterion row, and the verdict
+leans on it. Scoring itself is unaffected: origin is not in the match key (amendment 1b).
+
+The fix is to give trigger edges a file-relative origin, or to teach `covers()` about the two
+spaces. The first is better and larger — several keys record trigger origins in body
+coordinates already (`b0_04` uses lines 18/19, stress 2 uses line 1), so they disagree with
+each other as well.
 
 ## S1-05 · `identity` · OPEN — the label format could not express five facts in one file
 
@@ -846,9 +981,17 @@ now pinned by `tests/test_stress_keys.py`, and neither moved the phase-0 measure
 
 1. ~~**S2-07** (`transform-classification`). **D-3.**~~ **Done.** Four cells, phase 0
    unmoved, and it did what a first item should: it turned up S2-08.
-2. **S1-04** (`refusal-taxonomy`). **D-1.** Row-level DML stops being refused. Bigger than
-   S2-07 and independent of it. Narrowing a refusal costs parse coverage, which has **5.6
-   points of headroom against a kill criterion**, so measure the cost before touching.
+2. ~~**S1-04** (`refusal-taxonomy`). **D-1.**~~ **`INSERT … VALUES` done.** The other two
+   thirds of D-1 remain and are split out below, one per measurement.
+2a. **`DELETE` (D-1, convention (c)).** Handled nowhere today — `s2_delete_with_subquery`
+   produces zero edges and *no refusal*, so this is a `silent-loss` in everything but its
+   register tag. The convention is decided in the key's favour and the stress-2 key already
+   states the three edges, so the target is written down before the code. Do this next: it
+   is the largest single block of labelled-but-missing filter edges left in stress 2.
+2b. **`UPDATE` (D-1).** Mostly working already through `defuse._analyse_update`. What is
+   left is one miss in `s2_locking` — `v_val → dim_customer.lifetime_value` through
+   `WHERE CURRENT OF` — which may turn out to belong to the FETCH refusal above it rather
+   than to `UPDATE` at all. Diagnose before deciding it is D-1's problem.
 3. **S1-03** (`flow-classification`). **D-2.** Last of the three decided items and by far the
    largest: it changes the IR's filter flow, the analyser, and **every phase-0 key**. Do it
    after the other two are landed and measured, so its movement in the grid is attributable to
@@ -873,8 +1016,8 @@ once in a stress run is a symptom; the test is the fix's only durable statement.
 ## Before stress 3
 
 Every open finding from stress 1 recurred in stress 2, so a third package will mostly restate
-what is already here. **Clear S1-04, S1-03 and S2-07 first** — then a stress 3 measures
-something new rather than re-reporting known gaps.
+what is already here. S1-04 and S2-07 are now clear; **finish D-1's `DELETE` half and settle
+S1-03 (D-2)** — then a stress 3 measures something new rather than re-reporting known gaps.
 
 **Do not write stress 3 to put a number on S1-05's growth curve. That number is in.** 7% at
 13 units, 31% at 28 with the key complete, and three of the twenty-eight units unable to

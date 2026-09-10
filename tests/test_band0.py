@@ -127,18 +127,53 @@ def test_parse_coverage_is_reported(dictionary: Dictionary) -> None:
 
 
 def test_unsupported_statement_is_refused_not_guessed() -> None:
-    """The abstention path: no edges, and a stated reason."""
+    """The abstention path: no edges, and a stated reason.
+
+    This used to use `INSERT INTO tmp_recent VALUES (1, SYSDATE)`, which is no longer
+    refused - see `test_a_literal_insert_values_is_analysed_not_refused` below and stress
+    finding S1-04. The case is rewritten rather than deleted: what it tests is the
+    abstention PATH, and that path still has to work, so it now uses a construct the
+    register genuinely refuses.
+    """
     dictionary = Dictionary.load(CORPUS / "dictionary.json")
     source = """
     CREATE OR REPLACE PROCEDURE t_refuse IS
     BEGIN
-      INSERT INTO tmp_recent (cust_id, last_login) VALUES (1, SYSDATE);
+      INSERT INTO dim_customer_hier (cust_id, parent_cust_id)
+      SELECT h.cust_id, h.parent_cust_id
+        FROM dim_customer_hier h
+       START WITH h.parent_cust_id IS NULL
+     CONNECT BY PRIOR h.cust_id = h.parent_cust_id;
     END;
     """
     result = analyse_source(source, dictionary, AnalysisConfig())
     assert result.edges == []
     assert len(result.refusals) == 1
     assert result.parse_coverage == 0.0
+
+
+def test_a_literal_insert_values_is_analysed_not_refused() -> None:
+    """Stress finding S1-04, decision D-1. Records that the change of behaviour is meant.
+
+    The assertion that moved: this statement used to produce one refusal and 0% parse
+    coverage. It now produces no refusal and 100% coverage, with the same empty edge set -
+    because a literal has no upstream to name, which is the ordinary literal rule and not
+    an abstention. Refusing it was over-refusal (T3.1d) and it cost coverage.
+
+    The edge set being unchanged is why the phase-0 CELLS did not move while parse
+    coverage rose 4.3 points.
+    """
+    dictionary = Dictionary.load(CORPUS / "dictionary.json")
+    source = """
+    CREATE OR REPLACE PROCEDURE t_literals IS
+    BEGIN
+      INSERT INTO tmp_recent (cust_id, last_login) VALUES (1, SYSDATE);
+    END;
+    """
+    result = analyse_source(source, dictionary, AnalysisConfig())
+    assert result.edges == []
+    assert result.refusals == []
+    assert result.parse_coverage == 1.0
 
 
 def test_two_units_writing_the_same_columns_both_survive(dictionary: Dictionary) -> None:

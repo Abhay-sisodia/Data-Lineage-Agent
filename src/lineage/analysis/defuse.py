@@ -893,10 +893,15 @@ def _analyse_insert_filter(
     origin: Origin,
     guard: str | None,
 ) -> DefUseResult:
-    """Variable predicates on an INSERT ... SELECT.
+    """Variable predicates on an INSERT ... SELECT, and the whole of an INSERT ... VALUES.
 
-    The column-to-column lineage is the band-0 analyser's job. What it cannot do is
-    recognise `v_cutoff` — a variable governing which rows load.
+    For `INSERT ... SELECT` the column-to-column lineage is the band-0 analyser's job.
+    What it cannot do is recognise `v_cutoff` — a variable governing which rows load.
+
+    For `INSERT ... VALUES` there is no select list to trace and band 0 has nothing to
+    work with, because an unqualified name in a VALUES list is a PL/SQL variable far more
+    often than a column and only this module can tell the two apart. So the whole
+    statement is handled here (stress finding S1-04, decision D-1).
     """
     result = DefUseResult()
 
@@ -906,6 +911,12 @@ def _analyse_insert_filter(
     if not isinstance(target, exp.Table) or not target.name:
         return result
     target_name = relations.get(target.name.upper(), target.name.upper())
+
+    values = statement.expression
+    if isinstance(values, exp.Values):
+        return _analyse_insert_values(
+            statement, values, target_name, scope, relations, dictionary, origin, guard
+        )
 
     select = statement.expression
     if not isinstance(select, exp.Select):
@@ -931,6 +942,81 @@ def _analyse_insert_filter(
                     Mechanism.DEF_USE,
                 )
             )
+    return result
+
+
+def _analyse_insert_values(
+    statement: Any,
+    values: Any,
+    target_name: str,
+    scope: UnitScope,
+    relations: dict[str, str],
+    dictionary: Dictionary,
+    origin: Origin,
+    guard: str | None,
+) -> DefUseResult:
+    """`INSERT INTO t (a, b) VALUES (v_cust_id, SYSDATE)` — stress finding S1-04, D-1.
+
+    This used to be refused outright, with the reason *"INSERT ... VALUES carries no
+    column lineage from a relation"*. That is true of relations and false of the statement:
+    ADR-0001 §3 makes variables first-class nodes, so `v_cust_id -> tmp_recent.cust_id` is
+    ordinary lineage and writing a temp table row-by-row from cursor variables is ordinary
+    PL/SQL. The refusal was the one false abstention in the signed phase-0 measurement.
+
+    Binding is POSITIONAL against the target column list, the same rule a UNION arm and a
+    `FETCH INTO` already follow. `SYSDATE`, `USER` and literals supply values from nowhere
+    and produce no edge — the literal rule, unchanged.
+
+    A VALUES list has no `WHERE`, so there are no filter edges to find here. A row-level
+    write also carries no *relation* source: nothing decides which rows are read, because
+    none are.
+    """
+    result = DefUseResult()
+
+    schema = statement.this
+    if not isinstance(schema, exp.Schema) or not schema.expressions:
+        # Without an explicit column list, positional binding has nothing to bind TO. The
+        # target's dictionary order would be a guess, and a wrong guess here writes a
+        # value into the wrong column - a plausible, readable, false edge.
+        result.unresolved.append(
+            f"line {origin.line}: INSERT ... VALUES without a column list - "
+            f"positional binding needs the target's column order stated"
+        )
+        return result
+
+    columns = [c.name.upper() for c in schema.expressions]
+
+    rows = list(values.expressions)
+    if not rows:
+        return result
+
+    for row in rows:
+        items = list(row.expressions)
+        for index, column in enumerate(columns):
+            if index >= len(items):
+                break
+            item = items[index]
+            target = Node(kind=IRNodeKind.COLUMN, name=f"{target_name}.{column}")
+            for reference in item.find_all(exp.Column):
+                classified = _classify(reference, scope, relations, dictionary)
+                if classified is None:
+                    result.unresolved.append(
+                        f"line {origin.line}: unresolved {reference.name} in VALUES"
+                    )
+                    continue
+                kind, name = classified
+                result.edges.append(
+                    _edge(
+                        _node_for(kind, name),
+                        target,
+                        Flow.VALUE,
+                        _transform_of(item),
+                        origin,
+                        guard,
+                        Mechanism.DEF_USE,
+                        band=_band_for(kind, target_is_variable=False),
+                    )
+                )
     return result
 
 

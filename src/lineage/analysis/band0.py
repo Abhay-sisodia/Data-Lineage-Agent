@@ -614,10 +614,33 @@ def _analyse_insert(
             )
         return edges, None
 
+    # AN `INSERT ... VALUES` IS NOT A REFUSAL. Stress finding S1-04, decision D-1.
+    #
+    # This used to refuse the statement as "INSERT ... VALUES carries no column lineage
+    # from a relation" - true of relations, false of the statement. ADR-0001 §3 makes
+    # variables first-class, so `VALUES (v_cust_id, v_last_login)` is ordinary lineage and
+    # writing a temp table row-by-row from cursor variables is ordinary PL/SQL. It was the
+    # one false abstention in the signed phase-0 measurement.
+    #
+    # BAND 0 DELIBERATELY CLAIMS NOTHING HERE, and that is not the same as claiming there
+    # is nothing. An unqualified name in a VALUES list is a PL/SQL variable far more often
+    # than a column, and this module cannot tell the two apart - it has no unit scope.
+    # Binding `v_cust_id` to whichever relation happens to be around is precisely the
+    # silent failure `defuse` exists to prevent, so the VALUES list is analysed there
+    # (`_analyse_insert_values`) and by `triggers._insert_values_edges` for `:NEW.`
+    # correlations.
+    #
+    # The statement is therefore ANALYSED rather than refused, and a VALUES list of pure
+    # literals correctly yields nothing: a literal has no upstream to name, which is the
+    # same rule that gives `is_active <- 1` no edge inside a SELECT.
+    if isinstance(body, exp.Values):
+        return [], None
+
     if not isinstance(body, exp.Select):
         return [], (
             RefusalCode.UNSUPPORTED_CONSTRUCT,
-            "INSERT ... VALUES carries no column lineage from a relation",
+            f"INSERT from {type(body).__name__}, which is neither a SELECT, a set "
+            f"operation nor a VALUES list",
         )
 
     return _analyse_select_into(

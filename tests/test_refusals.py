@@ -400,3 +400,113 @@ def test_a_literal_list_pivot_is_no_longer_refused() -> None:
     assert (
         classify_statement("SELECT * FROM t PIVOT (SUM(x) FOR c IN (SELECT c FROM u))") is not None
     )
+
+
+# --- S1-04 / D-1: an INSERT ... VALUES is read, not refused -------------------------------
+
+
+def test_insert_values_from_variables_is_no_longer_refused(dictionary: Dictionary) -> None:
+    """Stress finding S1-04, decision D-1. The one false abstention in the signed run.
+
+    The refusal read *"INSERT ... VALUES carries no column lineage from a relation"* -
+    true of relations and false of the statement. ADR-0001 §3 makes variables first-class
+    nodes, and writing a temp table row-by-row from cursor variables is ordinary PL/SQL.
+
+    Binding is POSITIONAL against the target column list, so this asserts all three
+    bindings and not just that something came out: a positional rule that is off by one
+    produces exactly the right NUMBER of edges into exactly the wrong columns.
+    """
+    source = """CREATE OR REPLACE PROCEDURE row_writer(p_cust_id NUMBER) IS
+    v_last_login DATE;
+BEGIN
+    SELECT last_login INTO v_last_login FROM stg_customer WHERE cust_id = p_cust_id;
+
+    INSERT INTO tmp_recent (cust_id, last_login)
+    VALUES (p_cust_id, v_last_login);
+END row_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert [r for r in result.refusals if "VALUES" in r.reason] == []
+
+    written = {
+        (str(e.source), str(e.target))
+        for e in result.edges
+        if str(e.target).startswith("column:TMP_RECENT")
+    }
+    assert written == {
+        ("variable:P_CUST_ID", "column:TMP_RECENT.CUST_ID"),
+        ("variable:V_LAST_LOGIN", "column:TMP_RECENT.LAST_LOGIN"),
+    }
+
+
+def test_insert_values_of_literals_produces_no_edge_and_no_refusal(
+    dictionary: Dictionary,
+) -> None:
+    """The other half, and the one that keeps the fix honest.
+
+    `VALUES (-1, SYSDATE)` genuinely carries no lineage: a literal has no upstream to
+    name. The old code got the right edge set for the wrong reason, by refusing the whole
+    construct. Emitting nothing here is correct - it is the same rule that gives
+    `is_active <- 1` no edge inside a SELECT - and it must not come back as a refusal,
+    because there is nothing to abstain FROM.
+
+    This is `b1_09_exception_handlers`, which is why the phase-0 cells did not move.
+    """
+    source = """CREATE OR REPLACE PROCEDURE literal_writer IS
+BEGIN
+    INSERT INTO tmp_recent (cust_id, last_login)
+    VALUES (-1, SYSDATE);
+END literal_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    assert [e for e in result.edges if str(e.target).startswith("column:TMP_RECENT")] == []
+    # Counted as analysed rather than skipped - the S2-04 lesson. Silence and "nothing
+    # here" look identical in the output, so the difference has to be in the count.
+    assert result.statements_seen == 1
+    assert result.statements_analysed == 1
+
+
+def test_insert_values_without_a_column_list_declares_rather_than_guesses(
+    dictionary: Dictionary,
+) -> None:
+    """Positional binding needs something to bind TO, and the target's order is a guess.
+
+    `INSERT INTO t VALUES (a, b)` relies on the table's declared column order. Taking it
+    from the dictionary would usually be right and would sometimes write a value into the
+    wrong column - a false edge that type-checks and reads perfectly. Declared instead.
+    """
+    source = """CREATE OR REPLACE PROCEDURE no_column_list(p_cust_id NUMBER) IS
+BEGIN
+    INSERT INTO tmp_recent VALUES (p_cust_id, SYSDATE);
+END no_column_list;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert [e for e in result.edges if str(e.target).startswith("column:TMP_RECENT")] == []
+
+
+def test_a_guarded_insert_values_carries_its_guard(dictionary: Dictionary) -> None:
+    """The write only happens on one branch, and a regulator will ask about exactly that.
+
+    Stress 1's key labels these edges `when 'A' = V_STATUS`, so the guard is part of the
+    match: recovering the edge without it would score as a miss AND a false positive.
+    """
+    source = """CREATE OR REPLACE PROCEDURE guarded_writer(p_cust_id NUMBER) IS
+    v_status VARCHAR2(1);
+BEGIN
+    SELECT status_code INTO v_status FROM stg_customer WHERE cust_id = p_cust_id;
+
+    IF v_status = 'A' THEN
+        INSERT INTO tmp_recent (cust_id, last_login)
+        VALUES (p_cust_id, SYSDATE);
+    END IF;
+END guarded_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    guarded = [e for e in result.edges if str(e.target) == "column:TMP_RECENT.CUST_ID"]
+    assert guarded, "the guarded write produced no edge at all"
+    assert all(e.guard for e in guarded), "the write is conditional and the edge does not say so"
