@@ -24,7 +24,7 @@ with the code has stopped measuring anything.
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
 | S1-03 | `flow-classification` | open | **misdiagnosed** — no `GROUP BY`/`HAVING` edge is emitted; the FPs are window `PARTITION BY`/`ORDER BY` |
-| S2-12 | `flow-classification` | open | is a window's `PARTITION BY`/`ORDER BY` filter influence? analyser says yes, every key says no |
+| S2-12 | `flow-classification` | **fixed** | a window's `PARTITION BY`/`ORDER BY` is neither value nor filter — it is a third flow |
 | S1-04 | `refusal-taxonomy` | **fixed** | row-level DML refused or skipped; §3 makes variables first-class |
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
 | S1-06 | `key-error` | **fixed** | two gaps in my own key, stated rather than quietly fixed — corrected 2026-09-09 |
@@ -139,9 +139,45 @@ Consistent with the ladder S2-05 already established — `aggregated > condition
 identity` — and with `MAX … KEEP (DENSE_RANK FIRST …)`, which the stress-2 key labels
 `aggregated` because `MAX` genuinely aggregates. Worth re-checking that case when this lands.
 
+### D-4 · S2-12 — a window's ordering is a THIRD kind of claim
+
+**Decided 2026-09-10, and it required correcting the question first.** S2-12 was raised as
+"is a window's `PARTITION BY` / `ORDER BY` filter influence?" — a yes/no. The answer is
+neither.
+
+* **Not `value`.** `ROW_NUMBER() OVER (ORDER BY total DESC)` does not take its value from
+  `total`. The corpus has held this since `sq_03` and it was never in question.
+* **Not `filter` either, and this is the half that was wrong.** **A window function removes
+  no rows.** Every input row survives it. An edge saying `period_month` decided which rows
+  landed in `fct_product_sales` is simply false, and it was being emitted.
+
+What is true is that `rank_in_month`'s value depends on `period_month` and on `gross` —
+change either and the rank changes — while neither is copied into it. `Flow.INFLUENCE`.
+
+**The target is the COLUMN, not the relation.** A filter edge points at a relation because
+it is a claim about rows. This one is about one output column, and the difference is the
+difference between *"something about this table depends on order_date"* and *"rank_in_month
+depends on order_date"*.
+
+**Three arguments for it were already written in the keys, before the decision existed.**
+
+1. `sq_03`'s ROW_NUMBER partition and LAG partition collided on one four-tuple under the
+   relation-targeted form. One of the two was unstatable, and the key's own 2026-09-06
+   completion note had already flagged the LAG half as "an omission, not a different rule".
+2. Stress 1's `stress_cte_window` has the same collision — a ROW_NUMBER partition and a LAG
+   ORDER BY, both tracing to `order_date`, both about different output columns.
+3. `s2_keep_dense_rank`'s key says, in prose, *"line_amount is a filter influence **on this
+   column** and not a source of its value"* — and then labels nothing, because "on this
+   column" could not be said. D-4 gives that sentence a form.
+
+**The two key sets held opposite conventions and nothing compared them.** `sq_03` labelled
+these as `filter` edges; both stress keys labelled them not at all. The same analyser
+behaviour therefore scored as correct in phase 0 and as a false positive in stress, for two
+runs — the **S2-11 shape**, and the second instance of it in two days.
+
 ## Open work — what is left, and what each one needs
 
-**Five open. Eleven fixed. Nothing in the register has yet failed to recur across stress
+**Four open. Twelve fixed. Nothing in the register has yet failed to recur across stress
 runs.** **D-1 and D-3 are landed in full** (S1-04's three halves, S2-07). D-2 is decided and
 not yet implemented — it is the last of the three and the largest.
 
@@ -153,7 +189,6 @@ rather than the analyser, and neither would have been found by running the analy
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
 | **S2-10** | `measurement-error` | someone reconciling two line-number spaces in `measure.py` | `false_abstentions_recovered` and `edges_from_refused_statements` cannot see trigger edges at all — two reported zeros that are artifacts |
-| **S2-12** | `flow-classification` | a decision — is a window's `PARTITION BY`/`ORDER BY` filter influence? | **the whole remaining band-0 filter precision gap**: 3 FPs in stress 1, 3 in stress 2 |
 | **S1-03** | `flow-classification` | **D-2 needs re-confirming** — the finding was misdiagnosed, so the decision is a feature addition, not a fix | a report that cannot tell a pre- from a post-aggregation filter. Fixes **no** current false positive |
 | **S2-08** | `transform-classification` | a decision on `LAG`/`LEAD`, and a refactor for the duplicated classifier | S2-05 never reached band 1 at all; and a rule that reads as arbitrary from outside |
 | **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
@@ -168,9 +203,8 @@ rather than the analyser, and neither would have been found by running the analy
 - **S1-03** — **D-2 stands, but the finding was misdiagnosed.** No `GROUP BY` or `HAVING` edge
   is emitted anywhere, so D-2 is a feature addition rather than a reclassification, and it
   fixes none of the current false positives. Needs a fresh go/no-go before implementation.
-- **S2-12** — what the S1-03 false positives actually are. Is a window's `PARTITION BY` /
-  `ORDER BY` filter influence on the written relation? **This is the whole remaining band-0
-  filter precision gap in both packages.** A decision, not code.
+- **S2-12** — **D-4: a third flow, `influence`, targeting the COLUMN.** Landed. A window
+  removes no rows, so `filter` was false; the dependency is real, so silence was too.
 - **S2-01** — needs a SQLGlot bump, a pre-parse rewrite that strips the `DELETE` clause, or a
   refusal code that names the real reason. Currently honest but uninformative.
 - **S2-02** — needs multi-table-insert support. The refusal is *true*, so this is capability,
@@ -766,6 +800,62 @@ The fix is to give trigger edges a file-relative origin, or to teach `covers()` 
 spaces. The first is better and larger — several keys record trigger origins in body
 coordinates already (`b0_04` uses lines 18/19, stress 2 uses line 1), so they disagree with
 each other as well.
+
+## S2-12 · `flow-classification` · FIXED — window ordering is neither value nor filter
+
+Raised by the S1-03 correction: the three band-0 filter false positives blamed on `GROUP BY`
+are window `PARTITION BY` / `ORDER BY` columns. Decided as **D-4** above — a third flow,
+`Flow.INFLUENCE`, targeting the output column.
+
+**Implemented** by splitting `band0._influence_columns` in two. `_correlated_filter_columns`
+keeps the nested-`WHERE` half, which genuinely selects the row a correlated subquery reads
+and stays `filter` against the relation. `_window_influence_columns` takes the window half
+and emits `Flow.INFLUENCE` against the target column. `_value_columns` subtracts both, so
+the original defect — partition and order columns read as VALUE sources — stays fixed.
+
+**Effect.**
+
+| | before | after |
+|---|---|---|
+| phase-0 gate | — | **identical** |
+| phase-0 0/filter | 38 TP, 0 FP, 5 FN | 35 TP, 0 FP, 5 FN |
+| phase-0 0/influence | — | **4 TP, 0 FP, 0 FN — 100% / 100%** |
+| stress 1 band-0 filter | 75.0% / 90.0% | **100% / 90.0%** |
+| stress 1 band-0 influence | — | **100% / 100%** on 4 |
+| stress 2 band-0 filter | 78.6% / 84.6% | **88.0% / 84.6%** |
+| stress 2 band-0 influence | — | **100% / 100%** on 11 |
+| forbidden edges produced | 0 | 0 |
+
+**THE PHASE-0 GRID MOVED, FOR THE FIRST TIME IN TWELVE FIXES.** Three `sq_03` labels left
+band-0 filter for band-0 influence, and a fourth was added — `ORDER_DATE → PRIOR_MONTH`,
+LAG's own ORDER BY, which the old form could not state because it collapsed onto the
+ROW_NUMBER partition's four-tuple. **Precision stayed 1.0 in every cell it was 1.0 in, and
+the gate is byte-identical.** The movement is three labels reclassified and one recovered,
+which is what a convention change is supposed to look like.
+
+**Stress 1 now has zero false positives in the entire package** — 100% precision on every
+band and every flow.
+
+**The forbidden lists still hold.** `LINE_AMOUNT → RANK_IN_MONTH` and
+`ORDER_DATE → PRIOR_MONTH` are both named in stress 2's forbidden list as **value** edges,
+and both are now labelled as **influence** edges. Zero forbidden edges produced, as before:
+the two are different claims about the same pair of columns, which is precisely what giving
+influence its own flow buys.
+
+**Three false positives remain in stress 2**, and neither is a window:
+
+* `GTT_STAGE.AMOUNT`, `GTT_STAGE.PERIOD_MONTH → relation:GTT_STAGE` — `INTERSECT`/`MINUS`
+  later arms as filter influence, convention (a). The analyser applies it more widely than
+  the key labelled it.
+* `STG_ORDER_LINES.ORDER_ID → relation:DIM_CUSTOMER` — the other operand of the `EXISTS`
+  predicate. **S1-06 for the third time**, in a third package.
+
+Four regression tests: the decisive one asserts a statement with no `WHERE` produces **no
+filter edges at all**; one pins that two windows over the same partition column feed two
+separately-named output columns; one guards that an ordinary `WHERE` still targets the
+relation. `tests/test_complex_sql.py`'s window test asserted the old behaviour and was
+**rewritten rather than deleted**, keeping the original defect's assertion and recording the
+new form beside it in negative.
 
 ## S1-05 · `identity` · OPEN — the label format could not express five facts in one file
 

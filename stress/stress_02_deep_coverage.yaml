@@ -146,9 +146,125 @@ edges:
     origin: {unit: S2_ANALYTICS_SUITE, line: 59}
     evidence: source_read
 
-  # refund_total <- NTILE(4): the argument is a literal and ORDER BY is not a source.
+  # refund_total <- NTILE(4): the argument is a literal and ORDER BY is not a VALUE source.
   # rank_in_month <- RANK(), prior_month <- DENSE_RANK(): no argument at all.
-  # Three target columns with NO edge, deliberately.
+  # Three target columns with NO VALUE edge, deliberately. What decides them is below.
+
+  # WINDOW INFLUENCE, added 2026-09-10 under stress finding S2-12, decision D-4.
+  #
+  # This key labelled a window's PARTITION BY / ORDER BY not at all, and `sq_03` labelled
+  # the same thing as a `filter` edge against the written relation. Two keys, opposite
+  # conventions, and the same analyser behaviour scoring as correct in phase 0 and as a
+  # false positive here for two stress runs. D-4 moves both to a third flow: a window
+  # function REMOVES NO ROWS, so `filter` was wrong there, but the dependency is real, so
+  # silence was wrong here.
+  #
+  # Ten edges from this one statement, and the reason there are so many is the reason the
+  # relation-targeted form could not work: SIX output columns each carry their own window,
+  # and four of the six share `PARTITION BY l.product_id ORDER BY o.order_date`. Against
+  # the relation those four collapse to two facts. Against the column they are eight, and
+  # each one is separately true.
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: FIRST_VALUE's PARTITION BY. Its ARGUMENT, p.product_name, is the value edge above.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: FIRST_VALUE's ORDER BY - it decides WHICH row's product_name is "first".
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: >
+      The windowed SUM's ORDER BY, with `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+      This is the clearest case in the file: the frame is defined BY the ordering, so
+      order_date decides how much of the partition is summed into each row. Change it and
+      gross_sales changes, and no part of order_date is in the number.
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: LAST_VALUE's ORDER BY - it decides which row is "last".
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.REFUND_TOTAL}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: >
+      NTILE(4)'s ORDER BY. The argument is the literal 4, so refund_total has no value
+      source at all - and yet which quartile a row lands in is entirely decided by
+      line_amount. Under the old convention that fact was unstatable and the column looked
+      like it had no upstream whatsoever.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: RANK's PARTITION BY TRUNC(o.order_date, 'MM').
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: >
+      RANK's ORDER BY l.line_amount DESC. The forbidden list already carries this exact
+      pair as a VALUE edge, and it stays forbidden - the two are different claims about
+      the same two columns, which is the whole point of giving influence its own flow.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRIOR_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_ANALYTICS_SUITE, line: 59}
+    evidence: source_read
+    note: >
+      DENSE_RANK's ORDER BY. Also carried in the forbidden list as a VALUE edge, and also
+      still forbidden there.
 
   # === 3. s2_intersect_minus ================================================
   # PROPOSED CONVENTION (a): the second arm of INTERSECT/MINUS contributes filter,
@@ -1224,6 +1340,27 @@ edges:
       MAX ... KEEP (DENSE_RANK FIRST ORDER BY line_amount). The ORDER BY picks WHICH row
       the value comes from, so line_amount is a filter influence on this column and not a
       source of its value - the same distinction as a window ORDER BY.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S2_KEEP_DENSE_RANK, line: 649}
+    evidence: source_read
+    note: >
+      ADDED 2026-09-10 under D-4, AND THE KEY ALREADY ARGUED FOR IT - see the note
+      directly above, written when this unit was first labelled: "line_amount is a filter
+      influence ON THIS COLUMN and not a source of its value".
+
+      That sentence could not be turned into a label. A filter edge targets the RELATION,
+      so "on this column" was unsayable and the fact was left in prose. D-4 gives it a
+      form, and this is the third independent argument for the decision - after the two in
+      `sq_03` and stress 1 - all of them written down before the decision existed.
+
+      `KEEP (DENSE_RANK FIRST ORDER BY ...)` is not a window function and behaves like one
+      here, which is worth noting: the rule is about ORDERING CHOOSING A ROW, not about
+      the `OVER` keyword.
 
   # === 25. s2_row_limiting ==================================================
   # ROWNUM and FETCH FIRST limit the result set without depending on any column, so

@@ -267,22 +267,34 @@ def _combine(first: Transform, second: Transform) -> Transform:
     return first if TRANSFORM_RANK[first] >= TRANSFORM_RANK[second] else second
 
 
-def _influence_columns(expression: Any) -> list[Any]:
-    """Columns that decide WHICH row, rather than supplying the value.
+def _correlated_filter_columns(expression: Any) -> list[Any]:
+    """Columns in a nested `WHERE` — a correlated scalar subquery's predicate.
 
-    Two shapes, and both were previously counted as value sources:
-
-    * a nested `WHERE` — a correlated scalar subquery's predicate selects the row it
-      reads; it does not supply what comes back;
-    * a window's `PARTITION BY` / `ORDER BY` — these decide which row gets which rank.
-      `ROW_NUMBER() OVER (ORDER BY total DESC)` does not take its value from `total`.
-
-    Counting either as a value source produces an edge that type-checks, reads sensibly
-    and is false - the same category error as `order_id -> net_amount`.
+    These genuinely SELECT the row the subquery reads and do not supply what comes back,
+    so they are filter influence on the written relation. Counting one as a value source
+    produces an edge that type-checks, reads sensibly and is false - the same category
+    error as `order_id -> net_amount`.
     """
     found: list[Any] = []
     for where in expression.find_all(exp.Where):
         found.extend(where.find_all(exp.Column))
+    return found
+
+
+def _window_influence_columns(expression: Any) -> list[Any]:
+    """A window's `PARTITION BY` and `ORDER BY` columns (stress finding S2-12, D-4).
+
+    These used to be returned alongside the correlated-predicate columns above and emitted
+    as `filter`, which was half right. They are certainly not value sources -
+    `ROW_NUMBER() OVER (ORDER BY total DESC)` does not take its value from `total` - but
+    **a window function removes no rows**, so an edge claiming they decided which rows
+    landed in the target is false.
+
+    They get `Flow.INFLUENCE` and point at the OUTPUT COLUMN, because what actually
+    depends on them is that column's value: change the partition or the ordering and
+    `rank_in_month` changes, while nothing is copied into it.
+    """
+    found: list[Any] = []
     for window in expression.find_all(exp.Window):
         for part in window.args.get("partition_by") or []:
             found.extend(part.find_all(exp.Column))
@@ -294,7 +306,10 @@ def _influence_columns(expression: Any) -> list[Any]:
 
 def _value_columns(expression: Any) -> list[Any]:
     """Columns that genuinely supply the value of an expression."""
-    excluded = {id(column) for column in _influence_columns(expression)}
+    excluded = {
+        id(column)
+        for column in _correlated_filter_columns(expression) + _window_influence_columns(expression)
+    }
     return [c for c in expression.find_all(exp.Column) if id(c) not in excluded]
 
 
@@ -802,9 +817,9 @@ def _analyse_select_into(
                     )
                 )
 
-        # Partition/order columns and correlated predicates decide which row, so they
-        # are filter influence on the written relation rather than value sources.
-        for column in _influence_columns(projection):
+        # A correlated predicate selects the row the subquery reads, so it is filter
+        # influence on the written relation.
+        for column in _correlated_filter_columns(projection):
             for source_table, source_column, _ in _trace(column, scope, dictionary, unresolved):
                 edges.append(
                     _edge(
@@ -816,6 +831,24 @@ def _analyse_select_into(
                         band,
                         origin,
                         flow=Flow.FILTER,
+                    )
+                )
+
+        # A window's PARTITION BY / ORDER BY decides which value THIS COLUMN receives, and
+        # removes no rows at all (S2-12, D-4). Target is the output column, not the
+        # relation - the relation is not what depends on it.
+        for column in _window_influence_columns(projection):
+            for source_table, source_column, _ in _trace(column, scope, dictionary, unresolved):
+                edges.append(
+                    _edge(
+                        source_table,
+                        source_column,
+                        target_name,
+                        target_column,
+                        Transform.IDENTITY,
+                        band,
+                        origin,
+                        flow=Flow.INFLUENCE,
                     )
                 )
 

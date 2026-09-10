@@ -340,3 +340,94 @@ def test_lag_is_still_aggregated_and_that_is_recorded_as_inconsistent() -> None:
         dialect="oracle",
     ).selects[0]
     assert _transform_of(parsed) is Transform.AGGREGATED
+
+
+# --- S2-12 / D-4: window influence is neither value nor filter ---------------------------
+
+
+def test_a_window_removes_no_rows_so_its_ordering_is_not_a_filter(dictionary: Dictionary) -> None:
+    """The assertion that carries the decision: no filter edge against the relation.
+
+    `filter` means "these columns decided WHICH ROWS landed". A window function removes no
+    rows - every input row survives it - so an edge saying `period_month` decided which
+    rows landed in `fct_product_sales` is false. It was emitted for two stress runs, and
+    scored as correct against `sq_03`'s key and as a false positive against both stress
+    keys, because the two key sets held opposite conventions and nothing compared them.
+    """
+    source = """CREATE OR REPLACE PROCEDURE ranker IS
+BEGIN
+    INSERT INTO fct_product_sales (period_month, product_id, rank_in_month)
+    SELECT TRUNC(o.order_date, 'MM'),
+           l.product_id,
+           ROW_NUMBER() OVER (PARTITION BY TRUNC(o.order_date, 'MM')
+                                  ORDER BY l.line_amount DESC)
+      FROM stg_orders o
+      JOIN stg_order_lines l ON l.order_id = o.order_id;
+END ranker;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert not [
+        e for e in result.edges if e.flow is Flow.FILTER
+    ], "a statement with no WHERE produced filter edges"
+
+    influence = {(str(e.source), str(e.target)) for e in result.edges if e.flow is Flow.INFLUENCE}
+    assert influence == {
+        ("column:STG_ORDERS.ORDER_DATE", "column:FCT_PRODUCT_SALES.RANK_IN_MONTH"),
+        ("column:STG_ORDER_LINES.LINE_AMOUNT", "column:FCT_PRODUCT_SALES.RANK_IN_MONTH"),
+    }
+
+
+def test_window_influence_names_the_column_it_decides(dictionary: Dictionary) -> None:
+    """Two windows over the same partition column feed two different output columns.
+
+    Under the old relation-targeted form these collapsed onto ONE four-tuple and one of
+    the two facts was simply lost - S1-05, hiding a real distinction rather than a
+    duplicate. Naming the column separates them, and the difference is not cosmetic: one
+    says which row gets which rank, the other says which row counts as "previous".
+    """
+    source = """CREATE OR REPLACE PROCEDURE two_windows IS
+BEGIN
+    INSERT INTO fct_product_sales (period_month, product_id, rank_in_month, prior_month)
+    SELECT TRUNC(o.order_date, 'MM'),
+           l.product_id,
+           ROW_NUMBER() OVER (PARTITION BY l.product_id ORDER BY o.order_date),
+           LAG(l.line_amount) OVER (PARTITION BY l.product_id ORDER BY o.order_date)
+      FROM stg_orders o
+      JOIN stg_order_lines l ON l.order_id = o.order_id;
+END two_windows;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    influence = {(str(e.source), str(e.target)) for e in result.edges if e.flow is Flow.INFLUENCE}
+    assert ("column:STG_ORDER_LINES.PRODUCT_ID", "column:FCT_PRODUCT_SALES.RANK_IN_MONTH") in influence
+    assert ("column:STG_ORDER_LINES.PRODUCT_ID", "column:FCT_PRODUCT_SALES.PRIOR_MONTH") in influence
+
+    # LAG's ARGUMENT is still a value source. The distinction the corpus has held since
+    # sq_03 - argument yes, partition and order no - is untouched by D-4.
+    values = {(str(e.source), str(e.target)) for e in result.edges if e.flow is Flow.VALUE}
+    assert ("column:STG_ORDER_LINES.LINE_AMOUNT", "column:FCT_PRODUCT_SALES.PRIOR_MONTH") in values
+
+
+def test_a_real_where_is_still_a_filter_against_the_relation(dictionary: Dictionary) -> None:
+    """The guard on D-4: splitting the two influences must not move ordinary predicates.
+
+    `_influence_columns` used to return window columns and correlated-predicate columns
+    together. Only the window half moved; a WHERE still decides which rows land and still
+    points at the relation.
+    """
+    source = """CREATE OR REPLACE PROCEDURE filterer IS
+BEGIN
+    INSERT INTO fct_product_sales (period_month, product_id, rank_in_month)
+    SELECT TRUNC(o.order_date, 'MM'),
+           l.product_id,
+           ROW_NUMBER() OVER (ORDER BY l.line_amount)
+      FROM stg_orders o
+      JOIN stg_order_lines l ON l.order_id = o.order_id
+     WHERE o.currency = 'GBP';
+END filterer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    filters = {(str(e.source), str(e.target)) for e in result.edges if e.flow is Flow.FILTER}
+    assert filters == {("column:STG_ORDERS.CURRENCY", "relation:FCT_PRODUCT_SALES")}

@@ -98,6 +98,12 @@ def test_window_partition_and_order_are_not_value_sources(dictionary: Dictionary
     `ROW_NUMBER() OVER (PARTITION BY period_month ORDER BY total DESC)` takes no argument
     at all - nothing supplies its value. Claiming a date determines a rank's VALUE is the
     same category error as treating a correlated predicate as a value source.
+
+    UPDATED 2026-09-10 for stress finding S2-12 / decision D-4. The half of this test that
+    tested the original defect is unchanged and still passes. What changed is the second
+    half: the influence used to be reported as `filter` against the RELATION, and is now
+    `influence` against the COLUMN. The old assertion is kept below in negative form, so
+    the change of behaviour is recorded as deliberate rather than quietly dropped.
     """
     _, result = _score("sq_03_window_functions", dictionary)
 
@@ -107,9 +113,18 @@ def test_window_partition_and_order_are_not_value_sources(dictionary: Dictionary
         "column:FCT_PRODUCT_SALES.RANK_IN_MONTH",
     ) not in value_edges
 
-    # But the ordering column's influence is still reported - as a filter.
+    # The influence IS still reported - as its own flow, naming the column it decides.
+    influence = {(str(e.source), str(e.target)) for e in result.edges if e.flow is Flow.INFLUENCE}
+    assert (
+        "column:STG_ORDER_LINES.LINE_AMOUNT",
+        "column:FCT_PRODUCT_SALES.RANK_IN_MONTH",
+    ) in influence
+
+    # And NOT as a filter against the relation. A window function removes no rows, so an
+    # edge claiming line_amount decided which rows landed in fct_product_sales is false -
+    # which is what this assertion used to require.
     filters = {(str(e.source), str(e.target)) for e in result.edges if e.flow is Flow.FILTER}
-    assert ("column:STG_ORDER_LINES.LINE_AMOUNT", "relation:FCT_PRODUCT_SALES") in filters
+    assert ("column:STG_ORDER_LINES.LINE_AMOUNT", "relation:FCT_PRODUCT_SALES") not in filters
 
 
 def test_lag_traces_to_the_column_not_the_row(dictionary: Dictionary) -> None:

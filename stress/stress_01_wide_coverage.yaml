@@ -148,8 +148,64 @@ edges:
     evidence: source_read
     note: >
       LAG(m.gross) - the window function's ARGUMENT is a genuine value source, unlike its
-      PARTITION BY and ORDER BY. rank_in_month gets no edge at all: ROW_NUMBER() takes no
-      column, so there is no upstream to name.
+      PARTITION BY and ORDER BY. rank_in_month gets no VALUE edge at all: ROW_NUMBER()
+      takes no column, so nothing supplies its value. What decides it is below.
+
+  # ADDED 2026-09-10 under stress finding S2-12, decision D-4.
+  #
+  # THIS KEY AND `sq_03` HELD OPPOSITE CONVENTIONS AND NEITHER SIDE NOTICED FOR TWO RUNS.
+  # `sq_03_window_functions` labelled a window's PARTITION BY / ORDER BY as filter edges
+  # against the written relation; this key labelled them not at all, and said so in the
+  # note above. The same analyser behaviour therefore scored as correct in phase 0 and as
+  # a false positive here - three of them, which S1-03 then misread as GROUP BY columns.
+  #
+  # D-4 settles it as a third flow, and both keys move to it together. A window function
+  # REMOVES NO ROWS, so `filter` was wrong in `sq_03`; but the dependency is real, so
+  # silence was wrong here. `rank_in_month` genuinely changes when the partition or the
+  # ordering changes, and nothing is copied into it.
+  #
+  # Target is the COLUMN. "rank_in_month depends on order_date" is the fact; "something
+  # about fct_product_sales depends on order_date" was what the old form could say.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: ROW_NUMBER's PARTITION BY m.period_month, which is TRUNC(o.order_date) a CTE down.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: ROW_NUMBER's ORDER BY m.gross DESC, and m.gross is SUM(l.line_amount).
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRIOR_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: LAG's PARTITION BY m.product_id.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRIOR_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: >
+      LAG's ORDER BY m.period_month. Note this is a different fact from the ROW_NUMBER
+      partition above it despite sharing a source column - one decides the rank, the other
+      decides which row is "previous". The old relation-targeted form could not tell them
+      apart at all: both collapsed onto one four-tuple, and one of the two was simply lost.
 
   - source: {kind: column, name: STG_ORDERS.CURRENCY}
     target: {kind: relation, name: FCT_PRODUCT_SALES}

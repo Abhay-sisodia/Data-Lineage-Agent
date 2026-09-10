@@ -112,7 +112,34 @@ class Flow(StrEnum):
     """What kind of claim the edge makes. Scored separately, never blended."""
 
     VALUE = "value"
+    """This column supplied the value. `a -> b` means b's contents came from a."""
+
     FILTER = "filter"
+    """This column decided WHICH ROWS landed. The target is the written relation."""
+
+    INFLUENCE = "influence"
+    """This column decided which value a SURVIVING row received, without supplying it.
+
+    Stress finding S2-12, decision D-4. A window's `PARTITION BY` and `ORDER BY` are
+    neither of the two flows above and were being reported as `filter`:
+
+    * they are not `value` - `ROW_NUMBER() OVER (ORDER BY total DESC)` does not take its
+      value from `total`, and the corpus has said so since `sq_03`;
+    * they are not `filter` either, and that is the half that was wrong. **A window
+      function removes no rows.** Every input row survives it. An edge saying
+      `period_month` decided which rows landed in `fct_product_sales` is simply false.
+
+    What is true is that `rank_in_month`'s value depends on `period_month` and on `gross`
+    - change either and the rank changes - while neither is copied into it. That is a
+    third kind of claim, and giving it a third name is the same argument D-2 makes about
+    `WHERE` versus `HAVING`: one word covering two behaviours tells a reader less than the
+    source does.
+
+    **The target is the COLUMN, not the relation.** A filter edge points at the relation
+    because it is a statement about rows. This one is about one output column, and saying
+    so is the difference between "something about this table depends on order_date" and
+    "rank_in_month depends on order_date".
+    """
 
 
 class Transform(StrEnum):

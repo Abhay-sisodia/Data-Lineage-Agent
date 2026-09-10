@@ -74,10 +74,32 @@ edges:
 
   # rank_in_month has NO value edge. ROW_NUMBER() takes no argument; nothing supplies
   # its value. What decides it is below.
+  #
+  # RE-LABELLED 2026-09-10 under stress finding S2-12, decision D-4. These four were three
+  # `filter` edges against `relation:FCT_PRODUCT_SALES`. Two things were wrong with that
+  # and the second is the one that matters:
+  #
+  #   * A WINDOW FUNCTION REMOVES NO ROWS. Every input row survives it, so an edge saying
+  #     order_date decided which rows landed in fct_product_sales was false. `filter` was
+  #     carrying two different meanings - "decided which rows landed" and "decided which
+  #     value a surviving row got" - and only the first is what the flow means.
+  #   * The target was the RELATION, which threw away the useful half. "Something about
+  #     this table depends on order_date" is a much weaker statement than "rank_in_month
+  #     depends on order_date", and the second is what is actually true.
+  #
+  # THE STRESS KEYS DISAGREED WITH THIS KEY AND NOBODY NOTICED. Neither stress package
+  # labelled these at all, so the same analyser behaviour scored as correct here and as a
+  # false positive there, for two stress runs. That is the S2-11 shape: a convention held
+  # by one key and not another, invisible because both sides look like ordinary
+  # disagreements in the grid.
+  #
+  # Three labels became four. `ORDER_DATE -> PRIOR_MONTH` is LAG's own ORDER BY and was
+  # missing - the same omission the 2026-09-06 completion note below describes for LAG's
+  # PARTITION BY, found the same way and stated the same way.
 
   - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
-    target: {kind: relation, name: FCT_PRODUCT_SALES}
-    flow: filter
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
     transform: identity
     band: 0
     origin: {unit: SQ_WINDOW_FUNCTIONS, line: 20}
@@ -85,8 +107,8 @@ edges:
     note: PARTITION BY period_month, which derives from order_date.
 
   - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
-    target: {kind: relation, name: FCT_PRODUCT_SALES}
-    flow: filter
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
     transform: identity
     band: 0
     origin: {unit: SQ_WINDOW_FUNCTIONS, line: 20}
@@ -94,8 +116,8 @@ edges:
     note: ORDER BY total DESC decides which row gets which rank.
 
   - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
-    target: {kind: relation, name: FCT_PRODUCT_SALES}
-    flow: filter
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRIOR_MONTH}
+    flow: influence
     transform: identity
     band: 0
     origin: {unit: SQ_WINDOW_FUNCTIONS, line: 21}
@@ -104,5 +126,22 @@ edges:
       COMPLETION, 2026-09-06. `LAG(total) OVER (PARTITION BY product_id ...)`. This key
       labelled the partition and order columns of ROW_NUMBER but missed LAG's own
       partition - an omission, not a different rule. Raises agreement, so stated plainly.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRIOR_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: SQ_WINDOW_FUNCTIONS, line: 21}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-10, under D-4, AND IT RAISES RECALL - stated for that reason.
+
+      `LAG(total) OVER (PARTITION BY product_id ORDER BY period_month)`. Its ORDER BY, the
+      last of the four window references in this statement to be labelled. Under the old
+      `filter`-to-relation form this fact was unstatable anyway: it collapses onto the
+      ROW_NUMBER partition's four-tuple, which is S1-05 hiding a real omission. Giving the
+      edge a COLUMN target separates them, which is a second argument for D-4 that was not
+      part of the decision.
 
 boundaries: []
