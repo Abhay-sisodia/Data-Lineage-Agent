@@ -632,6 +632,29 @@ edges:
     origin: {unit: STRESS_TRANSACTION_CONTROL, line: 239}
     evidence: source_read
 
+  - source: {kind: column, name: FCT_REVENUE_STAGE.PERIOD_MONTH}
+    target: {kind: relation, name: FCT_REVENUE_STAGE}
+    flow: filter
+    transform: identity
+    band: 1
+    guard: "v_count <> 0 AND p_strict <> 1"
+    origin: {unit: STRESS_TRANSACTION_CONTROL, line: 245}
+    evidence: source_read
+    note: >
+      ADDED 2026-09-10 under decision D-1, AND IT RAISES PRECISION - stated for that reason.
+
+      `DELETE FROM fct_revenue_stage WHERE period_month < TRUNC(SYSDATE, 'YYYY')`, the ELSE
+      branch. A CONVENTION ARRIVING FROM A LATER PACKAGE, which is the interesting part:
+      this key predates proposed convention (c), which stress 2 raised and D-1 has now
+      settled - a DELETE writes no value, but its predicate columns are a real dependency
+      of what the table ends up containing. A convention decided in one key has to reach
+      every key, or the two encode different answers and the benchmark stops meaning one
+      thing.
+
+      The guard is the ELSE arm: reached when the count is non-zero AND p_strict is not 1.
+      TRUNC(SYSDATE) has no column source, so `period_month` is the only operand that
+      names anything.
+
   # ================================================================================
   # stress_dynamic_mixed - constant EXECUTE IMMEDIATE recovered, variable one refused
   # ================================================================================

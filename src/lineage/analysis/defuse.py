@@ -42,6 +42,7 @@ from lineage.ir.model import (
 )
 from lineage.parsing.generated.PlSqlParser import PlSqlParser
 from lineage.parsing.plsql import Program, iter_contexts, source_slice
+from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
 DIALECT = "oracle"
@@ -499,7 +500,7 @@ def analyse_statement(
     if dynamic is not None and recovered:
         text = dynamic.recovered[node.line]
     try:
-        statement: Any = sqlglot.parse_one(text, dialect=DIALECT)
+        statement: Any = sqlglot.parse_one(strip_unparseable_clauses(text), dialect=DIALECT)
     except Exception:
         result.unresolved.append(
             Boundary(
@@ -1096,7 +1097,7 @@ def definitions_and_uses(node: CfgNode, scope: UnitScope) -> tuple[set[str], set
 
     # SQL statements: an INTO target is a definition, everything else a read.
     try:
-        statement: Any = sqlglot.parse_one(text, dialect=DIALECT)
+        statement: Any = sqlglot.parse_one(strip_unparseable_clauses(text), dialect=DIALECT)
     except Exception:
         return defined, used
 

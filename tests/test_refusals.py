@@ -510,3 +510,131 @@ END guarded_writer;
     guarded = [e for e in result.edges if str(e.target) == "column:TMP_RECENT.CUST_ID"]
     assert guarded, "the guarded write produced no edge at all"
     assert all(e.guard for e in guarded), "the write is conditional and the edge does not say so"
+
+
+# --- S1-04 / D-1: a DELETE's predicate is a dependency of the table's contents ------------
+
+
+def test_delete_predicate_columns_become_filter_edges(dictionary: Dictionary) -> None:
+    """Convention (c), raised by the stress-2 key and settled by D-1.
+
+    A DELETE writes no value, so it has no value edges. What it has is a predicate that
+    decides which rows stop existing, and the table's resulting contents depend on those
+    columns exactly as much as an INSERT's depend on its select list.
+
+    Columns inside the IN subquery count too: `status_code` two levels down still decides
+    which revenue rows are destroyed, and that a policy table silently governs it is
+    precisely the finding no table-level tool produces.
+    """
+    source = """CREATE OR REPLACE PROCEDURE deleter IS
+BEGIN
+    DELETE FROM fct_revenue_stage f
+     WHERE f.cust_id IN (SELECT s.cust_id
+                           FROM stg_customer s
+                          WHERE s.status_code = 'X');
+END deleter;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    assert {(str(e.source), str(e.target), e.flow.value) for e in result.edges} == {
+        ("column:FCT_REVENUE_STAGE.CUST_ID", "relation:FCT_REVENUE_STAGE", "filter"),
+        ("column:STG_CUSTOMER.CUST_ID", "relation:FCT_REVENUE_STAGE", "filter"),
+        ("column:STG_CUSTOMER.STATUS_CODE", "relation:FCT_REVENUE_STAGE", "filter"),
+    }
+
+
+def test_a_delete_is_counted_even_when_it_has_no_predicate(dictionary: Dictionary) -> None:
+    """`DELETE FROM t` empties the table and names no column. That is a complete answer.
+
+    The point of the assertion is the COUNT. Before D-1 `delete_statement` was not in
+    band 0's SUPPORTED set, so the loop skipped it with `continue` before
+    `statements_seen += 1` - no edges, no refusal, and not even counted as seen. Def-use
+    did not claim it either. Two passes each correctly deciding the statement was not
+    theirs, and nobody owning the result: the S2-04 shape.
+
+    All three DELETEs in the phase-0 corpus are this unconditional form, which is why
+    convention (c) landing did not move a single phase-0 cell.
+    """
+    source = """CREATE OR REPLACE PROCEDURE truncater IS
+BEGIN
+    DELETE FROM gtt_stage;
+END truncater;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.edges == []
+    assert result.refusals == []
+    assert result.statements_seen == 1
+    assert result.statements_analysed == 1
+
+
+def test_update_where_current_of_is_read_rather_than_lost(dictionary: Dictionary) -> None:
+    """`WHERE CURRENT OF` made SQLGlot fail outright, so the whole UPDATE was lost.
+
+    The diagnosis matters more than the fix: this was never an UPDATE gap. An ordinary
+    `UPDATE ... SET c = v WHERE <predicate>` has always been read by
+    `defuse._analyse_update`, and the one miss in `s2_locking` was a PARSE failure on the
+    cursor's rowid clause.
+
+    The clause names no column and no variable, so stripping it before the parser sees it
+    cannot change any edge - only whether the SET clause is readable. And the rows were
+    already chosen by the cursor's own WHERE, which is analysed where it is written.
+
+    The assertion is therefore two-sided: the value edge appears, and NO filter edge is
+    invented for a predicate that names nothing. The stress-2 key states exactly that, and
+    it was written before this code existed.
+    """
+    source = """CREATE OR REPLACE PROCEDURE locker IS
+    CURSOR c_lock IS
+        SELECT d.cust_id, d.lifetime_value
+          FROM dim_customer d
+         WHERE d.is_active = 1
+           FOR UPDATE OF d.lifetime_value;
+    v_id  NUMBER;
+    v_val NUMBER;
+BEGIN
+    OPEN c_lock;
+    LOOP
+        FETCH c_lock INTO v_id, v_val;
+        EXIT WHEN c_lock%NOTFOUND;
+
+        UPDATE dim_customer
+           SET lifetime_value = v_val
+         WHERE CURRENT OF c_lock;
+    END LOOP;
+    CLOSE c_lock;
+END locker;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert any(
+        str(e.source) == "variable:V_VAL"
+        and str(e.target) == "column:DIM_CUSTOMER.LIFETIME_VALUE"
+        and e.flow.value == "value"
+        for e in result.edges
+    ), "the UPDATE's SET clause produced no edge"
+
+    assert not [
+        e for e in result.edges if e.flow.value == "filter" and "C_LOCK" in str(e.source)
+    ], "a rowid clause that names no column produced a filter edge"
+
+
+def test_the_rewrite_removes_only_what_it_claims_to(dictionary: Dictionary) -> None:
+    """The guard on a text rewrite: an ordinary WHERE must survive it untouched.
+
+    Rewriting SQL before parsing means the tree is not quite the statement the database
+    runs, so the pattern has to be narrow. A rule that ate real predicates would silently
+    NARROW lineage, which is worse than the parse failure it was added to fix.
+    """
+    from lineage.parsing.rewrite import strip_unparseable_clauses
+
+    kept = "UPDATE dim_customer SET lifetime_value = v_val WHERE cust_id = v_id"
+    assert strip_unparseable_clauses(kept) == kept
+
+    stripped = strip_unparseable_clauses(
+        "UPDATE dim_customer SET lifetime_value = v_val WHERE CURRENT OF c_lock"
+    )
+    assert stripped == "UPDATE dim_customer SET lifetime_value = v_val"
+    # Idempotent: applying it twice is the same as applying it once.
+    assert strip_unparseable_clauses(stripped) == stripped

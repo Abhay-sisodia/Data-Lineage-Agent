@@ -47,13 +47,24 @@ from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
 from lineage.ir.model import Boundary, BoundaryKind
 from lineage.parsing.plsql import ParsedStatement, Program, parse_program
+from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
 DIALECT = "oracle"
 
 # Statement kinds this module claims to handle. Anything else is refused rather than
 # half-analysed - band 1 constructs belong to the procedural analyser, not here.
-SUPPORTED = {"insert_statement", "merge_statement"}
+#
+# `delete_statement` joined this set under stress finding S1-04 / decision D-1. Before
+# that a DELETE was not in SUPPORTED, so the loop below skipped it with `continue` BEFORE
+# `statements_seen += 1` - it produced no edges, no refusal, and was not even counted as
+# seen. Def-use did not claim it either. That is the S2-04 shape: two passes each correctly
+# deciding the statement was not theirs, and nobody owning the result.
+#
+# `update_statement` is deliberately NOT here. An UPDATE's SET clause assigns from
+# variables as often as from columns, and `defuse._analyse_update` already owns it with
+# the unit scope needed to tell those apart - see the note there.
+SUPPORTED = {"insert_statement", "merge_statement", "delete_statement"}
 
 # Strongest transform on a path wins: an aggregation over a derived expression is an
 # aggregation, and calling it identity would be a miss under ADR-0001 4.
@@ -966,6 +977,132 @@ def _filter_edges(
     return edges
 
 
+def _analyse_delete(
+    statement: exp.Delete,
+    dictionary: Dictionary,
+    band: int,
+    unresolved: list[Boundary],
+    origin: Origin,
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
+    """`DELETE FROM t WHERE ...` — stress finding S1-04, decision D-1, convention (c).
+
+    A DELETE writes no value anywhere, so it has no value edges at all. What it does have
+    is a **predicate that decides which rows stop existing**, and the resulting contents of
+    the table depend on those columns exactly as much as an INSERT's contents depend on its
+    select list. `stg_customer.status_code` deciding which revenue rows are destroyed is
+    the kind of dependency that never appears in a table-level tool and is the reason
+    filter influence is an edge at all (ADR-0001 §2).
+
+    THIS STATEMENT USED TO PRODUCE NOTHING AND SAY NOTHING. `delete_statement` was not in
+    `SUPPORTED`, so band 0 skipped it *before* `statements_seen += 1` and def-use never
+    claimed it either - the S2-04 shape exactly, two passes each correctly deciding the
+    statement was not theirs and nobody owning the result. It was logged under S2-06 as an
+    open convention question, which understated it: whatever convention (c) was decided,
+    silence was never the right output.
+
+    The target is the deleted relation and it is also, unavoidably, the thing the edges
+    point AT. A self-referencing filter edge reads oddly the first time - it says "these
+    columns determine what this table contains", which is precisely the fact.
+    """
+    target = statement.this
+    if isinstance(target, exp.Table):
+        name = target.name
+    else:
+        return [], (
+            RefusalCode.UNSUPPORTED_CONSTRUCT,
+            f"DELETE from {type(target).__name__}, which is not a table reference",
+        )
+
+    resolved = dictionary.resolve(name)
+    target_name = resolved.name or name.upper()
+
+    where = statement.args.get("where")
+    if where is None:
+        # `DELETE FROM t` with no predicate empties the table unconditionally. There are no
+        # columns to name, and that is a complete answer rather than a missing one - the
+        # same shape as an INSERT whose every value is a literal.
+        return [], None
+
+    # A DELETE has no projection, so `qualify` has nothing to bind against and
+    # `build_scope` is not usable the way it is for a SELECT. The predicate is walked
+    # directly instead, and every column in it - including the ones inside an IN or EXISTS
+    # subquery - is filter influence on the deleted relation. Nesting does not change what
+    # the column does: `status_code` two levels down still decides which rows go.
+    edges: list[PredictedEdge] = []
+    for column in where.find_all(exp.Column):
+        source_table = _relation_for(column, statement, dictionary, unresolved)
+        if source_table is None:
+            continue
+        edges.append(
+            _edge(
+                source_table,
+                column.name.upper(),
+                target_name,
+                "",
+                Transform.IDENTITY,
+                band,
+                origin,
+                flow=Flow.FILTER,
+            )
+        )
+    return edges, None
+
+
+def _relation_for(
+    column: exp.Column,
+    statement: Any,
+    dictionary: Dictionary,
+    unresolved: list[Boundary],
+) -> str | None:
+    """Which relation does this column belong to, inside a statement with no select scope?
+
+    Qualified is the easy case: the alias is looked up among the statement's table
+    references. Unqualified means searching them, and **an unqualified name that more than
+    one table could supply is declared rather than guessed** - binding it to whichever
+    table happens to be first is the `sq_07` failure, and a plausible wrong source is worse
+    than a stated boundary.
+    """
+    tables: dict[str, str] = {}
+    for table in statement.find_all(exp.Table):
+        resolved = dictionary.resolve(table.name)
+        real = resolved.name or table.name.upper()
+        tables[(table.alias or table.name).upper()] = real
+
+    qualifier = (column.table or "").upper()
+    if qualifier:
+        if qualifier in tables:
+            return tables[qualifier]
+        unresolved.append(
+            Boundary(
+                kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                subject=f"{qualifier}.{column.name.upper()}",
+                detail=f"qualifier {qualifier} names no table in the statement",
+            )
+        )
+        return None
+
+    name = column.name.upper()
+    owners = []
+    for real in dict.fromkeys(tables.values()):
+        try:
+            if name in dictionary.columns_of(real):
+                owners.append(real)
+        except UnknownObjectError:
+            continue
+    if len(owners) == 1:
+        return owners[0]
+    if not owners:
+        return None
+    unresolved.append(
+        Boundary(
+            kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+            subject=name,
+            detail=f"unqualified {name} could come from {' or '.join(sorted(owners))}",
+        )
+    )
+    return None
+
+
 def _analyse_merge(
     statement: exp.Merge,
     dictionary: Dictionary,
@@ -1214,7 +1351,9 @@ def _analyse_statement(
 ) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None, list[Boundary]]:
     unresolved: list[Boundary] = []
     try:
-        parsed: Any = sqlglot.parse_one(statement.text, dialect=DIALECT)
+        parsed: Any = sqlglot.parse_one(
+            strip_unparseable_clauses(statement.text), dialect=DIALECT
+        )
     except Exception as exc:
         return (
             [],
@@ -1246,6 +1385,8 @@ def _analyse_statement(
         edges, refusal = _analyse_insert(parsed, dictionary, band, unresolved, origin, summaries)
     elif isinstance(parsed, exp.Merge):
         edges, refusal = _analyse_merge(parsed, dictionary, band, unresolved, origin, summaries)
+    elif isinstance(parsed, exp.Delete):
+        edges, refusal = _analyse_delete(parsed, dictionary, band, unresolved, origin)
     else:
         return (
             [],

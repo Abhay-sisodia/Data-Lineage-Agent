@@ -24,7 +24,7 @@ with the code has stopped measuring anything.
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
 | S1-03 | `flow-classification` | open | `GROUP BY` columns emitted as filter edges |
-| S1-04 | `refusal-taxonomy` | **fixed** | `INSERT … VALUES` from variables refused; §3 makes variables first-class |
+| S1-04 | `refusal-taxonomy` | **fixed** | row-level DML refused or skipped; §3 makes variables first-class |
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
 | S1-06 | `key-error` | **fixed** | two gaps in my own key, stated rather than quietly fixed — corrected 2026-09-09 |
 | S2-01 | `construct-coverage` | open | `MERGE` with a `DELETE` arm fails to parse at all |
@@ -37,6 +37,7 @@ with the code has stopped measuring anything.
 | S2-08 | `transform-classification` | open | two `_transform_of` copies, already drifted; and `LAG` reads like `FIRST_VALUE` but scores `aggregated` |
 | S2-09 | `key-error` | **fixed** | `p_depth → DIM_CUSTOMER_HIER.DEPTH` never labelled — two of three bindings |
 | S2-10 | `measurement-error` | open | trigger edges carry body-relative lines, so the refusal cross-checks cannot match them |
+| S2-11 | `key-error` | **fixed** | stress 1's key predated convention (c); a decided convention has to reach every key |
 
 ## Decisions taken — 2026-09-10
 
@@ -139,11 +140,14 @@ identity` — and with `MAX … KEEP (DENSE_RANK FIRST …)`, which the stress-2
 
 ## Open work — what is left, and what each one needs
 
-**Five open. Ten fixed. Nothing in the register has yet failed to recur across stress runs.**
-**D-1 and D-3 are landed** (S1-04, S2-07). D-2 is decided and not yet implemented.
-Each implementation turned up a new finding — **S2-08** from D-3, **S2-09** and **S2-10**
-from D-1 — which is the pattern worth noticing: the defects were being hidden by the
-refusals and omissions in front of them.
+**Five open. Eleven fixed. Nothing in the register has yet failed to recur across stress
+runs.** **D-1 and D-3 are landed in full** (S1-04's three halves, S2-07). D-2 is decided and
+not yet implemented — it is the last of the three and the largest.
+
+Each implementation turned up a new finding — **S2-08** from D-3, and **S2-09**, **S2-10**
+and **S2-11** from D-1 — which is the pattern worth noticing: the defects were being hidden
+by the refusals and omissions in front of them. Two of the four are about the *benchmark*
+rather than the analyser, and neither would have been found by running the analyser harder.
 
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
@@ -182,9 +186,10 @@ refusals and omissions in front of them.
 | S2-03 `refusal-taxonomy` | `cda24a3` | none |
 | S2-06 + S1-06 `key-error` | `d1b591f` | none — `cells` byte-identical to `phase0_final.json` |
 | S2-07 `transform-classification` (D-3) | `3e9187e` | none — `cells`, `gate`, `parse_coverage` and `honest_abstention` all identical |
-| S1-04 + S2-09 `refusal-taxonomy` (D-1) | *this change* | **`cells` identical — and the first fix to move a phase-0 number.** Parse coverage 76.1% → 80.4%; false-abstention rate 9.1% → 0% |
+| S1-04 + S2-09 `refusal-taxonomy` (D-1, `INSERT … VALUES`) | `7b25db2` | **`cells` identical — and the first fix to move a phase-0 number.** Parse coverage 76.1% → 80.4%; false-abstention rate 9.1% → 0% |
+| S1-04 + S2-11 `refusal-taxonomy` (D-1, `DELETE` and `UPDATE`) | *this change* | `cells` identical. Parse coverage 80.4% → **81.6%** |
 
-**Ten fixes, and the phase-0 GRID has not moved once.** That is a statement about the corpus,
+**Eleven fixes, and the phase-0 GRID has not moved once.** That is a statement about the corpus,
 not about the analyser: none of these constructs appears in it in the form that breaks. It
 sharpens the verdict's existing caveat considerably — the corpus is not just synthetic, its
 *construct mix and package shape* are unrepresentative in ways that hide real defects.
@@ -198,7 +203,7 @@ correct answer from a lucky one.
 
 ### Where the stress packages stand now
 
-Both re-scored after the seven fixes. The per-run tables further down are the **first-run**
+Both re-scored after the ten fixes. The per-run tables further down are the **first-run**
 figures and are left as measured. The analyser did not change in the S2-06 pass — **only the
 keys did** — so every movement in this table is the benchmark getting more honest, in both
 directions.
@@ -207,12 +212,12 @@ directions.
 |---|---|---|---|---|
 | | before S2-06 | now | before S2-06 | now |
 | 0 value | 100% / 100% | 100% / 100% | 93.9% / 75.6% | **100% / 69.4%** |
-| 0 filter | 61.5% / 88.9% | **75.0% / 90.0%** | 76.0% / 76.0% | 76.0% / **73.1%** |
-| **1 value — the gate** | **95.5% / 87.5%** | **100% / 96.2%** | **81.8% / 56.2%** | **100% / 71.4%** |
-| 1 filter | 100% / 84.6% | 100% / 85.7% | 100% / 75.0% | 100% / 75.0% |
+| 0 filter | 61.5% / 88.9% | **75.0% / 90.0%** | 76.0% / 76.0% | **78.6% / 84.6%** |
+| **1 value — the gate** | **95.5% / 87.5%** | **100% / 96.2%** | **81.8% / 56.2%** | **100% / 76.2%** |
+| 1 filter | 100% / 84.6% | 100% / **86.7%** | 100% / 75.0% | 100% / 75.0% |
 | 2 value | 100% / 100% | 100% / 100% | 100% / 50.0% | 100% / 50.0% |
 | 2 filter | 100% / 100% | 100% / 100% | 100% / 100% | 100% / **50.0%** |
-| parse coverage | 76.9% | **92.3%** | 65.5% | **79.3%** |
+| parse coverage | 76.9% | **92.9%** | 65.5% | **80.0%** |
 
 **Precision is now 100% on every band and flow of both packages except band-0 filter**, and
 what remains there is S1-03's `GROUP BY` columns — three false positives in each file, the
@@ -509,10 +514,92 @@ writes recovered with their guards intact (`when 'A' = V_STATUS`, `when EXCEPTIO
 NO_DATA_FOUND`), which matters because the guard is part of the match key: recovering the
 edge without it would have scored as a miss *and* a false positive.
 
-**Only `INSERT … VALUES` is done. D-1's `UPDATE` and `DELETE` halves are not.** `UPDATE` is
-already handled by `defuse._analyse_update` and the remaining misses there are a separate
-question; `DELETE` is handled nowhere and convention (c) is now decided in the key's favour.
-Split out deliberately, one fix per measurement — see the fix order.
+**`INSERT … VALUES` landed first, on its own measurement.** The `UPDATE` and `DELETE` halves
+followed and are recorded below, each measured separately.
+
+### S1-04, the `DELETE` half — convention (c), implemented
+
+**`DELETE` was not refused. It was skipped, uncounted, in silence.** `delete_statement` was
+not in band 0's `SUPPORTED` set, so the loop hit `continue` *before* `statements_seen += 1`:
+no edges, no refusal, and not even a statement seen. Def-use did not claim it either. **That
+is the S2-04 root cause exactly** — two passes each correctly deciding the statement was not
+theirs, and nobody owning the result — and it went unnoticed because S2-06 had logged
+`s2_delete_with_subquery` as an open *convention* question. The convention was worth
+debating; the silence never was, whichever way it went.
+
+Implemented in `band0._analyse_delete`. A DELETE is set-based and has no variables, so unlike
+`INSERT … VALUES` it belongs in band 0 — the opposite placement, for the same reason.
+
+**Every column in the predicate, at any depth.** `stg_customer.status_code` two levels down
+inside an `IN` subquery still decides which revenue rows are destroyed, and a policy table
+silently governing that is the finding no table-level tool produces (ADR-0001 §2). A DELETE
+has no projection, so `build_scope` is not usable the way it is for a SELECT and the
+predicate is walked directly; `_relation_for` binds each column, and **an unqualified name
+that more than one table could supply is declared rather than guessed** — the `sq_07` failure
+in a new place.
+
+**`DELETE FROM t` with no predicate produces nothing, and that is a complete answer.** All
+three DELETEs in the phase-0 corpus are that form, which is why convention (c) landing moved
+no phase-0 cell at all. The statements are now *counted*, which is the part that changed.
+
+### S1-04, the `UPDATE` half — which turned out not to be an UPDATE problem
+
+**`UPDATE` was never broken.** `defuse._analyse_update` has always read
+`UPDATE … SET c = v WHERE …`, which is why `s2_update_correlated` scores. The single
+outstanding miss — `V_VAL → DIM_CUSTOMER.LIFETIME_VALUE` in `s2_locking` — was a **SQLGlot
+parse failure on `WHERE CURRENT OF c_lock`**: *"Invalid expression / Unexpected token"*, and
+the whole statement was lost. Same family as S2-01, not a refusal-taxonomy problem.
+
+Fixed by a pre-parse rewrite in the new `lineage.parsing.rewrite` — the technique S2-01's own
+entry proposes. **The module is written to stay small and says so**: a clause may only be
+stripped if SQLGlot cannot parse the statement *at all* **and** the clause names no column and
+no variable, so removing it cannot change any edge. `WHERE CURRENT OF` is a rowid the open
+cursor is holding; the rows were already chosen by the cursor's own `WHERE`, which is analysed
+where it is written. Anything failing that second test belongs in the refusal register, because
+a rewrite that drops a real predicate would silently *narrow* lineage — worse than the parse
+failure it fixes.
+
+**The stress-2 key predicted the exact answer before this code existed**: one value edge from
+the `SET` clause, and no filter edge, because the predicate names nothing. That is what it
+produces, and the test asserts both halves — the edge appearing *and* no filter edge being
+invented.
+
+**It has ONE home, not two.** `band0` and `defuse` both import it. S2-08 is on the register
+because `_transform_of` was duplicated and drifted; adding a third duplicated concept while
+that finding is open would have been indefensible.
+
+**`LOCK TABLE` and `EXIT WHEN` still fail to parse and are still declared as boundaries.**
+Both carry no lineage — a lock and a loop exit — so the declarations are honest and cost
+nothing but noise in `boundaries_declared`. Checked rather than assumed: an earlier reading of
+this run mistook the `EXIT WHEN` boundary for the `FETCH`, which does parse and whose edges
+are recovered.
+
+### Effect of the two halves
+
+| | before | after |
+|---|---|---|
+| phase-0 `cells` | — | **identical**, every one |
+| phase-0 parse coverage | 80.4% | **81.6%** |
+| stress 1 parse coverage | 92.3% | **92.9%** |
+| stress 1 band-1 filter | 100% / 85.7% | 100% / **86.7%** |
+| stress 2 parse coverage | 79.3% | **80.0%** |
+| stress 2 band-0 filter | 76.0% / 73.1% | **78.6% / 84.6%** |
+| stress 2 band-1 value — the gate | 100% / 71.4% | 100% / **76.2%** |
+
+**Tenth fix, and the phase-0 grid has still never moved.** Cumulatively S1-04 has taken
+phase-0 parse coverage from **76.1% to 81.6%** and the false-abstention rate from 9.1% to
+zero, without changing a single scored cell.
+
+**It also completed a key.** The DELETE in `stress_transaction_control`'s `ELSE` branch
+started producing a correct guarded edge that stress 1's key did not have — because that key
+was written *before* convention (c) was proposed in stress 2. Logged as **S2-11**: a
+convention decided in one key has to reach every key, or the two encode different answers and
+the benchmark stops meaning one thing.
+
+Four regression tests in `tests/test_refusals.py`: the subquery DELETE asserted edge-by-edge,
+the unconditional DELETE asserted on the *count* rather than the edges (the silence is what
+regressed before), the `WHERE CURRENT OF` case asserted on both sides, and a guard that an
+ordinary `WHERE` survives the rewrite untouched.
 
 Five regression tests in `tests/test_refusals.py` (the positional binding asserted
 column-by-column, because an off-by-one produces the right *number* of edges into the wrong
@@ -542,6 +629,33 @@ labelled — just not fully. **A completeness check at unit granularity does not
 incomplete unit**, and no cheap check does: knowing a VALUES list has three bindings and the
 key has two means parsing the source, which is the analyser's job. Recorded rather than
 solved.
+
+## S2-11 · `key-error` · FIXED — a convention that never reached the older key
+
+`stress_transaction_control`'s `ELSE` branch is
+`DELETE FROM fct_revenue_stage WHERE period_month < TRUNC(SYSDATE, 'YYYY')`. The moment the
+DELETE half of S1-04 landed, it produced a correct, correctly-guarded filter edge that
+**stress 1's key did not contain** — and so scored as a false positive.
+
+The key is not wrong for its own time. It was written before stress 2 existed, and
+**proposed convention (c) is a stress-2 convention**: a DELETE writes no value, but its
+predicate columns are a real dependency of what the table ends up containing. D-1 settled it.
+Stress 1 had simply never been asked the question.
+
+**This is the failure mode D-2 warns about, arriving from the other direction.** That warning
+is about the analyser and the keys drifting apart within one change. This is two *keys*
+drifting apart across time: a convention decided against one package silently leaves the
+older package encoding the opposite answer, and the register cannot tell which is which
+because both look like ordinary disagreements in the grid.
+
+**A decided convention has to be applied to every key in the same change.** Added with its
+guard (`v_count <> 0 AND p_strict <> 1`, the `ELSE` arm) and a note recording where the
+convention came from and why it is arriving late.
+
+Fourth `key-error` in this register, after S1-06, S2-06 and S2-09. The first three were
+omissions; this one is different in kind — nothing was forgotten, the key was complete
+against the conventions that existed when it was written. **No test can catch this class**,
+and `tests/test_stress_keys.py` never could: it counts units, and the unit was labelled.
 
 ## S2-10 · `measurement-error` · OPEN — the refusal cross-checks cannot see trigger edges
 
@@ -975,23 +1089,18 @@ it is the same gap that hid S2-06 for four fixes.
 
 ## Fix order for what remains
 
-Ordered by what each one would teach, not by how annoying it is. Seven are done; this is the
-queue from here. **S2-06 and S1-06 are struck from it** — both were key corrections, both are
-now pinned by `tests/test_stress_keys.py`, and neither moved the phase-0 measurement.
+Ordered by what each one would teach, not by how annoying it is. Eleven are done; this is the
+queue from here. **S2-06, S1-06, S2-09 and S2-11 are struck from it** — all four were key
+corrections, none moved the phase-0 measurement.
 
 1. ~~**S2-07** (`transform-classification`). **D-3.**~~ **Done.** Four cells, phase 0
    unmoved, and it did what a first item should: it turned up S2-08.
-2. ~~**S1-04** (`refusal-taxonomy`). **D-1.**~~ **`INSERT … VALUES` done.** The other two
-   thirds of D-1 remain and are split out below, one per measurement.
-2a. **`DELETE` (D-1, convention (c)).** Handled nowhere today — `s2_delete_with_subquery`
-   produces zero edges and *no refusal*, so this is a `silent-loss` in everything but its
-   register tag. The convention is decided in the key's favour and the stress-2 key already
-   states the three edges, so the target is written down before the code. Do this next: it
-   is the largest single block of labelled-but-missing filter edges left in stress 2.
-2b. **`UPDATE` (D-1).** Mostly working already through `defuse._analyse_update`. What is
-   left is one miss in `s2_locking` — `v_val → dim_customer.lifetime_value` through
-   `WHERE CURRENT OF` — which may turn out to belong to the FETCH refusal above it rather
-   than to `UPDATE` at all. Diagnose before deciding it is D-1's problem.
+2. ~~**S1-04** (`refusal-taxonomy`). **D-1**, all three halves.~~ **Done.** `INSERT … VALUES`,
+   then `DELETE`, then `UPDATE`, each on its own measurement. Phase-0 parse coverage 76.1% →
+   81.6% and the false-abstention rate to zero, with the grid unmoved throughout. **The
+   `UPDATE` half was not an UPDATE problem** — it was a parse failure on `WHERE CURRENT OF`,
+   diagnosed before being treated, which is why it cost a rewrite rule rather than an
+   analyser change.
 3. **S1-03** (`flow-classification`). **D-2.** Last of the three decided items and by far the
    largest: it changes the IR's filter flow, the analyser, and **every phase-0 key**. Do it
    after the other two are landed and measured, so its movement in the grid is attributable to
@@ -1009,6 +1118,14 @@ now pinned by `tests/test_stress_keys.py`, and neither moved the phase-0 measure
    the verdict's condition still stands, and this is precisely the decision that wants real
    code in front of it rather than more synthetic evidence. It is now blocking key
    *corrections* as well as measurements: see S2-06's trigger edge.
+
+**`lineage.parsing.rewrite` is now on the table for S2-01.** That entry has proposed a
+pre-parse rewrite since it was written, and S1-04's `UPDATE` half built the module and the
+admission test for it: strip only what SQLGlot cannot parse at all AND that names no column
+or variable. `MERGE … DELETE` fails the second half of that test — the `DELETE` arm carries
+a `WHERE` with real columns — so it is **not** a rewrite candidate on those terms, and the
+honest options remain a SQLGlot bump or a refusal code that names the real reason. Worth
+knowing before someone reaches for the new hammer.
 
 **A finding is not closed until a regression test fails without the fix.** Reproducing it
 once in a stress run is a symptom; the test is the fix's only durable statement.
