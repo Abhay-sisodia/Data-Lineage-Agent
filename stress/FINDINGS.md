@@ -35,26 +35,112 @@ with the code has stopped measuring anything.
 | S2-06 | `key-error` | **fixed** | ten units unlabelled, not seven; the header claim made true |
 | S2-07 | `transform-classification` | open | `FIRST_VALUE`/`LAST_VALUE` — the key says `derived`, the analyser `aggregated` |
 
+## Decisions taken — 2026-09-10
+
+Three findings were blocked on a decision rather than on code. Abhay settled all three on
+2026-09-10. **They are recorded here before any of them is implemented**, so that what was
+decided can be separated from what the code later turned out to do — the same reason the keys
+are written before the analyser runs.
+
+None of the three is implemented yet. Each is still `open` in the register until a regression
+test fails without it.
+
+### D-1 · S1-04 — row-level DML carries lineage; stop refusing it
+
+**Decided: `INSERT … VALUES`, `UPDATE` and `DELETE` all carry lineage and must be stored, not
+refused.** The scope is wider than the finding as written. S1-04 was raised about
+`INSERT … VALUES` from variables; the decision covers row-level DML generally:
+
+* `INSERT … VALUES (v_cust_id, …)` — the values set the target's contents, so the variable →
+  column edges are real lineage. This is the shape the finding named.
+* `UPDATE` — changes the data in place, and what it sets a column to is exactly a lineage
+  fact.
+* `DELETE` — changes what the table contains. The predicate columns decide *which* rows go,
+  and therefore what the resulting table state is.
+
+**Refusing these is the wrong default.** A refusal says knowledge stops; here the knowledge is
+available in the statement and is simply not being read.
+
+**This also settles proposed convention (c)**, which has been sitting unanswered in the
+stress-2 key since it was written. That convention labelled a `DELETE`'s predicate columns as
+filter edges against the deleted relation; the analyser emits none, and `s2_delete_with_subquery`
+produces zero edges and no refusal. The decision above answers it: **convention (c) stands.**
+The key was right and the analyser is wrong, which converts that half of S2-06's list from an
+undecided convention question into an ordinary defect.
+
+**The cost is still parse coverage and it must still be measured first.** Narrowing a refusal
+buys edges and spends coverage, and coverage has 5.6 points of headroom against a kill
+criterion. Measure before touching, as the finding said — the decision changes what to build,
+not whether to check what it costs.
+
+### D-2 · S1-03 — a filter edge must say WHICH phase it acts in
+
+**Decided: `WHERE`, `HAVING` and `GROUP BY` are three different things and the edge must say
+which.** They are not interchangeable and reporting them under one undifferentiated `filter`
+flow tells a reader less than the source does:
+
+| clause | when it acts | what it does |
+|---|---|---|
+| `WHERE` | **before** aggregation | removes rows, so they never reach the aggregate |
+| `HAVING` | **after** aggregation | removes groups, after every row has been counted |
+| `GROUP BY` | *at* aggregation | removes neither — decides which rows collapse together |
+
+`WHERE` and `HAVING` produce **different results** from the same-looking predicate, and a
+lineage report that cannot tell them apart cannot answer the question a reader actually has.
+`GROUP BY` gets the third kind rather than being dropped: it is a real dependency of the
+output, and discarding it would mean nothing in the report records that `period_month` was
+grouped on.
+
+**So `flow: filter` gains a phase — `pre-aggregation`, `post-aggregation`, `grouping`.** The
+shape of that field in the IR is an implementation question; the semantic decision is that the
+three are distinguishable and all three are kept.
+
+**The double-count objection is answered by the distinction, not overruled by it.** S1-03
+observed that two of the three false positives are columns *already* value sources for the
+projection, so emitting them again as filter influence says one relationship twice. With the
+phase on the edge they are two different true statements about the same pair — `ORDER_DATE`
+supplies `period_month`'s value, **and** `ORDER_DATE` is what the rows were grouped by. Under
+one flat `filter` flow that was a double-count; under three kinds it is not.
+
+**This one moves the phase-0 keys.** The analyser and every key encoding the current answer
+must change together, or they disagree silently — which is how a benchmark stops measuring
+anything.
+
+### D-3 · S2-07 — `FIRST_VALUE` / `LAST_VALUE` are `derived`
+
+**Decided: `derived`. The key was right and the analyser is wrong.** They are window
+(analytic) functions, not traditional aggregations: nothing is summed or counted, and the
+value written appears verbatim in some row of the input. The window selects *which* row
+supplies it.
+
+The line this draws is **window-ness is not aggregation-ness** — `SUM() OVER ()` stays
+`aggregated` because it computes a total over a set, and the `OVER` clause is not what makes
+it so. Being an analytic function is not sufficient; computing a value over a set is.
+
+Consistent with the ladder S2-05 already established — `aggregated > conditional > derived >
+identity` — and with `MAX … KEEP (DENSE_RANK FIRST …)`, which the stress-2 key labels
+`aggregated` because `MAX` genuinely aggregates. Worth re-checking that case when this lands.
+
 ## Open work — what is left, and what each one needs
 
 **Five open. Seven fixed. Nothing in the register has yet failed to recur across stress runs.**
+Three of the five are now **decided but not implemented** — see the decisions above.
 
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
-| **S1-04** | `refusal-taxonomy` | a decision — narrowing a refusal **costs parse coverage**, which has 5.6 points against a kill criterion | 3 edges in stress 1, 2 in stress 2; the one false abstention in the signed phase-0 measurement |
-| **S1-03** | `flow-classification` | a decision — must land in the analyser **and** the phase-0 keys in one change, or they disagree silently | 3 false positives per stress run; double-counts columns already scored as value sources |
-| **S2-07** | `transform-classification` | a decision — is a value-selecting window function `aggregated` or `derived`? | 2 cells per instance in stress 2; S2-06 claimed this was "not scored" and it always was |
+| **S1-04** | `refusal-taxonomy` | **decided (D-1)** — implementation. Measure the parse-coverage cost first; it has 5.6 points against a kill criterion | 3 edges in stress 1, 2 in stress 2; the one false abstention in the signed phase-0 measurement |
+| **S1-03** | `flow-classification` | **decided (D-2)** — implementation, and it must land in the analyser **and** the phase-0 keys in one change | 3 false positives per stress run, and a report that cannot tell a pre- from a post-aggregation filter |
+| **S2-07** | `transform-classification` | **decided (D-3)** — implementation. `derived`; the key was right | 2 cells per instance in stress 2; S2-06 claimed this was "not scored" and it always was |
 | **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
 | **S2-02** | `construct-coverage` | real work — `INSERT ALL` is genuinely unimplemented | 7 edges; the honest refusal makes this a coverage gap, not a defect |
 | **S1-05** | `identity` | **the production package.** Moves every number in the phase | **31%** of the stress-2 key unstatable once the key is complete; also *hides* whether fixes worked |
 
 ### What each open finding is waiting for, in one line
 
-- **S1-04** — is `INSERT … VALUES` from variables lineage? ADR-0001 §3 says variables are
-  first-class, so probably yes. **The cost is parse coverage**, so measure before touching.
-- **S1-03** — is a `GROUP BY` column filter influence? It does not select rows, and two of the
-  three are already value sources for the projection. Likely "no", but it is a convention and
-  the phase-0 keys encode the current answer.
+- **S1-04** — **D-1: row-level DML carries lineage.** `INSERT … VALUES`, `UPDATE` and `DELETE`
+  all get read rather than refused. Measure the parse-coverage cost before touching.
+- **S1-03** — **D-2: the filter flow gains a phase.** `pre-aggregation` / `post-aggregation` /
+  `grouping`, all three kept and distinguishable. Analyser and phase-0 keys in one change.
 - **S2-01** — needs a SQLGlot bump, a pre-parse rewrite that strips the `DELETE` clause, or a
   refusal code that names the real reason. Currently honest but uninformative.
 - **S2-02** — needs multi-table-insert support. The refusal is *true*, so this is capability,
@@ -62,9 +148,8 @@ with the code has stopped measuring anything.
 - **S1-05** — the match key. **Do not start before the production package**: it is the decision
   that most wants real code in front of it, and the verdict's condition still stands. The
   number it has to beat is now 31%, not 21% — see S2-06 below.
-- **S2-07** — `FIRST_VALUE`/`LAST_VALUE` select a value from a partition rather than computing
-  one. `aggregated` or `derived`? Whichever is chosen must land in the keys and the analyser
-  together, exactly as S1-03 must.
+- **S2-07** — **D-3: `derived`.** The key was right; `_transform_of` changes. Window-ness is
+  not aggregation-ness.
 
 ### Fix log
 
@@ -297,6 +382,20 @@ emitting them again as filter influence double-counts one relationship under two
 
 Needs a decision, not a patch. Recorded rather than fixed.
 
+**DECIDED 2026-09-10 — see D-1/D-2/D-3 above; this one is D-2.** The framing in the paragraph
+above turned out to be the wrong question. It asked whether a `GROUP BY` column is filter
+influence, yes or no, and the answer is that **`filter` was never one thing.** `WHERE` removes
+rows before aggregation, `HAVING` removes groups after it, and `GROUP BY` removes neither —
+three behaviours reported under one word. All three are kept and the edge says which.
+
+The double-count objection survives as an observation and stops being a reason to drop the
+edge: with the phase on the edge, `ORDER_DATE → period_month [value]` and
+`ORDER_DATE → FCT_PRODUCT_SALES [filter/grouping]` are two different true statements rather
+than one relationship counted twice.
+
+Not yet implemented. Both the analyser and every phase-0 key encoding the flat `filter` flow
+have to move in the same change.
+
 ## S1-04 · `refusal-taxonomy` · OPEN — `INSERT … VALUES` from variables is still refused
 
 Three misses, all of the same shape: `INSERT INTO tmp_recent VALUES (v_cust_id,
@@ -307,6 +406,21 @@ which ADR-0001 §3 makes first-class nodes.
 Already the one false abstention in the phase-0 measurement (`s6`). This test adds three more
 instances and shows the shape is common: writing a temp table row-by-row from cursor
 variables is ordinary PL/SQL.
+
+**DECIDED 2026-09-10 — D-1, and the scope is wider than this finding.** Row-level DML carries
+lineage and must be stored rather than refused: `INSERT … VALUES` as described here, and
+`UPDATE` and `DELETE` on the same reasoning. An `UPDATE` sets a column to something, which is
+a lineage fact by definition; a `DELETE` changes what the table contains, and its predicate
+columns decide which rows go.
+
+**That also answers proposed convention (c)** — a `DELETE`'s predicate columns as filter edges
+against the deleted relation. The stress-2 key asserted it, the analyser emits nothing, and
+S2-06 logged it as an open convention question. It is now decided in the key's favour, which
+makes `s2_delete_with_subquery`'s zero edges and zero refusals an ordinary defect rather than
+a disagreement. **Note the shape of that failure: not a refusal, but silence** — the
+`silent-loss` category, in a unit nobody had classified that way.
+
+Not yet implemented. The parse-coverage cost is the thing to measure first.
 
 ## S1-05 · `identity` · OPEN — the label format could not express five facts in one file
 
@@ -645,9 +759,17 @@ is summed, and the value written appears verbatim in some row of the input. The 
 does not arise for `SUM() OVER ()`, which both sides call `aggregated`.
 
 Carved out of S2-06, which claimed it was "recorded as undecided rather than scored against
-the analyser". It was scored on every run. **Whichever answer is chosen has to land in the
-keys and in `_transform_of` in one change**, exactly as S1-03 does — and the phase-0 corpus
-must be checked for the same construct before it moves.
+the analyser". It was scored on every run.
+
+**DECIDED 2026-09-10 — D-3: `derived`. The key was right and `_transform_of` changes.** They
+are window (analytic) functions, not aggregations. The rule the decision fixes is that
+**window-ness is not aggregation-ness**: `SUM() OVER ()` stays `aggregated` because it
+computes a total over a set, and the `OVER` clause is not what makes it one. Being analytic is
+not sufficient; computing a value over a set is.
+
+Not yet implemented. The phase-0 corpus must be checked for the same construct before it
+moves, and `MAX … KEEP (DENSE_RANK FIRST …)` in stress 2 re-checked beside it — that one stays
+`aggregated`, because `MAX` genuinely aggregates.
 
 ## Fix order for what remains
 
@@ -655,21 +777,22 @@ Ordered by what each one would teach, not by how annoying it is. Seven are done;
 queue from here. **S2-06 and S1-06 are struck from it** — both were key corrections, both are
 now pinned by `tests/test_stress_keys.py`, and neither moved the phase-0 measurement.
 
-1. **S1-04** (`refusal-taxonomy`). Needs a decision before code. The refusal is not wrong so
-   much as **coarse** — "carries no column lineage from a relation" is true of relations and
-   false of variables, which ADR-0001 §3 makes first-class. Narrowing it costs parse coverage,
-   which has **5.6 points of headroom against a kill criterion**, so measure before touching.
-2. **S1-03** (`flow-classification`). A convention question, not a defect. Whatever is decided
-   must be applied to the analyser **and** the phase-0 keys in the same change, or the two
-   disagree silently — which is how a benchmark stops measuring anything.
-3. **S2-01** (`construct-coverage`). `MERGE … DELETE` never becomes a tree, so this is a
+1. **S2-07** (`transform-classification`). **D-3.** First, because it is the smallest change
+   in the queue that moves a number — a list in `_transform_of` and whatever labels agree with
+   it — and it establishes the pattern for the two larger ones: decide, predict the cells,
+   then measure. It is also the only one of the three whose keys are **already right**.
+2. **S1-04** (`refusal-taxonomy`). **D-1.** Row-level DML stops being refused. Bigger than
+   S2-07 and independent of it. Narrowing a refusal costs parse coverage, which has **5.6
+   points of headroom against a kill criterion**, so measure the cost before touching.
+3. **S1-03** (`flow-classification`). **D-2.** Last of the three decided items and by far the
+   largest: it changes the IR's filter flow, the analyser, and **every phase-0 key**. Do it
+   after the other two are landed and measured, so its movement in the grid is attributable to
+   it alone.
+4. **S2-01** (`construct-coverage`). `MERGE … DELETE` never becomes a tree, so this is a
    SQLGlot bump, a pre-parse rewrite, or at minimum a refusal code that names the real reason.
-4. **S2-02** (`construct-coverage`). `INSERT ALL` is capability work. The refusal is true, so
+5. **S2-02** (`construct-coverage`). `INSERT ALL` is capability work. The refusal is true, so
    nothing is *wrong* today — it is a gap, and the shape ETL uses to fan one source into
    staging and reject tables.
-5. **S2-07** (`transform-classification`). A decision, and a cheap one to implement either
-   way. Group it with S1-03: both are conventions the keys and the analyser must adopt in the
-   same change, and doing them together costs one measurement instead of two.
 6. **S1-05** (`identity`). Last, because it is the largest and the only one that moves every
    number in the phase. **Do not start it until the production package has been measured** —
    the verdict's condition still stands, and this is precisely the decision that wants real
