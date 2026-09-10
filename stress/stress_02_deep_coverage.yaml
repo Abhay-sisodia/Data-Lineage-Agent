@@ -344,6 +344,35 @@ edges:
     evidence: source_read
     note: Convention (a) again - MINUS removes rows the second arm matches.
 
+  - source: {kind: column, name: GTT_STAGE.PERIOD_MONTH}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 106}
+    evidence: source_read
+
+  - source: {kind: column, name: GTT_STAGE.AMOUNT}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_INTERSECT_MINUS, line: 106}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-10, AND IT RAISES PRECISION - stated for that reason.
+
+      The MINUS's second arm is `SELECT g.cust_id, g.period_month, g.amount FROM gtt_stage
+      g`, and convention (a) makes every column of that arm a constraint on which of arm
+      1's rows survive. The key labelled `cust_id` and stopped. There is no reading under
+      which one column of a three-column MINUS constrains and the other two do not - a row
+      is removed when ALL THREE match, so if anything the other two are doing more work
+      than the one that was labelled.
+
+      Same shape as S1-06, S2-09 and S2-11: a uniform rule applied to the first instance
+      and not the rest. Fourth time in this register, and the first three were found by
+      three different mechanisms - none of which would have caught this one.
+
   # === 4. s2_multi_table_insert =============================================
   # One SELECT, two targets, each behind its own WHEN.
 
