@@ -33,7 +33,8 @@ with the code has stopped measuring anything.
 | S2-04 | `silent-loss` | **fixed** | `BULK COLLECT` into a record collection yielded nothing, silently |
 | S2-05 | `transform-classification` | **fixed** | `DECODE`/`NULLIF`/`GREATEST` read as derived, not conditional |
 | S2-06 | `key-error` | **fixed** | ten units unlabelled, not seven; the header claim made true |
-| S2-07 | `transform-classification` | open | `FIRST_VALUE`/`LAST_VALUE` — the key says `derived`, the analyser `aggregated` |
+| S2-07 | `transform-classification` | **fixed** | `FIRST_VALUE`/`LAST_VALUE` — the key says `derived`, the analyser `aggregated` |
+| S2-08 | `transform-classification` | open | two `_transform_of` copies, already drifted; and `LAG` reads like `FIRST_VALUE` but scores `aggregated` |
 
 ## Decisions taken — 2026-09-10
 
@@ -123,14 +124,15 @@ identity` — and with `MAX … KEEP (DENSE_RANK FIRST …)`, which the stress-2
 
 ## Open work — what is left, and what each one needs
 
-**Five open. Seven fixed. Nothing in the register has yet failed to recur across stress runs.**
-Three of the five are now **decided but not implemented** — see the decisions above.
+**Five open. Eight fixed. Nothing in the register has yet failed to recur across stress runs.**
+**D-3 is landed** (S2-07). D-1 and D-2 are decided and not yet implemented — see above.
+Implementing D-3 turned up **S2-08**, which is new and undecided.
 
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
 | **S1-04** | `refusal-taxonomy` | **decided (D-1)** — implementation. Measure the parse-coverage cost first; it has 5.6 points against a kill criterion | 3 edges in stress 1, 2 in stress 2; the one false abstention in the signed phase-0 measurement |
 | **S1-03** | `flow-classification` | **decided (D-2)** — implementation, and it must land in the analyser **and** the phase-0 keys in one change | 3 false positives per stress run, and a report that cannot tell a pre- from a post-aggregation filter |
-| **S2-07** | `transform-classification` | **decided (D-3)** — implementation. `derived`; the key was right | 2 cells per instance in stress 2; S2-06 claimed this was "not scored" and it always was |
+| **S2-08** | `transform-classification` | a decision on `LAG`/`LEAD`, and a refactor for the duplicated classifier | S2-05 never reached band 1 at all; and a rule that reads as arbitrary from outside |
 | **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
 | **S2-02** | `construct-coverage` | real work — `INSERT ALL` is genuinely unimplemented | 7 edges; the honest refusal makes this a coverage gap, not a defect |
 | **S1-05** | `identity` | **the production package.** Moves every number in the phase | **31%** of the stress-2 key unstatable once the key is complete; also *hides* whether fixes worked |
@@ -148,8 +150,8 @@ Three of the five are now **decided but not implemented** — see the decisions 
 - **S1-05** — the match key. **Do not start before the production package**: it is the decision
   that most wants real code in front of it, and the verdict's condition still stands. The
   number it has to beat is now 31%, not 21% — see S2-06 below.
-- **S2-07** — **D-3: `derived`.** The key was right; `_transform_of` changes. Window-ness is
-  not aggregation-ness.
+- **S2-08** — two questions from implementing D-3. Is `LAG`/`LEAD` `aggregated` or `derived`?
+  And the classifier exists **twice**, in `band0.py` and `defuse.py`, already drifted.
 
 ### Fix log
 
@@ -160,9 +162,10 @@ Three of the five are now **decided but not implemented** — see the decisions 
 | S1-02 `construct-coverage` | `46f4617` | none |
 | S2-05 `transform-classification` | `1108223` | none |
 | S2-03 `refusal-taxonomy` | `cda24a3` | none |
-| S2-06 + S1-06 `key-error` | *this change* | none — `cells` byte-identical to `phase0_final.json` |
+| S2-06 + S1-06 `key-error` | `d1b591f` | none — `cells` byte-identical to `phase0_final.json` |
+| S2-07 `transform-classification` (D-3) | *this change* | none — `cells`, `gate`, `parse_coverage` and `honest_abstention` all identical |
 
-**Seven fixes, and the phase-0 measurement has not moved once.** That is a statement about the
+**Eight fixes, and the phase-0 measurement has not moved once.** That is a statement about the
 corpus, not about the analyser: none of these five constructs appears in it in the form that
 breaks. It sharpens the verdict's existing caveat considerably — the corpus is not just
 synthetic, its *construct mix and package shape* are unrepresentative in ways that hide real
@@ -178,13 +181,19 @@ directions.
 | | stress 1 | | stress 2 | |
 |---|---|---|---|---|
 | | before S2-06 | now | before S2-06 | now |
-| 0 value | 100% / 100% | 100% / 100% | 93.9% / 75.6% | **97.0% / 65.3%** |
+| 0 value | 100% / 100% | 100% / 100% | 93.9% / 75.6% | **100% / 69.4%** |
 | 0 filter | 61.5% / 88.9% | **75.0% / 90.0%** | 76.0% / 76.0% | 76.0% / **73.1%** |
 | **1 value — the gate** | **95.5% / 87.5%** | **100% / 84.6%** | **81.8% / 56.2%** | **100% / 55.0%** |
 | 1 filter | 100% / 84.6% | 100% / 85.7% | 100% / 75.0% | 100% / 75.0% |
 | 2 value | 100% / 100% | 100% / 100% | 100% / 50.0% | 100% / 50.0% |
 | 2 filter | 100% / 100% | 100% / 100% | 100% / 100% | 100% / **50.0%** |
 | parse coverage | 76.9% | 76.9% | 65.5% | 65.5% |
+
+**The `now` column includes D-3 (S2-07), which moved four cells and only in stress 2.**
+Band-0 value went 97.0% / 65.3% → **100% / 69.4%** — two false positives removed and the two
+matching false negatives recovered, exactly as predicted before running. Stress 1 has no
+`FIRST_VALUE`/`LAST_VALUE` and did not move. **Band-0 value precision is now 100% on both
+packages, alongside band-1 value.**
 
 **Precision went up everywhere it moved, and recall went down.** Both are the same fact: the
 analyser's correct edges were being counted as false positives against units I had not
@@ -742,7 +751,7 @@ key correction, not only a measurement.**
 package is either labelled or carries an explicit `# NO LABELS: <UNIT>` declaration saying
 why. It failed on stress 1 the first time it ran — see S1-06.
 
-## S2-07 · `transform-classification` · OPEN — `FIRST_VALUE` and `LAST_VALUE`
+## S2-07 · `transform-classification` · FIXED — `FIRST_VALUE` and `LAST_VALUE`
 
 | expression | key says | analyser says |
 |---|---|---|
@@ -767,9 +776,67 @@ are window (analytic) functions, not aggregations. The rule the decision fixes i
 computes a total over a set, and the `OVER` clause is not what makes it one. Being analytic is
 not sufficient; computing a value over a set is.
 
-Not yet implemented. The phase-0 corpus must be checked for the same construct before it
-moves, and `MAX … KEEP (DENSE_RANK FIRST …)` in stress 2 re-checked beside it — that one stays
-`aggregated`, because `MAX` genuinely aggregates.
+**Root cause.** sqlglot derives `FirstValue`, `LastValue` and `NthValue` from `exp.AggFunc`,
+and `AGGREGATE_FUNCTIONS` ends in that catch-all — so the classifier never had a chance to
+disagree. The fix is a `VALUE_SELECTING_WINDOW_FUNCTIONS` exclusion checked *before* the
+catch-all, in `band0._is_aggregate` and mirrored in `defuse._transform_of`.
+
+**`NTH_VALUE` is included, by the rule rather than by a new decision.** It is `FIRST_VALUE`
+generalised — pick the nth row's value instead of the first. It appears nowhere in the corpus
+or either stress package, so it costs nothing; leaving it out would only mean the next stress
+package finds the same disagreement again.
+
+**Effect.**
+
+| | before | after |
+|---|---|---|
+| phase-0 measurement | — | **identical** — `cells`, `gate`, `parse_coverage`, `honest_abstention` |
+| stress 2 band-0 value precision | 97.0% | **100%** |
+| stress 2 band-0 value recall | 65.3% | **69.4%** |
+| stress 1 | — | unchanged |
+
+**Phase 0 could not move and that was predicted before running.** `FIRST_VALUE`/`LAST_VALUE`
+appear nowhere in the corpus — only in `s2_analytics_suite`. Four cells, exactly the two
+expressions × two sides that ADR-0001 §4 charges for a wrong transform.
+
+`MAX … KEEP (DENSE_RANK FIRST …)` was re-checked beside it and stays `aggregated`: `MAX`
+genuinely aggregates, and `KEEP` only says which row breaks the tie.
+
+**Pinned by three tests in `tests/test_band0.py`** — the eight-way classification table, the
+ladder guard (`SUM(FIRST_VALUE(…) OVER (…))` is still `aggregated`, because the exclusion is
+per-node and would otherwise swallow an enclosing aggregate), and a test that pins `LAG` at
+its *current* answer while pointing at S2-08.
+
+## S2-08 · `transform-classification` · OPEN — the rule has a ragged edge and two homes
+
+Found by implementing D-3, not by a stress run. Two separate problems, both about the same
+function.
+
+**1. `LAG` and `LEAD` read exactly like `FIRST_VALUE` and are classified the opposite way.**
+D-3's rule is that window-ness is not aggregation-ness: computing over a set is what makes an
+aggregation. `LAG(total)` computes nothing over a set — it reads another *row* of the same
+column, which is the argument that made `FIRST_VALUE` derived. `sq_03`'s own key says so in
+prose: *"LAG(total) reads another ROW of the same column."* And then labels it `aggregated`.
+
+They were left alone deliberately. **Every key in the corpus labels `LAG` `aggregated`** —
+`sq_03_window_functions` and stress 1 both — so moving it changes phase-0 keys and is a
+separate measurement, not a free extension of D-3. But the rule as it now stands cannot be
+stated to a reader without an exception list, and that is worth fixing one way or the other:
+either `LAG`/`LEAD` join the value-selecting set and the keys move, or D-3's rule needs a
+sharper statement than "computes over a set" that genuinely separates them.
+
+**2. `_transform_of` exists twice and has already drifted.** `band0.py` and `defuse.py` each
+carry their own copy with their own constants. **S2-05's fix landed only in band 0** —
+`defuse.CONDITIONAL_EXPRESSIONS` is still `(exp.Case, exp.If)`, the pre-S2-05 pair — so a
+`DECODE` reached through def-use is still classified `derived`, and the finding recorded as
+fixed is half-fixed. D-3 was applied to both copies by hand, which is the same trap set again.
+
+The two halves are related: a rule that lives in two places will keep diverging, and a rule
+with an unexplainable exception list is the kind that gets copied wrong. Merging the
+classifiers is the durable fix, and it moves band-1 numbers, so it wants its own measurement.
+
+**No stress package has exercised the S2-05 half.** That is not evidence it is harmless —
+it is the same gap that hid S2-06 for four fixes.
 
 ## Fix order for what remains
 
@@ -777,10 +844,8 @@ Ordered by what each one would teach, not by how annoying it is. Seven are done;
 queue from here. **S2-06 and S1-06 are struck from it** — both were key corrections, both are
 now pinned by `tests/test_stress_keys.py`, and neither moved the phase-0 measurement.
 
-1. **S2-07** (`transform-classification`). **D-3.** First, because it is the smallest change
-   in the queue that moves a number — a list in `_transform_of` and whatever labels agree with
-   it — and it establishes the pattern for the two larger ones: decide, predict the cells,
-   then measure. It is also the only one of the three whose keys are **already right**.
+1. ~~**S2-07** (`transform-classification`). **D-3.**~~ **Done.** Four cells, phase 0
+   unmoved, and it did what a first item should: it turned up S2-08.
 2. **S1-04** (`refusal-taxonomy`). **D-1.** Row-level DML stops being refused. Bigger than
    S2-07 and independent of it. Narrowing a refusal costs parse coverage, which has **5.6
    points of headroom against a kill criterion**, so measure the cost before touching.
@@ -793,7 +858,10 @@ now pinned by `tests/test_stress_keys.py`, and neither moved the phase-0 measure
 5. **S2-02** (`construct-coverage`). `INSERT ALL` is capability work. The refusal is true, so
    nothing is *wrong* today — it is a gap, and the shape ETL uses to fan one source into
    staging and reject tables.
-6. **S1-05** (`identity`). Last, because it is the largest and the only one that moves every
+6. **S2-08** (`transform-classification`). Needs a decision on `LAG`/`LEAD` and a refactor
+   that merges the two `_transform_of` copies. Do the merge whenever S2-05's band-1 half is
+   worth repairing — it is a recorded fix that only half landed.
+7. **S1-05** (`identity`). Last, because it is the largest and the only one that moves every
    number in the phase. **Do not start it until the production package has been measured** —
    the verdict's condition still stands, and this is precisely the decision that wants real
    code in front of it rather than more synthetic evidence. It is now blocking key

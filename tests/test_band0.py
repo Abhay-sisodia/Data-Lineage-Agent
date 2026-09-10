@@ -231,3 +231,77 @@ def test_coalesce_is_conditional_only_when_two_columns_can_supply() -> None:
 
     assert _transform_of(two_columns.selects[0]) is Transform.CONDITIONAL
     assert _transform_of(literal_floor.selects[0]) is Transform.DERIVED
+
+
+# --- S2-07 / D-3: window-ness is not aggregation-ness ------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        # PICK a value out of the window. Nothing is computed over the set - the value
+        # written appears verbatim in some row of the input, and the window only decides
+        # WHICH row supplies it.
+        (
+            "FIRST_VALUE(product_name) OVER (PARTITION BY product_id ORDER BY order_date)",
+            Transform.DERIVED,
+        ),
+        (
+            "LAST_VALUE(unit_price) OVER (PARTITION BY product_id ORDER BY order_date)",
+            Transform.DERIVED,
+        ),
+        # NTH_VALUE is FIRST_VALUE generalised and follows by the same rule.
+        ("NTH_VALUE(unit_price, 2) OVER (PARTITION BY product_id)", Transform.DERIVED),
+        # COMPUTE a value over the set. The OVER clause is not what makes an aggregation,
+        # so these are unchanged - this is the half of the rule that is easy to break.
+        (
+            "SUM(line_amount) OVER (PARTITION BY product_id ORDER BY order_date)",
+            Transform.AGGREGATED,
+        ),
+        ("COUNT(*) OVER (PARTITION BY product_id)", Transform.AGGREGATED),
+        ("AVG(line_amount) OVER (PARTITION BY product_id)", Transform.AGGREGATED),
+        # Plain aggregation, no window at all.
+        ("SUM(line_amount)", Transform.AGGREGATED),
+        ("MAX(product_name)", Transform.AGGREGATED),
+    ],
+)
+def test_value_selecting_window_functions_are_derived(
+    expression: str, expected: Transform
+) -> None:
+    """Stress finding S2-07, decision D-3. The key said `derived` and the analyser did not.
+
+    sqlglot derives `FirstValue`/`LastValue`/`NthValue` from `exp.AggFunc`, so the
+    catch-all in AGGREGATE_FUNCTIONS swept them up. A wrong transform is a MISS on both
+    sides under ADR-0001 §4, so each instance cost a false positive AND a false negative.
+    """
+    parsed = sqlglot.parse_one(f"SELECT {expression} FROM t", dialect="oracle").selects[0]
+    assert _transform_of(parsed) is expected
+
+
+def test_an_aggregate_wrapping_a_value_selecting_window_still_aggregates() -> None:
+    """The exclusion is per-node, not per-expression, so the ladder must still hold.
+
+    If `_is_aggregate` returned False for the whole expression on finding a FIRST_VALUE
+    anywhere in it, an enclosing SUM would be lost. ADR-0001 §4: the transform is the
+    strongest on the path.
+    """
+    parsed = sqlglot.parse_one(
+        "SELECT SUM(FIRST_VALUE(unit_price) OVER (PARTITION BY product_id)) FROM t",
+        dialect="oracle",
+    ).selects[0]
+    assert _transform_of(parsed) is Transform.AGGREGATED
+
+
+def test_lag_is_still_aggregated_and_that_is_recorded_as_inconsistent() -> None:
+    """LAG selects an existing value too, and every key in the corpus calls it `aggregated`.
+
+    This test pins the CURRENT state rather than endorsing it. D-3 named FIRST_VALUE and
+    LAST_VALUE; moving LAG would change `sq_03_window_functions` and stress 1, which is a
+    phase-0 change and a separate measurement. Recorded as finding S2-08 — if that finding
+    is ever decided the other way, this test is the thing that should fail.
+    """
+    parsed = sqlglot.parse_one(
+        "SELECT LAG(total) OVER (PARTITION BY product_id ORDER BY period_month) FROM t",
+        dialect="oracle",
+    ).selects[0]
+    assert _transform_of(parsed) is Transform.AGGREGATED

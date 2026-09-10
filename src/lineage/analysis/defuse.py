@@ -49,6 +49,16 @@ DIALECT = "oracle"
 AGGREGATE_FUNCTIONS = (exp.Sum, exp.Count, exp.Avg, exp.Min, exp.Max, exp.AggFunc)
 CONDITIONAL_EXPRESSIONS = (exp.Case, exp.If)
 
+# S2-07 / decision D-3, kept in step with `band0.VALUE_SELECTING_WINDOW_FUNCTIONS`.
+# Analytic functions that pick an existing value rather than computing one over a set;
+# sqlglot derives them from `exp.AggFunc`, so the catch-all above claimed them.
+#
+# THIS TUPLE AND THE ONE IN band0 ARE DUPLICATED AND HAVE ALREADY DRIFTED ONCE -
+# `CONDITIONAL_EXPRESSIONS` above is still the pre-S2-05 pair, so that fix landed in band 0
+# and never reached band 1. Recorded as S2-08 rather than repaired here, because merging
+# the two classifiers moves band-1 numbers and wants its own measurement.
+VALUE_SELECTING_WINDOW_FUNCTIONS = (exp.FirstValue, exp.LastValue, exp.NthValue)
+
 TRANSFORM_RANK = {
     Transform.IDENTITY: 0,
     Transform.DERIVED: 1,
@@ -285,7 +295,11 @@ def _transform_of(expression: Any) -> Transform:
         expression = expression.this
     if isinstance(expression, exp.Column):
         return Transform.IDENTITY
-    if any(isinstance(node, AGGREGATE_FUNCTIONS) for node in expression.walk()):
+    if any(
+        isinstance(node, AGGREGATE_FUNCTIONS)
+        and not isinstance(node, VALUE_SELECTING_WINDOW_FUNCTIONS)
+        for node in expression.walk()
+    ):
         return Transform.AGGREGATED
     if any(isinstance(node, CONDITIONAL_EXPRESSIONS) for node in expression.walk()):
         return Transform.CONDITIONAL

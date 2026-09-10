@@ -66,6 +66,21 @@ TRANSFORM_RANK = {
 
 AGGREGATE_FUNCTIONS = (exp.Sum, exp.Count, exp.Avg, exp.Min, exp.Max, exp.AggFunc)
 
+# Analytic functions that SELECT an existing value rather than computing one over a set.
+# Stress finding S2-07, decision D-3: sqlglot makes these subclasses of `exp.AggFunc`, so
+# the catch-all above swept them up and reported `aggregated`.
+#
+# The rule the decision fixes is that WINDOW-NESS IS NOT AGGREGATION-NESS. `SUM() OVER ()`
+# stays `aggregated` because it computes a total over a set; the `OVER` clause is not what
+# makes it one. These three compute nothing - the value written appears verbatim in some
+# row of the input, and the window only decides WHICH row supplies it. `NTH_VALUE` is
+# `FIRST_VALUE` generalised and is classified with them by the same rule.
+#
+# LAG and LEAD are deliberately NOT here, and that is an open inconsistency rather than a
+# considered exception - see finding S2-08. Every key in the corpus labels LAG
+# `aggregated`, so moving it is a phase-0 change and a separate measurement.
+VALUE_SELECTING_WINDOW_FUNCTIONS = (exp.FirstValue, exp.LastValue, exp.NthValue)
+
 # The output value is SELECTED from alternatives by a test, rather than computed from the
 # input. Stress finding S2-05: this used to be `(exp.Case, exp.If)` alone, so DECODE -
 # which Oracle's own documentation defines as equivalent to CASE - was classified
@@ -209,6 +224,17 @@ def _is_conditional(node: Any) -> bool:
     return isinstance(node, CONDITIONAL_EXPRESSIONS)
 
 
+def _is_aggregate(node: Any) -> bool:
+    """Does this node compute a value over a SET, rather than pick one out of it?
+
+    The exclusion has to be checked first: sqlglot derives `FirstValue` and friends from
+    `exp.AggFunc`, so the catch-all in `AGGREGATE_FUNCTIONS` matches them too (S2-07).
+    """
+    if isinstance(node, VALUE_SELECTING_WINDOW_FUNCTIONS):
+        return False
+    return isinstance(node, AGGREGATE_FUNCTIONS)
+
+
 def _transform_of(expression: Any) -> Transform:
     """Classify what the expression does to the value.
 
@@ -219,7 +245,7 @@ def _transform_of(expression: Any) -> Transform:
         expression = expression.this
     if isinstance(expression, exp.Column):
         return Transform.IDENTITY
-    if any(isinstance(node, AGGREGATE_FUNCTIONS) for node in expression.walk()):
+    if any(_is_aggregate(node) for node in expression.walk()):
         return Transform.AGGREGATED
     if any(_is_conditional(node) for node in expression.walk()):
         return Transform.CONDITIONAL
