@@ -23,7 +23,8 @@ with the code has stopped measuring anything.
 |---|---|---|---|
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
-| S1-03 | `flow-classification` | open | `GROUP BY` columns emitted as filter edges |
+| S1-03 | `flow-classification` | open | **misdiagnosed** — no `GROUP BY`/`HAVING` edge is emitted; the FPs are window `PARTITION BY`/`ORDER BY` |
+| S2-12 | `flow-classification` | open | is a window's `PARTITION BY`/`ORDER BY` filter influence? analyser says yes, every key says no |
 | S1-04 | `refusal-taxonomy` | **fixed** | row-level DML refused or skipped; §3 makes variables first-class |
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
 | S1-06 | `key-error` | **fixed** | two gaps in my own key, stated rather than quietly fixed — corrected 2026-09-09 |
@@ -152,7 +153,8 @@ rather than the analyser, and neither would have been found by running the analy
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
 | **S2-10** | `measurement-error` | someone reconciling two line-number spaces in `measure.py` | `false_abstentions_recovered` and `edges_from_refused_statements` cannot see trigger edges at all — two reported zeros that are artifacts |
-| **S1-03** | `flow-classification` | **decided (D-2)** — implementation, and it must land in the analyser **and** the phase-0 keys in one change | 3 false positives per stress run, and a report that cannot tell a pre- from a post-aggregation filter |
+| **S2-12** | `flow-classification` | a decision — is a window's `PARTITION BY`/`ORDER BY` filter influence? | **the whole remaining band-0 filter precision gap**: 3 FPs in stress 1, 3 in stress 2 |
+| **S1-03** | `flow-classification` | **D-2 needs re-confirming** — the finding was misdiagnosed, so the decision is a feature addition, not a fix | a report that cannot tell a pre- from a post-aggregation filter. Fixes **no** current false positive |
 | **S2-08** | `transform-classification` | a decision on `LAG`/`LEAD`, and a refactor for the duplicated classifier | S2-05 never reached band 1 at all; and a rule that reads as arbitrary from outside |
 | **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
 | **S2-02** | `construct-coverage` | real work — `INSERT ALL` is genuinely unimplemented | 7 edges; the honest refusal makes this a coverage gap, not a defect |
@@ -163,8 +165,12 @@ rather than the analyser, and neither would have been found by running the analy
 - **S2-09** — done with S1-04; kept in the register because a key error is evidence.
 - **S2-10** — `false_abstentions_recovered: 0` is not a measurement. Trigger edges number
   their lines from the trigger BODY and refusals number theirs from the FILE.
-- **S1-03** — **D-2: the filter flow gains a phase.** `pre-aggregation` / `post-aggregation` /
-  `grouping`, all three kept and distinguishable. Analyser and phase-0 keys in one change.
+- **S1-03** — **D-2 stands, but the finding was misdiagnosed.** No `GROUP BY` or `HAVING` edge
+  is emitted anywhere, so D-2 is a feature addition rather than a reclassification, and it
+  fixes none of the current false positives. Needs a fresh go/no-go before implementation.
+- **S2-12** — what the S1-03 false positives actually are. Is a window's `PARTITION BY` /
+  `ORDER BY` filter influence on the written relation? **This is the whole remaining band-0
+  filter precision gap in both packages.** A decision, not code.
 - **S2-01** — needs a SQLGlot bump, a pre-parse rewrite that strips the `DELETE` clause, or a
   refusal code that names the real reason. Currently honest but uninformative.
 - **S2-02** — needs multi-table-insert support. The refusal is *true*, so this is capability,
@@ -412,7 +418,88 @@ rather than argued: the collision does not just lose facts, it hides whether the
 Four regression tests in `tests/test_complex_sql.py`, including the `MINUS`-arm semantics
 and a three-armed `UNION` for the recursive flattening.
 
-## S1-03 · `flow-classification` · OPEN — `GROUP BY` columns are emitted as filter edges
+## S1-03 · `flow-classification` · OPEN — **the finding itself was misdiagnosed**
+
+> **READ THIS FIRST, 2026-09-10.** The section below is the finding as originally written
+> and it is **wrong about what the analyser does**. It is left standing because a register
+> that quietly corrects itself is no more trustworthy than a key that does. The correction
+> follows it.
+
+### The correction
+
+**The analyser emits no `GROUP BY` filter edges and no `HAVING` filter edges. It never has.**
+Established two ways before touching anything:
+
+* **By code.** Nothing in `src/` reads either clause. `grep` for `args.get("group")`,
+  `args.get("having")`, `exp.Group` and `exp.Having` across the whole package returns
+  nothing. `band0._filter_edges` reads `args.get("where")` and only that.
+* **By running it.** An `INSERT … SELECT` with `WHERE o.currency = 'GBP'`, `GROUP BY
+  o.cust_id, TRUNC(o.order_date,'MM')` and `HAVING SUM(o.gross_amount) > 0` produces exactly
+  one filter edge — `STG_ORDERS.CURRENCY`. The GROUP BY and the HAVING produce nothing.
+
+**So what are the three false positives?** `STG_ORDERS.ORDER_DATE`,
+`STG_ORDER_LINES.PRODUCT_ID` and `STG_ORDER_LINES.LINE_AMOUNT → relation:FCT_PRODUCT_SALES`
+are **window `PARTITION BY` and `ORDER BY` columns**, emitted by `_influence_columns` and
+traced *through the CTE* to their base columns:
+
+| the edge | what the finding said | what it is |
+|---|---|---|
+| `STG_ORDERS.ORDER_DATE` | `GROUP BY` | `ROW_NUMBER() OVER (PARTITION BY m.period_month …)` |
+| `STG_ORDER_LINES.PRODUCT_ID` | `GROUP BY` | `LAG(m.gross) OVER (PARTITION BY m.product_id …)` |
+| `STG_ORDER_LINES.LINE_AMOUNT` | `HAVING` | `… ORDER BY m.gross DESC`, and `m.gross` is `SUM(l.line_amount)` |
+
+The mistake was a coincidence that held up under casual checking: `stress_cte_window` groups
+by `TRUNC(o.order_date,'MM')` and `l.product_id` **and** partitions its windows by the same
+two columns, one CTE layer up. The columns matched the GROUP BY, so the GROUP BY was blamed.
+
+**Verified by instrumenting the emitting call site**, not by reading the SQL again — the
+edges come from `band0.py:810`, which is the `_influence_columns` branch, not from
+`_filter_edges`.
+
+### What this does to D-2
+
+**D-2 is not a reclassification. It is a feature.** The decision reads naturally as
+"stop lumping three things under one word", but there is nothing to un-lump: two of the three
+kinds are not emitted at all. Implementing it means **adding** `HAVING` and `GROUP BY` edges
+that have never existed, then tagging all three phases.
+
+That may well still be the right thing — the semantic argument is untouched by this, and
+`WHERE` versus `HAVING` genuinely produce different results from the same-looking predicate.
+But the cost profile is the opposite of what the fix order assumed:
+
+* it **fixes none of the current false positives**, because none of them is a GROUP BY or a
+  HAVING edge;
+* it **adds** edges to every package that aggregates, so every key gains labels rather than
+  having existing ones re-tagged;
+* precision can only go **down** until the keys are updated, and recall is unaffected either
+  way.
+
+### The question the false positives actually raise — undecided
+
+**Is a window's `PARTITION BY` / `ORDER BY` filter influence on the written relation?** The
+analyser says yes and has a reasoned docstring for it. Every key says no, by omission. That
+disagreement is the whole of the remaining band-0 filter precision gap in both stress
+packages, and it is a *different* convention question from D-2.
+
+The keys' stated convention — *"a window function's ARGUMENT is a value source; its
+PARTITION BY and ORDER BY are not"* — settles that they are not **value** sources and is
+silent on whether they are **filter** edges. Both readings are consistent with it, which is
+how the two sides have disagreed for two stress runs without either noticing.
+
+### The other three false positives, for completeness
+
+Stress 2 has three more, and none is a GROUP BY either:
+
+* `GTT_STAGE.AMOUNT`, `GTT_STAGE.PERIOD_MONTH → relation:GTT_STAGE` (`s2_intersect_minus`) —
+  later arms of `INTERSECT`/`MINUS` as filter influence, convention (a) from S1-02. The
+  analyser applies it more widely than the key labelled it.
+* `STG_ORDER_LINES.ORDER_ID → relation:DIM_CUSTOMER` (`s2_update_correlated`) — the *other*
+  operand of the `EXISTS` join predicate. **This is S1-06 for the third time**: the key
+  labels one operand and the convention says both.
+
+---
+
+### The finding as originally written (2026-09-08), left as measured
 
 Three of the five band-0 filter false positives are `GROUP BY` columns:
 `STG_ORDERS.ORDER_DATE`, `STG_ORDER_LINES.PRODUCT_ID` → `relation:FCT_PRODUCT_SALES`, plus
