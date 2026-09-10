@@ -27,7 +27,16 @@
 #
 # WHERE A UNIT IS EXPECTED TO BE REFUSED the labels are still written out in full. A
 # refusal that loses ten edges and a refusal that loses one are different facts, and only
-# a complete key can tell them apart.
+# a complete key can tell them apart. This holds for a CORRECT refusal too: the cost of
+# abstaining is counted whether or not abstaining was the right call.
+#
+# CORRECTION, 2026-09-09 (finding S2-06). THE CLAIM ABOVE WAS FALSE WHEN FIRST WRITTEN.
+# Ten of the twenty-eight units carried no labels at all - 14, 15, 16, 17, 18, 21, 22, 25,
+# 26 and 27 - including three of the units this key expects to be refused. Their correct
+# edges therefore scored as false positives against my own omission, which reads in the
+# report as an analyser defect. They are labelled below, written from source in the same
+# way as the rest and before re-running. Stated rather than quietly amended: S2-06 itself
+# recorded the count as SEVEN missing units, and it was ten.
 
 package: stress_02_deep_coverage.sql
 source_sha256: c73a04095561679001111d7d06f8e38a74948a85e809d33973b697ef004b9bd8
@@ -523,6 +532,8 @@ edges:
     origin: {unit: S2_NESTED_EXPRESSIONS, line: 216}
     evidence: source_read
 
+  # === 9. s2_update_correlated ==============================================
+
   - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
     target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
     flow: value
@@ -671,6 +682,8 @@ edges:
     origin: {unit: S2_REF_CURSOR, line: 321}
     evidence: source_read
 
+  # === 13. s2_nested_blocks =================================================
+
   - source: {kind: column, name: REF_POLICY.WINDOW_DAYS}
     target: {kind: variable, name: V_DAYS}
     flow: value
@@ -730,6 +743,11 @@ edges:
     origin: {unit: S2_NESTED_BLOCKS, line: 352}
     evidence: source_read
 
+  # --- trigger side effects on tmp_recent -----------------------------------
+  # TRG_RECENT_AUDIT fires on every INSERT into tmp_recent in this file - unit 13's
+  # write above, and also units 3, 22 and 25. One stanza covers all of them: the
+  # facts are identical and the match key does not carry origin.
+
   - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
     target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
     flow: value
@@ -745,6 +763,189 @@ edges:
     band: 2
     origin: {unit: TRG_RECENT_AUDIT, line: 1}
     evidence: source_read
+
+  # UNSTATABLE (S1-05): DIM_CUSTOMER.CUST_ID -> relation:DIM_CUSTOMER [filter/identity]
+  # at band 2, the third operand of the trigger's `WHERE cust_id = :NEW.cust_id`.
+  #
+  # This was a COMPLETION, written under S2-06 because b0_04's key names this exact
+  # omission - the trigger stanza copied between keys as a two-edge block - and this key
+  # inherited it. b2_05 and b2_06 both state the edge, so the convention predates the
+  # correction. The key cannot hold it: unit 9 already states the same four-tuple at
+  # band 0, from `s2_update_correlated`'s own WHERE. Two different facts, one band
+  # apart, one match key. The correction is therefore recorded and not scored.
+
+  # === 14. s2_autonomous_log ================================================
+  # PRAGMA AUTONOMOUS_TRANSACTION changes when the write commits, not where the
+  # value comes from. `USER` and `SYSDATE` have no upstream, so changed_by and
+  # changed_at carry no edge.
+
+  - source: {kind: variable, name: P_CUST_ID}
+    target: {kind: column, name: DW_AUDIT_LOG.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_AUTONOMOUS_LOG, line: 377}
+    evidence: source_read
+    note: >
+      EXPECTED TO MISS - S1-04 again, INSERT ... VALUES from a variable. The third
+      instance of the shape in this file and the fifth across both stress packages.
+
+  # === 15. s2_locking =======================================================
+  # FOR UPDATE and LOCK TABLE take locks; neither writes. The lineage is the
+  # ordinary cursor fetch and the UPDATE that follows it.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: variable, name: V_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_LOCKING, line: 402}
+    evidence: source_read
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: variable, name: V_VAL}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_LOCKING, line: 402}
+    evidence: source_read
+
+  # UNSTATABLE (S1-05): DIM_CUSTOMER.IS_ACTIVE -> relation:DIM_CUSTOMER [filter/identity]
+  # at band 1 - the cursor's `WHERE d.is_active = 1`. Unit 5 states the same four-tuple
+  # at band 0. The band differs, so the collision also decides which band is charged.
+
+  - source: {kind: variable, name: V_VAL}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S2_LOCKING, line: 405}
+    evidence: source_read
+    note: >
+      `WHERE CURRENT OF c_lock` names no column - it is a rowid the cursor is holding -
+      so the UPDATE contributes a value edge and no filter edge. The row was already
+      chosen by the cursor's own WHERE, which is labelled above.
+
+  # === 16. s2_pivot_static ==================================================
+  # The decidable PIVOT. Under the semantics S2-03 implemented: one output column
+  # per IN-list alias, each fed by the aggregate's ARGUMENT; the FOR column decides
+  # WHICH output column a row lands in, so it is filter and never a value source.
+  # The implicit GROUP BY on the surviving columns is NOT labelled - S1-03's
+  # convention, and expect the two false positives it predicts.
+
+  # UNSTATABLE (S1-05), four of this unit's five facts, all held already by unit 2:
+  #   STG_ORDERS.ORDER_DATE      -> FCT_PRODUCT_SALES.PERIOD_MONTH  [value/derived]
+  #   STG_ORDER_LINES.PRODUCT_ID -> FCT_PRODUCT_SALES.PRODUCT_ID    [value/identity]
+  #   STG_ORDER_LINES.LINE_AMOUNT-> FCT_PRODUCT_SALES.GROSS_SALES   [value/aggregated]  (`gbp`)
+  #   STG_ORDERS.CURRENCY        -> relation:FCT_PRODUCT_SALES      [filter/identity]
+  #
+  # READ THAT AGAINST S2-03. The fix that taught the analyser to trace a literal-list
+  # PIVOT recovered five edges in this unit, and the key can state exactly ONE of them -
+  # the `usd` column below, which is the only one whose four-tuple nothing else in the
+  # file already writes. S2-03's own note said the fix was "invisible to the score";
+  # this is the mechanism, written down at the point where it happens.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S2_PIVOT_STATIC, line: 421}
+    evidence: source_read
+    note: >
+      The `usd` output column. Same source column as gross_sales and a different target,
+      which is exactly what makes the transposed columns worth tracing - a reader who
+      sees only period_month and product_id traced would think the statement was
+      understood.
+
+  # === 17. s2_hierarchical ==================================================
+  # EXPECTED TO BE REFUSED - CONNECT BY, declared in expected_boundaries. Labelled
+  # in full anyway, to size what the refusal costs.
+  #
+  # UNSTATABLE (S1-05), three of this unit's four facts, all held already by unit 1:
+  #   DIM_CUSTOMER_HIER.CUST_ID        -> DIM_CUSTOMER_HIER.CUST_ID        [value/identity]
+  #   DIM_CUSTOMER_HIER.PARENT_CUST_ID -> DIM_CUSTOMER_HIER.PARENT_CUST_ID [value/identity]
+  #   DIM_CUSTOMER_HIER.PARENT_CUST_ID -> relation:DIM_CUSTOMER_HIER       [filter/identity]
+  #
+  # So a correct refusal of a whole statement costs one scoreable label. The refusal is
+  # right, the cost is real, and the grid cannot show either.
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_HIERARCHICAL, line: 445}
+    evidence: source_read
+    note: >
+      CONNECT_BY_ROOT. The value comes from root_name of a DIFFERENT row - the root of
+      this row's branch - which is precisely why the construct is refused. `derived`
+      rather than `identity`: the column is the source, the row is not the same one.
+      depth <- LEVEL is a pseudo-column with no upstream at all, so no edge.
+
+  # START WITH parent_cust_id IS NULL is the filter edge listed as unstatable above.
+  # The CONNECT BY PRIOR condition is the walk itself, not a predicate over the result,
+  # so it is structural - the same treatment a join condition gets.
+
+  # === 18. s2_remote_and_synonym ============================================
+  # Two name-resolution problems in one statement. The TARGET is a synonym and must
+  # resolve to dw_dim_customer_v2 - s1_synonym_redirect settled that by execution.
+  # The SOURCE is across a DB link and everything upstream of it is invisible, which
+  # is a counted boundary rather than a reason to refuse the projection.
+  # is_active <- literal 1 and lifetime_value <- literal 0: no edge.
+
+  - source: {kind: column, name: REMOTE_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_REMOTE_AND_SYNONYM, line: 464}
+    evidence: source_read
+    unexercised: true
+    note: >
+      BAND DISAGREES WITH b2_06 AND THE DISAGREEMENT IS STATED RATHER THAN SETTLED.
+      b2_06's key labels the same shape band 2, but that package is band 2 throughout by
+      construction. IR v0 section 7 puts the band on the EDGE and defines it as the
+      hardest construct on the edge's path; a DB link is not on that ladder, and this
+      statement is an ordinary set-based INSERT ... SELECT. Labelled band 0 by the rule
+      as written. If the analyser says band 2 it is a convention question for the
+      register, not a defect - and it must be settled in one place for both keys.
+
+  - source: {kind: column, name: REMOTE_CUSTOMER.REGION}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.REGION}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_REMOTE_AND_SYNONYM, line: 464}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: REMOTE_CUSTOMER.EMAIL}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.EMAIL}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_REMOTE_AND_SYNONYM, line: 464}
+    evidence: source_read
+    unexercised: true
+
+  - source: {kind: column, name: REMOTE_CUSTOMER.REGION}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_REMOTE_AND_SYNONYM, line: 464}
+    evidence: source_read
+    unexercised: true
+    note: WHERE r.region IS NOT NULL.
+
+  # === 19. pkg_s2_pipeline ==================================================
+  # load -> stage -> publish, package state set at the top and read three levels down.
+  #
+  # NO LABELS: RUN_ALL - it takes p_region and passes it straight to `load`, whose own
+  # parameter has the same name. Parameter binding is not an edge shape in this key -
+  # nowhere in the corpus is one labelled - so the only fact here would be an identity
+  # self-edge on P_REGION, which is noise rather than lineage. Declared, not omitted.
 
   - source: {kind: column, name: GTT_STAGE.CUST_ID}
     target: {kind: column, name: FCT_REVENUE.CUST_ID}
@@ -881,8 +1082,68 @@ edges:
     origin: {unit: S2_RECURSIVE_WALK, line: 560}
     evidence: source_read
 
+  # === 21. s2_dynamic_in_loop ===============================================
+  # EXPECTED TO BE REFUSED, and the refusal is CORRECT - the text is assembled from
+  # the loop counter, so it is a different statement on every pass and constant on
+  # none. Declared in expected_boundaries. Labelled in full because the cost of a
+  # correct abstention is still a cost, and a key that only sizes the wrong refusals
+  # cannot tell you what abstaining is buying.
+  # Band 2 throughout: the path runs through EXECUTE IMMEDIATE either way.
+
+  # UNSTATABLE (S1-05), the three value facts, all held already at band 0 by unit 3:
+  #   STG_ORDERS.CUST_ID       -> GTT_STAGE.CUST_ID     [value/identity]
+  #   STG_ORDERS.ORDER_DATE    -> GTT_STAGE.PERIOD_MONTH[value/derived]
+  #   STG_ORDERS.GROSS_AMOUNT  -> GTT_STAGE.AMOUNT      [value/identity]
+  #
+  # THE BAND IS THE WHOLE POINT HERE AND THE KEY CANNOT CARRY IT. These three are band
+  # 2 - the path runs through EXECUTE IMMEDIATE - and the surviving band-0 copies say
+  # the same four columns move for reasons that have nothing to do with dynamic SQL.
+  # Band 2 value recall is measured on 2 labels in this file; three more belong to it
+  # and cannot be added. That is a direct answer to the question S1-05 was raised to
+  # ask: the collision does not merely lose facts, it biases which BAND gets measured.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: S2_DYNAMIC_IN_LOOP, line: 581}
+    evidence: source_read
+    note: >
+      `WHERE cust_id = ' || TO_CHAR(i)`. The column-level shape is the same on all three
+      passes - only the literal changes - which is what makes this the hard case rather
+      than the obvious one. It is still not constant, and constant-ness is a MUST.
+
   # === 22. s2_three_way_resolution ==========================================
-  # The same base table reached three ways in one statement.
+  # The same base table reached three ways in one statement: through the three-deep
+  # view chain, through v_recent_raw, and directly. All three must land on
+  # stg_customer or the resolver disagrees with itself.
+  # Join conditions (w.cust_id = v.cust_id, s.cust_id = v.cust_id) are structural.
+
+  # NO LABELS: S2_THREE_WAY_RESOLUTION - every one of its four facts is already held
+  # by another unit writing the same table, so the key states none of them:
+  #
+  #   STG_CUSTOMER.CUST_ID    -> TMP_RECENT.CUST_ID    [value/identity]   - unit 3
+  #     v_cust_l3.cust_id <- v_cust_l2.cust_id <- v_cust_l1.id <- stg_customer.cust_id
+  #   STG_CUSTOMER.LAST_LOGIN -> TMP_RECENT.LAST_LOGIN [value/identity]   - unit 3
+  #     renamed twice en route - last_login <- login_ts <- last_login - still identity
+  #   STG_CUSTOMER.STATUS_CODE-> relation:TMP_RECENT   [filter/identity]  - unit 3
+  #   STG_CUSTOMER.LAST_LOGIN -> relation:TMP_RECENT   [filter/identity]  - unit 13
+  #     w.last_login IS NOT NULL, through v_recent_raw
+  #
+  # AND THE STATUS_CODE FILTER COLLIDES WITH ITSELF, INSIDE ONE STATEMENT. `v.status_flag
+  # = 1` resolves through the CASE in v_cust_l2 down to status_code; `s.status_code = 'A'`
+  # names it directly. b0_04 fixes the transform on the view-chain half as `identity` -
+  # a filter's transform describes the edge, not the expression that computed the
+  # predicate - so the two are one four-tuple even before any other unit is considered.
+  #
+  # The unit was written to test that three routes to one base table resolve to the same
+  # place. It cannot fail this key and it cannot pass it: the labels that would show the
+  # resolver agreeing with itself are the labels the key cannot hold. Join conditions
+  # (w.cust_id = v.cust_id, s.cust_id = v.cust_id) are structural and contribute nothing.
+
+  # === 23. s2_unpivot_listagg ===============================================
+  # PROPOSED CONVENTION (b): UNPIVOT feeds one output column from several inputs.
 
   - source: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
     target: {kind: column, name: GTT_STAGE.AMOUNT}
@@ -938,6 +1199,88 @@ edges:
       MAX ... KEEP (DENSE_RANK FIRST ORDER BY line_amount). The ORDER BY picks WHICH row
       the value comes from, so line_amount is a filter influence on this column and not a
       source of its value - the same distinction as a window ORDER BY.
+
+  # === 25. s2_row_limiting ==================================================
+  # ROWNUM and FETCH FIRST limit the result set without depending on any column, so
+  # neither invents an edge - the convention this key inherited from stress 1.
+  # The ORDER BY under FETCH FIRST decides WHICH fifty rows survive, which is close
+  # to a filter; it is left unlabelled for the same reason a window ORDER BY is, and
+  # the two must move together if that convention is ever revisited.
+
+  # NO LABELS: S2_ROW_LIMITING - all six of its facts are held already:
+  #
+  #   STG_CUSTOMER.CUST_ID     -> TMP_RECENT.CUST_ID     [value/identity]   - unit 3
+  #   STG_CUSTOMER.LAST_LOGIN  -> TMP_RECENT.LAST_LOGIN  [value/identity]   - unit 3
+  #   STG_CUSTOMER.STATUS_CODE -> relation:TMP_RECENT    [filter/identity]  - unit 3
+  #     s.status_code = 'A'; the ROWNUM <= 100 beside it contributes nothing
+  #   STG_ORDERS.CUST_ID       -> GTT_STAGE.CUST_ID      [value/identity]   - unit 3
+  #   STG_ORDERS.ORDER_DATE    -> GTT_STAGE.PERIOD_MONTH [value/derived]    - unit 3
+  #   STG_ORDERS.GROSS_AMOUNT  -> GTT_STAGE.AMOUNT       [value/identity]   - unit 3
+  #
+  # What this unit exists to check is a NEGATIVE - that ROWNUM and FETCH FIRST invent no
+  # column dependency - and a negative is checked by the absence of a spurious edge, not
+  # by a label. So the unit still does its job through the SPURIOUS list, and states
+  # nothing in the key. Worth knowing which of the two a unit is before writing it.
+
+  # === 26. s2_truncate_reload ===============================================
+  # TRUNCATE is DDL and writes no lineage - but the table's entire prior contents
+  # are gone, which is a fact about gtt_stage that no DML-only reading contains.
+  # It is dynamic and constant, so it should be RECOVERED and then found to carry
+  # no column lineage. Recovering it and emitting nothing, and never seeing it at
+  # all, are the same output and different facts - the S2-04 shape in DDL form.
+  # The GROUP BY columns are NOT labelled: S1-03's convention, two more predicted
+  # false positives.
+
+  # NO LABELS: S2_TRUNCATE_RELOAD - all three of its facts are held already:
+  #
+  #   STG_ORDERS.CUST_ID      -> GTT_STAGE.CUST_ID      [value/identity]    - unit 3
+  #   STG_ORDERS.ORDER_DATE   -> GTT_STAGE.PERIOD_MONTH [value/derived]     - unit 3
+  #   STG_ORDERS.GROSS_AMOUNT -> GTT_STAGE.AMOUNT       [value/aggregated]  - unit 19, `stage`
+  #
+  # The fact this unit was written to raise - that TRUNCATE destroys gtt_stage's entire
+  # prior contents, which no DML-only reading contains - has no edge shape at all. It is
+  # not a column dependency and the key has no room for it. Recorded as an IR gap rather
+  # than a label: the s4 shape, arriving in DDL.
+
+  # === 27. s2_model_clause ==================================================
+  # EXPECTED TO BE REFUSED - MODEL, declared in expected_boundaries. Labelled in
+  # full to size the refusal.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S2_MODEL_CLAUSE, line: 712}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_MODEL_CLAUSE, line: 712}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S2_MODEL_CLAUSE, line: 712}
+    evidence: source_read
+    note: >
+      order_count <- literal 1, no edge.
+
+      WORTH SAYING PLAINLY, BECAUSE IT IS THE S2-03 ARGUMENT AGAIN: this particular rule
+      is `net_amount[ANY] = net_amount[CV()] * 1.1`, which reads only the cell of the row
+      it writes, so the shape IS decidable. MODEL in general is not - a rule may read any
+      cell of the result set, including one no base row produced - and the refusal is the
+      right default. But the same over-refusal question PIVOT turned out to have is live
+      here, and if it is ever taken up the test is `CV()` versus an arbitrary subscript.
+      Not raised as a finding: one construct, no recurrence, and the refusal is honest.
+
+  # === 28. s2_goto_flow =====================================================
 
   - source: {kind: variable, name: V_FLAG}
     target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
@@ -1025,6 +1368,14 @@ expected_boundaries:
     reason: >
       Assembled inside a loop from the loop counter, so it is a different statement on
       every pass and constant on none. Constant-ness is a MUST property.
+
+  - kind: dangling_reference
+    subject: "REMOTE_CUSTOMER@CRM_LINK"
+    reason: >
+      ADDED 2026-09-09 under S2-06, with unit 18's labels. The database link target is out
+      of coverage, so everything upstream of remote_customer is permanently invisible. The
+      projection across it is still readable and is labelled; the boundary is what makes
+      the difference between a partial answer and a quiet one. Same treatment as b2_06.
 
   - kind: cross_unit_state
     subject: "PUBLISH"

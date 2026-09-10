@@ -26,26 +26,27 @@ with the code has stopped measuring anything.
 | S1-03 | `flow-classification` | open | `GROUP BY` columns emitted as filter edges |
 | S1-04 | `refusal-taxonomy` | open | `INSERT … VALUES` from variables refused; §3 makes variables first-class |
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
-| S1-06 | `key-error` | closed | two gaps in my own key, stated rather than quietly fixed |
+| S1-06 | `key-error` | **fixed** | two gaps in my own key, stated rather than quietly fixed — corrected 2026-09-09 |
 | S2-01 | `construct-coverage` | open | `MERGE` with a `DELETE` arm fails to parse at all |
 | S2-02 | `construct-coverage` | open | `INSERT ALL` unsupported — declared, but 7 edges lost |
 | S2-03 | `refusal-taxonomy` | **fixed** | `PIVOT`/`UNPIVOT` refused even with a static column list |
 | S2-04 | `silent-loss` | **fixed** | `BULK COLLECT` into a record collection yielded nothing, silently |
 | S2-05 | `transform-classification` | **fixed** | `DECODE`/`NULLIF`/`GREATEST` read as derived, not conditional |
-| S2-06 | `key-error` | closed | `s2_locking` unlabelled; two window-transform disagreements |
+| S2-06 | `key-error` | **fixed** | ten units unlabelled, not seven; the header claim made true |
+| S2-07 | `transform-classification` | open | `FIRST_VALUE`/`LAST_VALUE` — the key says `derived`, the analyser `aggregated` |
 
 ## Open work — what is left, and what each one needs
 
-**Six open. Five fixed. Nothing in the register has yet failed to recur across stress runs.**
+**Five open. Seven fixed. Nothing in the register has yet failed to recur across stress runs.**
 
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
 | **S1-04** | `refusal-taxonomy` | a decision — narrowing a refusal **costs parse coverage**, which has 5.6 points against a kill criterion | 3 edges in stress 1, 2 in stress 2; the one false abstention in the signed phase-0 measurement |
 | **S1-03** | `flow-classification` | a decision — must land in the analyser **and** the phase-0 keys in one change, or they disagree silently | 3 false positives per stress run; double-counts columns already scored as value sources |
+| **S2-07** | `transform-classification` | a decision — is a value-selecting window function `aggregated` or `derived`? | 2 cells per instance in stress 2; S2-06 claimed this was "not scored" and it always was |
 | **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
 | **S2-02** | `construct-coverage` | real work — `INSERT ALL` is genuinely unimplemented | 7 edges; the honest refusal makes this a coverage gap, not a defect |
-| **S1-05** | `identity` | **the production package.** Moves every number in the phase | 21% of the stress-2 key unstatable; also *hides* whether fixes worked |
-| **S2-06** | `key-error` | me — seven stress-2 units are unlabelled | inflates false positives against my own key, not the analyser's fault |
+| **S1-05** | `identity` | **the production package.** Moves every number in the phase | **31%** of the stress-2 key unstatable once the key is complete; also *hides* whether fixes worked |
 
 ### What each open finding is waiting for, in one line
 
@@ -59,9 +60,11 @@ with the code has stopped measuring anything.
 - **S2-02** — needs multi-table-insert support. The refusal is *true*, so this is capability,
   not correctness.
 - **S1-05** — the match key. **Do not start before the production package**: it is the decision
-  that most wants real code in front of it, and the verdict's condition still stands.
-- **S2-06** — label the seven missing units, and correct the key header's false claim that
-  refused units are "written out in full".
+  that most wants real code in front of it, and the verdict's condition still stands. The
+  number it has to beat is now 31%, not 21% — see S2-06 below.
+- **S2-07** — `FIRST_VALUE`/`LAST_VALUE` select a value from a partition rather than computing
+  one. `aggregated` or `derived`? Whichever is chosen must land in the keys and the analyser
+  together, exactly as S1-03 must.
 
 ### Fix log
 
@@ -72,8 +75,9 @@ with the code has stopped measuring anything.
 | S1-02 `construct-coverage` | `46f4617` | none |
 | S2-05 `transform-classification` | `1108223` | none |
 | S2-03 `refusal-taxonomy` | `cda24a3` | none |
+| S2-06 + S1-06 `key-error` | *this change* | none — `cells` byte-identical to `phase0_final.json` |
 
-**Five fixes, and the phase-0 measurement has not moved once.** That is a statement about the
+**Seven fixes, and the phase-0 measurement has not moved once.** That is a statement about the
 corpus, not about the analyser: none of these five constructs appears in it in the form that
 breaks. It sharpens the verdict's existing caveat considerably — the corpus is not just
 synthetic, its *construct mix and package shape* are unrepresentative in ways that hide real
@@ -81,22 +85,41 @@ defects.
 
 ### Where the stress packages stand now
 
-Both re-scored after the five fixes. The per-run tables further down are the **first-run**
-figures and are left as measured.
+Both re-scored after the seven fixes. The per-run tables further down are the **first-run**
+figures and are left as measured. The analyser did not change in the S2-06 pass — **only the
+keys did** — so every movement in this table is the benchmark getting more honest, in both
+directions.
 
-| | stress 1 | stress 2 |
-|---|---|---|
-| 0 value | 100% / 100% | 93.9% / 75.6% |
-| 0 filter | 61.5% / 88.9% | 76.0% / 76.0% |
-| **1 value — the gate** | **95.5% / 87.5%** | **81.8% / 56.2%** |
-| 1 filter | 100% / 84.6% | 100% / 75.0% |
-| 2 value | 100% / 100% | 100% / 50.0% |
-| 2 filter | 100% / 100% | 100% / 100% |
-| parse coverage | 76.9% | 65.5% |
+| | stress 1 | | stress 2 | |
+|---|---|---|---|---|
+| | before S2-06 | now | before S2-06 | now |
+| 0 value | 100% / 100% | 100% / 100% | 93.9% / 75.6% | **97.0% / 65.3%** |
+| 0 filter | 61.5% / 88.9% | **75.0% / 90.0%** | 76.0% / 76.0% | 76.0% / **73.1%** |
+| **1 value — the gate** | **95.5% / 87.5%** | **100% / 84.6%** | **81.8% / 56.2%** | **100% / 55.0%** |
+| 1 filter | 100% / 84.6% | 100% / 85.7% | 100% / 75.0% | 100% / 75.0% |
+| 2 value | 100% / 100% | 100% / 100% | 100% / 50.0% | 100% / 50.0% |
+| 2 filter | 100% / 100% | 100% / 100% | 100% / 100% | 100% / **50.0%** |
+| parse coverage | 76.9% | 76.9% | 65.5% | 65.5% |
 
-Stress 1 clears the gate; **stress 2 still fails both floors.** Most of what remains there is
-S1-04, S2-01 and S2-02 — lost statements rather than wrong answers — plus my own unlabelled
-units under S2-06.
+**Precision went up everywhere it moved, and recall went down.** Both are the same fact: the
+analyser's correct edges were being counted as false positives against units I had not
+labelled, and the facts it does *not* produce were not being counted at all. Band-1 value
+precision reaching 100% on both packages is the clearest single result — **there is now no
+band-1 value edge in either stress package that the analyser produces and the key denies.**
+
+**AND STRESS 1 NO LONGER CLEARS THE GATE.** 84.6% against an 85% recall floor, missing by
+0.4 points, on the strength of one label: `V_IDS -> TMP_RECENT.CUST_ID`, the `FORALL` write
+that S2-04 taught the analyser to refuse by name. It was always missing; it was never
+counted. The gate margin reported for stress 1 — "clears its floor by 0.5 points" — was
+measured against a key with a hole in it, and the hole was on the gate's own axis.
+
+Stress 2 still fails both floors. Most of what remains there is S1-04, S2-01 and S2-02 —
+lost statements rather than wrong answers.
+
+**Band-2 filter fell from 100% to 50% and that is the honest number.** The key now states
+the four edges `s2_dynamic_in_loop` would produce if it were analysable, and the refusal of
+that unit is *correct*. A correct abstention costs recall; a benchmark that only counts the
+cost of wrong refusals cannot tell you what abstaining buys.
 
 ---
 
@@ -110,9 +133,18 @@ and becomes an IR decision."* It turned up, and it scaled badly:
 |---|---|---|---|---|
 | stress 1 (362 lines, 13 units) | 68 | 5 | 5 | **7%** |
 | stress 2 (753 lines, 28 units) | 130 | 15 | 27 | **21%** |
+| stress 2, **key completed** (S2-06) | 169 | 32 | 52 | **31%** |
 
 The file doubled and the loss tripled, because collisions grow with the number of *pairs* of
-writers to a table, not with the number of writers. One key in stress 2 has **five** members —
+writers to a table, not with the number of writers.
+
+**The 21% was measured on an incomplete key and it understated the problem.** Labelling the
+ten missing units added 39 facts, of which **25 could not be stated** — the validator
+rejected the file until they were removed. Nearly two thirds of the new work was unstatable,
+against 21% of the old, because every one of those units writes a table that something else
+in the file already writes. Three units — `s2_three_way_resolution`, `s2_row_limiting`,
+`s2_truncate_reload` — contribute **zero** labels between them. The growth curve is 7% at 13
+units, 31% at 28, and it is steeper than the first measurement suggested. One key in stress 2 has **five** members —
 `STG_CUSTOMER.CUST_ID → TMP_RECENT.CUST_ID`, written by five different units. Bands differ
 within collisions (0, 1 and 2 all appear), so the collision also forces a choice about which
 band is charged for the fact.
@@ -142,7 +174,9 @@ transform class, and ADR-0001 §4 makes a wrong transform a MISS rather than par
 ## Stress test 1
 
 362 lines, 13 program units, 68 hand-labelled edges written from source before the analyser
-was run over the file. Six forbidden-edge rules, three expected boundaries.
+was run over the file. Six forbidden-edge rules, three expected boundaries. *(The key now
+holds 81 edges: S1-06's two corrections were applied 2026-09-09. The figures in this section
+are the first run and are left as measured.)*
 
 **Zero forbidden edges produced.** None of the six named wrong answers fired — including the
 UDF argument read as a value source, the window `PARTITION BY` read as a value source, and
@@ -307,7 +341,7 @@ It also masked S1-02: `set_ops` contributes **zero** edges, yet two of its label
 matched, because `udf_caller` happens to write the same columns. A whole statement was lost
 and the score barely moved.
 
-## S1-06 · `key-error` · CLOSED — two gaps in my own key
+## S1-06 · `key-error` · FIXED — two gaps in my own key
 
 Stated because a key is evidence and its errors are part of the result.
 
@@ -318,8 +352,20 @@ Stated because a key is evidence and its errors are part of the result.
   correctly emits `STG_CUSTOMER.CUST_ID → variable:V_IDS` and the statement's `WHERE` filter.
   Two false positives that are the key's fault, not the analyser's.
 
-Corrected in a later pass they would raise band-0 filter precision from 58.3% to roughly 80%.
-Left uncorrected here so the first run stands as it was measured.
+**Both corrected 2026-09-09, in the S2-06 pass**, and the second one was found rather than
+remembered: `stress_bulk_operations` had *no labels at all*, and the completeness check
+written for S2-06 failed on stress 1 the first time it ran. The finding was recorded as
+`closed` when it was only *stated*, which is how it survived four intervening fixes.
+
+**The prediction was written down before the re-run and it was wrong in the right
+direction.** S1-06 estimated band-0 filter precision would go from 58.3% to "roughly 80%".
+Measured: **61.5% → 75.0%**, recall 88.9% → 90.0%. The three remaining false positives are
+all S1-03's `GROUP BY` columns, which is the whole of what is left there.
+
+**And correcting it took stress 1 below the gate** — band-1 value recall 87.5% → 84.6%, under
+the 85% floor, because `V_IDS → TMP_RECENT.CUST_ID` is a real band-1 value fact that the
+analyser refuses. That is the cost of a key error being paid a run late, and it is the reason
+this file's own rule says a finding is not closed until a test fails without the fix.
 
 ---
 
@@ -338,6 +384,10 @@ sharper version of the caveat the verdict already carries: the corpus is synthet
 753 lines, 28 program units, 130 hand-labelled edges written from source before the analyser
 was run over the file. Six forbidden-edge rules, four expected boundaries. Twice the size of
 stress 1 and aimed at what stress 1 did not reach.
+
+*(The "130" was always the count of facts written, not of labels the file could hold — 103
+survived the validator. After S2-06 it is 169 facts and 117 labels, with five expected
+boundaries. The figures in this section are the first run and are left as measured.)*
 
 | band / flow | precision | recall |
 |---|---|---|
@@ -543,28 +593,67 @@ leaves it alone, but the reason it is right is the semantic one, not the free on
 Exactly the eight cells predicted, recovered. Eleven regression tests, including the
 `COALESCE`-versus-`NVL` distinction and the ladder check that aggregation still outranks.
 
-## S2-06 · `key-error` · CLOSED — my key again
+## S2-06 · `key-error` · FIXED — my key again, and worse than it was recorded
 
 - **`s2_locking` was never labelled.** I wrote the unit and skipped it in the key; its two
   correct edges (`DIM_CUSTOMER.CUST_ID → V_ID`, `LIFETIME_VALUE → V_VAL`) score as false
   positives. My omission.
 - **`s2_pivot_static` was never labelled either**, which only became visible once S2-03 was
-  fixed and the unit started producing edges. Seven units are unlabelled in total (14, 15,
-  16, 17, 18, 21, 27); the refused ones cost nothing, but any that later get implemented
-  will surface the same way. The key's header claims labels are "written out in full" for
-  refused units, and that claim is false — stated here rather than quietly amended.
-- **`FIRST_VALUE` and `LAST_VALUE` transform.** I labelled them `derived`; the analyser says
-  `aggregated`. Both defensible — they are window functions that select a value rather than
-  compute one. Recorded as undecided rather than scored against the analyser.
+  fixed and the unit started producing edges.
+- **The count was wrong: TEN units, not seven.** The finding named 14, 15, 16, 17, 18, 21 and
+  27. It missed **22 (`s2_three_way_resolution`), 25 (`s2_row_limiting`) and 26
+  (`s2_truncate_reload`)** — and 22 was missed *because the key contained a section header
+  for it*, mis-numbered, sitting above unit 23's edges. A header with no edges under it read
+  as a labelled unit. Section numbering for units 9, 13, 19, 21 and 28 was missing entirely.
+- **The header's false claim is now true rather than deleted.** All three refused units (17,
+  21, 27) are labelled in full, so a refusal's cost can be read off the key. Unit 21's
+  refusal is *correct* and it still costs four labels; that case is now stated explicitly,
+  because a key that sizes only the wrong refusals cannot say what abstaining buys.
 - **Proposed convention (c) was rejected by the code.** I labelled a `DELETE`'s predicate
   columns as filter edges against the deleted relation; the analyser emits none.
   `s2_delete_with_subquery` produces zero edges and no refusal. That is a convention question
   I raised and the analyser answered differently — not a defect until someone decides.
+- **`FIRST_VALUE`/`LAST_VALUE` was never "recorded as undecided" in any way that mattered.**
+  Promoted to **S2-07** below. The key still said `derived`, so it was scored against the
+  analyser on every run since — the finding claimed an outcome nobody implemented.
+
+**One correction could not be made at all.** The trigger stanza was missing its third edge —
+`DIM_CUSTOMER.CUST_ID → relation:DIM_CUSTOMER`, the other operand of `WHERE cust_id =
+:NEW.cust_id`, which `b0_04` names as a two-edge block copied between keys. Adding it was
+rejected by the validator: unit 9 already states that four-tuple at band 0. Two facts, one
+band apart, one match key. It is recorded in the key as unstatable and **S1-05 now blocks a
+key correction, not only a measurement.**
+
+**Pinned by `tests/test_stress_keys.py`**, which asserts every program unit in a stress
+package is either labelled or carries an explicit `# NO LABELS: <UNIT>` declaration saying
+why. It failed on stress 1 the first time it ran — see S1-06.
+
+## S2-07 · `transform-classification` · OPEN — `FIRST_VALUE` and `LAST_VALUE`
+
+| expression | key says | analyser says |
+|---|---|---|
+| `FIRST_VALUE(p.product_name) OVER (…)` | derived | aggregated |
+| `LAST_VALUE(l.unit_price) OVER (…)` | derived | aggregated |
+
+Both readings are defensible and that is the problem — under ADR-0001 §4 a wrong transform is
+a **MISS, not partial credit**, so each instance costs a false positive *and* a false
+negative. Four cells in stress 2, on a construct that is ordinary in reporting SQL.
+
+The argument for `aggregated`: they are window functions and take a partition. The argument
+for `derived`: they *select* an existing value rather than computing one over a set — nothing
+is summed, and the value written appears verbatim in some row of the input. The same question
+does not arise for `SUM() OVER ()`, which both sides call `aggregated`.
+
+Carved out of S2-06, which claimed it was "recorded as undecided rather than scored against
+the analyser". It was scored on every run. **Whichever answer is chosen has to land in the
+keys and in `_transform_of` in one change**, exactly as S1-03 does — and the phase-0 corpus
+must be checked for the same construct before it moves.
 
 ## Fix order for what remains
 
-Ordered by what each one would teach, not by how annoying it is. The first five are done;
-this is the queue from here.
+Ordered by what each one would teach, not by how annoying it is. Seven are done; this is the
+queue from here. **S2-06 and S1-06 are struck from it** — both were key corrections, both are
+now pinned by `tests/test_stress_keys.py`, and neither moved the phase-0 measurement.
 
 1. **S1-04** (`refusal-taxonomy`). Needs a decision before code. The refusal is not wrong so
    much as **coarse** — "carries no column lineage from a relation" is true of relations and
@@ -578,12 +667,14 @@ this is the queue from here.
 4. **S2-02** (`construct-coverage`). `INSERT ALL` is capability work. The refusal is true, so
    nothing is *wrong* today — it is a gap, and the shape ETL uses to fan one source into
    staging and reject tables.
-5. **S2-06** (`key-error`). Label the seven missing stress-2 units and correct the key
-   header's false claim. Cheap, and it stops my own omissions being read as analyser defects.
+5. **S2-07** (`transform-classification`). A decision, and a cheap one to implement either
+   way. Group it with S1-03: both are conventions the keys and the analyser must adopt in the
+   same change, and doing them together costs one measurement instead of two.
 6. **S1-05** (`identity`). Last, because it is the largest and the only one that moves every
    number in the phase. **Do not start it until the production package has been measured** —
    the verdict's condition still stands, and this is precisely the decision that wants real
-   code in front of it rather than more synthetic evidence.
+   code in front of it rather than more synthetic evidence. It is now blocking key
+   *corrections* as well as measurements: see S2-06's trigger edge.
 
 **A finding is not closed until a regression test fails without the fix.** Reproducing it
 once in a stress run is a symptom; the test is the fix's only durable statement.
@@ -591,10 +682,19 @@ once in a stress run is a symptom; the test is the fix's only durable statement.
 ## Before stress 3
 
 Every open finding from stress 1 recurred in stress 2, so a third package will mostly restate
-what is already here. **Clear S1-04, S1-03 and S2-06 first** — then a stress 3 measures
+what is already here. **Clear S1-04, S1-03 and S2-07 first** — then a stress 3 measures
 something new rather than re-reporting known gaps.
 
-The two things stress 3 should reach that neither predecessor did: **more units writing the
-same tables** (to put a number on S1-05's growth curve — 7% at 13 units, 21% at 28), and
-**a package whose control flow is genuinely deep** rather than wide, since both stress files
-are broad and shallow.
+**Do not write stress 3 to put a number on S1-05's growth curve. That number is in.** 7% at
+13 units, 31% at 28 with the key complete, and three of the twenty-eight units unable to
+state a single fact. A third synthetic package would produce a fourth point on a curve whose
+shape is no longer in question, and the verdict's condition already says what the next
+evidence has to be: **real code**.
+
+What stress 3 should still reach is **control flow that is genuinely deep** rather than wide.
+Both stress files are broad and shallow, and nothing yet has tested a call chain against the
+interprocedural depth cap.
+
+**And write the key with `tests/test_stress_keys.py` in front of you.** Both key-error
+findings in this register were the same mistake — a unit written into the SQL and never
+labelled — and both were invisible until something counted the units.

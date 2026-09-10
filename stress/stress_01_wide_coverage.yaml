@@ -576,6 +576,22 @@ edges:
       The EXISTS correlation. It decides WHICH rows survive and supplies no value - the
       error that has now appeared four times in this project.
 
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER_HIER}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SELF_JOIN_AND_SCALAR, line: 207}
+    evidence: source_read
+    note: >
+      COMPLETION, 2026-09-09, closing the first half of S1-06 AND IT RAISES PRECISION -
+      stated for that reason.
+
+      The other operand of `o.cust_id = child.cust_id`. I labelled only the STG_ORDERS
+      side; s7's key labels BOTH operands, so the analyser is right and this key was
+      incomplete. S1-06 recorded that on the day it was measured and left it standing so
+      the first run read as measured. This is the later pass it named.
+
   # ================================================================================
   # stress_transaction_control - SAVEPOINT / ROLLBACK TO / guarded branches / DELETE
   # ================================================================================
@@ -647,6 +663,53 @@ edges:
     band: 2
     origin: {unit: STRESS_DYNAMIC_MIXED, line: 262}
     evidence: source_read
+
+  # ================================================================================
+  # stress_bulk_operations - SELECT BULK COLLECT, then FORALL out of the collection
+  # ================================================================================
+  #
+  # ADDED 2026-09-09, closing the second half of S1-06 and found by the same check that
+  # closed S2-06. This unit was never labelled. S1-06 recorded the omission on the day it
+  # was measured - "I predicted a refusal and labelled none of it; the analyser correctly
+  # emits STG_CUSTOMER.CUST_ID -> variable:V_IDS and the statement's WHERE filter. Two
+  # false positives that are the key's fault, not the analyser's" - and left it standing
+  # so the first run read as measured. This is the later pass it named, and S1-06 predicted
+  # the effect: band-0 filter precision 58.3% -> roughly 80%.
+  #
+  # The prediction is stated here BEFORE the re-run, so it can be wrong.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: variable, name: V_IDS}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: STRESS_BULK_OPERATIONS, line: 280}
+    evidence: source_read
+    note: >
+      `SELECT cust_id BULK COLLECT INTO v_ids` over a TABLE OF NUMBER. This one works and
+      always did - S2-04's fix was deliberately FETCH-specific precisely so it would keep
+      working, and `tests/test_refusals.py` pins the distinction.
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: relation, name: STG_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: STRESS_BULK_OPERATIONS, line: 282}
+    evidence: source_read
+    note: The statement writes a variable, so the filter targets the relation read.
+
+  - source: {kind: variable, name: V_IDS}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: STRESS_BULK_OPERATIONS, line: 285}
+    evidence: source_read
+    note: >
+      EXPECTED TO MISS, and the miss is now a REFUSAL rather than silence - S2-04 added
+      FORALL to the register by name. The value crosses into the DML through a collection
+      subscript that def-use does not model. last_login <- SYSDATE has no upstream.
 
   # ================================================================================
   # pkg_stress_state - package state written in one unit, read in another
