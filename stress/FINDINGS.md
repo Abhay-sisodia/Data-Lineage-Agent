@@ -31,7 +31,7 @@ with the code has stopped measuring anything.
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
 | S1-06 | `key-error` | **fixed** | two gaps in my own key, stated rather than quietly fixed — corrected 2026-09-09 |
 | S2-01 | `construct-coverage` | open | `MERGE` with a `DELETE` arm fails to parse at all |
-| S2-02 | `construct-coverage` | open | `INSERT ALL` unsupported — declared, but 7 edges lost |
+| S2-02 | `construct-coverage` | open | `INSERT ALL` unsupported — declared, but 7 edges lost; **parses fine**, so this is semantics, not parsing |
 | S2-03 | `refusal-taxonomy` | **fixed** | `PIVOT`/`UNPIVOT` refused even with a static column list |
 | S2-04 | `silent-loss` | **fixed** | `BULK COLLECT` into a record collection yielded nothing, silently |
 | S2-05 | `transform-classification` | **fixed** | `DECODE`/`NULLIF`/`GREATEST` read as derived, not conditional |
@@ -182,8 +182,8 @@ runs — the **S2-11 shape**, and the second instance of it in two days.
 **One open. Eighteen fixed. Nothing in the register has yet failed to recur across stress
 runs.** **Both stress packages have ZERO false positives** — 100% precision on every band
 and every flow in each — and so does the phase-0 corpus outside its one long-standing
-band-1 value FP. **All five decisions D-1 to D-5 are landed.** **D-1 and D-3 are landed in full** (S1-04's three halves, S2-07). D-2 is decided and
-not yet implemented — it is the last of the three and the largest.
+band-1 value FP. **All five decisions D-1 to D-5 are landed, D-2 included** — S1-04's three
+halves, S2-07, and the `HAVING`/`GROUP BY` split that touched every phase-0 key.
 
 Each implementation turned up a new finding — **S2-08** from D-3, and **S2-09**, **S2-10**
 and **S2-11** from D-1 — which is the pattern worth noticing: the defects were being hidden
@@ -192,23 +192,29 @@ rather than the analyser, and neither would have been found by running the analy
 
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
-| **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
-| **S2-02** | `construct-coverage` | real work — `INSERT ALL` is genuinely unimplemented | 7 edges; the honest refusal makes this a coverage gap, not a defect |
+| **S2-02** | `construct-coverage` | nothing external — **it parses**; the analyser declines a tree it already has | 7 edges; the honest refusal makes this a coverage gap, not a defect |
+| **S2-01** | `construct-coverage` | a newer SQLGlot, untried — it cannot parse `MERGE … DELETE` at 30.18.0 | 7 edges, and it is a standard slowly-changing-dimension shape |
 | **S1-05** | `identity` | **the production package.** Moves every number in the phase | **31%** of the stress-2 key unstatable once the key is complete; also *hides* whether fixes worked |
 
 ### What each open finding is waiting for, in one line
 
+Only the three in the table above are open. The rest of this list is kept because *what a
+fixed finding turned out to be* is the part worth carrying forward.
+
+- **S2-02** — needs multi-table-insert semantics. The refusal is *true*, so this is
+  capability, not correctness — and **it parses**, so there is no parser dependency at all
+  (corrected 2026-09-11). The cheapest real coverage left.
+- **S2-01** — `MERGE … DELETE` never becomes a tree. Try a newer SQLGlot first; the rewrite
+  route is ruled out on the admission test, so the fallback is a refusal code that names the
+  real reason rather than "Invalid expression".
+- **S1-05** — the match key. Gated on the production package, deliberately; see below.
 - **S2-09** — done with S1-04; kept in the register because a key error is evidence.
-- **S2-10** — `false_abstentions_recovered: 0` is not a measurement. Trigger edges number
-  their lines from the trigger BODY and refusals number theirs from the FILE.
+- **S2-10** — `false_abstentions_recovered: 0` was not a measurement. Fixed by making the
+  blind spot countable, because D-1 had already removed the live instance.
 - **S1-03** — **D-2 landed.** `HAVING` is a `filter` with `phase: post-aggregation`; `GROUP BY`
   is `influence` on the aggregated column. 80 new labels across 12 key files.
 - **S2-12** — **D-4: a third flow, `influence`, targeting the COLUMN.** Landed. A window
   removes no rows, so `filter` was false; the dependency is real, so silence was too.
-- **S2-01** — needs a SQLGlot bump, a pre-parse rewrite that strips the `DELETE` clause, or a
-  refusal code that names the real reason. Currently honest but uninformative.
-- **S2-02** — needs multi-table-insert support. The refusal is *true*, so this is capability,
-  not correctness.
 - **S1-05** — the match key. **Do not start before the production package**: it is the decision
   that most wants real code in front of it, and the verdict's condition still stands. The
   number it has to beat is now 31%, not 21% — see S2-06 below.
@@ -1296,7 +1302,7 @@ of the phase-0 verdict that is standing up best.
 **Twelve refusals as first measured, and only five of them correct.** `CONNECT BY`, `MODEL`,
 and three `INSERT … VALUES` of literals only (which carry no lineage anyway) are right. The
 other seven were S1-02, S1-04, S2-01, S2-02 and S2-03 below — four of those five are now
-fixed, and the refusals that remain are S1-04, S2-01 and S2-02.
+fixed, and the refusals that remain are S2-01 and S2-02 — S1-04 landed in full under D-1.
 
 ## S2-01 · `construct-coverage` · OPEN — `MERGE` with a `DELETE` arm does not parse
 
@@ -1313,6 +1319,13 @@ becomes a tree — so the fix is either a SQLGlot version bump, a pre-parse rewr
 the `DELETE` clause before analysing the rest, or an explicit refusal code that says what
 actually happened. The current message is at least honest about being a parse failure.
 
+**Re-confirmed 2026-09-11 against SQLGlot 30.18.0** by the parser probe (see *The parser
+probe* below): the failure is at `Line 2, Col: 45`, the `DELETE` keyword inside the `WHEN
+MATCHED` arm. Logged as **SG-001** in `docs/grammar_limitations.md`. **Note what that does
+NOT establish** — the probe pinned the current version's behaviour, not whether a newer
+SQLGlot fixes it. The version bump is still an untested option, and it should be tested
+before it is costed.
+
 ## S2-02 · `construct-coverage` · OPEN — `INSERT ALL` is unsupported
 
 `s2_multi_table_insert` is refused as *"unsupported statement type MultitableInserts"*. That
@@ -1323,6 +1336,26 @@ Worth separating from S1-02: this refusal is **true**. The analyser genuinely do
 multi-table insert, says so, and the boundary is counted. The finding is a coverage gap, not a
 correctness defect, and it is the shape ETL uses to fan one source into staging and reject
 tables.
+
+### Corrected 2026-09-11 — this is not a parse failure, and it is smaller than it reads
+
+The parser probe handed SQLGlot both `INSERT ALL` and `INSERT FIRST`. **Both parse cleanly.**
+This entry sits beside S2-01 in every summary list above, and the two were being carried as
+the same kind of problem. They are not:
+
+* **S2-01** — there is no tree. Nothing can be written against it until the parser changes.
+* **S2-02** — **the tree already exists.** `MultitableInserts` is a node SQLGlot hands us and
+  the analyser declines to walk. The work is lineage semantics on a parsed structure, which
+  is ordinary analyser work of the kind already done for `MERGE` and `UNPIVOT`.
+
+That materially re-orders the queue: S2-02 has no external dependency, no version bump and no
+rewrite rule — and its shape (one `SELECT` fanning into several targets, each behind its own
+`WHEN`) is a conditional edge per target, which the transform ladder already expresses.
+
+**Worth recording as a method failure, not just a correction.** "Unsupported" was read as
+"unparseable" for the whole life of this entry, by me, in the summary tables, without anyone
+checking which parser was refusing. The refusal message was accurate the entire time; nobody
+asked it the follow-up question.
 
 ## S2-03 · `refusal-taxonomy` · FIXED — `PIVOT`/`UNPIVOT` refused even when decidable
 
@@ -1596,6 +1629,65 @@ classifiers is the durable fix, and it moves band-1 numbers, so it wants its own
 **No stress package has exercised the S2-05 half.** That is not evidence it is harmless —
 it is the same gap that hid S2-06 for four fixes.
 
+## The parser probe — 2026-09-11
+
+Not a stress package. **120 documented Oracle constructs handed straight to both parsers**,
+each recorded as accept or reject, with no analyser, no keys and no scoring. Logged in full
+as `docs/grammar_limitations.md` (renamed from *Grammar limitations*, because fourteen of the
+seventeen findings turned out to be SQLGlot's rather than the grammar's).
+
+**It exists because every other instrument in this project measures the analyser against the
+corpus, and the corpus cannot tell you what it does not contain.** S2-06 is the standing
+proof: ten unlabelled units hid four fixes' worth of defects behind a clean-looking score.
+The probe attacks the same blind spot from the other side — it asks what Oracle allows that
+we reject, rather than what our own examples happen to cover.
+
+**Seventeen constructs rejected, three of them new information for this register:**
+
+| What it changed | Finding |
+|---|---|
+| **S2-02 is not a parse failure** | `INSERT ALL` and `INSERT FIRST` both parse. Corrected in its entry, and it moves up the queue. |
+| **S2-01 re-confirmed, and bounded** | Fails on SQLGlot 30.18.0 at the `DELETE` keyword. The probe did **not** test a newer SQLGlot — that remains the untried first step. |
+| **A new grammar defect, not yet given an S-number** | `FILE_EXT` (GL-002) makes `FNC`, `PKB`, `PKS`, `PRC`, `TRG` and `VW` unusable as identifiers anywhere. |
+
+### GL-002 deserves a decision, and it is not mine to take
+
+`grammars/plsql/PlSqlLexer.g4:1756` is a SQL\*Plus file-extension rule applied everywhere, so
+a table called `VW` or a variable called `PRC` fails to *lex*. It is the only entry in that
+document likely to be hit by code someone has already written, and a lexer error does not
+stay local — it can take a whole package down.
+
+**Whether it belongs in this register is a real question.** This register is defects in *the
+analyser and its keys*, found by stress-testing against ground truth. GL-002 is a defect in a
+vendored third-party grammar, found by a different instrument, and it already carries an ID
+in its own document. Filing it twice is how a register starts lying about its own scope.
+Recorded here as a pointer, pending that call.
+
+### The method mattered more than any single result
+
+The first probe run named every trigger `trg` and reported six trigger forms as rejected —
+compound triggers, `FOLLOWS`, `INSTEAD OF`, `WHEN`, `DISABLE`, `AFTER LOGON`. **That reading
+was wrong**, and it was wrong in the most expensive direction: it would have gone into the
+documentation as "the grammar cannot parse compound triggers", which is a much larger claim
+than the truth. Renaming to `t_aud` parses all seven forms clean. The name was the defect.
+
+Two rules came out of that, and both are the same rule this register already runs on:
+
+1. **Vary one thing.** A probe that changes the construct *and* the identifier cannot
+   attribute its own failure.
+2. **A rejection is a hypothesis until the minimal case confirms it** — the parser equivalent
+   of "a finding is not closed until a regression test fails without the fix".
+
+**The probe's accept-list is recorded too**, which is the half most likely to be discarded as
+uninteresting. It is not: it stops the same ground being re-probed, and it is what caught the
+S2-02 correction — `INSERT ALL` was on the accept side of a list nobody expected to read.
+
+### What the probe is not
+
+It ran against **no analyser**. A construct that parses may still yield no edges, a wrong
+transform, or a silent loss — `INSERT ALL` is exactly that case. **Parsing is a floor, not a
+score**, and nothing in `docs/grammar_limitations.md` should be read as coverage.
+
 ## Fix order for what remains
 
 Ordered by what each one would teach, not by how annoying it is. Eleven are done; this is the
@@ -1610,18 +1702,22 @@ corrections, none moved the phase-0 measurement.
    `UPDATE` half was not an UPDATE problem** — it was a parse failure on `WHERE CURRENT OF`,
    diagnosed before being treated, which is why it cost a rewrite rule rather than an
    analyser change.
-3. **S1-03** (`flow-classification`). **D-2.** Last of the three decided items and by far the
-   largest: it changes the IR's filter flow, the analyser, and **every phase-0 key**. Do it
-   after the other two are landed and measured, so its movement in the grid is attributable to
-   it alone.
-4. **S2-01** (`construct-coverage`). `MERGE … DELETE` never becomes a tree, so this is a
-   SQLGlot bump, a pre-parse rewrite, or at minimum a refusal code that names the real reason.
-5. **S2-02** (`construct-coverage`). `INSERT ALL` is capability work. The refusal is true, so
-   nothing is *wrong* today — it is a gap, and the shape ETL uses to fan one source into
-   staging and reject tables.
-6. **S2-08** (`transform-classification`). Needs a decision on `LAG`/`LEAD` and a refactor
-   that merges the two `_transform_of` copies. Do the merge whenever S2-05's band-1 half is
-   worth repairing — it is a recorded fix that only half landed.
+3. ~~**S1-03** (`flow-classification`). **D-2.**~~ **Done.** `HAVING` became a `filter` with
+   `phase: post-aggregation` and `GROUP BY` an `influence`; 80 new labels across 12 key files.
+   It moved the grid once, deliberately, and nothing else.
+4. **S2-02** (`construct-coverage`). **Promoted above S2-01 on 2026-09-11**, because the probe
+   showed the two are not the same kind of problem. `INSERT ALL` **parses** — the tree is
+   already there and the analyser declines to walk it. No version bump, no rewrite rule, no
+   external dependency: ordinary lineage semantics on a parsed node, and the cheapest real
+   coverage left on the board.
+5. **S2-01** (`construct-coverage`). `MERGE … DELETE` never becomes a tree. Confirmed against
+   SQLGlot 30.18.0; **a newer SQLGlot has not been tried, and trying it is the first step**,
+   because it is the only option that costs nothing if it works. Failing that, a refusal code
+   that names the real reason — the rewrite route is ruled out below.
+6. ~~**S2-08** (`transform-classification`).~~ **Done.** Both halves: the classifiers were
+   merged into `analysis/transforms.py`, and `LAG`/`LEAD` were settled by D-3's existing rule
+   rather than a new decision. Neither moved a number, and the reason each did not is recorded
+   in its entry — that is the finding, not an absence of one.
 7. **S1-05** (`identity`). Last, because it is the largest and the only one that moves every
    number in the phase. **Do not start it until the production package has been measured** —
    the verdict's condition still stands, and this is precisely the decision that wants real
@@ -1642,8 +1738,16 @@ once in a stress run is a symptom; the test is the fix's only durable statement.
 ## Before stress 3
 
 Every open finding from stress 1 recurred in stress 2, so a third package will mostly restate
-what is already here. S1-04 and S2-07 are now clear; **finish D-1's `DELETE` half and settle
-S1-03 (D-2)** — then a stress 3 measures something new rather than re-reporting known gaps.
+what is already here. **All five decisions are now landed and every register item except
+S1-05, S2-01 and S2-02 is closed**, so the condition this section set has been met: a stress 3
+would now measure something new rather than re-report known gaps.
+
+**But the parser probe suggests a stress 3 is no longer the best next instrument.** Two of the
+three findings it produced came from asking what Oracle allows that we reject — a question no
+stress package asks, because a stress package can only contain constructs someone thought to
+write. A third hand-written corpus would inherit exactly that limit. **S1-05's gate points the
+same way**: the thing this project most needs in front of it is real production code, not a
+third synthetic package.
 
 **Do not write stress 3 to put a number on S1-05's growth curve. That number is in.** 7% at
 13 units, 31% at 28 with the key complete, and three of the twenty-eight units unable to
