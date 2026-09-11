@@ -830,7 +830,32 @@ def _analyse_insert(
     if isinstance(body, exp.SetOperation):
         arms = _set_operation_arms(body)
         edges: list[PredictedEdge] = []
+
+        # THE CTEs BELONG TO THE SET OPERATION, NOT TO EITHER ARM (stress finding S4-01).
+        #
+        # `INSERT INTO t WITH w AS (...) SELECT ... FROM w UNION ALL SELECT ...` hangs the
+        # WITH on the Union. Each arm is then analysed on its own below, detached from it,
+        # so `FROM w` resolved to a bare Table that is in no dictionary - and the whole
+        # statement produced NOTHING, with no refusal and no explanatory boundary, while
+        # parse coverage counted it as analysed.
+        #
+        # S1-02 fixed the top-level set operation and this is the half it could not see:
+        # its own test case selects straight from base tables, so the arms needed no CTE to
+        # be visible. **A set operation over aggregated CTEs is the normal way to write a
+        # reconciliation**, which is why stress 4 hit it on the first try and three earlier
+        # packages did not.
+        shared = body.args.get("with_") or body.args.get("with")
+
         for arm, supplies_values in arms:
+            inherits_ctes = (
+                shared is not None
+                and isinstance(arm, exp.Select)
+                and arm.args.get("with_") is None
+                and arm.args.get("with") is None
+            )
+            if inherits_ctes:
+                arm = arm.copy()
+                arm.set("with_", shared.copy())
             if not isinstance(arm, exp.Select):
                 return [], (
                     RefusalCode.UNSUPPORTED_CONSTRUCT,
