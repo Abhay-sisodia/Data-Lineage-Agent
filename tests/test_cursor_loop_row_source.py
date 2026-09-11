@@ -138,3 +138,58 @@ END;
     assert not [e for e in edges if e[0].startswith("SRC.")], (
         "a numeric loop index was resolved as if it were a cursor record"
     )
+
+CURSOR_OVER_A_CTE_CHAIN = """CREATE OR REPLACE PROCEDURE p IS
+  CURSOR c IS
+    WITH first_level AS (
+      SELECT s.sid AS sid, s.amt AS amt FROM src s WHERE s.cat <> 'X'
+    ),
+    second_level AS (
+      SELECT f.sid AS sid, f.amt AS amt FROM first_level f
+    )
+    SELECT m.sid, m.amt FROM second_level m;
+BEGIN
+  FOR rec IN c LOOP
+    INSERT INTO tgt (sid, amt) VALUES (rec.sid, rec.amt);
+  END LOOP;
+END;
+/
+"""
+
+
+def test_a_cursor_whose_query_is_a_cte_chain_resolves(dictionary: Dictionary) -> None:
+    """The second half of S4-02, and the reason `_field_of_row` now delegates to band 0.
+
+    That function used to read the cursor query's OUTERMOST select list and bind each
+    column straight to a base relation. `SELECT m.sid FROM second_level m` binds `m` to a
+    CTE, which is not a dictionary relation, so it resolved NOTHING - silently.
+
+    **A cursor whose query is a CTE chain is not an edge case; it is what a named cursor is
+    for.** A query long enough to deserve a name is usually long enough to need one.
+    """
+    edges = _edges(CURSOR_OVER_A_CTE_CHAIN, dictionary)
+
+    assert ("SRC.SID", "TGT.SID", Flow.VALUE.value) in edges
+    assert ("SRC.AMT", "TGT.AMT", Flow.VALUE.value) in edges
+
+
+def test_the_cte_chain_resolves_without_inventing_a_relation(dictionary: Dictionary) -> None:
+    """The negative half: no edge may name a CTE or the target.
+
+    `SELECT m.sid FROM second_level m` used to resolve to nothing at all. The failure to
+    avoid now is the OTHER one - naming `SECOND_LEVEL` as though it were a table, or
+    falling back to the target the way the declared-cursor form did before this fix.
+
+    WHAT THIS DELIBERATELY DOES NOT ASSERT: the cursor query's own `WHERE s.cat <> 'X'`
+    producing a filter edge against the loop's target. `resolve_projection` answers "which
+    base column does this output column come from" and nothing else; predicates inside a
+    declared cursor's query reaching the loop's writes is a separate capability that was
+    never built. An earlier draft of this file asserted it, failed, and was wrong to ask -
+    the gap is recorded in FINDINGS rather than hidden in a test that hopes for it.
+    """
+    sources = {source for source, _, _ in _edges(CURSOR_OVER_A_CTE_CHAIN, dictionary)}
+
+    assert not [name for name in sources if name.startswith(("FIRST_LEVEL", "SECOND_LEVEL"))], (
+        "a CTE was named as a source relation"
+    )
+    assert "TGT.SID" not in sources, "the record field fell back to the target"

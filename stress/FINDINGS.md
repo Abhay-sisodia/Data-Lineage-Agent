@@ -45,7 +45,10 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S3-06 | `flow-classification` | **fixed** | a `FOR` loop index emitted as a **value source** — the subscript chooses an element, it is not in the value |
 | S3-07 | `construct-coverage` | **fixed** | `t.col` on the right of a `MERGE` `SET` did not resolve to the target's own column — declared, not silent |
 | S4-01 | `silent-loss` | open | a top-level `UNION ALL` under `INSERT` with CTE arms yields **zero edges**, declared by nothing |
-| S4-02 | `silent-loss` | open | a cursor `%ROWTYPE` field does not resolve through the cursor's own CTE chain — the variable chain survives and looks like lineage that starts nowhere |
+| S4-02 | `silent-loss` | **partly fixed** | **misdiagnosed as CTE-specific.** A declared-cursor loop registered no row source at all, so `rec.field` bound to the TARGET; and `_field_of_row` was one-level. Both fixed; the assignment path remains |
+| S4-07 | `silent-loss` | open | `v := rec.field` produces no edge in EITHER loop form — the assignment path scans identifiers as text and never consults the row source |
+| S4-08 | `transform-classification` | open | a transform INSIDE a cursor query does not reach the edge — `SUM` in the cursor, `identity` on the record field |
+| S4-09 | `construct-coverage` | open | a declared cursor's own `WHERE` produces no filter edge against what the loop writes |
 | S4-03 | `construct-coverage` | open | a `MERGE` emits no **influence** edge — neither `GROUP BY` nor window; S3-03 added its filters and stopped there |
 | S4-04 | `flow-classification` | open | a `MINUS`/`INTERSECT` second arm is read as **value**, not filter — stress 2's convention (a) was never implemented |
 | S4-05 | `construct-coverage` | open | `BULK COLLECT` into **two** collections resolves only the first — the second target loses its column source |

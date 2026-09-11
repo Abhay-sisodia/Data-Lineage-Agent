@@ -24,6 +24,7 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
+from lineage.analysis.band0 import resolve_projection
 from lineage.analysis.cfg import Cfg, CfgNode, NodeKind
 from lineage.analysis.dynamic import Resolution
 from lineage.analysis.predicates import predicate_columns
@@ -456,25 +457,22 @@ def _classify(
 def _field_of_row(
     row: RowSource, field_name: str, dictionary: Dictionary
 ) -> tuple[str, str] | None:
-    """Resolve one field of a cursor record back to the column it was selected from."""
-    projection, relations = _projection_of(row.query, dictionary)
-    if projection is None:
-        return None
+    """Resolve one field of a cursor record back to the column it was selected from.
 
-    for item in projection:
-        if (item.alias_or_name or "").upper() != field_name:
-            continue
-        for column in item.find_all(exp.Column):
-            table = column.table.upper() if column.table else None
-            relation = relations.get(table) if table else next(iter(relations.values()), None)
-            if relation is None:
-                continue
-            try:
-                if column.name.upper() in dictionary.columns_of(relation):
-                    return ("column", f"{relation}.{column.name.upper()}")
-            except UnknownObjectError:
-                continue
-    return None
+    Delegates to `band0.resolve_projection` (stress finding S4-02). This function used to
+    read the cursor query's OUTERMOST select list and bind each column straight to a base
+    relation, which worked only when the cursor selected directly from tables. A cursor
+    whose query is a CTE chain - which is most cursors worth naming - resolved nothing, and
+    resolved it SILENTLY.
+
+    Band 0 already traverses CTEs, joins, renames and views to answer this exact question.
+    Teaching a second copy to do the same is how S2-08 happened.
+    """
+    resolved = resolve_projection(row.query, field_name, dictionary)
+    if resolved is None:
+        return None
+    relation, column_name, _ = resolved
+    return ("column", f"{relation}.{column_name}")
 
 
 def _projection_of(query: str, dictionary: Dictionary) -> tuple[list[Any] | None, dict[str, str]]:

@@ -246,6 +246,75 @@ def _projection_named(scope: Scope, name: str) -> Any:
     return None
 
 
+def resolve_projection(
+    query: str,
+    projection_name: str,
+    dictionary: Dictionary,
+    config: AnalysisConfig | None = None,
+) -> tuple[str, str, Transform] | None:
+    """Public: which base column does ONE output column of this SELECT come from?
+
+    Band 1 needs exactly the question band 0 spends its whole module answering. A cursor
+    record's field is an output column of the cursor's query, and `rec.gross_total` is a
+    lineage fact only if that query can be followed - through its CTEs, its joins, its
+    renames and any views underneath them.
+
+    **This exists because `defuse` had its own one-level version** (stress finding S4-02).
+    `_field_of_row` read the outermost select list and bound each column straight to a base
+    relation, so a cursor selecting `FROM summarised m` - where `summarised` is a CTE -
+    resolved nothing at all, silently. Real cursors are exactly where CTE chains live,
+    because a query long enough to deserve a name is usually long enough to need one.
+
+    Rather than teach that copy to traverse, it delegates here: the same `_inline_views`,
+    the same `qualify`, the same `build_scope` and the same `_trace` the set-based path
+    uses. **S2-08 is on the register for a rule that was duplicated across these two
+    modules and drifted**, and a second traversal would have drifted the same way.
+
+    Returns the transform as well as the column, so a caller that wants to combine an
+    aggregation inside the cursor query with the transform at the use site can.
+    """
+    settings = config or AnalysisConfig()
+
+    text = query.strip()
+    if text.startswith("(") and text.endswith(")"):
+        text = text[1:-1]
+    try:
+        parsed: Any = sqlglot.parse_one(text, dialect=DIALECT)
+    except Exception:
+        return None
+    if not isinstance(parsed, exp.Select):
+        return None
+
+    parsed, _ = _inline_views(parsed, dictionary, settings.budgets.view_expansion_depth_cap)
+    try:
+        parsed = qualify(
+            parsed,
+            schema=_schema_for(dictionary),
+            dialect=DIALECT,
+            validate_qualify_columns=False,
+            infer_schema=True,
+        )
+    except Exception:
+        return None
+
+    scope = build_scope(parsed)
+    if scope is None:
+        return None
+
+    wanted = projection_name.strip().upper()
+    for item in getattr(scope.expression, "selects", []) or []:
+        if (item.alias_or_name or "").upper() != wanted:
+            continue
+        own = _transform_of(item)
+        # Discarded rather than surfaced: a boundary raised here would be attributed to the
+        # cursor's query rather than to the statement that read the record, and the caller
+        # already declares an unresolved field in its own terms.
+        for column in _value_columns(item):
+            for table, name, traced in _trace(column, scope, dictionary, []):
+                return (table, name, _combine(own, traced))
+    return None
+
+
 def _row_source_subject(source: exp.Table) -> str:
     """A comparable subject for a row source that has no relation name.
 
