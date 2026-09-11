@@ -431,6 +431,55 @@ def _trace(
     return []
 
 
+def _window_influence(
+    projection: Any,
+    scope: Scope,
+    dictionary: Dictionary,
+    unresolved: list[Boundary],
+    depth: int = 0,
+) -> list[tuple[str, str, Transform]]:
+    """A window's `PARTITION BY` / `ORDER BY` columns, found at whatever depth they sit.
+
+    The second half of stress finding S3-02. `_window_influence_columns` reads one
+    expression, so it only ever saw the projection in the writing statement. Move the
+    window into a CTE and the outer projection is a bare `r.prev_amt` - no window in it,
+    no influence emitted, and the dependency vanished from the IR entirely.
+
+    **The leak and the loss were one defect with two faces.** The partition columns came
+    out as `value` because the recursion dropped the exclusion, and did not come out as
+    `influence` because the search never descended. Fixing only the first would have left
+    the analyser silent about a real dependency, which is the worse half to leave.
+
+    This deliberately mirrors `_grouping_influence` - same descent, same depth cap, same
+    reason. Both answer "which columns govern this projection's value without supplying
+    it", and both have to walk the path `_trace` walks rather than assume a depth. Keeping
+    the two shapes identical is the point: S2-08 is on the register for a rule that lived
+    in two places and drifted, and these two are now visibly the same walk.
+
+    The descent uses `_value_columns` rather than `find_all`: a window's own partition
+    column resolves to a base table and would stop there anyway, but descending through it
+    would mean re-deriving, at every level, the exclusion this function exists to apply.
+    """
+    if depth > 20:
+        return []
+
+    found: list[tuple[str, str, Transform]] = []
+    for column in _window_influence_columns(projection):
+        found.extend(_trace(column, scope, dictionary, unresolved, depth + 1))
+
+    for column in _value_columns(projection):
+        source = scope.sources.get(column.table) if column.table else None
+        if source is None and len(scope.sources) == 1:
+            source = next(iter(scope.sources.values()))
+        if not isinstance(source, Scope):
+            continue
+        inner = _projection_named(source, column.name)
+        if inner is None:
+            continue
+        found.extend(_window_influence(inner, source, dictionary, unresolved, depth + 1))
+    return found
+
+
 def _grouping_influence(
     projection: Any,
     scope: Scope,
@@ -892,20 +941,24 @@ def _analyse_select_into(
         # A window's PARTITION BY / ORDER BY decides which value THIS COLUMN receives, and
         # removes no rows at all (S2-12, D-4). Target is the output column, not the
         # relation - the relation is not what depends on it.
-        for column in _window_influence_columns(projection):
-            for source_table, source_column, _ in _trace(column, scope, dictionary, unresolved):
-                edges.append(
-                    _edge(
-                        source_table,
-                        source_column,
-                        target_name,
-                        target_column,
-                        Transform.IDENTITY,
-                        band,
-                        origin,
-                        flow=Flow.INFLUENCE,
-                    )
+        #
+        # Resolved through nested scopes rather than read off this projection (S3-02): the
+        # window is as likely to be in a CTE as in the statement that writes.
+        for source_table, source_column, _ in _window_influence(
+            projection, scope, dictionary, unresolved
+        ):
+            edges.append(
+                _edge(
+                    source_table,
+                    source_column,
+                    target_name,
+                    target_column,
+                    Transform.IDENTITY,
+                    band,
+                    origin,
+                    flow=Flow.INFLUENCE,
                 )
+            )
 
         # A GROUP BY decides which rows collapse together, so it decides the VALUE of an
         # aggregated column without supplying any of it (S1-03, decision D-2). Same flow as

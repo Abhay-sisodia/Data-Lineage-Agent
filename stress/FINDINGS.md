@@ -35,9 +35,9 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 |---|---|---|---|
 | P-01 | `crash` | **fixed** | `TABLE(f(...))` raised out of `analyse_source` — the whole file lost, uncounted |
 | S3-01 | `flow-classification` | open | `GROUP BY ROLLUP` emits no influence edges at all, while a plain `GROUP BY` two CTEs down emits them correctly |
-| S3-02 | `flow-classification` | open | a window's `PARTITION BY`/`ORDER BY` leaks as **value** through a CTE — D-4 reversed by one level of nesting |
+| S3-02 | `flow-classification` | **fixed** | a window's `PARTITION BY`/`ORDER BY` leaks as **value** through a CTE — D-4 reversed by one level of nesting |
 | S3-03 | `construct-coverage` | open | a `MERGE` emits no filter edge from any clause — neither its `USING` `WHERE` nor an arm-level one |
-| S3-04 | `flow-classification` | open | a correlated scalar subquery in a `MERGE … USING` leaks both correlation columns as value — D-5's fifth call site |
+| S3-04 | `flow-classification` | **fixed** | **misdiagnosed** — not a D-5 call site; the same `find_all` as S3-02, and closed by the same one-line change |
 | S3-05 | `key-error` | **fixed** | four omissions in stress 3's own key, corrected 2026-09-12 and kept as evidence |
 | S3-06 | `flow-classification` | open | a `FOR` loop index is emitted as a **value source** — the subscript chooses an element, it is not in the value |
 | S3-07 | `construct-coverage` | open | `t.col` on the right of a `MERGE` `SET` does not resolve to the target's own column — declared, not silent |
@@ -1792,18 +1792,50 @@ S3-02 plus 2 from S3-04. 3 band-1 value FPs = S3-06. 16 influence FNs = 12 from 
   aggregated, (f) an `IN (SELECT …)` semi-join's outer column is filter. Written in the key
   before the run, matched after it. That is the only kind of agreement worth anything.
 
-### S3-02 is the one to fix first
+### S3-02 · FIXED 2026-09-12 — and it closed S3-04 too
 
-**D-4 is reversed by one level of nesting.** In `sq_03` the window sits in the statement
+**D-4 was reversed by one level of nesting.** In `sq_03` the window sits in the statement
 that writes, and its `PARTITION BY`/`ORDER BY` are correctly `influence`. Move the same
-window into a CTE and the partition and order columns come out as **value** edges instead —
-6 false positives and 4 missing influence edges from a single cause, the largest single
-contributor to this package's score.
+window into a CTE and the partition and order columns came out as **value** edges instead —
+6 false positives and 4 missing influence edges, the largest single contributor to this
+package's score.
 
-It is also the most dangerous kind of wrong available here: **a false value edge says a
-column contributed to a number when it only decided the row ordering**, which is exactly
-the claim S2-12 and D-4 exist to prevent. S1-03 and S2-12 are on this register as the same
-argument; this is that argument surviving in the nested case.
+The most dangerous kind of wrong available here: **a false value edge says a column
+contributed to a number when it only decided the row ordering**, which is exactly the claim
+S2-12 and D-4 exist to prevent.
+
+**The cause was one `find_all`.** `_value_columns` encodes two exclusions the IR rests on —
+a window's ordering columns supply no value (D-4), a correlated predicate's columns supply
+no value (D-5) — and both were applied to the projection the *caller* could see. `_trace`'s
+recursion into a subquery then walked `projection.find_all(exp.Column)`: every column,
+exclusions gone. **A rule that depends on how the CTEs are stacked is not a rule** — a
+sentence already written in `_grouping_influence`, which learned it from `sq_02_cte_chain`.
+This was the same lesson in the function next door.
+
+**Fixed in two measurements, because it was one defect with two faces.**
+
+* **The leak** (`a6f7bc2`): `_value_columns` in the recursion. Stress-3 band-0 value precision
+  **77.1% → 100%**. I predicted 6 of the 8 false positives would go; **all 8 went**.
+* **The loss** (`…`): a new `_window_influence` that descends through nested scopes,
+  deliberately mirroring `_grouping_influence` — same walk, same depth cap, same question.
+  Influence **5 → 9 TP, 16 → 12 FN**, no new false positives. **Silence was the worse half
+  to leave, and a precision-only test would have called the job done after the first
+  commit.**
+
+Phase-0 grid, gate and parse coverage byte-identical across both. No corpus package nests a
+window inside a CTE — which is the whole reason stress 3 had to exist.
+
+### S3-04 was misdiagnosed, and the register says so
+
+Filed as *"a correlated scalar subquery in `MERGE … USING` leaks both correlation columns —
+D-5's fifth call site"*. **It is not a fifth call site and it is not in `defuse`.** It was
+the same recursion as S3-02 and the same one-line change removed it, which is how the
+prediction of "6 of 8" turned into 8 of 8.
+
+Kept rather than deleted. A register that quietly drops its own wrong diagnoses loses the
+only record of how the analyser is actually reasoned about — and this is the second
+misdiagnosis on it, after S1-03. Both were "I know which module this is in" before
+measuring.
 
 ### S3-05 — my own key, four errors, corrected and kept
 

@@ -125,6 +125,46 @@ def test_the_flat_window_behaves_identically(dictionary: Dictionary) -> None:
     )
 
 
+def test_the_partition_is_still_DECLARED_as_influence_through_a_cte(
+    dictionary: Dictionary,
+) -> None:
+    """Not leaking as `value` is half the fix; the dependency is real and must be stated.
+
+    The leak and the loss were one defect with two faces - the partition columns came out
+    as `value` because the recursion dropped the exclusion, and did not come out as
+    `influence` because the search never descended. **Silence is the worse half to leave**,
+    and it is the half a precision-only test would have declared fixed.
+    """
+    result = analyse_source(WINDOW_IN_CTE, dictionary)
+    influence = {
+        edge.source.name
+        for edge in result.edges
+        if edge.flow is Flow.INFLUENCE and edge.target.name == "TGT.AMT"
+    }
+
+    assert influence == {"SRC.CAT", "SRC.DT"}, (
+        "PARTITION BY / ORDER BY inside a CTE produced no influence edge - the dependency "
+        "is gone from the IR rather than merely misclassified"
+    )
+
+
+def test_nesting_changes_nothing_about_influence_either(dictionary: Dictionary) -> None:
+    """The flat control, for influence as well as value.
+
+    Two controls rather than one because the two halves can regress independently, and
+    "which half broke" is the first question anyone will ask.
+    """
+
+    def influence_of(source: str) -> set[str]:
+        return {
+            edge.source.name
+            for edge in analyse_source(source, dictionary).edges
+            if edge.flow is Flow.INFLUENCE and edge.target.name == "TGT.AMT"
+        }
+
+    assert influence_of(WINDOW_FLAT) == influence_of(WINDOW_IN_CTE)
+
+
 def test_a_correlated_predicate_does_not_become_a_value_source_through_a_subquery(
     dictionary: Dictionary,
 ) -> None:
