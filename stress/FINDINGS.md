@@ -26,7 +26,7 @@ with the code has stopped measuring anything.
 | S1-03 | `flow-classification` | open | **misdiagnosed** — no `GROUP BY`/`HAVING` edge is emitted; the FPs are window `PARTITION BY`/`ORDER BY` |
 | S2-12 | `flow-classification` | **fixed** | a window's `PARTITION BY`/`ORDER BY` is neither value nor filter — it is a third flow |
 | S2-13 | `key-error` | **fixed** | the `MINUS` arm's other two columns — a uniform rule applied to the first instance only |
-| S2-14 | `flow-classification` | open | a join condition is structural in a `FROM` and a filter inside an `EXISTS` — the same clause, two answers |
+| S2-14 | `flow-classification` | **fixed** | a join condition is structural in a `FROM` and a filter inside an `EXISTS` — the same clause, two answers |
 | S1-04 | `refusal-taxonomy` | **fixed** | row-level DML refused or skipped; §3 makes variables first-class |
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
 | S1-06 | `key-error` | **fixed** | two gaps in my own key, stated rather than quietly fixed — corrected 2026-09-09 |
@@ -179,8 +179,9 @@ runs — the **S2-11 shape**, and the second instance of it in two days.
 
 ## Open work — what is left, and what each one needs
 
-**Four open. Twelve fixed. Nothing in the register has yet failed to recur across stress
-runs.** **D-1 and D-3 are landed in full** (S1-04's three halves, S2-07). D-2 is decided and
+**Four open. Fourteen fixed. Nothing in the register has yet failed to recur across stress
+runs.** **Both stress packages now have ZERO false positives** — 100% precision on every
+band and every flow in each. **D-1 and D-3 are landed in full** (S1-04's three halves, S2-07). D-2 is decided and
 not yet implemented — it is the last of the three and the largest.
 
 Each implementation turned up a new finding — **S2-08** from D-3, and **S2-09**, **S2-10**
@@ -878,7 +879,7 @@ only because D-4 cleared enough noise from the band-0 filter cell to leave it vi
 
 Stress 2 band-0 filter **88.0% → 96.0%** precision, recall 84.6% → 85.7%.
 
-## S2-14 · `flow-classification` · OPEN — a join condition means two different things
+## S2-14 · `flow-classification` · FIXED — a join condition means two different things
 
 **The same join condition produces different lineage depending on where it is written.**
 Measured directly, not inferred:
@@ -913,9 +914,43 @@ can be evaluated at all, which is the same job it does in a `FROM`. That reading
 labelled edge (recall 85.7% → 85.2% in stress 2) and takes band-0 filter precision to 100%
 in both packages.
 
-**Not decided here**, because the alternative is defensible and both options need a code
-change: this is not a key completion, and treating it as one would have meant tuning the key
-to whichever behaviour the analyser happened to have.
+### D-5, and the fix
+
+**Decided 2026-09-11: structural wherever written.** The recommendation above, taken.
+
+**It had to reach three separate call sites**, which is the finding underneath the finding.
+`band0._filter_edges`, `band0._analyse_delete` and `defuse._filter_edges_for` all walk a
+predicate subtree, and so does `defuse._predicate_columns` for a correlated subquery in a
+`SET` clause. Measured before fixing: the same `ON` clause leaked filter edges from an
+`EXISTS` in an `INSERT ... SELECT`, from an `IN` subquery in a `DELETE`, and from the
+`UPDATE` that raised the finding. **Four places, one rule.** It lives in
+`analysis.predicates.predicate_columns` and both modules import it - S2-08 is already on the
+register for a rule that was duplicated across those two files and drifted, and adding a
+fifth copy of a predicate walk would have been the same mistake with a different name.
+
+**The correlation is kept and that is the whole distinction.** `o2.cust_id = d.cust_id`
+decides which `dim_customer` rows are updated and both of its operands survive; the join
+that made the `EXISTS` evaluable contributes nothing. Excluding one and keeping the other is
+the difference between reporting the dependency and reporting the plumbing.
+
+**The key's label was withdrawn**, not corrected — stated in place, because it lowers recall.
+
+**Effect.**
+
+| | before | after |
+|---|---|---|
+| phase-0 everything | — | **identical** — no corpus package nests a join inside a predicate |
+| stress 2 band-0 filter | 96.0% / 85.7% | **100% / 85.2%** |
+| stress 1 | 100% precision | unchanged |
+| **false positives, both packages** | 1 | **0** |
+
+**BOTH STRESS PACKAGES NOW HAVE ZERO FALSE POSITIVES** — 100% precision on every band and
+every flow in each. Whatever else is wrong, the analyser is not currently inventing anything
+either package can see.
+
+Three regression tests, one per call site, each asserting the ON clause contributes nothing
+**and** that the correlation still contributes both operands. The third pins the half that
+was always right, so D-5 cannot regress it.
 
 ## S1-05 · `identity` · OPEN — the label format could not express five facts in one file
 

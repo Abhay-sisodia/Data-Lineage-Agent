@@ -26,6 +26,7 @@ from sqlglot import exp
 
 from lineage.analysis.cfg import Cfg, CfgNode, NodeKind
 from lineage.analysis.dynamic import Resolution
+from lineage.analysis.predicates import predicate_columns
 from lineage.ir.model import (
     Boundary,
     BoundaryKind,
@@ -327,10 +328,15 @@ def _value_columns(expression: Any) -> list[Any]:
 
 
 def _predicate_columns(expression: Any) -> list[Any]:
-    """Columns inside a nested WHERE — filter influence rather than value flow."""
+    """Columns inside a nested WHERE — filter influence rather than value flow.
+
+    Delegates the per-predicate walk to `analysis.predicates`, so a join condition inside
+    a correlated subquery in a SET clause is structural here too (D-5). Getting that wrong
+    in one of the several places a predicate can hide is how S2-14 happened.
+    """
     found: list[Any] = []
     for where in expression.find_all(exp.Where):
-        found.extend(where.find_all(exp.Column))
+        found.extend(predicate_columns(where))
     return found
 
 
@@ -928,7 +934,7 @@ def _analyse_insert_filter(
         where = scoped.args.get("where")
         if where is None:
             continue
-        for column in where.find_all(exp.Column):
+        for column in predicate_columns(where):
             classified = _classify(column, scope, relations, dictionary)
             if classified is None or classified[0] != "variable":
                 continue  # column-side filters belong to the band-0 analyser
@@ -1038,7 +1044,7 @@ def _filter_edges_for(
     edges: list[IREdge] = []
     target = Node(kind=IRNodeKind.RELATION, name=target_relation)
 
-    for column in where.find_all(exp.Column):
+    for column in predicate_columns(where):
         classified = _classify(column, scope, relations, dictionary)
         if classified is None:
             result.unresolved.append(f"line {origin.line}: unresolved {column.name}")

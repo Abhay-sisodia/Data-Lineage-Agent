@@ -34,6 +34,7 @@ from sqlglot.optimizer.scope import Scope, build_scope
 
 from lineage.analysis.ddl import exchange_partition_edges
 from lineage.analysis.dynamic import resolve_dynamic_sql
+from lineage.analysis.predicates import predicate_columns
 from lineage.analysis.refusal import (
     Refusal,
     RefusalCode,
@@ -277,7 +278,7 @@ def _correlated_filter_columns(expression: Any) -> list[Any]:
     """
     found: list[Any] = []
     for where in expression.find_all(exp.Where):
-        found.extend(where.find_all(exp.Column))
+        found.extend(predicate_columns(where))
     return found
 
 
@@ -993,7 +994,7 @@ def _filter_edges(
         where = current.expression.args.get("where")
         if where is None:
             continue
-        for column in where.find_all(exp.Column):
+        for column in predicate_columns(where):
             for source_table, source_column, _ in _trace(column, current, dictionary, unresolved):
                 edges.append(
                     _edge(
@@ -1062,7 +1063,7 @@ def _analyse_delete(
     # subquery - is filter influence on the deleted relation. Nesting does not change what
     # the column does: `status_code` two levels down still decides which rows go.
     edges: list[PredictedEdge] = []
-    for column in where.find_all(exp.Column):
+    for column in predicate_columns(where):
         source_table = _relation_for(column, statement, dictionary, unresolved)
         if source_table is None:
             continue

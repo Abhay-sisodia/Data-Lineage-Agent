@@ -712,14 +712,27 @@ edges:
     origin: {unit: S2_UPDATE_CORRELATED, line: 241}
     evidence: source_read
 
-  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
-    target: {kind: relation, name: DIM_CUSTOMER}
-    flow: filter
-    transform: identity
-    band: 0
-    origin: {unit: S2_UPDATE_CORRELATED, line: 241}
-    evidence: source_read
-    note: Inside the EXISTS, joining orders to lines.
+  # WITHDRAWN 2026-09-11 under stress finding S2-14, decision D-5, AND IT LOWERS RECALL -
+  # stated for that reason.
+  #
+  # The label was `STG_ORDERS.ORDER_ID -> relation:DIM_CUSTOMER [filter/identity]`, noted
+  # "Inside the EXISTS, joining orders to lines." It was wrong, and wrong in a way that had
+  # no argument behind it either way.
+  #
+  # `ON o2.order_id = l.order_id` is a JOIN CONDITION, and this key's own conventions say
+  # "join conditions are structural, not filter lineage". Under that rule neither operand
+  # is an edge. Under the competing rule - "every operand of a predicate is a filter edge",
+  # from s7 and applied corpus-wide in 0b9a9e8 - BOTH are. The key labelled exactly one,
+  # which is the only position nothing supports.
+  #
+  # D-5 settles it: structural wherever written. The join does not decide which
+  # dim_customer rows are updated. `o2.cust_id = d.cust_id` does that, and both of ITS
+  # operands are labelled below - which is the distinction that matters. A join connects
+  # two tables so the EXISTS can be evaluated at all, exactly as it does in a FROM.
+  #
+  # The analyser agreed with neither position: it emitted both operands, because
+  # `find_all(exp.Column)` over a WHERE subtree sweeps up a nested join's ON clause. That
+  # was incidental rather than chosen, and it is now excluded in one shared helper.
 
   # is_active receives the literal 1 - no edge.
 

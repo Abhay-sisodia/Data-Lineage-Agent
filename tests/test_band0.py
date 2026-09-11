@@ -431,3 +431,84 @@ END filterer;
 
     filters = {(str(e.source), str(e.target)) for e in result.edges if e.flow is Flow.FILTER}
     assert filters == {("column:STG_ORDERS.CURRENCY", "relation:FCT_PRODUCT_SALES")}
+
+
+# --- S2-14 / D-5: a join condition is structural wherever it is written ------------------
+
+
+def test_a_join_inside_an_exists_is_still_structural(dictionary: Dictionary) -> None:
+    """The same ON clause used to mean two different things depending on where it sat.
+
+    In a FROM it produced nothing, correctly - the key has said "join conditions are
+    structural" since stress 1. Nested inside an EXISTS in a WHERE it produced two filter
+    edges, because `find_all(exp.Column)` over the WHERE subtree sweeps up everything
+    inside it including a join's ON. Nothing chose that.
+
+    The correlation predicate is the part that MUST survive, and both its operands do: it
+    is what actually decides which rows the statement touches. Excluding the join and
+    keeping the correlation is the difference between reporting the dependency and
+    reporting the plumbing that made it reachable.
+    """
+    source = """CREATE OR REPLACE PROCEDURE ins_exists IS
+BEGIN
+    INSERT INTO gtt_stage (cust_id, period_month, amount)
+    SELECT o.cust_id, TRUNC(o.order_date, 'MM'), o.gross_amount
+      FROM stg_orders o
+     WHERE EXISTS (SELECT 1
+                     FROM stg_order_lines l
+                     JOIN stg_products p ON p.product_id = l.product_id
+                    WHERE l.order_id = o.order_id);
+END ins_exists;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+    filters = {str(e.source) for e in result.edges if e.flow is Flow.FILTER}
+
+    # The ON clause contributes nothing, in either direction.
+    assert "column:STG_PRODUCTS.PRODUCT_ID" not in filters
+    assert "column:STG_ORDER_LINES.PRODUCT_ID" not in filters
+
+    # The correlation does, on both sides.
+    assert filters == {"column:STG_ORDERS.ORDER_ID", "column:STG_ORDER_LINES.ORDER_ID"}
+
+
+def test_a_join_inside_a_delete_subquery_is_structural_too(dictionary: Dictionary) -> None:
+    """D-5 had to reach three separate call sites, which is why it lives in one helper.
+
+    band0's `_filter_edges`, band0's `_analyse_delete` and defuse's `_filter_edges_for` all
+    walk a predicate subtree. Fixing one and not the others is how the original
+    inconsistency arose, and S2-08 is already on the register for a rule that was
+    duplicated and drifted.
+    """
+    source = """CREATE OR REPLACE PROCEDURE del_join IS
+BEGIN
+    DELETE FROM fct_revenue_stage f
+     WHERE f.cust_id IN (SELECT s.cust_id
+                           FROM stg_customer s
+                           JOIN stg_orders o2 ON o2.cust_id = s.cust_id
+                          WHERE s.status_code = 'X');
+END del_join;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+    filters = {str(e.source) for e in result.edges if e.flow is Flow.FILTER}
+
+    # o2.cust_id appears ONLY in the ON clause, so stg_orders contributes nothing.
+    assert "column:STG_ORDERS.CUST_ID" not in filters
+    assert filters == {
+        "column:FCT_REVENUE_STAGE.CUST_ID",
+        "column:STG_CUSTOMER.CUST_ID",
+        "column:STG_CUSTOMER.STATUS_CODE",
+    }
+
+
+def test_an_ordinary_join_was_already_structural_and_stays_so(dictionary: Dictionary) -> None:
+    """The half that was always right. Pinned so D-5 cannot regress it."""
+    source = """CREATE OR REPLACE PROCEDURE plain_join IS
+BEGIN
+    INSERT INTO gtt_stage (cust_id, period_month, amount)
+    SELECT o.cust_id, TRUNC(o.order_date, 'MM'), l.line_amount
+      FROM stg_orders o
+      JOIN stg_order_lines l ON l.order_id = o.order_id;
+END plain_join;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+    assert not [e for e in result.edges if e.flow is Flow.FILTER]
