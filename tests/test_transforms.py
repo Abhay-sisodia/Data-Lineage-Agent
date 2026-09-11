@@ -136,3 +136,41 @@ def test_the_shared_classifier_covers_every_rule_the_register_settled(
     """
     parsed = sqlglot.parse_one(f"SELECT {expression} FROM t", dialect="oracle").selects[0]
     assert transform_of(parsed) is expected
+
+
+# --- S2-08's other half: LAG and LEAD, under D-3's rule ----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        # Reads another ROW of the same column and computes nothing over a set. D-3's rule,
+        # which is why this is the rule applied rather than a new decision.
+        ("LAG(line_amount) OVER (ORDER BY order_date)", Transform.DERIVED),
+        ("LEAD(line_amount) OVER (ORDER BY order_date)", Transform.DERIVED),
+        # The aggregate is INSIDE the window, so the ladder keeps `aggregated` whatever LAG
+        # is classified as. THIS IS THE ONLY SHAPE THE CORPUS CONTAINS - both LAG instances
+        # in every package are this - which is why moving LAG cost nothing and why the
+        # bare-column rows above are the whole content of the change.
+        ("LAG(SUM(line_amount)) OVER (ORDER BY order_date)", Transform.AGGREGATED),
+        # Still an aggregation: it computes a total over a set, and OVER is not what makes
+        # it one. The half of D-3's rule that is easy to break.
+        ("SUM(line_amount) OVER (ORDER BY order_date)", Transform.AGGREGATED),
+        ("COUNT(*) OVER ()", Transform.AGGREGATED),
+    ],
+)
+def test_lag_and_lead_select_a_value_rather_than_computing_one(
+    expression: str, expected: Transform
+) -> None:
+    """S2-08's second half. Unmeasurable in the corpus, so the test is the whole statement.
+
+    Every key labelled LAG `aggregated`, but no key argued for it: `sq_03`'s own note reads
+    "LAG(total) reads another ROW of the same column", which is the case for `derived`. The
+    label recorded what the analyser did.
+
+    A bare-column `LAG(line_amount)` is the form real reporting SQL writes and appears
+    nowhere in 38 packages - so if this rule is ever reversed, this test is what should fail
+    rather than a score moving six months later.
+    """
+    parsed = sqlglot.parse_one(f"SELECT {expression} FROM t", dialect="oracle").selects[0]
+    assert transform_of(parsed) is expected

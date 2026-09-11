@@ -37,7 +37,7 @@ with the code has stopped measuring anything.
 | S2-05 | `transform-classification` | **fixed** | `DECODE`/`NULLIF`/`GREATEST` read as derived, not conditional |
 | S2-06 | `key-error` | **fixed** | ten units unlabelled, not seven; the header claim made true |
 | S2-07 | `transform-classification` | **fixed** | `FIRST_VALUE`/`LAST_VALUE` — the key says `derived`, the analyser `aggregated` |
-| S2-08 | `transform-classification` | open | two `_transform_of` copies, already drifted; and `LAG` reads like `FIRST_VALUE` but scores `aggregated` |
+| S2-08 | `transform-classification` | **fixed** | two `_transform_of` copies, already drifted; and `LAG` reads like `FIRST_VALUE` but scored `aggregated` |
 | S2-09 | `key-error` | **fixed** | `p_depth → DIM_CUSTOMER_HIER.DEPTH` never labelled — two of three bindings |
 | S2-10 | `measurement-error` | open | trigger edges carry body-relative lines, so the refusal cross-checks cannot match them |
 | S2-11 | `key-error` | **fixed** | stress 1's key predated convention (c); a decided convention has to reach every key |
@@ -179,7 +179,7 @@ runs — the **S2-11 shape**, and the second instance of it in two days.
 
 ## Open work — what is left, and what each one needs
 
-**Three open. Fifteen fixed. Nothing in the register has yet failed to recur across stress
+**Two open. Sixteen fixed. Nothing in the register has yet failed to recur across stress
 runs.** **Both stress packages have ZERO false positives** — 100% precision on every band
 and every flow in each — and so does the phase-0 corpus outside its one long-standing
 band-1 value FP. **All five decisions D-1 to D-5 are landed.** **D-1 and D-3 are landed in full** (S1-04's three halves, S2-07). D-2 is decided and
@@ -193,7 +193,6 @@ rather than the analyser, and neither would have been found by running the analy
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
 | **S2-10** | `measurement-error` | someone reconciling two line-number spaces in `measure.py` | `false_abstentions_recovered` and `edges_from_refused_statements` cannot see trigger edges at all — two reported zeros that are artifacts |
-| **S2-08** | `transform-classification` | a decision on `LAG`/`LEAD`, and a refactor for the duplicated classifier | S2-05 never reached band 1 at all; and a rule that reads as arbitrary from outside |
 | **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
 | **S2-02** | `construct-coverage` | real work — `INSERT ALL` is genuinely unimplemented | 7 edges; the honest refusal makes this a coverage gap, not a defect |
 | **S1-05** | `identity` | **the production package.** Moves every number in the phase | **31%** of the stress-2 key unstatable once the key is complete; also *hides* whether fixes worked |
@@ -214,8 +213,8 @@ rather than the analyser, and neither would have been found by running the analy
 - **S1-05** — the match key. **Do not start before the production package**: it is the decision
   that most wants real code in front of it, and the verdict's condition still stands. The
   number it has to beat is now 31%, not 21% — see S2-06 below.
-- **S2-08** — two questions from implementing D-3. Is `LAG`/`LEAD` `aggregated` or `derived`?
-  And the classifier exists **twice**, in `band0.py` and `defuse.py`, already drifted.
+- **S2-08** — **both halves landed.** One classifier in `analysis/transforms.py`; `LAG`/`LEAD`
+  are `derived` by D-3's rule. Neither moved a number, and both reasons are recorded.
 
 ### Fix log
 
@@ -817,6 +816,70 @@ columns; the literal case; the missing-column-list case; and the guard). One exi
 a construct the register genuinely refuses, and
 `test_a_literal_insert_values_is_analysed_not_refused` records beside it that the change is
 deliberate.
+
+## S2-08 · `transform-classification` · FIXED — two homes for one rule, and LAG
+
+Two problems, found by implementing D-3 rather than by a stress run. Both fixed 2026-09-11.
+
+### The classifier had two homes, and they had drifted
+
+`band0` and `defuse` each carried their own `_transform_of` with their own constant tuples.
+**`defuse.CONDITIONAL_EXPRESSIONS` was still the pre-S2-05 `(exp.Case, exp.If)` pair**, and
+the `COALESCE`-versus-`NVL` rule — the half of S2-05 that needed a rule rather than a list —
+did not exist in band 1 at all. S2-05 landed in band 0 and never reached band 1, so a finding
+recorded as fixed was half-fixed.
+
+**Measured against the old `defuse.py` rather than argued.** A `DECODE` and a two-column
+`COALESCE` read into variables produced three edges, all `derived`, all now `conditional`.
+Under ADR-0001 §4 a wrong transform is a MISS on both sides, so each was costing a false
+positive *and* a false negative in any package that reached it.
+
+**NO NUMBER MOVED, AND THAT IS THE FINDING.** Phase-0 cells, the gate and both stress
+packages are unchanged, because nothing in the corpus or either stress file reaches a
+`DECODE`, `NVL2`, `GREATEST`, `NULLIF` or two-column `COALESCE` through def-use. The defect
+was real, cost nothing measurable, and would have stayed invisible until someone wrote a
+package that hit it — the same shape as S2-06 surviving four fixes.
+
+`analysis/transforms.py` now owns `TRANSFORM_RANK`, the three constant tuples,
+`is_aggregate`, `is_conditional`, `transform_of` and `combine`. Both modules import it under
+their existing private names, so call sites and the tests that import
+`band0._transform_of` are untouched.
+
+**`tests/test_transforms.py` asserts IDENTITY, not behaviour** — `band0._transform_of` **is**
+`defuse._transform_of` **is** `transforms.transform_of`. Two separately-defined functions can
+agree on every case a test happens to list and still drift on the next one added, which is
+exactly the history here. Two of its tests fail against the old `defuse.py`.
+
+### LAG and LEAD — D-3's rule applied, and unmeasurable
+
+`LAG(total)` reads another **row** of the same column and computes nothing over a set, which
+is the same argument that moved `FIRST_VALUE` under D-3. `sq_03`'s key says so in prose —
+*"LAG(total) reads another ROW of the same column"* — and then labelled it `aggregated`.
+**No key ever argued for `aggregated` on the merits;** the label recorded what the analyser
+did. So this is D-3's rule applied rather than a new decision, and `LAG`/`LEAD` join the
+value-selecting set.
+
+**It cost nothing, and the reason is worth more than the change.** Not one cell moved
+anywhere. **Both `LAG` instances in the entire corpus are `LAG(SUM(...))`** — `sq_03`'s and
+stress 1's are each a `LAG` over a CTE's `SUM` — so the aggregate is on the path and the
+ladder keeps `aggregated` whatever `LAG` itself is called. The question was unmeasurable
+here, and the register had it filed as needing a phase-0 measurement it could never have had.
+
+**It is not unmeasurable in general.** A bare-column `LAG(line_amount)` — the form real
+reporting SQL actually writes — is `derived` under this rule and was `aggregated` before.
+It appears nowhere in 38 packages. Pinned by test, because nothing else can pin it.
+
+**A test written for this moment fired.** D-3 left
+`test_lag_is_still_aggregated_and_that_is_recorded_as_inconsistent`, whose docstring said:
+*"pins the CURRENT state rather than endorsing it ... if that finding is ever decided the
+other way, this test is the thing that should fail."* It failed. That is the whole value of
+writing a test against a state you expect to change, and it is the one mechanism in this
+register that has ever announced a convention change instead of waiting to be noticed.
+
+**The first rewrite of it asserted against the wrong layer** and is worth recording.
+`transform_of` looking at `LAG(total)` in isolation correctly says `derived` — the `SUM` is
+in a *subquery*, and it is `_trace` plus `combine` that walk the path. The replacement is
+end-to-end through `analyse_source`, which is where the claim actually lives.
 
 ## S2-09 · `key-error` · FIXED — two of three bindings labelled
 

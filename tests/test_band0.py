@@ -327,22 +327,49 @@ def test_an_aggregate_wrapping_a_value_selecting_window_still_aggregates() -> No
     assert _transform_of(parsed) is Transform.AGGREGATED
 
 
-def test_lag_is_still_aggregated_and_that_is_recorded_as_inconsistent() -> None:
-    """LAG selects an existing value too, and every key in the corpus calls it `aggregated`.
+def test_lag_over_an_aggregate_is_still_aggregated(dictionary: Dictionary) -> None:
+    """REWRITTEN 2026-09-11 under S2-08, and the rewrite is the point.
 
-    This test pins the CURRENT state rather than endorsing it. D-3 named FIRST_VALUE and
-    LAST_VALUE; moving LAG would change `sq_03_window_functions` and stress 1, which is a
-    phase-0 change and a separate measurement. Recorded as finding S2-08 — if that finding
-    is ever decided the other way, this test is the thing that should fail.
+    This test used to assert `LAG` was `aggregated`, and said so explicitly: "pins the
+    CURRENT state rather than endorsing it ... if that finding is ever decided the other
+    way, this test is the thing that should fail." S2-08 decided it the other way and the
+    test failed, which is the only reason it was worth writing.
+
+    What it asserts now is narrower, permanent, and END-TO-END rather than on the classifier
+    alone. `LAG(total)` where `total` is a `SUM` one scope down stays `aggregated`, because
+    the ladder takes the strongest transform on the PATH and `_trace` is what walks it -
+    `transform_of` looking at `LAG(total)` in isolation correctly says `derived`, and the
+    first attempt at this rewrite asserted against the wrong layer.
+
+    This is the shape both `LAG` instances in the corpus have - `sq_03`'s and stress 1's are
+    each `LAG` over a CTE's `SUM` - and it is why moving LAG into the value-selecting set
+    cost nothing. The bare-column case, now `derived`, is pinned in
+    `tests/test_transforms.py` beside the rest of the classifier.
     """
-    parsed = sqlglot.parse_one(
-        "SELECT LAG(total) OVER (PARTITION BY product_id ORDER BY period_month) FROM t",
-        dialect="oracle",
-    ).selects[0]
-    assert _transform_of(parsed) is Transform.AGGREGATED
-
-
-# --- S2-12 / D-4: window influence is neither value nor filter ---------------------------
+    source = """CREATE OR REPLACE PROCEDURE lag_over_sum IS
+BEGIN
+    INSERT INTO fct_product_sales (period_month, product_id, prior_month)
+    WITH monthly AS (
+        SELECT TRUNC(o.order_date, 'MM') AS period_month,
+               l.product_id              AS product_id,
+               SUM(l.line_amount)        AS total
+          FROM stg_orders o
+          JOIN stg_order_lines l ON l.order_id = o.order_id
+         GROUP BY TRUNC(o.order_date, 'MM'), l.product_id
+    )
+    SELECT m.period_month,
+           m.product_id,
+           LAG(m.total) OVER (PARTITION BY m.product_id ORDER BY m.period_month)
+      FROM monthly m;
+END lag_over_sum;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+    prior = {
+        (str(e.source), e.transform)
+        for e in result.edges
+        if str(e.target) == "column:FCT_PRODUCT_SALES.PRIOR_MONTH" and e.flow is Flow.VALUE
+    }
+    assert prior == {("column:STG_ORDER_LINES.LINE_AMOUNT", Transform.AGGREGATED)}
 
 
 def test_a_window_removes_no_rows_so_its_ordering_is_not_a_filter(dictionary: Dictionary) -> None:

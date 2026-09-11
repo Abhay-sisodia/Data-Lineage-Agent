@@ -46,11 +46,27 @@ AGGREGATE_FUNCTIONS = (exp.Sum, exp.Count, exp.Avg, exp.Min, exp.Max, exp.AggFun
 # the input, and the window only decides WHICH row supplies it. `NTH_VALUE` is `FIRST_VALUE`
 # generalised and is classified with them by the same rule.
 #
-# LAG and LEAD are NOT here, and that is an open inconsistency rather than a considered
-# exception - see finding S2-08. By D-3's own rule they belong: `LAG(total)` reads another
-# ROW of the same column and computes nothing. But every key in the corpus labels LAG
-# `aggregated`, so moving it changes phase-0 keys and wants its own measurement.
-VALUE_SELECTING_WINDOW_FUNCTIONS = (exp.FirstValue, exp.LastValue, exp.NthValue)
+# LAG and LEAD JOINED THIS SET under S2-08, and it is D-3's rule applied rather than a new
+# decision: `LAG(total)` reads another ROW of the same column and computes nothing over a
+# set, which is the same argument that moved `FIRST_VALUE`. `sq_03`'s key says so in prose -
+# "LAG(total) reads another ROW of the same column" - and then labelled it `aggregated`,
+# which no key ever argued for on the merits.
+#
+# **IT COST NOTHING, AND THAT IS WORTH KNOWING RATHER THAN CELEBRATING.** Not one cell moved
+# in phase 0 or either stress package, because BOTH `LAG` instances in the entire corpus are
+# `LAG(SUM(...))` - the aggregate is inside the window, so `combine` keeps `aggregated`
+# whatever `LAG` itself is classified as. The question was unmeasurable here.
+#
+# It is not unmeasurable in general. A bare-column `LAG(line_amount)` - which is the form
+# real reporting SQL actually writes - is `derived` under this rule and was `aggregated`
+# before. Pinned by `tests/test_transforms.py`, because no package exercises it.
+VALUE_SELECTING_WINDOW_FUNCTIONS = (
+    exp.FirstValue,
+    exp.LastValue,
+    exp.NthValue,
+    exp.Lag,
+    exp.Lead,
+)
 
 # The output value is SELECTED from alternatives by a test, rather than computed from the
 # input. Stress finding S2-05: this used to be `(exp.Case, exp.If)` alone, so DECODE -
