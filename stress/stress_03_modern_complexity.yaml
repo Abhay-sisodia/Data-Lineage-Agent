@@ -646,6 +646,24 @@ edges:
       applied corpus-wide in 0b9a9e8 - and a stress key is not where a settled convention
       gets quietly reopened.
 
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+    note: >
+      THE OTHER OPERAND of the same correlation, added under S3-10 - and the fifth instance
+      of the mistake S3-09 names. Correcting S3-09 I added the INNER operand and stopped,
+      while `predicates.py` says "BOTH of its operands stay". A rule applied to one half of
+      the shape it names is S2-13 exactly, and this is the second time in one key.
+
+      It was not statable before S3-10 was fixed: the outer operand did not resolve to
+      stg_customer at all, so the edge had no correct source to name. Folded into S3-09's
+      entry rather than opened as its own finding - the register already carries the rule
+      these all reduce to.
+
   # === 5. s3_bulk_reconcile =================================================
   #
   # Band 1 throughout. S2-04 was a BULK COLLECT into a record collection yielding

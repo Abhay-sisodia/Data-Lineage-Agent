@@ -38,7 +38,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S3-02 | `flow-classification` | **fixed** | a window's `PARTITION BY`/`ORDER BY` leaks as **value** through a CTE — D-4 reversed by one level of nesting |
 | S3-03 | `construct-coverage` | **fixed** | a `MERGE` emitted no filter edge from any clause — neither its `USING` `WHERE` nor an arm-level one |
 | S3-09 | `key-error` | **fixed** | a correlation read as a join condition — D-5 excludes an `ON` clause and `predicates.py` says the correlation STAYS |
-| S3-10 | `silent-loss` | open | a correlation's OUTER operand falls back to the subquery's single source — binds to the wrong relation, or is declared |
+| S3-10 | `silent-loss` | **fixed** | a correlation's OUTER operand fell back to the subquery's single source — bound to the wrong relation, silently |
 | S3-04 | `flow-classification` | **fixed** | **misdiagnosed** — not a D-5 call site; the same `find_all` as S3-02, and closed by the same one-line change |
 | S3-05 | `key-error` | **fixed** | four omissions in stress 3's own key, corrected 2026-09-12 and kept as evidence |
 | S3-08 | `key-error` | **fixed** | three more, from applying D-2's exclusion as a NAME MATCH instead of by the reason it states |
@@ -1964,7 +1964,7 @@ governs the *value* of `revenue_total` rather than which rows reach the target. 
 is not this project's — the s7 convention was applied corpus-wide in `0b9a9e8` — and a
 stress key is not where a settled convention gets quietly reopened.
 
-### S3-10 · OPEN — a correlation's outer operand binds to the wrong relation
+### S3-10 · FIXED 2026-09-12 — a correlation's outer operand bound to the wrong relation
 
 Found while confirming S3-09 rather than by the package, because **stress 3 could not see
 it**: both operands of `r.cust_id = c.cust_id` are named `cust_id`, so the outer one bound to
@@ -1990,6 +1990,35 @@ only reason it is not already a false positive in the corpus is that the fallbac
 lands on a name that does not exist. Categorised `silent-loss` rather than
 `flow-classification` because the failure mode that matters is the wrong-relation edge, not
 the missing one.
+
+#### How it was fixed, and the two things measuring corrected
+
+`_trace` searched this scope and the scopes BELOW it, never above. A correlated reference
+names a relation in an ENCLOSING query, so the fix walks `scope.parent` outward before
+giving up - and **the single-source fallback is now for UNQUALIFIED names only**. With one
+relation in scope `amount` can only mean that relation's column; `s.sid` is a different
+claim, because the statement said which relation it meant.
+
+**Two things I had written down were wrong, and measuring said so.**
+
+1. **It is not general to `_trace`, though it lives there.** An `INSERT ... SELECT` reaches
+   the same correlation by TWO routes - `_correlated_filter_columns` from the outer scope,
+   where the alias IS in scope and resolves correctly, and `_filter_edges` from the inner
+   scope, which mis-binds. So the correct edge existed all along, with a **spurious
+   `unresolved_identifier` boundary** beside it: a boundary promising that knowledge stops
+   at a name another code path had resolved without difficulty. A MERGE's synthetic wrapper
+   projects `*`, so only the broken route ran. **The defect was in shared code and exactly
+   one caller exposed it.**
+2. **The first regression test proved nothing.** It asserted `SRC.SID` was among the edge
+   SOURCES - and `s.sid` is also the first projected column, so it arrives by a value edge
+   whatever the predicate does. It passed without the fix. Now it asserts `SRC.SID` as a
+   FILTER source, in MERGE form, which the wrong binding cannot produce.
+
+**The confirmed before-and-after is the cleanest silent-loss evidence in this register.**
+With the two operands sharing a column name - `WHERE r.sid = s.sid` over a relation that has
+a `sid` - the analyser emitted **one** filter edge and **no boundary**: the outer operand's
+edge was replaced by a duplicate of the inner one and deduplicated away. An edge missing,
+nothing declared, and the remaining edge looking exactly right.
 
 ### What stress 3 has left, and what it is
 

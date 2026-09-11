@@ -309,7 +309,30 @@ def _trace(
             if column.table in nested.sources:
                 return _trace(column, nested, dictionary, unresolved, depth + 1)
 
-    if source is None and len(scope.sources) == 1:
+        # AND OUTWARD, for a CORRELATED reference (stress finding S3-10). Inside
+        # `(SELECT SUM(r.net) FROM rev r WHERE r.rid = s.sid)` the alias `s` belongs to the
+        # ENCLOSING query, so it is in neither this scope nor any scope below it. Searching
+        # only downward left it unresolved, and the fallback below then bound it to
+        # whichever relation this subquery happened to select from.
+        outer = getattr(scope, "parent", None)
+        climbed = 0
+        while outer is not None and climbed < 20:
+            if column.table in outer.sources:
+                return _trace(column, outer, dictionary, unresolved, depth + 1)
+            outer = getattr(outer, "parent", None)
+            climbed += 1
+
+    # THE FALLBACK IS FOR UNQUALIFIED NAMES ONLY (S3-10). With one relation in scope,
+    # `amount` can only mean that relation's column and binding it is right. `s.sid` is a
+    # different claim: the statement said WHICH relation it meant, and if that relation is
+    # not reachable from here then guessing the only one that is produces an edge from a
+    # relation the reference never named - the s2 silent-failure shape, arrived at from the
+    # other direction.
+    #
+    # It stayed invisible because the corpus's correlations compare columns of the SAME
+    # NAME: the wrong binding produced the same edge as the right one and deduplicated into
+    # a correct-looking answer. Only a probe with distinguishable names showed it.
+    if source is None and len(scope.sources) == 1 and not column.table:
         source = next(iter(scope.sources.values()))
 
     if isinstance(source, exp.Table):
