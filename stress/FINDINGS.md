@@ -44,6 +44,12 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S3-08 | `key-error` | **fixed** | three more, from applying D-2's exclusion as a NAME MATCH instead of by the reason it states |
 | S3-06 | `flow-classification` | **fixed** | a `FOR` loop index emitted as a **value source** — the subscript chooses an element, it is not in the value |
 | S3-07 | `construct-coverage` | **fixed** | `t.col` on the right of a `MERGE` `SET` did not resolve to the target's own column — declared, not silent |
+| S4-01 | `silent-loss` | open | a top-level `UNION ALL` under `INSERT` with CTE arms yields **zero edges**, declared by nothing |
+| S4-02 | `silent-loss` | open | a cursor `%ROWTYPE` field does not resolve through the cursor's own CTE chain — the variable chain survives and looks like lineage that starts nowhere |
+| S4-03 | `construct-coverage` | open | a `MERGE` emits no **influence** edge — neither `GROUP BY` nor window; S3-03 added its filters and stopped there |
+| S4-04 | `flow-classification` | open | a `MINUS`/`INTERSECT` second arm is read as **value**, not filter — stress 2's convention (a) was never implemented |
+| S4-05 | `construct-coverage` | open | `BULK COLLECT` into **two** collections resolves only the first — the second target loses its column source |
+| S4-06 | `key-error` | **fixed** | three in stress 4's own key: a trigger inheritance omitted, a view's internal `CASE` missed, an `ON` clause labelled as filter |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
 | S1-03 | `flow-classification` | **fixed** | **misdiagnosed** — no `GROUP BY`/`HAVING` edge was emitted at all; D-2 adds both |
@@ -219,7 +225,7 @@ rather than the analyser, and neither would have been found by running the analy
 |---|---|---|---|
 | **S2-02** | `construct-coverage` | nothing external — **it parses**; the analyser declines a tree it already has | 7 edges; the honest refusal makes this a coverage gap, not a defect |
 | **S2-01** | `construct-coverage` | a newer SQLGlot, untried — it cannot parse `MERGE … DELETE` at 30.18.0 | 7 edges, and it is a standard slowly-changing-dimension shape |
-| **S1-05** | `identity` | **the production package.** Moves every number in the phase | **31%** of the stress-2 key unstatable once the key is complete; also *hides* whether fixes worked |
+| **S1-05** | `identity` | **NOTHING — the evidence is in.** Stress 4 is production-shaped and 28.1% of its key was unstatable across 27 of 28 units, one fact claimed by seven statements | the benchmark cannot express a quarter of what it knows; it *hides* whether fixes worked |
 
 ### What each open finding is waiting for, in one line
 
@@ -2116,6 +2122,136 @@ workaround. **S1-05 is now blocking a package written today, not just the stress
 written three days ago**, and it did so within an hour of starting. Recorded here because
 the gate on S1-05 says to decide it against production code, and this is the closest thing
 to production shape the project has produced.
+
+## Stress 4 — depth at scale, 2026-09-12
+
+**1504 lines, 28 units, 48 statements, and NO NEW CONSTRUCT.** Every keyword appears in
+stress 1, 2 or 3. The question was not "what else breaks" but "do the seven fixes hold when
+the same constructs are stacked to the depth real ETL is written at" — so anything that
+breaks here breaks because of **depth, scale or interaction**.
+
+```
+  band  flow       TP  FP  FN   precision    recall
+  0     filter     54   0   5      100.0%     91.5%
+  0     influence  59   1   7       98.3%     89.4%
+  0     value      73   2   5       97.3%     93.6%
+  1     filter      2   0   3      100.0%     40.0%
+  1     influence   0   0   1         n/a      0.0%
+  1     value      20   0   9      100.0%     69.0%
+  2     filter      2   0   0      100.0%    100.0%
+  2     value       0   1   0        0.0%       n/a
+
+  parse coverage 100.0%   (31 statements seen, 31 analysed, 0 refusals)
+```
+
+### The fixes hold. That is the first result and it is not a small one.
+
+**Four false positives in 1504 lines**, and three of the four are errors in my own key.
+Band-1 value precision is **100%**. The seven stress-3 fixes were each written against a
+small, deliberate case; here they ran against five-level CTE chains, four and five table
+joins, aggregation at two grains in one statement, windows stacked three scopes apart and
+two MERGEs of different shape, and none of them regressed.
+
+Specifically verified at depth: `GROUP BY` influence through a `ROLLUP` sitting **above**
+another `GROUP BY` (S3-01); window influence traced through **three** nested scopes with
+three different partitions, and not leaking as value (S3-02); a `MERGE`'s `USING` and
+arm-level filters at the bottom of a four-level chain (S3-03); a subscript excluded for
+**two** collections indexed by one loop variable (S3-06); a `MERGE` accumulator self-edge
+(S3-07); a correlation resolving outward from two scopes down (S3-10).
+
+### S1-05 IS NOW A HARD BLOCKER, AND THIS IS THE EVIDENCE ITS GATE ASKED FOR
+
+**334 edges were written from source. Only 240 could be STATED.**
+
+| | |
+|---|---|
+| edges written from source | 334 |
+| statable | 240 |
+| **lost to match-key collision** | **94 — 28.1%** |
+| colliding keys | 56 |
+| units affected | **27 of 28** |
+| worst single collision | **7 statements, one statable fact** |
+
+The match key is `(source, target, flow, transform, phase)` and origin is not in it
+(amendment 1b). `STG_ORDERS.ORDER_DATE -> FCT_PRODUCT_SALES.PERIOD_MONTH [value/derived]`
+is produced by **seven different statements doing seven different things**, and the key can
+say it once. **The key would not load at all** until the duplicates were collapsed; every
+dropped claim is listed in a comment block at the top of the key file.
+
+**The gate on S1-05 said to decide it against production code rather than more synthetic
+evidence.** This is the closest thing to production shape the project has produced, and the
+answer is unambiguous: at this shape the benchmark cannot express a quarter of what it
+knows. Stress 2 measured 31% on a much smaller key and that was arguable; 28% across 27 of
+28 units, where the collisions are *between real statements rather than within one*, is not.
+
+### What scale exposed: five findings, and two of them are silent
+
+**ZERO REFUSALS IN 1504 LINES, AND PARSE COVERAGE 100%.** Every loss below is either
+silent or declared by nothing more than `context_dependent_binding`, which appears on every
+unit and explains nothing.
+
+**S4-01 · `silent-loss` · a top-level `UNION ALL` under `INSERT` yields NOTHING.**
+`s4_customer_lifecycle` produces **zero edges**. Both arms are aggregating CTEs, both bind
+by position, and twelve labelled edges vanish — with no refusal, no explanatory boundary,
+and the statement counted as analysed. **S1-02 is on this register as "top-level set
+operators under `INSERT` refused, wrong reason", fixed.** This is the same family
+surviving where the arms are CTEs rather than base tables, and it is now worse than it was:
+a refusal at least declared itself.
+
+**S4-02 · `silent-loss` · a cursor `%ROWTYPE` field does not reach the base column.**
+`s4_cursor_ladder` emits eight edges and every one of them starts at a **variable**:
+`V_CUST_ID -> FCT_REVENUE_PART.CUST_ID` is there, `STG_ORDERS.CUST_ID -> V_CUST_ID` is not.
+The cursor's query is a three-level CTE chain with its own `GROUP BY` and `HAVING`, and
+`rec.cust_id` never resolves through it.
+
+**This is the most dangerous shape in the package.** The def-use chain is intact, so the
+output looks like working lineage — it simply begins nowhere. A missing edge is visible; a
+chain that starts at a variable reads as a chain whose source is a variable, which is a
+sentence the IR is entitled to say.
+
+**S4-03 · `construct-coverage` · a MERGE emits no influence edge.** S3-03 gave a `MERGE`
+its filter edges and stopped there: `_analyse_merge` never calls `_grouping_influence` or
+`_window_influence`. Six edges across the two MERGEs — every `GROUP BY` in a `USING` clause
+and every window in one.
+
+**S4-04 · `flow-classification` · a set operation's second arm is read as VALUE.** Stress
+2 proposed convention (a) — the second arm of a `MINUS`/`INTERSECT` decides which rows
+survive and supplies no value, so it contributes filter. **It was never implemented.**
+`STG_RETURNS.CUST_ID -> GTT_STAGE.CUST_ID [value/identity]` is the one analyser false
+positive in the package, and three matching filter edges are missing.
+
+**S4-05 · `construct-coverage` · `BULK COLLECT` into two collections resolves one.**
+`SELECT a, b BULK COLLECT INTO c1, c2` loses the column source of the second target. Both
+band-1 units use the two-collection form because that is how a real batch loader is
+written.
+
+### S4-06 — three key errors of mine, and one is worth more than the other two
+
+* **A trigger inheritance omitted.** Unit 5 writes `dim_customer`, which carries
+  `trg_customer_default`, and I labelled the `trg_recent_audit` inheritance in unit 11 while
+  forgetting this one. The analyser got it right.
+* **A view's internal `CASE` missed.** `v_cust_l2` derives `status_flag` as
+  `CASE WHEN status = 1 THEN 1 ELSE 0 END`, so `LOWER(status_flag)` is `conditional`, not
+  `derived`. I read the outer expression and not the view.
+* **An `ON` clause labelled as a filter.** `JOIN ref_policy p ON p.region = 'EU'` compares a
+  column to a LITERAL, which *looks* like a filter and is structurally an `ON` clause. D-5
+  is explicit that an `ON` clause is structural wherever written. **Fifth instance of the
+  one mistake S3-09 named** — a convention applied by the pattern I remembered rather than
+  by the reason it states.
+
+### What this package establishes about the method
+
+**A large key is a different instrument from a small one, and its failure mode is its own
+size.** 334 hand-written labels produced five real findings and three key errors — a much
+better ratio than stress 3's seven and four — but it also hit a structural limit that no
+smaller package could reach. The 28% collision rate is not a labelling mistake; it is what
+happens when 28 statements write to eight tables from eight tables, which is what an estate
+looks like.
+
+**Recall, not precision, is now the whole story.** Precision is 100% on five of eight cells
+and the single false positive is a convention that was never implemented. Every other gap
+is something the analyser does not know and does not say. Two of them it does not say *at
+all*.
 
 ## Fix order for what remains
 

@@ -1,0 +1,3370 @@
+# EDGES COLLAPSED BY THE MATCH KEY (S1-05). Each line: a fact this key can state
+# only once, and the units whose identical claim was therefore dropped.
+#
+#   x7  column:STG_ORDERS.ORDER_DATE -> column:FCT_PRODUCT_SALES.PERIOD_MONTH [value/derived/pre-aggregation]
+#        dropped from: S4_CATEGORY_MATRIX, S4_DISCOUNT_ANALYSIS, S4_PRODUCT_HIERARCHY, S4_RETURN_RATE, S4_ORDER_VELOCITY, S4_MARGIN_BANDS
+#   x5  column:STG_ORDERS.ORDER_DATE -> column:FCT_PRODUCT_SALES.GROSS_SALES [influence/identity/pre-aggregation]
+#        dropped from: S4_CATEGORY_MATRIX, S4_DISCOUNT_ANALYSIS, S4_PRODUCT_HIERARCHY, S4_MARGIN_BANDS
+#   x5  column:STG_ORDER_LINES.PRODUCT_ID -> column:FCT_PRODUCT_SALES.PRODUCT_ID [value/identity/pre-aggregation]
+#        dropped from: S4_DISCOUNT_ANALYSIS, S4_RETURN_RATE, S4_ORDER_VELOCITY, S4_MARGIN_BANDS
+#   x4  column:STG_ORDER_LINES.LINE_AMOUNT -> column:FCT_PRODUCT_SALES.GROSS_SALES [value/aggregated/pre-aggregation]
+#        dropped from: S4_CATEGORY_MATRIX, S4_PRODUCT_HIERARCHY, S4_MARGIN_BANDS
+#   x4  column:STG_ORDER_LINES.QUANTITY -> column:FCT_PRODUCT_SALES.UNITS_SOLD [value/aggregated/pre-aggregation]
+#        dropped from: S4_CATEGORY_MATRIX, S4_DISCOUNT_ANALYSIS, S4_ORDER_VELOCITY
+#   x4  column:STG_ORDERS.ORDER_DATE -> column:FCT_PRODUCT_SALES.UNITS_SOLD [influence/identity/pre-aggregation]
+#        dropped from: S4_CATEGORY_MATRIX, S4_DISCOUNT_ANALYSIS, S4_ORDER_VELOCITY
+#   x4  column:STG_ORDERS.ORDER_DATE -> column:FCT_PRODUCT_SALES.NET_SALES [influence/identity/pre-aggregation]
+#        dropped from: S4_DISCOUNT_ANALYSIS, S4_RETURN_RATE, S4_MARGIN_BANDS
+#   x4  column:STG_ORDER_LINES.PRODUCT_ID -> column:FCT_PRODUCT_SALES.NET_SALES [influence/identity/pre-aggregation]
+#        dropped from: S4_DISCOUNT_ANALYSIS, S4_RETURN_RATE, S4_MARGIN_BANDS
+#   x4  column:STG_ORDERS.CUST_ID -> column:GTT_STAGE.CUST_ID [value/identity/pre-aggregation]
+#        dropped from: S4_CUSTOMER_LIFECYCLE, S4_DEEP_ALIAS_CHAIN, S4_MULTI_TARGET_SPLIT
+#   x4  column:STG_ORDERS.ORDER_DATE -> column:GTT_STAGE.PERIOD_MONTH [value/derived/pre-aggregation]
+#        dropped from: S4_CUSTOMER_LIFECYCLE, S4_DEEP_ALIAS_CHAIN, S4_MULTI_TARGET_SPLIT
+#   x3  column:STG_PRODUCTS.STATUS_CODE -> relation:FCT_PRODUCT_SALES [filter/identity/pre-aggregation]
+#        dropped from: S4_CATEGORY_MATRIX, S4_PRODUCT_HIERARCHY
+#   x3  column:STG_CUSTOMER.CUST_ID -> column:DW_DIM_CUSTOMER_V2.CUST_ID [value/identity/pre-aggregation]
+#        dropped from: S4_VIEW_RESOLUTION, S4_NESTED_EXISTS
+#   x3  column:STG_CUSTOMER.REGION -> column:DW_DIM_CUSTOMER_V2.REGION [value/identity/pre-aggregation]
+#        dropped from: S4_VIEW_RESOLUTION, S4_NESTED_EXISTS
+#   x3  column:STG_ORDER_LINES.PRODUCT_ID -> column:FCT_PRODUCT_SALES.GROSS_SALES [influence/identity/pre-aggregation]
+#        dropped from: S4_DISCOUNT_ANALYSIS, S4_MARGIN_BANDS
+#   x3  column:STG_ORDER_LINES.PRODUCT_ID -> column:FCT_PRODUCT_SALES.UNITS_SOLD [influence/identity/pre-aggregation]
+#        dropped from: S4_DISCOUNT_ANALYSIS, S4_ORDER_VELOCITY
+#   x3  column:STG_ORDERS.CUST_ID -> column:GTT_STAGE.AMOUNT [influence/identity/pre-aggregation]
+#        dropped from: S4_CUSTOMER_LIFECYCLE, S4_MULTI_TARGET_SPLIT
+#   x3  column:STG_ORDERS.ORDER_DATE -> column:GTT_STAGE.AMOUNT [influence/identity/pre-aggregation]
+#        dropped from: S4_CUSTOMER_LIFECYCLE, S4_MULTI_TARGET_SPLIT
+#   x3  column:STG_ORDERS.CURRENCY -> relation:FCT_PRODUCT_SALES [filter/identity/pre-aggregation]
+#        dropped from: S4_RETURN_RATE, S4_MARGIN_BANDS
+#   x3  column:STG_ORDERS.CUST_ID -> column:FCT_REVENUE_STAGE.CUST_ID [value/identity/pre-aggregation]
+#        dropped from: S4_REGIONAL_SUMMARY, S4_MULTI_TARGET_SPLIT
+#   x3  column:STG_ORDERS.ORDER_DATE -> column:FCT_REVENUE_STAGE.PERIOD_MONTH [value/derived/pre-aggregation]
+#        dropped from: S4_REGIONAL_SUMMARY, S4_MULTI_TARGET_SPLIT
+#   x3  column:STG_ORDERS.CUST_ID -> column:FCT_REVENUE_STAGE.NET_AMOUNT [influence/identity/pre-aggregation]
+#        dropped from: S4_REGIONAL_SUMMARY, S4_MULTI_TARGET_SPLIT
+#   x3  column:STG_ORDERS.ORDER_DATE -> column:FCT_REVENUE_STAGE.NET_AMOUNT [influence/identity/pre-aggregation]
+#        dropped from: S4_REGIONAL_SUMMARY, S4_MULTI_TARGET_SPLIT
+#   x3  column:STG_ORDERS.CURRENCY -> relation:GTT_STAGE [filter/identity/pre-aggregation]
+#        dropped from: S4_INTERSECT_SCOPE, S4_DEEP_ALIAS_CHAIN
+#   x2  column:STG_CATEGORIES.CATEGORY_NAME -> column:FCT_PRODUCT_SALES.GROSS_SALES [influence/identity/pre-aggregation]
+#        dropped from: S4_CATEGORY_MATRIX
+#   x2  column:STG_CATEGORIES.CATEGORY_NAME -> column:FCT_PRODUCT_SALES.UNITS_SOLD [influence/identity/pre-aggregation]
+#        dropped from: S4_CATEGORY_MATRIX
+#   x2  column:DIM_CUSTOMER.LIFETIME_VALUE -> column:DIM_CUSTOMER.LIFETIME_VALUE [value/derived/pre-aggregation]
+#        dropped from: TRG_RECENT_AUDIT
+#   x2  column:STG_ORDERS.CUST_ID -> column:FCT_REVENUE.CUST_ID [value/identity/pre-aggregation]
+#        dropped from: S4_ORDER_FUNNEL
+#   x2  column:STG_ORDERS.ORDER_DATE -> column:FCT_REVENUE.PERIOD_MONTH [value/derived/pre-aggregation]
+#        dropped from: S4_ORDER_FUNNEL
+#   x2  column:STG_ORDER_LINES.LINE_AMOUNT -> column:FCT_REVENUE.NET_AMOUNT [value/aggregated/pre-aggregation]
+#        dropped from: S4_ORDER_FUNNEL
+#   x2  column:STG_ORDERS.ORDER_ID -> column:FCT_REVENUE.ORDER_COUNT [value/aggregated/pre-aggregation]
+#        dropped from: S4_ORDER_FUNNEL
+#   x2  column:STG_PRODUCTS.STATUS_CODE -> relation:FCT_REVENUE [filter/identity/pre-aggregation]
+#        dropped from: S4_ORDER_FUNNEL
+#   x2  column:STG_ORDER_LINES.LINE_AMOUNT -> relation:FCT_REVENUE [filter/identity/post-aggregation]
+#        dropped from: S4_ORDER_FUNNEL
+#   x2  column:STG_PRODUCTS.PRODUCT_ID -> column:FCT_PRODUCT_SALES.PRODUCT_ID [value/identity/pre-aggregation]
+#        dropped from: S4_PRODUCT_HIERARCHY
+#   x2  column:STG_CATEGORIES.CATEGORY_NAME -> column:FCT_PRODUCT_SALES.CATEGORY_NAME [value/identity/pre-aggregation]
+#        dropped from: S4_PRODUCT_HIERARCHY
+#   x2  column:STG_PRODUCTS.PRODUCT_ID -> column:FCT_PRODUCT_SALES.GROSS_SALES [influence/identity/pre-aggregation]
+#        dropped from: S4_PRODUCT_HIERARCHY
+#   x2  column:STG_RETURNS.REFUND_AMOUNT -> column:FCT_PRODUCT_SALES.REFUND_TOTAL [value/aggregated/pre-aggregation]
+#        dropped from: S4_RETURN_RATE
+#   x2  column:STG_RETURNS.STATUS_CODE -> relation:FCT_PRODUCT_SALES [filter/identity/pre-aggregation]
+#        dropped from: S4_RETURN_RATE
+#   x2  column:STG_ORDERS.ORDER_DATE -> column:FCT_PRODUCT_SALES.REFUND_TOTAL [influence/identity/pre-aggregation]
+#        dropped from: S4_RETURN_RATE
+#   x2  column:STG_RETURNS.PRODUCT_ID -> column:FCT_PRODUCT_SALES.REFUND_TOTAL [influence/identity/pre-aggregation]
+#        dropped from: S4_RETURN_RATE
+#   x2  column:FCT_REVENUE.NET_AMOUNT -> variable:L_AMOUNTS [value/aggregated/pre-aggregation]
+#        dropped from: S4_BATCH_WRITER
+#   x2  column:FCT_REVENUE.CUST_ID -> variable:L_AMOUNTS [influence/identity/pre-aggregation]
+#        dropped from: S4_BATCH_WRITER
+#   x2  column:DIM_CUSTOMER.IS_ACTIVE -> relation:FCT_REVENUE [filter/identity/pre-aggregation]
+#        dropped from: S4_BATCH_WRITER
+#   x2  variable:L_AMOUNTS -> variable:L_FLAG [value/conditional/pre-aggregation]
+#        dropped from: S4_BATCH_WRITER
+#   x2  column:DIM_CUSTOMER.REGION -> column:FCT_REVENUE_STAGE.ORDER_COUNT [influence/identity/pre-aggregation]
+#        dropped from: S4_REGIONAL_SUMMARY
+#   x2  column:STG_ORDERS.ORDER_DATE -> column:FCT_PRODUCT_SALES.RANK_IN_MONTH [influence/identity/pre-aggregation]
+#        dropped from: S4_ORDER_VELOCITY
+#   x2  column:STG_PRODUCTS.LIST_PRICE -> column:FCT_PRODUCT_SALES.NET_SALES [value/aggregated/pre-aggregation]
+#        dropped from: S4_MARGIN_BANDS
+#   x2  column:STG_CUSTOMER.EMAIL -> column:DW_DIM_CUSTOMER_V2.EMAIL [value/derived/pre-aggregation]
+#        dropped from: S4_NESTED_EXISTS
+#   x2  column:FCT_REVENUE.NET_AMOUNT -> column:DW_DIM_CUSTOMER_V2.LIFETIME_VALUE [value/aggregated/pre-aggregation]
+#        dropped from: S4_NESTED_EXISTS
+#   x2  column:STG_CUSTOMER.CUST_ID -> relation:DW_DIM_CUSTOMER_V2 [filter/identity/pre-aggregation]
+#        dropped from: S4_NESTED_EXISTS
+#   x2  column:DIM_CUSTOMER.IS_ACTIVE -> relation:GTT_STAGE [filter/identity/pre-aggregation]
+#        dropped from: S4_DEEP_ALIAS_CHAIN
+#   x2  column:STG_ORDER_LINES.LINE_AMOUNT -> column:FCT_REVENUE_STAGE.NET_AMOUNT [value/aggregated/pre-aggregation]
+#        dropped from: S4_MULTI_TARGET_SPLIT
+#   x2  column:STG_ORDERS.CUST_ID -> column:FCT_REVENUE_STAGE.ORDER_COUNT [influence/identity/pre-aggregation]
+#        dropped from: S4_MULTI_TARGET_SPLIT
+#   x2  column:STG_ORDERS.ORDER_DATE -> column:FCT_REVENUE_STAGE.ORDER_COUNT [influence/identity/pre-aggregation]
+#        dropped from: S4_MULTI_TARGET_SPLIT
+#   x2  column:STG_ORDERS.CURRENCY -> relation:FCT_REVENUE_PART [filter/identity/pre-aggregation]
+#        dropped from: S4_FILTER_CASCADE
+#   x2  column:DIM_CUSTOMER.IS_ACTIVE -> relation:FCT_REVENUE_PART [filter/identity/pre-aggregation]
+#        dropped from: S4_FILTER_CASCADE
+#   x2  column:STG_ORDERS.ORDER_DATE -> column:FCT_REVENUE_PART.NET_AMOUNT [influence/identity/pre-aggregation]
+#        dropped from: S4_FILTER_CASCADE
+#
+package: stress_04_depth_at_scale.sql
+source_sha256: e074c7c8762744b9a3d92342337d255b4071025f0b872d0c8ed53e8a782a5c16
+labelled_by: claude (source_read; parse-only, nothing executed)
+labelled_at: '2026-09-12'
+note: '1504 lines, 28 units, 48 statements. Depth rather than novelty: five-level CTE chains, four and
+  five table joins, aggregation at two different grains in the same statement, windows stacked three scopes
+  apart, two MERGEs of different shape, and a five-level filter cascade. Every construct appears in stress
+  1, 2 or 3.
+
+
+  S1-05, MEASURED ON A PRODUCTION-SHAPED PACKAGE. 334 edges were written from source; only 240 could be
+  STATED. The match key is (source, target, flow, transform, phase) and origin is not part of it (amendment
+  1b), so 94 edges - 28.1% - collided with an identical claim from a different statement and had to be
+  collapsed. 56 keys collide; 27 of the 28 units are affected. The worst is STG_ORDERS.ORDER_DATE -> FCT_PRODUCT_SALES.PERIOD_MONTH
+  [value/derived], produced by SEVEN different statements doing seven different things, which this key
+  can say once. The edges kept are the first occurrence of each key. Every dropped claim is listed in
+  the comment block at the top of this file, so the loss is counted rather than hidden.'
+edges:
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+  note: SUM at product grain, SUM again at customer grain, then LAG and a CASE over both.
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+  note: COUNT(product_id) is product_variety, which decides which CASE arm runs.
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_ID
+  target:
+    kind: column
+    name: FCT_REVENUE.ORDER_COUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CURRENCY
+  target:
+    kind: relation
+    name: FCT_REVENUE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: relation
+    name: FCT_REVENUE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.STATUS_CODE
+  target:
+    kind: relation
+    name: FCT_REVENUE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: relation
+    name: FCT_REVENUE
+  flow: filter
+  phase: post-aggregation
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+  note: Both GROUP BY clauses and the LAG's PARTITION BY name it; one edge states it.
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_REVENUE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_PIPELINE
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.PERIOD_MONTH
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.PRODUCT_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CATEGORIES.CATEGORY_NAME
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.CATEGORY_NAME
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.GROSS_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.LIST_PRICE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.QUANTITY
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.UNITS_SOLD
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.RANK_IN_MONTH
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+  note: GROUPING_ID's first argument - convention (e), agreed by the analyser in stress 3.
+- source:
+    kind: column
+    name: STG_CATEGORIES.CATEGORY_NAME
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.RANK_IN_MONTH
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CURRENCY
+  target:
+    kind: relation
+    name: FCT_PRODUCT_SALES
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.STATUS_CODE
+  target:
+    kind: relation
+    name: FCT_PRODUCT_SALES
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.QUANTITY
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.CATEGORY_NAME
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.GROSS_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.UNITS_SOLD
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.RANK_IN_MONTH
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.CATEGORY_NAME
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.GROSS_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.UNITS_SOLD
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CATEGORIES.CATEGORY_NAME
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.GROSS_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CATEGORIES.CATEGORY_NAME
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CATEGORIES.CATEGORY_NAME
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.UNITS_SOLD
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CATEGORIES.CATEGORY_NAME
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.CATEGORY_NAME
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+  note: 'A grouping key influencing an AGGREGATE OF ITSELF. Not the self-influence D-2 excludes - LISTAGG
+    copies nothing. This is the S3-08 lesson applied deliberately.
+
+    '
+- source:
+    kind: column
+    name: STG_CATEGORIES.CATEGORY_NAME
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.RANK_IN_MONTH
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.RANK_IN_MONTH
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_MARGIN
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.REGION
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.REGION
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.STATUS_CODE
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.IS_ACTIVE
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.EMAIL
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.EMAIL
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.REFUND_AMOUNT
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.SIGNUP_DATE
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+  note: Inner operand of a correlation. Both operands stay - predicates.py, and S3-09.
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+  note: Outer operand of the same two correlations - the edge S3-10 made reachable.
+- source:
+    kind: column
+    name: STG_RETURNS.CUST_ID
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.STATUS_CODE
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.REGION
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.IS_ACTIVE
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+  note: ROW_NUMBER's PARTITION BY. The rank lands in is_active via the CASE condition.
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.IS_ACTIVE
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER_HIER.CUST_ID
+  target:
+    kind: column
+    name: DIM_CUSTOMER_HIER.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_HIERARCHY_ROLLUP
+    line: 236
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER_HIER.PARENT_CUST_ID
+  target:
+    kind: column
+    name: DIM_CUSTOMER_HIER.PARENT_CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_HIERARCHY_ROLLUP
+    line: 236
+  evidence: source_read
+  note: The GRANDPARENT, read from the second instance of the same table. Same column name.
+- source:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  target:
+    kind: column
+    name: DIM_CUSTOMER_HIER.DEPTH
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_HIERARCHY_ROLLUP
+    line: 236
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER_HIER.ROOT_NAME
+  target:
+    kind: column
+    name: DIM_CUSTOMER_HIER.ROOT_NAME
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_HIERARCHY_ROLLUP
+    line: 236
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER_HIER.PARENT_CUST_ID
+  target:
+    kind: relation
+    name: DIM_CUSTOMER_HIER
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_HIERARCHY_ROLLUP
+    line: 236
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.STATUS_CODE
+  target:
+    kind: relation
+    name: DIM_CUSTOMER_HIER
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_HIERARCHY_ROLLUP
+    line: 236
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: DIM_CUSTOMER_HIER.DEPTH
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_HIERARCHY_ROLLUP
+    line: 236
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: DIM_CUSTOMER.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.REGION
+  target:
+    kind: column
+    name: DIM_CUSTOMER.REGION
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.EMAIL
+  target:
+    kind: column
+    name: DIM_CUSTOMER.EMAIL
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: column
+    name: DIM_CUSTOMER.LIFETIME_VALUE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.LIFETIME_VALUE
+  target:
+    kind: column
+    name: DIM_CUSTOMER.LIFETIME_VALUE
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+  note: The accumulator self-edge - S3-07, at the bottom of a four-level USING.
+- source:
+    kind: column
+    name: STG_CUSTOMER.LAST_LOGIN
+  target:
+    kind: relation
+    name: DIM_CUSTOMER
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: REF_POLICY.WINDOW_DAYS
+  target:
+    kind: relation
+    name: DIM_CUSTOMER
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: relation
+    name: DIM_CUSTOMER
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: relation
+    name: DIM_CUSTOMER
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: relation
+    name: DIM_CUSTOMER
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+  note: The MATCHED arm's WHERE - the second filter site S3-03 added.
+- source:
+    kind: column
+    name: STG_CUSTOMER.REGION
+  target:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: GTT_STAGE.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_RETURNS_RECONCILIATION
+    line: 361
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: GTT_STAGE.PERIOD_MONTH
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_RETURNS_RECONCILIATION
+    line: 361
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_RETURNS_RECONCILIATION
+    line: 361
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CURRENCY
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_RETURNS_RECONCILIATION
+    line: 361
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.STATUS_CODE
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_RETURNS_RECONCILIATION
+    line: 361
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.CUST_ID
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_RETURNS_RECONCILIATION
+    line: 361
+  evidence: source_read
+  note: The MINUS second arm, convention (a).
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_RETURNS_RECONCILIATION
+    line: 361
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_RETURNS_RECONCILIATION
+    line: 361
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.PERIOD_MONTH
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.DISCOUNT_AMT
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+  note: LAG over a bare column - derived by D-3, two scopes below the INSERT.
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: relation
+    name: FCT_REVENUE_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CURRENCY
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+  note: The LAG's PARTITION BY is currency, not cust_id - the partitions must not pool.
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_WINDOW_CASCADE
+    line: 419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.PRODUCT_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CATEGORIES.CATEGORY_NAME
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.CATEGORY_NAME
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.REFUND_AMOUNT
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.REFUND_TOTAL
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.STATUS_CODE
+  target:
+    kind: relation
+    name: FCT_PRODUCT_SALES
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.REFUND_TOTAL
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.GROSS_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.REFUND_TOTAL
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.UNITS_SOLD
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CATEGORIES.CATEGORY_NAME
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.REFUND_TOTAL
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.REFUND_TOTAL
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CATEGORY_MATRIX
+    line: 474
+  evidence: source_read
+  note: refund_grain groups by the RETURNS product_id, a different column of the same name.
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: variable
+    name: V_CUST_ID
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: variable
+    name: V_PERIOD
+  flow: value
+  transform: derived
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: variable
+    name: V_GROSS
+  flow: value
+  transform: aggregated
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.DISCOUNT_AMT
+  target:
+    kind: variable
+    name: V_DISCOUNT
+  flow: value
+  transform: aggregated
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: variable
+    name: V_GROSS
+  target:
+    kind: variable
+    name: V_NET
+  flow: value
+  transform: derived
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: variable
+    name: V_DISCOUNT
+  target:
+    kind: variable
+    name: V_NET
+  flow: value
+  transform: derived
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: variable
+    name: V_NET
+  target:
+    kind: variable
+    name: V_BAND
+  flow: value
+  transform: conditional
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: variable
+    name: V_BAND
+  target:
+    kind: variable
+    name: V_ORDER_COUNT
+  flow: value
+  transform: conditional
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.REGION
+  target:
+    kind: variable
+    name: V_ORDER_COUNT
+  flow: value
+  transform: conditional
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: variable
+    name: V_CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.CUST_ID
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: variable
+    name: V_PERIOD
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.PERIOD_MONTH
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: variable
+    name: V_NET
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: variable
+    name: V_ORDER_COUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.ORDER_COUNT
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CURRENCY
+  target:
+    kind: relation
+    name: FCT_REVENUE_PART
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  target:
+    kind: relation
+    name: FCT_REVENUE_PART
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: relation
+    name: FCT_REVENUE_PART
+  flow: filter
+  phase: post-aggregation
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_CURSOR_LADDER
+    line: 601
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: variable
+    name: L_IDS
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BULK_PIPELINE
+    line: 624
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: variable
+    name: L_AMOUNTS
+  flow: value
+  transform: aggregated
+  band: 1
+  origin:
+    unit: S4_BULK_PIPELINE
+    line: 624
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: relation
+    name: FCT_REVENUE
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BULK_PIPELINE
+    line: 624
+  evidence: source_read
+  note: 'WHERE g.revenue_total > 0. The statement writes VARIABLES, so the filter edge targets the relation
+    READ - this key''s convention, carried from stress 1.
+
+    '
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: variable
+    name: L_AMOUNTS
+  flow: influence
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BULK_PIPELINE
+    line: 624
+  evidence: source_read
+  note: The subquery's GROUP BY governs the aggregate, which here lands in a variable.
+- source:
+    kind: variable
+    name: L_AMOUNTS
+  target:
+    kind: variable
+    name: L_SCALED
+  flow: value
+  transform: derived
+  band: 1
+  origin:
+    unit: S4_BULK_PIPELINE
+    line: 636
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_AMOUNTS
+  target:
+    kind: variable
+    name: L_FLAG
+  flow: value
+  transform: conditional
+  band: 1
+  origin:
+    unit: S4_BULK_PIPELINE
+    line: 636
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_IDS
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.CUST_ID
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BULK_PIPELINE
+    line: 636
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_SCALED
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BULK_PIPELINE
+    line: 636
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_FLAG
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BULK_PIPELINE
+    line: 636
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: TMP_RECENT.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_AUDIT_FANOUT
+    line: 653
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.LAST_LOGIN
+  target:
+    kind: column
+    name: TMP_RECENT.LAST_LOGIN
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: S4_AUDIT_FANOUT
+    line: 653
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.SIGNUP_DATE
+  target:
+    kind: column
+    name: TMP_RECENT.LAST_LOGIN
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: S4_AUDIT_FANOUT
+    line: 653
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.STATUS_CODE
+  target:
+    kind: relation
+    name: TMP_RECENT
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_AUDIT_FANOUT
+    line: 653
+  evidence: source_read
+- source:
+    kind: column
+    name: REF_POLICY.WINDOW_DAYS
+  target:
+    kind: relation
+    name: TMP_RECENT
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_AUDIT_FANOUT
+    line: 653
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: relation
+    name: TMP_RECENT
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_AUDIT_FANOUT
+    line: 653
+  evidence: source_read
+  note: The outer half of the IN (SELECT ...) semi-join - stress 3's convention (f).
+- source:
+    kind: column
+    name: DIM_CUSTOMER.CUST_ID
+  target:
+    kind: relation
+    name: TMP_RECENT
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_AUDIT_FANOUT
+    line: 653
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  target:
+    kind: relation
+    name: TMP_RECENT
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_AUDIT_FANOUT
+    line: 653
+  evidence: source_read
+- source:
+    kind: column
+    name: TMP_RECENT.CUST_ID
+  target:
+    kind: relation
+    name: DIM_CUSTOMER
+  flow: filter
+  transform: identity
+  band: 2
+  origin:
+    unit: TRG_RECENT_AUDIT
+    line: 4
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.CUST_ID
+  target:
+    kind: relation
+    name: DIM_CUSTOMER
+  flow: filter
+  transform: identity
+  band: 2
+  origin:
+    unit: TRG_RECENT_AUDIT
+    line: 4
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.ORDER_COUNT
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.IS_ACTIVE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_VIEW_RESOLUTION
+    line: 699
+  evidence: source_read
+  note: COUNT(r.order_count) is month_count, which the CASE tests.
+- source:
+    kind: column
+    name: STG_CUSTOMER.STATUS_CODE
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.EMAIL
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_VIEW_RESOLUTION
+    line: 699
+  evidence: source_read
+  note: 'LOWER(status_flag). v_cust_l2 derives status_flag from v_cust_l1.status, which is stg_customer.status_code
+    - four names for one column, ending in a column of a different name in the target.
+
+    '
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  phase: post-aggregation
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_VIEW_RESOLUTION
+    line: 699
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_VIEW_RESOLUTION
+    line: 699
+  evidence: source_read
+  note: 'The outer WHERE j.revenue_total > 100 - a pre-aggregation-phase filter over a value that was
+    aggregated in a CTE. Distinct from the HAVING above by phase alone, which is what putting phase in
+    the match key buys.
+
+    '
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.IS_ACTIVE
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_VIEW_RESOLUTION
+    line: 699
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: relation
+    name: FCT_REVENUE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_ORDER_FUNNEL
+    line: 738
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  target:
+    kind: relation
+    name: FCT_REVENUE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_ORDER_FUNNEL
+    line: 738
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_ID
+  target:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_ORDER_FUNNEL
+    line: 738
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.GROSS_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_DISCOUNT_ANALYSIS
+    line: 810
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_DISCOUNT_ANALYSIS
+    line: 810
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.DISCOUNT_AMT
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_DISCOUNT_ANALYSIS
+    line: 810
+  evidence: source_read
+  note: NULLIF makes it conditional; the SUM outranks that on the ladder.
+- source:
+    kind: column
+    name: STG_ORDERS.DISCOUNT_AMT
+  target:
+    kind: relation
+    name: FCT_PRODUCT_SALES
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_DISCOUNT_ANALYSIS
+    line: 810
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: GTT_STAGE.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_LIFECYCLE
+    line: 851
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.SIGNUP_DATE
+  target:
+    kind: column
+    name: GTT_STAGE.PERIOD_MONTH
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_LIFECYCLE
+    line: 851
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.REGION
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_LIFECYCLE
+    line: 851
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_LIFECYCLE
+    line: 851
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.SIGNUP_DATE
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_LIFECYCLE
+    line: 851
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_LIFECYCLE
+    line: 851
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_LIFECYCLE
+    line: 851
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.SIGNUP_DATE
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_LIFECYCLE
+    line: 851
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CATEGORIES.PARENT_ID
+  target:
+    kind: relation
+    name: FCT_PRODUCT_SALES
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_HIERARCHY
+    line: 898
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.CATEGORY_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.GROSS_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_PRODUCT_HIERARCHY
+    line: 898
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_VARIANCE
+    line: 957
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.PERIOD_MONTH
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_VARIANCE
+    line: 957
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_REVENUE_VARIANCE
+    line: 957
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.ORDER_COUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_REVENUE_VARIANCE
+    line: 957
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_VARIANCE
+    line: 957
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_VARIANCE
+    line: 957
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_VARIANCE
+    line: 957
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_VARIANCE
+    line: 957
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.REGION
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REVENUE_VARIANCE
+    line: 957
+  evidence: source_read
+  note: FIRST_VALUE partitions by region - a different partition from the other two windows.
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_RETURN_RATE
+    line: 1007
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.REFUND_AMOUNT
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_RETURN_RATE
+    line: 1007
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: relation
+    name: FCT_PRODUCT_SALES
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_RETURN_RATE
+    line: 1007
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.PRODUCT_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_RETURN_RATE
+    line: 1007
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.PERIOD_MONTH
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.REFUND_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE_PART.ORDER_COUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.ORDER_COUNT
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.STATUS_CODE
+  target:
+    kind: relation
+    name: FCT_REVENUE_PART
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  target:
+    kind: relation
+    name: FCT_REVENUE_PART
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+  note: The arm WHERE names the TARGET - S3-07's lookup applied to S3-03's filter site.
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_RETURNS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+- source:
+    kind: column
+    name: REF_POLICY.WINDOW_DAYS
+  target:
+    kind: variable
+    name: L_THRESHOLD
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1110
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: variable
+    name: L_CUSTOMERS
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1115
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: relation
+    name: FCT_REVENUE
+  flow: filter
+  phase: post-aggregation
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1115
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_AMOUNTS
+  target:
+    kind: variable
+    name: L_NET
+  flow: value
+  transform: derived
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1130
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_THRESHOLD
+  target:
+    kind: variable
+    name: L_NET
+  flow: value
+  transform: derived
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1130
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_THRESHOLD
+  target:
+    kind: variable
+    name: L_FLAG
+  flow: value
+  transform: conditional
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1130
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_CUSTOMERS
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.CUST_ID
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1130
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_NET
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1130
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_FLAG
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.ORDER_COUNT
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1130
+  evidence: source_read
+- source:
+    kind: variable
+    name: L_CUSTOMERS
+  target:
+    kind: column
+    name: DW_AUDIT_LOG.CUST_ID
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1133
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_REGIONAL_SUMMARY
+    line: 1149
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  target:
+    kind: relation
+    name: FCT_REVENUE_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REGIONAL_SUMMARY
+    line: 1149
+  evidence: source_read
+- source:
+    kind: column
+    name: REF_POLICY.WINDOW_DAYS
+  target:
+    kind: relation
+    name: FCT_REVENUE_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REGIONAL_SUMMARY
+    line: 1149
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.REGION
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REGIONAL_SUMMARY
+    line: 1149
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REGIONAL_SUMMARY
+    line: 1149
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_REGIONAL_SUMMARY
+    line: 1149
+  evidence: source_read
+  note: ROW_NUMBER orders by region_total, which is the SUM of line_amount.
+- source:
+    kind: column
+    name: STG_ORDER_LINES.QUANTITY
+  target:
+    kind: relation
+    name: FCT_PRODUCT_SALES
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_ORDER_VELOCITY
+    line: 1200
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.CATEGORY_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.UNITS_SOLD
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_ORDER_VELOCITY
+    line: 1200
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.QUANTITY
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.RANK_IN_MONTH
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_ORDER_VELOCITY
+    line: 1200
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.STATUS_CODE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_MARGIN_BANDS
+    line: 1239
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.UNIT_PRICE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_MARGIN_BANDS
+    line: 1239
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: GTT_STAGE.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_INTERSECT_SCOPE
+    line: 1275
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  target:
+    kind: column
+    name: GTT_STAGE.PERIOD_MONTH
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_INTERSECT_SCOPE
+    line: 1275
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_INTERSECT_SCOPE
+    line: 1275
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_INTERSECT_SCOPE
+    line: 1275
+  evidence: source_read
+  note: The INTERSECT second arm, convention (a).
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_INTERSECT_SCOPE
+    line: 1275
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_INTERSECT_SCOPE
+    line: 1275
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_INTERSECT_SCOPE
+    line: 1275
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.STATUS_CODE
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_NESTED_EXISTS
+    line: 1316
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_NESTED_EXISTS
+    line: 1316
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.ORDER_ID
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_NESTED_EXISTS
+    line: 1316
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_ID
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_NESTED_EXISTS
+    line: 1316
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.STATUS_CODE
+  target:
+    kind: relation
+    name: DW_DIM_CUSTOMER_V2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_NESTED_EXISTS
+    line: 1316
+  evidence: source_read
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_NESTED_EXISTS
+    line: 1316
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_DEEP_ALIAS_CHAIN
+    line: 1360
+  evidence: source_read
+  note: Five renames and four joins, and still an unmodified copy.
+- source:
+    kind: column
+    name: STG_CUSTOMER.STATUS_CODE
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_DEEP_ALIAS_CHAIN
+    line: 1360
+  evidence: source_read
+- source:
+    kind: column
+    name: REF_POLICY.REGION
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_DEEP_ALIAS_CHAIN
+    line: 1360
+  evidence: source_read
+- source:
+    kind: column
+    name: REF_POLICY.WINDOW_DAYS
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_DEEP_ALIAS_CHAIN
+    line: 1360
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_STAGE.ORDER_COUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_MULTI_TARGET_SPLIT
+    line: 1419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CURRENCY
+  target:
+    kind: relation
+    name: FCT_REVENUE_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MULTI_TARGET_SPLIT
+    line: 1419
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.DISCOUNT_AMT
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_MULTI_TARGET_SPLIT
+    line: 1434
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.DISCOUNT_AMT
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MULTI_TARGET_SPLIT
+    line: 1434
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: DW_AUDIT_LOG.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MULTI_TARGET_SPLIT
+    line: 1446
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.EMAIL
+  target:
+    kind: column
+    name: DW_AUDIT_LOG.CHANGED_BY
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MULTI_TARGET_SPLIT
+    line: 1446
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.LAST_LOGIN
+  target:
+    kind: column
+    name: DW_AUDIT_LOG.CHANGED_AT
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MULTI_TARGET_SPLIT
+    line: 1446
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_CUSTOMER.LAST_LOGIN
+  target:
+    kind: relation
+    name: DW_AUDIT_LOG
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MULTI_TARGET_SPLIT
+    line: 1446
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.CUST_ID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.PERIOD_MONTH
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.REGION
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.ORDER_COUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.QUANTITY
+  target:
+    kind: relation
+    name: FCT_REVENUE_PART
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_PRODUCTS.STATUS_CODE
+  target:
+    kind: relation
+    name: FCT_REVENUE_PART
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.REGION
+  target:
+    kind: relation
+    name: FCT_REVENUE_PART
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDER_LINES.LINE_AMOUNT
+  target:
+    kind: relation
+    name: FCT_REVENUE_PART
+  flow: filter
+  phase: post-aggregation
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.CUST_ID
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.ORDER_COUNT
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_FILTER_CASCADE
+    line: 1464
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: STG_ORDER_LINES.ORDER_ID
+  target:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  flow: value
+  reason: 'A join key read as a value source, at depth. Four joins in unit 1 and five in unit 13 give
+    the ON clause four chances to leak; D-5 says it is structural wherever written.
+
+    '
+- source:
+    kind: column
+    name: STG_ORDERS.GROSS_AMOUNT
+  target:
+    kind: column
+    name: FCT_REVENUE.NET_AMOUNT
+  flow: value
+  reason: 'gross_amount is carried through order_scope in unit 1 and NEVER SELECTED AGAIN. A dead CTE
+    column must produce no edge; an edge here means the analyser is reading the projection rather than
+    the path.
+
+    '
+- source:
+    kind: column
+    name: STG_ORDERS.ORDER_DATE
+  target:
+    kind: column
+    name: FCT_REVENUE.PERIOD_MONTH
+  flow: influence
+  reason: 'GROUP BY influence onto a grouping key projected through unchanged. D-2 excludes it because
+    it would say a column decides its own value - and stress 3''s S3-08 is on the register for applying
+    that exclusion by NAME rather than by that reason.
+
+    '
+- source:
+    kind: column
+    name: V_CUST_L3.CUST_ID
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.CUST_ID
+  flow: value
+  reason: 'A VIEW named as a source. Views are expanded, so unit 12''s edges must name stg_customer; naming
+    the view substitutes what the code wrote for what it meant, and the three-deep chain gives that three
+    chances to happen.
+
+    '
+- source:
+    kind: variable
+    name: I
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.CUST_ID
+  flow: value
+  reason: 'The loop index as a value source - S3-06, in a unit with TWO collections indexed by the same
+    variable. The subscript chooses which element and is not in the value.
+
+    '
+- source:
+    kind: column
+    name: STG_RETURNS.CUST_ID
+  target:
+    kind: column
+    name: GTT_STAGE.AMOUNT
+  flow: value
+  reason: 'The MINUS second arm read as a value source in unit 6. Convention (a): the second arm decides
+    which rows survive and supplies none of the value.
+
+    '
+expected_boundaries: []
