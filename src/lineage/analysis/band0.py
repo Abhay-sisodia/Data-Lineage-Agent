@@ -1486,6 +1486,38 @@ def _analyse_merge(
             return []
         return _trace(column, scope, dictionary, unresolved)
 
+    def _influence_edges(expression: Any, target_column: str) -> list[PredictedEdge]:
+        """A MERGE's GROUP BY and window influence (stress finding S4-03).
+
+        S3-03 gave a MERGE its FILTER edges and stopped there, so `_grouping_influence` and
+        `_window_influence` were never reached from this statement type at all. A `USING`
+        clause is a query like any other: it groups, it windows, and what those decide about
+        an aggregated column is a dependency of the column the arm writes.
+
+        Both walk outward from the setter's expression through the USING scope, so a
+        `GROUP BY` four CTE levels inside the `USING` is found the same way it is under an
+        `INSERT ... SELECT` - which is the point of reusing them rather than writing a
+        MERGE-shaped version.
+        """
+        found: list[PredictedEdge] = []
+        for resolver in (_window_influence, _grouping_influence):
+            for source_table, source_column, _ in resolver(
+                expression, scope, dictionary, unresolved
+            ):
+                found.append(
+                    _edge(
+                        source_table,
+                        source_column,
+                        target_name,
+                        target_column,
+                        Transform.IDENTITY,
+                        band,
+                        origin,
+                        flow=Flow.INFLUENCE,
+                    )
+                )
+        return found
+
     edges: list[PredictedEdge] = []
 
     # A MERGE FILTERS IN TWO PLACES AND USED TO REPORT NEITHER (stress finding S3-03).
@@ -1530,6 +1562,7 @@ def _analyse_merge(
                     continue
                 target_column = setter.this.name.upper()
                 own = _transform_of(setter.expression)
+                edges.extend(_influence_edges(setter.expression, target_column))
                 for column in setter.expression.find_all(exp.Column):
                     for src_table, src_column, traced in _trace_in_merge(column):
                         edges.append(
@@ -1556,6 +1589,7 @@ def _analyse_merge(
                 continue
             for target_column, item in zip(target_columns, items, strict=True):
                 own = _transform_of(item)
+                edges.extend(_influence_edges(item, target_column))
                 for column in item.find_all(exp.Column):
                     for src_table, src_column, traced in _trace(
                         column, scope, dictionary, unresolved
