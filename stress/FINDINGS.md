@@ -43,7 +43,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S3-05 | `key-error` | **fixed** | four omissions in stress 3's own key, corrected 2026-09-12 and kept as evidence |
 | S3-08 | `key-error` | **fixed** | three more, from applying D-2's exclusion as a NAME MATCH instead of by the reason it states |
 | S3-06 | `flow-classification` | **fixed** | a `FOR` loop index emitted as a **value source** — the subscript chooses an element, it is not in the value |
-| S3-07 | `construct-coverage` | open | `t.col` on the right of a `MERGE` `SET` does not resolve to the target's own column — declared, not silent |
+| S3-07 | `construct-coverage` | **fixed** | `t.col` on the right of a `MERGE` `SET` did not resolve to the target's own column — declared, not silent |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
 | S1-03 | `flow-classification` | **fixed** | **misdiagnosed** — no `GROUP BY`/`HAVING` edge was emitted at all; D-2 adds both |
@@ -2020,23 +2020,51 @@ a `sid` - the analyser emitted **one** filter edge and **no boundary**: the oute
 edge was replaced by a duplicate of the inner one and deduplicated away. An edge missing,
 nothing declared, and the remaining edge looking exactly right.
 
+### S3-07 · FIXED 2026-09-12 — in a MERGE the target is in scope
+
+`_analyse_merge` builds its scope over the `USING` clause alone, because that is the thing
+whose projections need tracing. So a reference qualified with the TARGET's alias resolved
+against the wrong side entirely:
+
+```sql
+WHEN MATCHED THEN UPDATE SET lifetime_value = NVL(t.lifetime_value, 0) + s.amount
+```
+
+`t.lifetime_value` came out as `unresolved_identifier`, and the self-edge was absent. **That
+accumulator is how a MERGE adds to a running total**, and the self-edge is a real one —
+`trg_recent_audit` has the identical shape and `b2_05` has labelled it since it was written.
+
+**The USING scope is consulted FIRST, and that ordering is the whole safety of the fix.** An
+alias present in the `USING` clause belongs to that source whatever it is called; preferring
+the target would silently redirect a real source reference at the table being written —
+**a worse defect than the one being fixed**, because it would fabricate a self-edge rather
+than omit one. There is a test on that ordering, one on an unaliased target (`MERGE INTO tgt
+… SET tgt.total = …` is legal, and a fix keyed only on the alias would work on every example
+written while testing), and one asserting a column the target does not have is still
+declared rather than invented.
+
+Stress-3 band-0 value: **27 TP / 1 FN → 28 TP / 0 FP / 0 FN.** Phase 0 byte-identical.
+
 ### What stress 3 has left, and what it is
 
 ```
   band  flow       TP  FP  FN   precision    recall
-  0     filter     10   0   0      100.0%    100.0%
+  0     filter     11   0   0      100.0%    100.0%
   0     influence  24   0   0      100.0%    100.0%
-  0     value      27   0   1      100.0%     96.4%
+  0     value      28   0   0      100.0%    100.0%
   1     filter      0   0   1         n/a      0.0%
   1     value       4   0   3      100.0%     57.1%
   2     filter      2   0   0      100.0%    100.0%
   2     value       1   0   0      100.0%    100.0%
 ```
 
-**Zero false positives everywhere, and five of seven cells complete.** Every remaining miss
-is a DECLARED gap, not a wrong answer: S3-07 (`t.col` in a `MERGE SET`) is the one band-0
-value FN and arrives as `unresolved_identifier`; the four band-1 misses are the
-`FETCH ... BULK COLLECT` refusal, declared and counted.
+**Zero false positives everywhere. Every band-0 and band-2 cell is 100% on both axes.** The
+only misses left are band 1, and all five are ONE DECLARED REFUSAL: `FETCH ... BULK COLLECT`
+into a cursor `%ROWTYPE` collection. S2-04 fixed `SELECT ... BULK COLLECT INTO`; the cursor
+form with a `LIMIT` is a different path and is still refused, loudly and counted.
+
+**Nothing the analyser claims about this package is wrong.** What it does not know, it
+says.
 
 **The package is now measuring recall against declared gaps rather than hunting false
 claims** - which is the state the phase-0 corpus reached after eighteen findings, and this

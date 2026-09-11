@@ -1358,6 +1358,40 @@ def _analyse_merge(
     whens = statement.args.get("whens")
     when_clauses = getattr(whens, "expressions", whens) or []
 
+    # THE TARGET IS IN SCOPE IN A MERGE, AND `scope` DOES NOT KNOW IT (stress finding S3-07).
+    # `scope` is built over the USING clause alone, so `t.lifetime_value` in
+    # `SET lifetime_value = NVL(t.lifetime_value, 0) + s.amount` resolved against the wrong
+    # side and came out as `unresolved_identifier`. That accumulator pattern is how a MERGE
+    # adds to a running total, and the self-edge it produces is a real one - `trg_recent_audit`
+    # has the same shape and `b2_05` has labelled it since it was written.
+    target_alias = (target.alias or target.name or "").upper()
+
+    def _trace_in_merge(column: exp.Column) -> list[tuple[str, str, Transform]]:
+        """Trace against the USING source, or against the MERGE target itself.
+
+        The USING scope is consulted FIRST: an alias that exists there is that source's,
+        whatever it is called, and preferring the target would silently redirect a real
+        source reference at the table being written.
+        """
+        qualifier = (column.table or "").upper()
+        if qualifier and qualifier not in scope.sources and qualifier == target_alias:
+            name = column.name.upper()
+            try:
+                known = dictionary.columns_of(target_name)
+            except UnknownObjectError:
+                known = []
+            if name in known:
+                return [(target_name, name, Transform.IDENTITY)]
+            unresolved.append(
+                Boundary(
+                    kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                    subject=f"{target_name}.{name}",
+                    detail=f"{name} (not a column of MERGE target {target_name})",
+                )
+            )
+            return []
+        return _trace(column, scope, dictionary, unresolved)
+
     edges: list[PredictedEdge] = []
 
     # A MERGE FILTERS IN TWO PLACES AND USED TO REPORT NEITHER (stress finding S3-03).
@@ -1383,9 +1417,7 @@ def _analyse_merge(
             arm_where = action.args.get("where")
             if arm_where is not None:
                 for column in predicate_columns(arm_where):
-                    for source_table, source_column, _ in _trace(
-                        column, scope, dictionary, unresolved
-                    ):
+                    for source_table, source_column, _ in _trace_in_merge(column):
                         edges.append(
                             _edge(
                                 source_table,
@@ -1405,9 +1437,7 @@ def _analyse_merge(
                 target_column = setter.this.name.upper()
                 own = _transform_of(setter.expression)
                 for column in setter.expression.find_all(exp.Column):
-                    for src_table, src_column, traced in _trace(
-                        column, scope, dictionary, unresolved
-                    ):
+                    for src_table, src_column, traced in _trace_in_merge(column):
                         edges.append(
                             _edge(
                                 src_table,
