@@ -246,6 +246,36 @@ def _projection_named(scope: Scope, name: str) -> Any:
     return None
 
 
+def _row_source_subject(source: exp.Table) -> str:
+    """A comparable subject for a row source that has no relation name.
+
+    `FROM TABLE(f(1))` has no table to name, but a boundary's identity is its kind plus
+    its subject (IR v0, amendment on BoundaryKind), so "" would make every such boundary
+    the same boundary. The function being called is the thing we could not see, so that
+    is what gets named: `TABLE(F)`.
+
+    Falls back to the rendered expression when no function name can be found, because an
+    unreadable subject is still better than an empty one - it stays comparable, and it
+    stays visible in the boundary listing where someone can act on it.
+    """
+    function = source.this
+    arguments = getattr(function, "expressions", None) or []
+    if arguments:
+        # The called expression rendered without its arguments: `pkg.f(1)` -> `PKG.F`.
+        # Walking for the first string `this` finds `PKG` instead, which names the wrong
+        # thing - two functions in one package would share a subject and merge into one
+        # boundary.
+        # Quotes are stripped so `pkg.f` and `"PKG".f` produce the same subject - a
+        # boundary's identity is what makes two statements of the same fact comparable,
+        # and quoting is not part of the fact.
+        called = arguments[0].sql(dialect=DIALECT).strip().upper().replace('"', "")
+        head = called.split("(", 1)[0].strip()
+        if head:
+            return f"TABLE({head})"
+    rendered = source.sql(dialect=DIALECT).strip().upper()
+    return rendered or "TABLE(?)"
+
+
 def _trace(
     column: exp.Column,
     scope: Scope,
@@ -285,6 +315,35 @@ def _trace(
     if isinstance(source, exp.Table):
         table = source.name.upper()
         name = column.name.upper()
+
+        # A ROW SOURCE WITH NO NAME. `FROM TABLE(f(1))` parses as a Table whose `this` is
+        # the function call, so `name` is the empty string - there is no relation to look
+        # up, and until 2026-09-11 this reached `Boundary(subject="")` and raised
+        # ValidationError out of `analyse_source`.
+        #
+        # A CRASH IS THE WORST OUTCOME AVAILABLE HERE, which is why this guard is separate
+        # from the UnknownObjectError path below rather than folded into it. Every other
+        # failure in this analyser costs one statement: a refusal, a boundary, at worst a
+        # silent miss that still leaves the statement counted. An exception escaping
+        # `analyse_source` costs THE WHOLE FILE - every other unit in the package produces
+        # nothing, and no refusal, boundary or count records that it happened.
+        #
+        # The shape of a table function's result is decided by its return type, which is
+        # not in the dictionary, so the honest answer is the same one we give an ungranted
+        # schema: name what we could not see and emit nothing.
+        if not table:
+            unresolved.append(
+                Boundary(
+                    kind=BoundaryKind.DANGLING_REFERENCE,
+                    subject=_row_source_subject(source),
+                    detail=(
+                        f"{_row_source_subject(source)}.{name} "
+                        "(row source is a function; its shape is its return type, "
+                        "which is not in the dictionary)"
+                    ),
+                )
+            )
+            return []
 
         # AN EXPLICIT SCHEMA QUALIFIER IS PART OF THE NAME (silent failure s2).
         #
