@@ -1,0 +1,827 @@
+# Ground truth for stress/stress_03_modern_complexity.sql
+#
+# WRITTEN FROM SOURCE, BEFORE THE ANALYSER WAS RUN OVER IT. Same rule as stress 1, stress 2
+# and the phase-0 corpus. A key written after seeing the output records what the analyser
+# did rather than what is true, and there is no way to tell the two apart afterwards.
+#
+# All source_read. Parse-only, nothing executed.
+#
+# CONVENTIONS CARRIED FORWARD (none invented silently; new ones are flagged in place):
+#   * match key is (source, target, flow, transform, phase)
+#   * a filter edge targets the relation the STATEMENT WRITES
+#   * a HAVING is `filter` with `phase: post-aggregation`; a WHERE takes the default
+#     `pre-aggregation`, which is not written out (D-2)
+#   * GROUP BY is `influence` onto every AGGREGATED output column, targeting the COLUMN.
+#     Grouping keys projected through get no influence onto themselves - that would say a
+#     column decides its own value (D-2)
+#   * a window's PARTITION BY / ORDER BY is `influence` onto the COLUMN it produces (D-4)
+#   * a JOIN CONDITION is structural wherever it is written, and produces no edge (D-5)
+#   * a CASE condition is a VALUE source with transform `conditional` - a predicate that
+#     selects a ROW is filter, a predicate that selects an EXPRESSION is value
+#     (s8_aggregation_semantics, and b1_08 for the cross-unit form)
+#   * a value-selecting window function is `derived`, not `aggregated` (D-3)
+#   * literals, COUNT(*), ROWNUM and SYSDATE produce no edge - no upstream to name
+#   * transform is the STRONGEST on the path: aggregated > conditional > derived > identity
+#   * band: set-based 0, variable/cursor/loop 1, dynamic SQL and triggers 2
+#
+# FOUR CONVENTIONS HAVE NO PRECEDENT AND ARE PROPOSED HERE, flagged at the edge:
+#   (d) KEEP (DENSE_RANK FIRST ORDER BY x) - the ORDER BY decides WHICH ROW's value is
+#       kept, exactly as a window ORDER BY does, so it is `influence` onto the column and
+#       not a value source. The aggregate itself (MAX) still makes the value `aggregated`.
+#   (e) GROUPING_ID(a, b) - its arguments genuinely determine the number returned, because
+#       the result is a bitmap of which of them are grouped in this row. So they are VALUE
+#       sources, and `aggregated` because the function has no meaning outside a GROUP BY.
+#       This is the one construct here whose value is about the QUERY SHAPE rather than
+#       about any row, and it is labelled the way it is because the number still cannot be
+#       computed without naming those columns.
+#   (f) An IN (SELECT ...) semi-join. D-5 made join conditions structural "wherever
+#       written", and its worked examples are all `ON` clauses and `EXISTS` correlations;
+#       the stress-2 convention says an IN/EXISTS predicate decides WHICH ROW and is
+#       therefore filter. THE TWO CAN BE READ AS CONFLICTING HERE. This key follows
+#       stress 2 and labels the outer column as `filter`, because D-5's argument is about
+#       a condition that JOINS two relations for projection, and this one does not project
+#       anything from ref_policy. Flagged so that a disagreement is attributable to the
+#       convention rather than read as an analyser defect.
+#   (g) A MERGE arm-level WHERE over an already-aggregated scalar. It is not a HAVING, so
+#       the phase stays the default `pre-aggregation`, but the thing it tests was computed
+#       by a SUM. Labelled pre-aggregation because `phase` distinguishes WHERE from HAVING
+#       as CLAUSES, not as a claim about what the value went through.
+#
+# WHAT THIS PACKAGE IS AIMED AT. scripts/probe_analyser.py found 48 constructs that emit
+# edges no key had ever checked. Stress 1 went wide on constructs and stress 2 went deep on
+# them; this one goes deep on COMBINATIONS, because every combination-shaped bug this
+# project has had passed its minimal case first - `_grouping_influence` dropped nested
+# groupings while handling a flat GROUP BY correctly, and the window-influence false
+# positives were only wrong once traced through a CTE.
+
+package: stress_03_modern_complexity.sql
+source_sha256: d5b9be9d5c5bef86842edbb2f1041bc59622bd8ec80df1c3645433a8a8d75416
+labelled_by: claude (source_read; parse-only, nothing executed)
+labelled_at: "2026-09-12"
+
+note: >
+  213 lines, 6 units. Combination-first: a three-CTE chain with grouping two scopes below
+  the INSERT, four analytic functions over one window with no GROUP BY at all, ROLLUP with
+  LISTAGG and KEEP DENSE_RANK, a MERGE carrying a correlated scalar aggregate, a
+  BULK COLLECT of a cursor %ROWTYPE read back by field, and a trigger inheritance behind a
+  semi-join. Weighted towards the transform ladder, where a wrong answer misses twice.
+
+edges:
+  # === 1. s3_revenue_restatement ============================================
+  #
+  # THE GROUP BY IS TWO SCOPES BELOW THE INSERT: order_base -> line_detail ->
+  # rollup_stage -> the outer SELECT. That nesting is the whole point of the unit.
+  # `_grouping_influence` returned at the first aggregating scope once and lost
+  # exactly this shape.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+    note: TRUNC(order_date, 'MM'), carried through three CTEs unchanged after that.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+    note: >
+      SUM(d.line_amount) in rollup_stage, then multiplied by 0.95 in one arm of a CASE.
+      The ladder keeps `aggregated`: it outranks both conditional and derived.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+    note: >
+      THE CROSS-COLUMN CASE CONDITION. order_cnt is COUNT(DISTINCT d.order_id), and it
+      decides which arm of net_amount's CASE runs - so order_id participates in a column
+      it is never summed into. Conditional by the CASE rule, aggregated by the COUNT on
+      the path, and the ladder takes aggregated.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_ID}
+    target: {kind: column, name: FCT_REVENUE.ORDER_COUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+    note: WHERE o.currency = 'GBP', in the innermost CTE. Default pre-aggregation phase.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: relation, name: FCT_REVENUE}
+    flow: filter
+    phase: post-aggregation
+    transform: identity
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+    note: >
+      HAVING SUM(d.line_amount) > 0, in rollup_stage. The second HAVING to exist in any
+      package here - stress 1 had the only other one, and D-2 was decided on it.
+
+  # --- GROUP BY influence (D-2). Aggregated outputs only: net_amount, order_count. -----
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+    note: GROUP BY d.period_month, which is TRUNC(order_date) three CTEs up.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_REVENUE_RESTATEMENT, line: 32}
+    evidence: source_read
+
+  # === 2. s3_product_scorecard ==============================================
+  #
+  # Three ladder functions the corpus has never seen, over a four-table join.
+  # `net_value` in unit 1 and every ON clause here are the deliberate silences:
+  # a computed-but-unused column and a structural condition both produce nothing.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CATEGORIES.CATEGORY_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+    note: >
+      LISTAGG is an aggregate - it collapses many rows into one string. Its WITHIN GROUP
+      ORDER BY is over the same column, so it adds no separate influence edge.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_PRODUCTS.LIST_PRICE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+    note: MAX(p.list_price) KEEP (...). The value is the aggregate's; see (d) for the ORDER BY.
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+    note: >
+      PROPOSED CONVENTION (d). `KEEP (DENSE_RANK FIRST ORDER BY l.quantity DESC)` decides
+      WHICH ROW's list_price is kept and contributes none of its own value to the result -
+      which is precisely the argument D-4 made for a window's ORDER BY. So: influence onto
+      the column, not a value source.
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+    note: PROPOSED CONVENTION (e). GROUPING_ID's first argument.
+
+  - source: {kind: column, name: STG_CATEGORIES.CATEGORY_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+    note: PROPOSED CONVENTION (e). GROUPING_ID's second argument.
+
+  - source: {kind: column, name: STG_PRODUCTS.STATUS_CODE}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  # --- GROUP BY ROLLUP influence (D-2). Aggregated outputs: category_name, gross_sales,
+  # --- net_sales, units_sold, rank_in_month. period_month and product_id are grouping
+  # --- keys projected through, so they take no influence onto THEMSELVES - but they do
+  # --- influence the others.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CATEGORIES.CATEGORY_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+  - source: {kind: column, name: STG_CATEGORIES.CATEGORY_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+  - source: {kind: column, name: STG_CATEGORIES.CATEGORY_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  # === 3. s3_customer_signal ================================================
+  #
+  # NO GROUP BY ANYWHERE IN THIS UNIT, deliberately. net_amount's only path is
+  # LAG(o.gross_amount) - a BARE COLUMN, which is the case S2-08 predicted would
+  # differ and the corpus cannot produce, because every LAG in it is LAG(SUM(...))
+  # and the ladder keeps `aggregated` whichever way D-3 is decided.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.PERIOD_MONTH}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+    note: >
+      THE S2-08 TEST. `LAG(o.gross_amount)` reads another ROW of the same column and
+      computes nothing, so D-3 makes it `derived`. Nothing else is on this path - no
+      aggregate, no CASE - so the ladder cannot hide the answer. If this scores
+      `aggregated`, D-3 did not reach the bare-column case and S2-08's closing argument
+      was wrong.
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+    note: >
+      The same column into a different target by a different route: a windowed SUM with a
+      RANGE INTERVAL frame. Aggregated, and it outranks the CASE wrapped around it.
+
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+    note: >
+      first_ccy is FIRST_VALUE(o.currency IGNORE NULLS) and it decides which arm of the
+      CASE runs. A predicate that selects an EXPRESSION is a value source.
+
+  - source: {kind: column, name: STG_ORDERS.DISCOUNT_AMT}
+    target: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+    note: >
+      LEAD(o.discount_amt) is `derived` by D-3, but it appears only inside the ELSE arm,
+      so it contributes conditionally. Conditional outranks derived.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: relation, name: FCT_REVENUE_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+    note: WHERE o.order_date >= ADD_MONTHS(SYSDATE, -24).
+
+  # --- Window influence (D-4). All four windows share PARTITION BY cust_id ORDER BY
+  # --- order_date, so the influence edges collapse onto the two columns each window
+  # --- produces. Four windows, two targets, four edges.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+    note: PARTITION BY o.cust_id on the LAG that produces net_amount.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+    note: ORDER BY o.order_date decides which row LAG reaches back to.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_CUSTOMER_SIGNAL, line: 103}
+    evidence: source_read
+
+  # === 4. s3_incremental_merge ==============================================
+  #
+  # Both arms write the same columns, so most edges are stated once. The ON clause
+  # and the scalar subquery's correlation are both structural under D-5 and
+  # produce nothing.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+    note: NOT MATCHED arm only; the MATCHED arm does not write the key.
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.REGION}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.EMAIL}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.EMAIL}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+    note: LOWER(s.email) in both arms.
+
+  - source: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+    note: >
+      A CORRELATED SCALAR AGGREGATE IN THE USING CLAUSE, consumed by both arms. The SUM is
+      two levels away from the column it lands in.
+
+  - source: {kind: column, name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+    note: >
+      NVL(t.lifetime_value, 0) + NVL(s.revenue_total, 0) - the accumulator reads its own
+      prior value. A genuine self-edge, same shape as trg_recent_audit's.
+
+  - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.IS_ACTIVE}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+    note: >
+      MATCHED arm only. The NOT MATCHED arm writes the literal 1, which has no upstream
+      and produces no edge - so is_active has exactly one source, not two.
+
+  - source: {kind: column, name: STG_CUSTOMER.SIGNUP_DATE}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+    note: WHERE c.signup_date < SYSDATE, inside the USING subquery.
+
+  - source: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+    note: >
+      PROPOSED CONVENTION (g). The MATCHED arm's `WHERE s.revenue_total > 0`. Not a
+      HAVING, so the phase stays the default.
+
+  # === 5. s3_bulk_reconcile =================================================
+  #
+  # Band 1 throughout. S2-04 was a BULK COLLECT into a record collection yielding
+  # NOTHING, silently; this is the same construct with a cursor %ROWTYPE, a LIMIT,
+  # and field access through an index variable.
+
+  - source: {kind: column, name: STG_RETURNS.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S3_BULK_RECONCILE, line: 192}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_RETURNS.REFUND_AMOUNT}
+    target: {kind: column, name: FCT_PRODUCT_SALES.REFUND_TOTAL}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: S3_BULK_RECONCILE, line: 192}
+    evidence: source_read
+    note: l_adjusted := l_batch(i).refund_amount * 1.2.
+
+  - source: {kind: column, name: STG_RETURNS.STATUS_CODE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: conditional
+    band: 1
+    origin: {unit: S3_BULK_RECONCILE, line: 192}
+    evidence: source_read
+    note: >
+      A CASE assigned to a variable, then written. The same column also filters the
+      cursor, so it reaches the target twice by different flows - which is a fact about
+      the code, not a duplicate.
+
+  - source: {kind: column, name: STG_RETURNS.STATUS_CODE}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    transform: identity
+    band: 1
+    origin: {unit: S3_BULK_RECONCILE, line: 192}
+    evidence: source_read
+    note: WHERE r.status_code IN ('P', 'A') - a literal IN-list, not a subquery.
+
+  # --- KEY ERROR, CORRECTED 2026-09-12 AFTER THE FIRST RUN (finding S3-05) ------------
+  #
+  # The four edges above are what SHOULD reach fct_product_sales, and they are kept
+  # because the FETCH is refused and "the cost of abstaining is counted whether or not
+  # abstaining was the right call" - this key's own rule, carried from stress 2.
+  #
+  # But the SURVIVING FRAGMENT was never labelled. The refusal breaks the link from the
+  # cursor to the collection; everything downstream of `l_batch` is still real def-use
+  # and still emitted, and stress 2 labels 28 variable nodes for exactly this reason.
+  # Leaving them out made four correct edges score as false positives against my own
+  # omission - the S2-06 shape, in a key written four days after S2-06 was closed.
+  #
+  # Stated rather than quietly amended, and recorded in FINDINGS as a key error.
+
+  - source: {kind: variable, name: L_BATCH}
+    target: {kind: variable, name: L_ADJUSTED}
+    flow: value
+    transform: derived
+    band: 1
+    origin: {unit: S3_BULK_RECONCILE, line: 190}
+    evidence: source_read
+    note: l_batch(i).refund_amount * 1.2. The subscript is not part of the value - see S3-06.
+
+  - source: {kind: variable, name: L_BATCH}
+    target: {kind: variable, name: L_FLAG}
+    flow: value
+    transform: conditional
+    band: 1
+    origin: {unit: S3_BULK_RECONCILE, line: 191}
+    evidence: source_read
+
+  - source: {kind: variable, name: L_ADJUSTED}
+    target: {kind: column, name: FCT_PRODUCT_SALES.REFUND_TOTAL}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S3_BULK_RECONCILE, line: 192}
+    evidence: source_read
+
+  - source: {kind: variable, name: L_FLAG}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S3_BULK_RECONCILE, line: 192}
+    evidence: source_read
+
+  # === 6. s3_audit_fanout ===================================================
+  #
+  # The procedure never mentions dim_customer. Two of its edges land there,
+  # inherited from trg_recent_audit through the table it writes.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: S3_AUDIT_FANOUT, line: 208}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.LAST_LOGIN}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S3_AUDIT_FANOUT, line: 208}
+    evidence: source_read
+    note: >
+      GREATEST(c.last_login, NVL(c.signup_date, c.last_login)). S2-05 settled GREATEST as
+      conditional: it returns one of its arguments rather than computing from all of them.
+
+  - source: {kind: column, name: STG_CUSTOMER.SIGNUP_DATE}
+    target: {kind: column, name: TMP_RECENT.LAST_LOGIN}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: S3_AUDIT_FANOUT, line: 208}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CUSTOMER.REGION}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_AUDIT_FANOUT, line: 208}
+    evidence: source_read
+    note: PROPOSED CONVENTION (f). The outer half of the IN (SELECT ...) semi-join.
+
+  - source: {kind: column, name: REF_POLICY.REGION}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_AUDIT_FANOUT, line: 208}
+    evidence: source_read
+    note: >
+      KEY ERROR, CORRECTED 2026-09-12 (finding S3-05). Convention (f) was stated for the
+      OUTER column and then applied to only that one. Both halves restrict: which regions
+      exist in ref_policy decides which customers survive, exactly as c.region does. A
+      convention applied to one instance of the shape it names is the S2-13 mistake, and
+      that finding is on this register already.
+
+  - source: {kind: column, name: REF_POLICY.WINDOW_DAYS}
+    target: {kind: relation, name: TMP_RECENT}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_AUDIT_FANOUT, line: 208}
+    evidence: source_read
+    note: >
+      WHERE p.window_days > 7, inside the semi-join. Unambiguous under either reading of
+      (f) - it restricts rows and projects nothing.
+
+  # --- inherited from trg_recent_audit (band 2) ---------------------------------------
+
+  - source: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    transform: derived
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 3}
+    evidence: source_read
+    note: NVL(lifetime_value, 0) + 1. The self-edge, as labelled in b2_05.
+
+  - source: {kind: column, name: TMP_RECENT.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 4}
+    evidence: source_read
+    note: WHERE cust_id = :NEW.cust_id.
+
+  - source: {kind: column, name: DIM_CUSTOMER.CUST_ID}
+    target: {kind: relation, name: DIM_CUSTOMER}
+    flow: filter
+    transform: identity
+    band: 2
+    origin: {unit: TRG_RECENT_AUDIT, line: 4}
+    evidence: source_read
+    note: >
+      KEY ERROR, CORRECTED 2026-09-12 (finding S3-05). The LEFT half of the trigger's
+      `WHERE cust_id = :NEW.cust_id`. b2_05's key has carried both halves since it was
+      written, and this key copied only one of them. Checking the precedent BEFORE
+      labelling would have caught it; checking it after is how it was caught.
+
+forbidden:
+  - source: {kind: column, name: STG_ORDER_LINES.ORDER_ID}
+    target: {kind: column, name: FCT_REVENUE.CUST_ID}
+    flow: value
+    reason: >
+      The join key read as a value source. `ON l.order_id = b.order_id` is structural
+      under D-5 and contributes to nothing. Four call sites had to be fixed to make that
+      true; this is the guard against the fifth.
+
+  - source: {kind: column, name: STG_ORDERS.NET_VALUE}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: value
+    reason: >
+      `net_value` is computed in order_base and never selected again. A dead CTE column
+      must produce no edge - inventing one would mean the analyser is reading the
+      projection rather than the path.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.PERIOD_MONTH}
+    flow: influence
+    reason: >
+      GROUP BY influence onto a GROUPING KEY that is projected through unchanged. D-2 is
+      explicit that this would say a column decides its own value. period_month is both
+      the grouping key and the output, which is the exact shape the rule excludes.
+
+  - source: {kind: column, name: STG_ORDER_LINES.QUANTITY}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    reason: >
+      KEEP (DENSE_RANK FIRST ORDER BY quantity) read as a value source. None of quantity
+      is in the list_price that comes out; it only chooses the row. Convention (d) says
+      influence, and this is its negative half - the same relationship RANK()'s ORDER BY
+      had in stress 2.
+
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER.LIFETIME_VALUE}
+    flow: value
+    reason: >
+      The trigger's edge attributed to the CALLER's source column. lifetime_value is fed
+      by its own prior value, not by anything in stg_customer. Attributing inherited
+      edges to whatever the caller happened to read is the failure T3.3 exists to prevent.
+
+  - source: {kind: column, name: REF_POLICY.REGION}
+    target: {kind: column, name: TMP_RECENT.CUST_ID}
+    flow: value
+    reason: >
+      The semi-join's inner column read as a value source. ref_policy projects nothing;
+      it only decides which customers survive. Under either reading of (f) this edge is
+      wrong.
+
+expected_boundaries:
+  # KEY ERROR, CORRECTED 2026-09-12 (finding S3-05). Written as `[]` on the first pass,
+  # which claimed this package stops nowhere. It stops in one place, loudly, and a key
+  # that does not say so cannot tell a declared gap from a silent one - which is the only
+  # distinction this project ultimately sells.
+  - kind: refusal
+    subject: "S3_BULK_RECONCILE:194"
+    reason: >
+      `FETCH c_returns BULK COLLECT INTO l_batch LIMIT 500` is refused
+      UNSUPPORTED_CONSTRUCT. S2-04 fixed `SELECT ... BULK COLLECT INTO`; the CURSOR form
+      with a %ROWTYPE collection and a LIMIT is a different path and is still refused.
+
+      THE REFUSAL IS WHY unit 5's four column-level edges are missing, and it is the
+      honest outcome rather than a silent one - but it is still four edges of real
+      lineage, and the labels above are kept so the cost is counted.

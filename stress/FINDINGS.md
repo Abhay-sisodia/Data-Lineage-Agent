@@ -34,6 +34,13 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | ID | Category | Status | One line |
 |---|---|---|---|
 | P-01 | `crash` | **fixed** | `TABLE(f(...))` raised out of `analyse_source` — the whole file lost, uncounted |
+| S3-01 | `flow-classification` | open | `GROUP BY ROLLUP` emits no influence edges at all, while a plain `GROUP BY` two CTEs down emits them correctly |
+| S3-02 | `flow-classification` | open | a window's `PARTITION BY`/`ORDER BY` leaks as **value** through a CTE — D-4 reversed by one level of nesting |
+| S3-03 | `construct-coverage` | open | a `MERGE` emits no filter edge from any clause — neither its `USING` `WHERE` nor an arm-level one |
+| S3-04 | `flow-classification` | open | a correlated scalar subquery in a `MERGE … USING` leaks both correlation columns as value — D-5's fifth call site |
+| S3-05 | `key-error` | **fixed** | four omissions in stress 3's own key, corrected 2026-09-12 and kept as evidence |
+| S3-06 | `flow-classification` | open | a `FOR` loop index is emitted as a **value source** — the subscript chooses an element, it is not in the value |
+| S3-07 | `construct-coverage` | open | `t.col` on the right of a `MERGE` `SET` does not resolve to the target's own column — declared, not silent |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
 | S1-03 | `flow-classification` | **fixed** | **misdiagnosed** — no `GROUP BY`/`HAVING` edge was emitted at all; D-2 adds both |
@@ -1743,6 +1750,95 @@ S2-02 correction — `INSERT ALL` was on the accept side of a list nobody expect
 It ran against **no analyser**. A construct that parses may still yield no edges, a wrong
 transform, or a silent loss — `INSERT ALL` is exactly that case. **Parsing is a floor, not a
 score**, and nothing in `docs/grammar_limitations.md` should be read as coverage.
+
+## Stress 3 — modern complexity, 2026-09-12
+
+**Combinations, not constructs.** Stress 1 went wide and stress 2 went deep on individual
+constructs; this package targets the 48 constructs `scripts/probe_analyser.py` found
+emitting edges **no key had ever checked** — the largest unverified surface in the
+project — and it combines them, because every combination-shaped bug here passed its
+minimal case first. `_grouping_influence` handled a flat `GROUP BY` and dropped nested
+ones; the window-influence FPs were only wrong once traced through a CTE.
+
+**It worked.** Six units, 69 labels, and the first run produced six analyser findings and
+four errors in my own key.
+
+```
+  band  flow       TP  FP  FN   precision    recall
+  0     filter      7   0   2      100.0%     77.8%
+  0     influence   5   0  16      100.0%     23.8%
+  0     value      27   8   1       77.1%     96.4%
+  1     filter      0   0   1         n/a      0.0%
+  1     value       4   3   3       57.1%     57.1%
+  2     filter      2   0   0      100.0%    100.0%
+  2     value       1   0   0      100.0%    100.0%
+```
+
+**Every FP and FN is attributable to exactly one finding.** 8 band-0 value FPs = 6 from
+S3-02 plus 2 from S3-04. 3 band-1 value FPs = S3-06. 16 influence FNs = 12 from S3-01 plus
+4 from S3-02. That is what a package aimed at combinations buys: no residue.
+
+### What the package CONFIRMED, which is half of its value
+
+* **S2-08's prediction was right, and this is the first evidence for it.** `LAG(o.gross_amount)`
+  over a bare column scores `derived`. Unit 3 was built so that column's only path is that
+  LAG — no aggregate, no CASE — because the corpus cannot test this: every `LAG` in it is
+  `LAG(SUM(...))` and the ladder keeps `aggregated` whichever way D-3 is read.
+* **A plain `GROUP BY` two CTE scopes below the `INSERT` works.** Unit 1 scored **11 of 11**,
+  including a HAVING at `post-aggregation` and a cross-column CASE condition where
+  `COUNT(DISTINCT order_id)` decides which arm of another column's value runs.
+* **Three proposed conventions were independently agreed by the analyser** — (d) `KEEP
+  (DENSE_RANK FIRST ORDER BY x)` is influence, (e) `GROUPING_ID`'s arguments are value and
+  aggregated, (f) an `IN (SELECT …)` semi-join's outer column is filter. Written in the key
+  before the run, matched after it. That is the only kind of agreement worth anything.
+
+### S3-02 is the one to fix first
+
+**D-4 is reversed by one level of nesting.** In `sq_03` the window sits in the statement
+that writes, and its `PARTITION BY`/`ORDER BY` are correctly `influence`. Move the same
+window into a CTE and the partition and order columns come out as **value** edges instead —
+6 false positives and 4 missing influence edges from a single cause, the largest single
+contributor to this package's score.
+
+It is also the most dangerous kind of wrong available here: **a false value edge says a
+column contributed to a number when it only decided the row ordering**, which is exactly
+the claim S2-12 and D-4 exist to prevent. S1-03 and S2-12 are on this register as the same
+argument; this is that argument surviving in the nested case.
+
+### S3-05 — my own key, four errors, corrected and kept
+
+**The S2-06 shape, in a key written four days after S2-06 closed.** Each omission made
+CORRECT analyser edges score as false positives:
+
+1. Unit 5's surviving variable-level chain was unlabelled. The `FETCH … BULK COLLECT` is
+   refused, so the link to `stg_returns` breaks — but everything downstream of `l_batch`
+   is still real def-use and still emitted. Stress 2 labels 28 variable nodes for exactly
+   this reason.
+2. `DIM_CUSTOMER.CUST_ID → DIM_CUSTOMER` (band 2) omitted. **`b2_05` has carried both
+   halves of that trigger's `WHERE` since it was written**, and this key copied one.
+3. `REF_POLICY.REGION → TMP_RECENT` omitted — convention (f) was stated for the semi-join
+   and then applied to one of its two halves. That is S2-13's mistake, which is already on
+   this register.
+4. `expected_boundaries: []`, claiming the package stops nowhere. It stops in one place,
+   loudly, and **a key that does not say so cannot tell a declared gap from a silent one**
+   — the only distinction this project ultimately sells.
+
+Correcting them moved band-0 filter to 100% and both band-2 flows to 100%. The errors are
+kept rather than quietly amended: a benchmark that edits itself to agree with the code has
+stopped measuring anything.
+
+### The S1-05 collision that happened while writing this
+
+Unit 3 first wrote `fct_revenue`, like unit 1. **Six of its edges then collided with unit
+1's on the match key** — same source column, same target column, same flow and transform,
+from a different statement doing a different thing — and the key would not load at all.
+Origin is not in the match key (amendment 1b).
+
+Retargeting unit 3 at `fct_revenue_stage` is realistic and was the right call, but it is a
+workaround. **S1-05 is now blocking a package written today, not just the stress-2 key
+written three days ago**, and it did so within an hour of starting. Recorded here because
+the gate on S1-05 says to decide it against production code, and this is the closest thing
+to production shape the project has produced.
 
 ## Fix order for what remains
 
