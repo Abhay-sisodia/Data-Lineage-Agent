@@ -19,8 +19,21 @@ with the code has stopped measuring anything.
 
 ## Register
 
+**Provenance is part of a finding's identity, so it is in the ID.** `S1-`/`S2-` are the two
+stress packages. `P-` is the probe pair (`scripts/probe_parsers.py`,
+`scripts/probe_analyser.py`) — a different instrument asking a different question, and one
+that has already found things no stress package could. Keeping the series apart is what
+lets "every finding recurred across stress runs" stay a true sentence about stress runs.
+
+**Parser-capability facts are NOT in this register.** They live in
+`docs/grammar_limitations.md` as the `GL-` and `SG-` series, because "Oracle allows this and
+our parser rejects it" is a statement about a vendored grammar and a third-party library,
+not about this analyser or its keys. Filing them twice is how a register starts lying about
+its own scope. See the GL-002 note below for the one that most tempts an exception.
+
 | ID | Category | Status | One line |
 |---|---|---|---|
+| P-01 | `crash` | **fixed** | `TABLE(f(...))` raised out of `analyse_source` — the whole file lost, uncounted |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
 | S1-03 | `flow-classification` | **fixed** | **misdiagnosed** — no `GROUP BY`/`HAVING` edge was emitted at all; D-2 adds both |
@@ -179,8 +192,10 @@ runs — the **S2-11 shape**, and the second instance of it in two days.
 
 ## Open work — what is left, and what each one needs
 
-**One open. Eighteen fixed. Nothing in the register has yet failed to recur across stress
-runs.** **Both stress packages have ZERO false positives** — 100% precision on every band
+**One open. Nineteen fixed. Every STRESS finding has recurred across stress runs** — that
+claim is about the `S1-`/`S2-` series only, and P-01 is the reason the qualifier is now
+written down: a probe finding cannot recur in a stress package, because no stress package
+contains the construct. **Both stress packages have ZERO false positives** — 100% precision on every band
 and every flow in each — and so does the phase-0 corpus outside its one long-standing
 band-1 value FP. **All five decisions D-1 to D-5 are landed, D-2 included** — S1-04's three
 halves, S2-07, and the `HAVING`/`GROUP BY` split that touched every phase-0 key.
@@ -1631,10 +1646,16 @@ it is the same gap that hid S2-06 for four fixes.
 
 ## The parser probe — 2026-09-11
 
-Not a stress package. **120 documented Oracle constructs handed straight to both parsers**,
+Not a stress package. **121 documented Oracle constructs handed straight to both parsers**,
 each recorded as accept or reject, with no analyser, no keys and no scoring. Logged in full
 as `docs/grammar_limitations.md` (renamed from *Grammar limitations*, because fourteen of the
 seventeen findings turned out to be SQLGlot's rather than the grammar's).
+
+**Both halves are now scripts, not descriptions** — `scripts/probe_parsers.py` and
+`scripts/probe_analyser.py`, re-runnable and committed. Three register changes came out of
+instruments that existed only as throwaway code I ran and narrated; a measurement nobody else
+can re-run is an anecdote, and this project does not accept those anywhere else. The analyser
+probe exits non-zero on any unexplained silence, so it can be a check rather than a report.
 
 **It exists because every other instrument in this project measures the analyser against the
 corpus, and the corpus cannot tell you what it does not contain.** S2-06 is the standing
@@ -1650,18 +1671,53 @@ we reject, rather than what our own examples happen to cover.
 | **S2-01 re-confirmed, and bounded** | Fails on SQLGlot 30.18.0 at the `DELETE` keyword. The probe did **not** test a newer SQLGlot — that remains the untried first step. |
 | **A new grammar defect, not yet given an S-number** | `FILE_EXT` (GL-002) makes `FNC`, `PKB`, `PKS`, `PRC`, `TRG` and `VW` unusable as identifiers anywhere. |
 
-### GL-002 deserves a decision, and it is not mine to take
+### GL-002 stays out of this register — decided 2026-09-11
 
 `grammars/plsql/PlSqlLexer.g4:1756` is a SQL\*Plus file-extension rule applied everywhere, so
-a table called `VW` or a variable called `PRC` fails to *lex*. It is the only entry in that
-document likely to be hit by code someone has already written, and a lexer error does not
-stay local — it can take a whole package down.
+a table called `VW` or a variable called `PRC` fails to *lex*. It is the entry in that
+document most likely to be hit by code someone has already written, and a lexer error does
+not stay local — it can take a whole package down.
 
-**Whether it belongs in this register is a real question.** This register is defects in *the
-analyser and its keys*, found by stress-testing against ground truth. GL-002 is a defect in a
-vendored third-party grammar, found by a different instrument, and it already carries an ID
-in its own document. Filing it twice is how a register starts lying about its own scope.
-Recorded here as a pointer, pending that call.
+**It is still not a finding about this analyser.** The defect is in a vendored third-party
+grammar; the analyser's behaviour given that grammar is correct, and a fix is a grammar
+patch, not an analyser change. It carries `GL-002` in the document that owns that subject.
+Duplicating it here would make this register's own claims unreadable — "every open finding
+recurred across stress packages" cannot be checked if the register mixes in items no stress
+package could ever produce.
+
+**What it gets instead is a pointer and a severity note**, which is the part that actually
+matters: it is the highest-impact entry in `docs/grammar_limitations.md`, and if a production
+package fails to lex, this is the first thing to check.
+
+### The analyser triage, and P-01
+
+The probe pair's second half (`scripts/probe_analyser.py`) pushes every construct the parser
+probe ACCEPTED through `analyse_source` and buckets the result: **48 EDGES, 8 REFUSED, 4
+DECLARED, 3 SILENT, 0 CRASH** at the time of writing.
+
+**That produced P-01, a category this register had never had: `crash`.** `TABLE(f(...))` has
+no relation name, so `_trace` built `Boundary(subject="")` and the `ValidationError` escaped
+`analyse_source`.
+
+**A crash is not a worse silent loss, it is a different axis.** Every other failure mode here
+costs one statement and leaves the rest of the file intact and counted — a refusal is
+declared, a boundary is declared, and even a silent miss leaves the statement counted as
+analysed. An exception out of `analyse_source` costs **the whole file**, and *parse coverage
+cannot see it*, because nothing was measured at all. The coverage statement, the refusal
+register and the kill criteria are all blind to it by construction.
+
+Fixed with a guard that declares the unreadable row source and emits nothing, keeping any
+locally provable column beside it — the argument `REMOTE_OBJECT` already makes for a db-link
+reference. Nine tests, all failing without the fix at `band0.py:307`. Phase-0 grid, gate and
+parse coverage unchanged: no corpus file contains a table function, which is the point.
+
+**The instrument had to be corrected before its output could be trusted.** Six constructs
+first came back SILENT and only one was real: three were trigger files, whose edges arrive
+through the dictionary pass via the procedure that writes the table (S2-10 again), and one
+was a recursive CTE selecting a literal. Two more were declaring a boundary while being
+counted as silent, which is why the probe now has a `DECLARED` bucket — **an instrument that
+cannot tell a declared boundary from silence is measuring the wrong thing in a project whose
+whole thesis is that difference.**
 
 ### The method mattered more than any single result
 

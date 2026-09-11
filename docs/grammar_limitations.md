@@ -23,11 +23,23 @@ that boundary does not blur in the register:
 | **SG-** | SQLGlot, `dialect="oracle"` (30.18.0) | the *SQL* inside those boundaries | **one statement**, refused as `PARSE_FAILED` |
 
 **Entries GL-002 to GL-004 and SG-001 to SG-014 came from a systematic probe on
-2026-09-11**, not from the corpus: 120 documented Oracle constructs handed to both
+2026-09-11**, not from the corpus: 121 documented Oracle constructs handed to both
 parsers, each recorded as accept or reject. That is why they carry no corpus case — the
 corpus contains none of them, which is itself the point. **The corpus cannot tell you
 what it does not contain**, so coverage measured against it alone will always read
 better than an estate will.
+
+**Reproduce it:**
+
+```
+.\.venv\Scripts\python.exe scripts\probe_parsers.py     # this document's findings
+.\.venv\Scripts\python.exe scripts\probe_analyser.py    # what the ANALYSER then does
+```
+
+The second script is the necessary companion, because **nothing in this document is a
+coverage claim.** Parsing is a floor. `INSERT ALL` parses cleanly and yields no edge;
+`TABLE(f(...))` parsed cleanly and crashed the analyser outright (stress finding P-01).
+A construct's presence on the accept-list below says only that it reached the analyser.
 
 ---
 
@@ -110,6 +122,17 @@ out of it.
 **Fix.** Delete the rule, or gate it behind the SQL\*Plus context it belongs to. Nothing
 in this analyser reads SQL\*Plus file extensions, so the local fix is a deletion and a
 regression test per identifier.
+
+**It is deliberately NOT in `stress/FINDINGS.md`** — decided 2026-09-11, and recorded
+there under this ID rather than given an `S` number. That register is defects in the
+analyser and its keys; this is a defect in a vendored third-party grammar, where the
+analyser's behaviour given that grammar is correct and the fix is a grammar patch.
+Duplicating it would break the register's own countability: "every open finding recurred
+across stress packages" cannot be checked once the register holds items no stress package
+could produce.
+
+**If a production package fails to lex, check this first.** It is the highest-impact entry
+in this document, and the failure gives no hint of its cause.
 
 ---
 
