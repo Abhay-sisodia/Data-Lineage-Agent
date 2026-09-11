@@ -541,7 +541,7 @@ def analyse_statement(
 
     # Assignment and FETCH are PL/SQL, not SQL: they come from the parse tree.
     if node.statement_kind == "assignment_statement":
-        return _analyse_assignment(node, scope, origin, guard, carriers)
+        return _analyse_assignment(node, scope, dictionary, origin, guard, carriers)
     if node.statement_kind == "fetch_statement":
         return _analyse_fetch(node, scope, dictionary, origin, guard)
 
@@ -588,9 +588,77 @@ def analyse_statement(
     return result
 
 
+def _row_field_edges(
+    expression_text: str,
+    scope: UnitScope,
+    dictionary: Dictionary,
+    target: VariableDecl,
+    outer: Transform,
+    origin: Origin,
+    guard: str | None,
+) -> list[IREdge]:
+    """Cursor record fields read on the right-hand side of an assignment (S4-07).
+
+    `v_gross := rec.gross_total` is the commonest line in a cursor loop and produced NO
+    EDGE AT ALL. `_analyse_assignment` scans identifiers out of TEXT and looks each one up
+    in the declared variables; `REC` and `GROSS_TOTAL` are neither of them variables, so
+    both were discarded and the chain from the cursor's query into the loop's variables
+    simply had no first link.
+
+    **The damage was not a missing edge but a chain that appeared to start at a variable.**
+    Stress 4's `s4_cursor_ladder` emits eight edges and every one of them begins at a
+    local: `V_CUST_ID -> FCT_REVENUE_PART.CUST_ID` is there and
+    `STG_ORDERS.CUST_ID -> V_CUST_ID` is not. A variable is a legitimate source in this IR
+    (ADR-0001 §3), so the output reads as complete lineage whose origin happens to be
+    memory - which is a sentence the analyser is entitled to say and here was not true.
+
+    THE TRANSFORM COMES WITH IT, and that is one fact rather than two (S4-08). Resolving
+    `rec.gross_total` means resolving what happened to the value on the way: the field is
+    `SUM(j.gross_amount)` two scopes inside the cursor's query, so the edge is `aggregated`
+    and not `identity`. Emitting the column while dropping the aggregation would be a
+    wrong transform, which ADR-0001 §4 counts as a miss on BOTH sides - so splitting these
+    into two commits would have meant shipping a known-wrong answer in between.
+    """
+    try:
+        parsed: Any = sqlglot.parse_one(expression_text, dialect=DIALECT)
+    except Exception:
+        return []
+
+    edges: list[IREdge] = []
+    seen: set[str] = set()
+    for column in _value_columns(parsed):
+        qualifier = (column.table or "").upper()
+        if not qualifier:
+            continue
+        row = scope.row_source(qualifier)
+        if row is None:
+            continue
+        resolved = resolve_projection(row.query, column.name, dictionary)
+        if resolved is None:
+            continue
+        relation, name, inner = resolved
+        source_name = f"{relation}.{name}"
+        if source_name in seen:
+            continue
+        seen.add(source_name)
+        edges.append(
+            _edge(
+                Node(kind=IRNodeKind.COLUMN, name=source_name),
+                target.as_node(),
+                Flow.VALUE,
+                _combine(inner, outer),
+                origin,
+                guard,
+                Mechanism.DEF_USE,
+            )
+        )
+    return edges
+
+
 def _analyse_assignment(
     node: CfgNode,
     scope: UnitScope,
+    dictionary: Dictionary,
     origin: Origin,
     guard: str | None,
     carriers: set[str] = frozenset(),  # type: ignore[assignment]
@@ -626,6 +694,14 @@ def _analyse_assignment(
     transform = _assignment_transform(expression_text)
 
     subscripts = _subscript_only_names(expression_text, scope)
+
+    # A cursor record's fields, which the identifier scan below cannot see: `rec` is not a
+    # declared variable and `gross_total` is not a column of anything (S4-07).
+    result.edges.extend(
+        _row_field_edges(
+            expression_text, scope, dictionary, target_decl, transform, origin, guard
+        )
+    )
 
     for name in _identifiers_in(expression_text):
         if name in carriers:

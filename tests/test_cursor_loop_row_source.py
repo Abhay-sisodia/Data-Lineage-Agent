@@ -193,3 +193,91 @@ def test_the_cte_chain_resolves_without_inventing_a_relation(dictionary: Diction
         "a CTE was named as a source relation"
     )
     assert "TGT.SID" not in sources, "the record field fell back to the target"
+
+
+# --- S4-07 and S4-08: the record field read into a VARIABLE ---------------------------
+
+ASSIGNMENT_FROM_RECORD = """CREATE OR REPLACE PROCEDURE p IS
+  CURSOR c IS
+    WITH grouped AS (
+      SELECT s.sid AS sid, SUM(s.amt) AS total FROM src s GROUP BY s.sid
+    )
+    SELECT m.sid, m.total FROM grouped m;
+  v_id    NUMBER;
+  v_total NUMBER;
+  v_net   NUMBER;
+BEGIN
+  FOR rec IN c LOOP
+    v_id    := rec.sid;
+    v_total := rec.total;
+    v_net   := v_total * 2;
+    INSERT INTO tgt (sid, amt) VALUES (v_id, v_net);
+  END LOOP;
+END;
+/
+"""
+
+
+def _typed(source: str, dictionary: Dictionary) -> set[tuple[str, str, str]]:
+    return {
+        (e.source.name, e.target.name, e.transform.value)
+        for e in analyse_source(source, dictionary).edges
+    }
+
+
+def test_a_record_field_assigned_to_a_variable_reaches_the_base_column(
+    dictionary: Dictionary,
+) -> None:
+    """S4-07. `v := rec.field` is the commonest line in a cursor loop and produced nothing.
+
+    The identifier scan looks each name up in the declared variables; `REC` and `TOTAL` are
+    neither, so both were discarded and the chain had no first link.
+    """
+    edges = _edges(ASSIGNMENT_FROM_RECORD, dictionary)
+
+    assert ("SRC.SID", "V_ID", Flow.VALUE.value) in edges
+    assert ("SRC.AMT", "V_TOTAL", Flow.VALUE.value) in edges
+
+
+def test_the_chain_no_longer_appears_to_begin_at_a_variable(dictionary: Dictionary) -> None:
+    """The damage was not a missing edge - it was a chain that looked complete.
+
+    A variable IS a legitimate source in this IR (ADR-0001 §3), so eight edges all
+    beginning at locals read as lineage whose origin happens to be memory. That is a
+    sentence the analyser is entitled to say, and here it was false. This asserts every
+    variable that receives a record field has something upstream of it.
+    """
+    edges = _edges(ASSIGNMENT_FROM_RECORD, dictionary)
+    targets_of_columns = {target for source, target, _ in edges if "." in source}
+
+    assert "V_ID" in targets_of_columns, "V_ID still has no upstream column"
+    assert "V_TOTAL" in targets_of_columns, "V_TOTAL still has no upstream column"
+
+
+def test_the_transform_inside_the_cursor_query_reaches_the_edge(
+    dictionary: Dictionary,
+) -> None:
+    """S4-08, fixed with S4-07 because they are one fact.
+
+    `rec.total` is `SUM(s.amt)` two scopes inside the cursor's query. Emitting the column
+    while dropping the aggregation is a WRONG transform, which ADR-0001 §4 counts as a miss
+    on both sides - so the edge has to carry what happened to the value on the way.
+    """
+    typed = _typed(ASSIGNMENT_FROM_RECORD, dictionary)
+
+    assert ("SRC.AMT", "V_TOTAL", "aggregated") in typed, (
+        "the SUM inside the cursor query did not reach the edge"
+    )
+    assert ("SRC.SID", "V_ID", "identity") in typed, "an aggregation was applied where none exists"
+
+
+def test_the_transform_still_combines_with_the_assignment(dictionary: Dictionary) -> None:
+    """The ladder must span both sides of the record boundary.
+
+    `v_net := v_total * 2` is derived, and `v_total` is aggregated from inside the cursor.
+    The edge into V_NET comes from V_TOTAL rather than from SRC.AMT, so this checks the
+    hop is present and typed rather than collapsed.
+    """
+    typed = _typed(ASSIGNMENT_FROM_RECORD, dictionary)
+
+    assert ("V_TOTAL", "V_NET", "derived") in typed
