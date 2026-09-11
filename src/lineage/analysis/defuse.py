@@ -27,6 +27,16 @@ from sqlglot import exp
 from lineage.analysis.cfg import Cfg, CfgNode, NodeKind
 from lineage.analysis.dynamic import Resolution
 from lineage.analysis.predicates import predicate_columns
+from lineage.analysis.transforms import (
+    AGGREGATE_FUNCTIONS,
+    CONDITIONAL_EXPRESSIONS,
+    TRANSFORM_RANK,
+    VALUE_SELECTING_WINDOW_FUNCTIONS,
+    combine as _combine,
+    is_aggregate as _is_aggregate,
+    is_conditional as _is_conditional,
+    transform_of as _transform_of,
+)
 from lineage.ir.model import (
     Boundary,
     BoundaryKind,
@@ -48,25 +58,7 @@ from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
 DIALECT = "oracle"
 
-AGGREGATE_FUNCTIONS = (exp.Sum, exp.Count, exp.Avg, exp.Min, exp.Max, exp.AggFunc)
-CONDITIONAL_EXPRESSIONS = (exp.Case, exp.If)
 
-# S2-07 / decision D-3, kept in step with `band0.VALUE_SELECTING_WINDOW_FUNCTIONS`.
-# Analytic functions that pick an existing value rather than computing one over a set;
-# sqlglot derives them from `exp.AggFunc`, so the catch-all above claimed them.
-#
-# THIS TUPLE AND THE ONE IN band0 ARE DUPLICATED AND HAVE ALREADY DRIFTED ONCE -
-# `CONDITIONAL_EXPRESSIONS` above is still the pre-S2-05 pair, so that fix landed in band 0
-# and never reached band 1. Recorded as S2-08 rather than repaired here, because merging
-# the two classifiers moves band-1 numbers and wants its own measurement.
-VALUE_SELECTING_WINDOW_FUNCTIONS = (exp.FirstValue, exp.LastValue, exp.NthValue)
-
-TRANSFORM_RANK = {
-    Transform.IDENTITY: 0,
-    Transform.DERIVED: 1,
-    Transform.CONDITIONAL: 2,
-    Transform.AGGREGATED: 3,
-}
 
 
 @dataclass(frozen=True)
@@ -290,26 +282,6 @@ class DefUseResult:
     # unit that a bare line number needs to become an identity. The union is the honest
     # type - claiming every entry is already classified would be a lie mypy would believe.
     unresolved: list[Boundary | str] = field(default_factory=list)
-
-
-def _transform_of(expression: Any) -> Transform:
-    if isinstance(expression, exp.Alias):
-        expression = expression.this
-    if isinstance(expression, exp.Column):
-        return Transform.IDENTITY
-    if any(
-        isinstance(node, AGGREGATE_FUNCTIONS)
-        and not isinstance(node, VALUE_SELECTING_WINDOW_FUNCTIONS)
-        for node in expression.walk()
-    ):
-        return Transform.AGGREGATED
-    if any(isinstance(node, CONDITIONAL_EXPRESSIONS) for node in expression.walk()):
-        return Transform.CONDITIONAL
-    return Transform.DERIVED
-
-
-def _combine(first: Transform, second: Transform) -> Transform:
-    return first if TRANSFORM_RANK[first] >= TRANSFORM_RANK[second] else second
 
 
 def _value_columns(expression: Any) -> list[Any]:
