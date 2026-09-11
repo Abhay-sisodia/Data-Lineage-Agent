@@ -407,7 +407,16 @@ def _trace(
             return []
         own = _transform_of(projection)
         traced: list[tuple[str, str, Transform]] = []
-        for inner in projection.find_all(exp.Column):
+        # `_value_columns`, NOT `find_all` (stress finding S3-02). A window's PARTITION BY
+        # and ORDER BY columns supply no value, and the caller already excludes them - but
+        # only from the projection IT can see. One level of nesting put the window inside a
+        # CTE, and this recursion then walked every column in it, so `PARTITION BY cust_id`
+        # came back out as a VALUE edge into whatever column the window fed.
+        #
+        # That is the exact claim D-4 exists to deny: it says a column contributed to a
+        # number when it only decided the row ordering. The rule was right and reached one
+        # scope; a rule that depends on how the CTEs are stacked is not a rule.
+        for inner in _value_columns(projection):
             for table, name, transform in _trace(inner, source, dictionary, unresolved, depth + 1):
                 traced.append((table, name, _combine(own, transform)))
         return traced
