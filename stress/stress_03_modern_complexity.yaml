@@ -619,6 +619,33 @@ edges:
       PROPOSED CONVENTION (g). The MATCHED arm's `WHERE s.revenue_total > 0`. Not a
       HAVING, so the phase stays the default.
 
+  - source: {kind: column, name: FCT_REVENUE.CUST_ID}
+    target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
+    evidence: source_read
+    note: >
+      KEY ERROR, CORRECTED 2026-09-12 (finding S3-09). The inner operand of the scalar
+      subquery's correlation, `WHERE r.cust_id = c.cust_id`.
+
+      This key's convention list says "a JOIN CONDITION is structural wherever it is
+      written (D-5)" and I applied that to the correlation. `analysis/predicates.py` says
+      the opposite in as many words: "THE CORRELATION IS NOT EXCLUDED and that is the
+      distinction that matters ... excluding the join and keeping the correlation is the
+      difference between reporting the dependency and reporting the plumbing that made it
+      reachable." D-5 excludes a join's ON clause, and nothing else.
+
+      FOURTH INSTANCE OF ONE MISTAKE - a convention applied by pattern instead of by the
+      reason it states. See S3-05 (f) and S3-08.
+
+      Recording the tension rather than hiding it: a reading exists on which this
+      correlation governs the VALUE of revenue_total rather than which rows reach
+      dw_dim_customer_v2. That reading is not this project's - the s7 convention was
+      applied corpus-wide in 0b9a9e8 - and a stress key is not where a settled convention
+      gets quietly reopened.
+
   # === 5. s3_bulk_reconcile =================================================
   #
   # Band 1 throughout. S2-04 was a BULK COLLECT into a record collection yielding

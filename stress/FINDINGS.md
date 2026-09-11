@@ -36,7 +36,9 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | P-01 | `crash` | **fixed** | `TABLE(f(...))` raised out of `analyse_source` — the whole file lost, uncounted |
 | S3-01 | `flow-classification` | **fixed** | `ROLLUP`/`CUBE`/`GROUPING SETS` emitted no influence at all — SQLGlot files them outside `group.expressions` |
 | S3-02 | `flow-classification` | **fixed** | a window's `PARTITION BY`/`ORDER BY` leaks as **value** through a CTE — D-4 reversed by one level of nesting |
-| S3-03 | `construct-coverage` | open | a `MERGE` emits no filter edge from any clause — neither its `USING` `WHERE` nor an arm-level one |
+| S3-03 | `construct-coverage` | **fixed** | a `MERGE` emitted no filter edge from any clause — neither its `USING` `WHERE` nor an arm-level one |
+| S3-09 | `key-error` | **fixed** | a correlation read as a join condition — D-5 excludes an `ON` clause and `predicates.py` says the correlation STAYS |
+| S3-10 | `silent-loss` | open | a correlation's OUTER operand falls back to the subquery's single source — binds to the wrong relation, or is declared |
 | S3-04 | `flow-classification` | **fixed** | **misdiagnosed** — not a D-5 call site; the same `find_all` as S3-02, and closed by the same one-line change |
 | S3-05 | `key-error` | **fixed** | four omissions in stress 3's own key, corrected 2026-09-12 and kept as evidence |
 | S3-08 | `key-error` | **fixed** | three more, from applying D-2's exclusion as a NAME MATCH instead of by the reason it states |
@@ -1913,11 +1915,87 @@ is owed.
 **Stress 3 now has ZERO FALSE POSITIVES on every band and every flow.** Band-1 value
 precision 57.1% -> 100%. Phase 0 byte-identical.
 
+### S3-03 · FIXED 2026-09-12 — a MERGE filters in two places and reported neither
+
+`_analyse_merge` built value edges only, so
+
+```sql
+USING (SELECT ... FROM stg_customer c WHERE c.signup_date < SYSDATE) s
+```
+
+produced **nothing at all**. A predicate deciding which customers the load touches, absent
+from the IR, in the statement type a warehouse does its upserts with. **That is the finding
+filter lineage exists for** — ADR-0001 2 argues the case on a policy table silently
+governing which rows load, and a `MERGE`'s `USING` clause is where that gets written.
+
+The second site is the arm: `WHEN MATCHED THEN UPDATE SET … WHERE s.revenue_total > 0`,
+which sits on the `Update` rather than the `WHEN`. Tested separately, because a fix that
+only walked the `USING` scope would pass the first test and leave this one failing.
+
+**The `ON` clause is deliberately not a third site.** It is a join condition, structural
+wherever written (D-5), and reading it as a filter is exactly what S2-14 was — so there is a
+test asserting a `MERGE`'s `ON` clause produces no filter edge, and another asserting a
+predicate-free `MERGE` produces none at all. The cheap way to pass a recall test is to sweep
+every column into a filter edge.
+
+Stress-3 band-0 filter: **7 TP / 2 FN → 10 TP / 0 FP / 0 FN.** Phase 0 byte-identical.
+
+### S3-09 — the fourth instance of one mistake, and the last one I will log separately
+
+The fix surfaced a correct filter edge my key had omitted: the inner operand of the scalar
+subquery's correlation, `WHERE r.cust_id = c.cust_id`.
+
+My key's convention list says *"a JOIN CONDITION is structural wherever it is written
+(D-5)"*, and I applied it to the correlation. `analysis/predicates.py` says the opposite in
+as many words: **"THE CORRELATION IS NOT EXCLUDED and that is the distinction that
+matters … excluding the join and keeping the correlation is the difference between reporting
+the dependency and reporting the plumbing that made it reachable."** D-5 excludes a join's
+`ON` clause, and nothing else.
+
+**That is four times in one package** — (f) in S3-05, twice in S3-08, and here — always the
+same error: **a convention applied by the pattern I remembered instead of by the reason it
+states.** Logging a fifth separately would be noise. The rule worth carrying forward is that
+**when a convention carries its justification, the justification IS the convention**, and
+any summary of it — including the summary at the top of a key I wrote myself — is a lossy
+copy that will eventually be applied to a case it does not cover.
+
+The tension is recorded rather than hidden: a reading exists on which this correlation
+governs the *value* of `revenue_total` rather than which rows reach the target. That reading
+is not this project's — the s7 convention was applied corpus-wide in `0b9a9e8` — and a
+stress key is not where a settled convention gets quietly reopened.
+
+### S3-10 · OPEN — a correlation's outer operand binds to the wrong relation
+
+Found while confirming S3-09 rather than by the package, because **stress 3 could not see
+it**: both operands of `r.cust_id = c.cust_id` are named `cust_id`, so the outer one bound to
+`FCT_REVENUE`, produced the same edge as the inner one, and deduplicated into a correct-
+looking answer.
+
+Rebuilt with distinguishable names, the mechanism is visible:
+
+```sql
+USING (SELECT s.sid,
+              (SELECT SUM(r.net) FROM rev r WHERE r.rid = s.sid) AS total
+         FROM src s) x
+```
+
+`r.rid` is emitted correctly. **`s.sid` is not in the scalar subquery's scope**, so `_trace`
+falls back to that scope's single source and looks for `SID` on `REV` — declaring
+`unresolved_identifier REV.SID` when it is absent, and **emitting an edge from the wrong
+relation when a column of that name happens to exist.** `predicates.py` says both operands
+stay; one of them cannot get there.
+
+**This is the s2 shape** — a name bound to a relation the statement never meant — and the
+only reason it is not already a false positive in the corpus is that the fallback usually
+lands on a name that does not exist. Categorised `silent-loss` rather than
+`flow-classification` because the failure mode that matters is the wrong-relation edge, not
+the missing one.
+
 ### What stress 3 has left, and what it is
 
 ```
   band  flow       TP  FP  FN   precision    recall
-  0     filter      7   0   2      100.0%     77.8%
+  0     filter     10   0   0      100.0%    100.0%
   0     influence  24   0   0      100.0%    100.0%
   0     value      27   0   1      100.0%     96.4%
   1     filter      0   0   1         n/a      0.0%
@@ -1926,10 +2004,10 @@ precision 57.1% -> 100%. Phase 0 byte-identical.
   2     value       1   0   0      100.0%    100.0%
 ```
 
-**Every remaining miss is one of three open findings, and none of them is a wrong answer.**
-S3-03 (a `MERGE` emits no filter edge) accounts for the two band-0 filter FNs; S3-07 (`t.col`
-in a `MERGE SET`) for the one band-0 value FN, declared as `unresolved_identifier`; and the
-four band-1 misses are the `FETCH ... BULK COLLECT` refusal, which is declared and counted.
+**Zero false positives everywhere, and five of seven cells complete.** Every remaining miss
+is a DECLARED gap, not a wrong answer: S3-07 (`t.col` in a `MERGE SET`) is the one band-0
+value FN and arrives as `unresolved_identifier`; the four band-1 misses are the
+`FETCH ... BULK COLLECT` refusal, declared and counted.
 
 **The package is now measuring recall against declared gaps rather than hunting false
 claims** - which is the state the phase-0 corpus reached after eighteen findings, and this

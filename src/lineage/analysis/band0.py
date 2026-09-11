@@ -1336,9 +1336,46 @@ def _analyse_merge(
     when_clauses = getattr(whens, "expressions", whens) or []
 
     edges: list[PredictedEdge] = []
+
+    # A MERGE FILTERS IN TWO PLACES AND USED TO REPORT NEITHER (stress finding S3-03).
+    # Everything below built value edges only, so `WHERE c.signup_date < SYSDATE` inside the
+    # USING clause - a predicate that decides which customers the load touches at all -
+    # produced nothing. That is the finding filter lineage exists for: ADR-0001 2 makes the
+    # case on a policy table silently governing which rows load, and this is that case in
+    # the statement type a warehouse does its upserts with.
+    #
+    # The ON clause is deliberately NOT here. It is a join condition, structural wherever
+    # written (D-5), and reading it as a filter is what S2-14 was.
+    edges.extend(
+        _filter_edges(wrapper, scope, target_name, band, dictionary, unresolved, origin)
+    )
+
     for when in when_clauses:
         action = when.args.get("then")
         if isinstance(action, exp.Update):
+            # The arm's own WHERE - `WHEN MATCHED THEN UPDATE SET ... WHERE x.b > 0`. It
+            # sits on the Update rather than on the WHEN, and it decides which matched rows
+            # are actually written, so it filters this statement's effect as surely as the
+            # USING predicate does.
+            arm_where = action.args.get("where")
+            if arm_where is not None:
+                for column in predicate_columns(arm_where):
+                    for source_table, source_column, _ in _trace(
+                        column, scope, dictionary, unresolved
+                    ):
+                        edges.append(
+                            _edge(
+                                source_table,
+                                source_column,
+                                target_name,
+                                "",
+                                Transform.IDENTITY,
+                                band,
+                                origin,
+                                flow=Flow.FILTER,
+                            )
+                        )
+
             for setter in action.args.get("expressions") or []:
                 if not isinstance(setter, exp.EQ):
                     continue
