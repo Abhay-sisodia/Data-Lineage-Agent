@@ -523,9 +523,21 @@ def _grouping_influence(
     found: list[tuple[str, str, Transform]] = []
     group = scope.expression.args.get("group")
     if group is not None and any(_is_aggregate(node) for node in projection.walk()):
-        for expression in group.expressions:
-            for column in expression.find_all(exp.Column):
-                found.extend(_trace(column, scope, dictionary, unresolved, depth + 1))
+        # WALK THE WHOLE GROUP NODE, not `group.expressions` (stress finding S3-01).
+        # SQLGlot files the extended grouping forms under their own args - `rollup`,
+        # `cube`, `grouping_sets` - and leaves `expressions` EMPTY, so reading only
+        # `expressions` produced no influence at all for any of them. Every column
+        # underneath a GROUP BY is a grouping column, whichever form spells it, and
+        # walking the node is what makes that true by construction rather than by a list
+        # of arg names that has to be kept in step with a third-party parser.
+        #
+        # The mixed form is why this is the fix and not "add rollup to the loop":
+        # `GROUP BY a, ROLLUP (b, c)` fills BOTH args, so an arg-by-arg version that
+        # missed one would emit a PARTIAL grouping - and a partial answer here is worse
+        # than none, because it looks complete. S2-13 is on the register for exactly that
+        # shape: a uniform rule applied to the first instance only.
+        for column in group.find_all(exp.Column):
+            found.extend(_trace(column, scope, dictionary, unresolved, depth + 1))
 
     for column in projection.find_all(exp.Column):
         source = scope.sources.get(column.table) if column.table else None

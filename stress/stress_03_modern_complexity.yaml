@@ -368,6 +368,55 @@ edges:
     origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
     evidence: source_read
 
+  # --- KEY ERROR, CORRECTED 2026-09-12 AFTER THE S3-01 FIX (finding S3-08) ------------
+  #
+  # THREE INFLUENCE EDGES WERE OMITTED BY APPLYING D-2's EXCLUSION AS A NAME MATCH.
+  # D-2 says a grouping key projected through takes no influence onto itself, and gives
+  # the reason: "their values are copied through untouched". I read that as "skip the
+  # grouping-key columns" and skipped them wherever the name appeared on both sides.
+  #
+  # The actual test is whether the value is COPIED. Ask it of these three and the answer
+  # is no in every case, so the exclusion never applied:
+  #
+  #   * rank_in_month is GROUPING_ID(product_id, category_name). Change the grouping and
+  #     the bitmap it returns changes. Both arguments are grouping keys AND value sources
+  #     under convention (e) - value and influence are different flows with different
+  #     match keys, and both facts hold at once.
+  #   * category_name is LISTAGG(c.category_name). The output shares the source's NAME and
+  #     is not the source's VALUE: change the grouping and a different set of rows
+  #     collapses into a different string.
+  #
+  # Same mistake twice in one unit, and the same species as (f) in S3-05 - a convention
+  # applied by pattern rather than by the reason it was written for.
+
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CATEGORIES.CATEGORY_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+
+  - source: {kind: column, name: STG_CATEGORIES.CATEGORY_NAME}
+    target: {kind: column, name: FCT_PRODUCT_SALES.CATEGORY_NAME}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: S3_PRODUCT_SCORECARD, line: 76}
+    evidence: source_read
+    note: >
+      The grouping key influencing an AGGREGATE OF ITSELF. Not the self-influence D-2
+      excludes: that exclusion is about a value copied through, and LISTAGG copies
+      nothing.
+
   # === 3. s3_customer_signal ================================================
   #
   # NO GROUP BY ANYWHERE IN THIS UNIT, deliberately. net_amount's only path is

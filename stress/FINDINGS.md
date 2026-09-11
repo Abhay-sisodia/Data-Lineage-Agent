@@ -34,11 +34,12 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | ID | Category | Status | One line |
 |---|---|---|---|
 | P-01 | `crash` | **fixed** | `TABLE(f(...))` raised out of `analyse_source` — the whole file lost, uncounted |
-| S3-01 | `flow-classification` | open | `GROUP BY ROLLUP` emits no influence edges at all, while a plain `GROUP BY` two CTEs down emits them correctly |
+| S3-01 | `flow-classification` | **fixed** | `ROLLUP`/`CUBE`/`GROUPING SETS` emitted no influence at all — SQLGlot files them outside `group.expressions` |
 | S3-02 | `flow-classification` | **fixed** | a window's `PARTITION BY`/`ORDER BY` leaks as **value** through a CTE — D-4 reversed by one level of nesting |
 | S3-03 | `construct-coverage` | open | a `MERGE` emits no filter edge from any clause — neither its `USING` `WHERE` nor an arm-level one |
 | S3-04 | `flow-classification` | **fixed** | **misdiagnosed** — not a D-5 call site; the same `find_all` as S3-02, and closed by the same one-line change |
 | S3-05 | `key-error` | **fixed** | four omissions in stress 3's own key, corrected 2026-09-12 and kept as evidence |
+| S3-08 | `key-error` | **fixed** | three more, from applying D-2's exclusion as a NAME MATCH instead of by the reason it states |
 | S3-06 | `flow-classification` | open | a `FOR` loop index is emitted as a **value source** — the subscript chooses an element, it is not in the value |
 | S3-07 | `construct-coverage` | open | `t.col` on the right of a `MERGE` `SET` does not resolve to the target's own column — declared, not silent |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
@@ -1824,6 +1825,64 @@ This was the same lesson in the function next door.
 
 Phase-0 grid, gate and parse coverage byte-identical across both. No corpus package nests a
 window inside a CTE — which is the whole reason stress 3 had to exist.
+
+### S3-01 · FIXED 2026-09-12 — every form of GROUP BY is a GROUP BY
+
+`_grouping_influence` read `group.expressions`, and SQLGlot files the extended forms under
+their own args:
+
+```
+GROUP BY a, b                 -> expressions=[a, b]
+GROUP BY ROLLUP (a, b)        -> rollup=[...],        expressions=[]
+GROUP BY CUBE (a, b)          -> cube=[...],          expressions=[]
+GROUP BY GROUPING SETS (...)  -> grouping_sets=[...], expressions=[]
+```
+
+So D-2 held for a plain `GROUP BY` — including one two CTE scopes down, which stress 3
+confirmed at 11/11 — and produced **nothing at all** for the three forms a reporting
+warehouse actually uses. `ROLLUP` is not an exotic construct; it is what a subtotal is
+written with.
+
+**The fix walks the whole `GROUP BY` node rather than adding `rollup` to the loop, and the
+mixed form is why.** `GROUP BY a, ROLLUP (b, c)` fills *both* args, so an arg-by-arg version
+that missed one would emit a **partial grouping** — an answer that claims `SUM(amt)` is
+governed by less than it is, and reads as complete. **S2-13 is on this register for exactly
+that shape**: a uniform rule applied to the first instance only. Walking the node makes
+"every column under a GROUP BY is a grouping column" true by construction instead of by a
+list of arg names that has to be kept in step with a third-party parser.
+
+Stress-3 band-0 influence: **5 TP / 16 FN → 24 TP / 0 FP / 0 FN**, precision and recall both
+100%. Phase 0 byte-identical — no corpus package uses an extended grouping form.
+
+Seven regression tests. The plain `GROUP BY` is parametrised **alongside** the four broken
+forms rather than left implicit, so a future failure says whether the form or D-2 itself
+broke; and one test guards the opposite direction — a grouping key copied through must
+*still* take no influence, checked under `ROLLUP` specifically, because that is the path this
+fix opened.
+
+### S3-08 — three more key errors, and the same root cause as (f)
+
+The fix turned up three influence edges my key had omitted, all in unit 2. **I had applied
+D-2's exclusion as a name match.** D-2 says a grouping key projected through takes no
+influence onto itself, *and gives the reason*: "their values are copied through untouched".
+I read that as "skip the grouping-key columns" and skipped them wherever the name appeared
+on both sides.
+
+Ask D-2's actual test — is the value copied? — and the exclusion never applied to any of
+the three:
+
+* **`rank_in_month` is `GROUPING_ID(product_id, category_name)`.** Change the grouping and
+  the bitmap changes. Both arguments are grouping keys *and* value sources under convention
+  (e); value and influence are different flows with different match keys, and both facts
+  hold at once.
+* **`category_name` is `LISTAGG(c.category_name)`.** The output shares the source's NAME and
+  is not the source's VALUE — a different grouping collapses a different set of rows into a
+  different string.
+
+**This is the same species of error as (f) in S3-05**, three findings apart: a convention
+applied by pattern rather than by the reason it was written for. Worth naming as a pattern
+rather than logging twice — when a rule carries its justification, the justification is the
+rule, and the summary is a lossy copy of it.
 
 ### S3-04 was misdiagnosed, and the register says so
 
