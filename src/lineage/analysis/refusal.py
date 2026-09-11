@@ -486,6 +486,14 @@ def violations(refusals: list[Refusal], edges: list) -> list[tuple[Refusal, list
     physical line share an address, so an edge from the innocent one would read as a
     violation. Nothing in this corpus does that, and a false alarm here is the safe
     direction of the error.
+
+    **A SECOND LIMITATION IS NOT SAFE IN THAT DIRECTION, AND IT IS WHY
+    `not_cross_checkable` EXISTS** (stress finding S2-10). A trigger body is analysed from
+    the DICTIONARY, wrapped in a synthetic procedure, so its edges carry lines relative to
+    that wrapper - 3, 4, 7. A refusal raised over the same statement by the file pass
+    carries the line in the FILE - 39. `covers()` compares two different coordinate spaces
+    and can only ever answer "no", so for a trigger unit this function silently reports
+    clean. That is a guard passing without looking, which is worse than a guard that fails.
     """
     found: list[tuple[Refusal, list]] = []  # type: ignore[type-arg]
     for refusal in refusals:
@@ -493,3 +501,40 @@ def violations(refusals: list[Refusal], edges: list) -> list[tuple[Refusal, list
         if clashing:
             found.append((refusal, clashing))
     return found
+
+
+def not_cross_checkable(
+    refusals: list[Refusal],
+    edges: list,  # type: ignore[type-arg]
+    incomparable_units: frozenset[str] | set[str],
+) -> list[Refusal]:
+    """Refusals whose contradiction check could not run, because the line spaces differ.
+
+    Stress finding S2-10. `violations` above and `measure`'s `false_abstentions_recovered`
+    both ask "is there an edge whose (unit, line) falls inside this refusal's span?" - and
+    for a trigger unit the two sides are numbered in different spaces, so the answer is
+    structurally "no" whatever the truth is.
+
+    **This returns the refusals for which the answer is UNKNOWN rather than no.** Reporting
+    that count is the whole fix: the numbers stay as they are, and they stop being read as
+    evidence of something nobody checked. There is currently no such refusal in the corpus -
+    the one that raised the finding, `s6`'s `INSERT ... VALUES`, was removed by D-1 - so this
+    is a guard against the defect coming back rather than a repair of a live one.
+
+    The larger fix is architectural and is recorded rather than taken: band 0 analyses trigger
+    bodies out of the FILE while `triggers.py` analyses them out of the DICTIONARY, so the
+    same statement is read twice in two coordinate spaces. Only the dictionary pass's edges
+    are kept - band 0 contributes no trigger edges at all today - so the file pass's reading
+    exists only to produce refusals and statement counts. Collapsing that is the right
+    change and it moves parse coverage, which makes it a separate measurement.
+    """
+    units = {unit.upper() for unit in incomparable_units}
+    if not units:
+        return []
+    return [
+        refusal
+        for refusal in refusals
+        if refusal.unit
+        and refusal.unit.upper() in units
+        and any(edge.origin.unit.upper() in units for edge in edges)
+    ]

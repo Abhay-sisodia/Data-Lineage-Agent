@@ -39,7 +39,7 @@ with the code has stopped measuring anything.
 | S2-07 | `transform-classification` | **fixed** | `FIRST_VALUE`/`LAST_VALUE` — the key says `derived`, the analyser `aggregated` |
 | S2-08 | `transform-classification` | **fixed** | two `_transform_of` copies, already drifted; and `LAG` reads like `FIRST_VALUE` but scored `aggregated` |
 | S2-09 | `key-error` | **fixed** | `p_depth → DIM_CUSTOMER_HIER.DEPTH` never labelled — two of three bindings |
-| S2-10 | `measurement-error` | open | trigger edges carry body-relative lines, so the refusal cross-checks cannot match them |
+| S2-10 | `measurement-error` | **fixed** | trigger edges carry body-relative lines, so the refusal cross-checks could not match them |
 | S2-11 | `key-error` | **fixed** | stress 1's key predated convention (c); a decided convention has to reach every key |
 
 ## Decisions taken — 2026-09-10
@@ -179,7 +179,7 @@ runs — the **S2-11 shape**, and the second instance of it in two days.
 
 ## Open work — what is left, and what each one needs
 
-**Two open. Sixteen fixed. Nothing in the register has yet failed to recur across stress
+**One open. Eighteen fixed. Nothing in the register has yet failed to recur across stress
 runs.** **Both stress packages have ZERO false positives** — 100% precision on every band
 and every flow in each — and so does the phase-0 corpus outside its one long-standing
 band-1 value FP. **All five decisions D-1 to D-5 are landed.** **D-1 and D-3 are landed in full** (S1-04's three halves, S2-07). D-2 is decided and
@@ -192,7 +192,6 @@ rather than the analyser, and neither would have been found by running the analy
 
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
-| **S2-10** | `measurement-error` | someone reconciling two line-number spaces in `measure.py` | `false_abstentions_recovered` and `edges_from_refused_statements` cannot see trigger edges at all — two reported zeros that are artifacts |
 | **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
 | **S2-02** | `construct-coverage` | real work — `INSERT ALL` is genuinely unimplemented | 7 edges; the honest refusal makes this a coverage gap, not a defect |
 | **S1-05** | `identity` | **the production package.** Moves every number in the phase | **31%** of the stress-2 key unstatable once the key is complete; also *hides* whether fixes worked |
@@ -900,6 +899,97 @@ labelled — just not fully. **A completeness check at unit granularity does not
 incomplete unit**, and no cheap check does: knowing a VALUES list has three bindings and the
 key has two means parsing the source, which is the analyser's job. Recorded rather than
 solved.
+
+## S2-11 · `key-error` · FIXED — a convention that never reached the older key
+
+`stress_transaction_control`'s `ELSE` branch is
+`DELETE FROM fct_revenue_stage WHERE period_month < TRUNC(SYSDATE, 'YYYY')`. The moment the
+DELETE half of S1-04 landed, it produced a correct, correctly-guarded filter edge that
+**stress 1's key did not contain** — and so scored as a false positive.
+
+The key is not wrong for its own time. It was written before stress 2 existed, and
+**proposed convention (c) is a stress-2 convention**: a DELETE writes no value, but its
+predicate columns are a real dependency of what the table ends up containing. D-1 settled it.
+Stress 1 had simply never been asked the question.
+
+**This is the failure mode D-2 warns about, arriving from the other direction.** That warning
+is about the analyser and the keys drifting apart within one change. This is two *keys*
+drifting apart across time: a convention decided against one package silently leaves the
+older package encoding the opposite answer, and the register cannot tell which is which
+because both look like ordinary disagreements in the grid.
+
+**A decided convention has to be applied to every key in the same change.** Added with its
+guard (`v_count <> 0 AND p_strict <> 1`, the `ELSE` arm) and a note recording where the
+convention came from and why it is arriving late.
+
+Fourth `key-error` in this register, after S1-06, S2-06 and S2-09. The first three were
+omissions; this one is different in kind — nothing was forgotten, the key was complete
+against the conventions that existed when it was written. **No test can catch this class**,
+and `tests/test_stress_keys.py` never could: it counts units, and the unit was labelled.
+
+## S2-10 · `measurement-error` · FIXED — the refusal cross-checks could not see trigger edges
+
+Found while measuring S1-04. `s6_updatable_view` produced an edge from the same statement it
+refused, and **both** guards against that reported clean:
+
+* `edges_from_refused_statements` — `[]`
+* `false_abstentions_recovered` — `0`
+
+Neither was a measurement. Both compare a refusal's line against an edge's `origin.line`, and
+**the two are numbered in different spaces**: a trigger body is analysed out of the
+DICTIONARY, wrapped in a synthetic `CREATE OR REPLACE PROCEDURE`, so its edges carry lines
+relative to that wrapper (3, 4, 7), while a refusal on the same statement comes from the FILE
+pass and carries the file line (39). `refusal.covers()` can only ever answer "no".
+
+**The consequence was never a wrong score** — origin is not in the match key (amendment 1b) —
+**it was a kill-criterion row reporting PASS without looking.** `edges from refused` is
+rendered in the verdict, and the verdict leans on it.
+
+### The live instance was already gone, which changed the fix
+
+**D-1 removed it.** `s6`'s refusal was the `INSERT … VALUES` one, and un-refusing that
+construct took the last trigger-unit refusal out of the corpus. Measured before touching
+anything: **no refusal in any package now lands in a trigger unit**, so there was no live
+defect left to repair — only a blind guard waiting for one.
+
+That makes the honest fix "make the blind spot countable", not "renumber something and hope".
+`refusal.not_cross_checkable()` returns the refusals whose contradiction check **could not
+run**, and the measurement reports them beside the violations:
+
+```
+  edges from refused     0   <- must be 0; checked mechanically, not by inspection
+  of which NOT checkable 0   <- line spaces differ, so the check above could not run (S2-10)
+```
+
+The kill-criterion row gains `(n NOT CHECKABLE)` whenever that count is non-zero, so a `0 of
+9 refusals  PASS` can never again mean "nine checked" when some of them were not.
+
+### What was NOT done, and why it is recorded rather than hidden
+
+**The architectural fix is bigger and belongs to its own measurement.** Band 0 analyses
+trigger bodies out of the FILE while `triggers.py` analyses them out of the DICTIONARY, so
+**the same statement is read twice in two coordinate spaces**. Only the dictionary pass's
+edges survive — measured: band 0 contributes no trigger edges at all, in any package — so
+the file pass's reading of a trigger body exists only to produce refusals and statement
+counts. Collapsing that is the right change, and it moves parse coverage, which makes it a
+separate fix rather than a tidy-up inside this one.
+
+**The keys disagree with each other about trigger line numbers too.** `b0_04` records 18/19,
+stress 2 records 1, the analyser emits 3. None of it affects scoring, and all of it would
+have to be settled by that same architectural change.
+
+### Pinned by reconstruction, because the corpus cannot exercise it
+
+`tests/test_refusal_crosscheck.py` rebuilds the S2-10 condition from scratch — a file that
+writes `tmp_recent`, so the trigger's edges are inherited at body lines, **and** redefines
+that trigger with a `CONNECT BY` body the file pass refuses at a file line. It asserts both
+halves: the refusal's line and the edge's line are disjoint, the old check still finds
+nothing, and the new one reports exactly one un-checkable refusal.
+
+Two guards beside it: an ordinary unit's refusal must **not** be reported as un-checkable, or
+the new count becomes noise and the row stops meaning anything; and no package in the corpus
+has an un-checkable refusal today, so if a future change puts one back inside a trigger body
+the suite fails and names S2-10 instead of a kill-criterion row quietly reporting PASS.
 
 ## S2-11 · `key-error` · FIXED — a convention that never reached the older key
 

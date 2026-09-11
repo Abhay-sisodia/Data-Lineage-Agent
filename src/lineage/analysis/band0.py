@@ -51,6 +51,7 @@ from lineage.analysis.refusal import (
     classify_statement,
     conditional_compilation_spans,
     last_line,
+    not_cross_checkable,
     violations,
 )
 from lineage.config import AnalysisConfig
@@ -86,6 +87,12 @@ class AnalysisResult:
     refusals: list[Refusal] = field(default_factory=list)
     boundaries: list[Boundary] = field(default_factory=list)
     statements_seen: int = 0
+    incomparable_units: set[str] = field(default_factory=set)
+    """Units whose edges are numbered in a different line space from their refusals.
+
+    Trigger bodies, in practice (stress finding S2-10). Populated by `procedure` from the
+    dictionary, because band 0 cannot know which units came from there.
+    """
 
     @property
     def statements_analysed(self) -> int:
@@ -94,6 +101,14 @@ class AnalysisResult:
     def refusal_violations(self) -> list[tuple[Refusal, list[PredictedEdge]]]:
         """Flagged statements that produced edges anyway (T3.1c). Must be empty."""
         return violations(self.refusals, self.edges)
+
+    def refusals_not_cross_checkable(self) -> list[Refusal]:
+        """Refusals whose contradiction check could not run at all (S2-10).
+
+        Reported beside `refusal_violations` so an empty violations list is never read as
+        "checked and clean" when part of it was "could not check".
+        """
+        return not_cross_checkable(self.refusals, self.edges, self.incomparable_units)
 
     def refusal_codes(self) -> dict[str, int]:
         """How many refusals of each kind. The taxonomy is closed so this is comparable."""

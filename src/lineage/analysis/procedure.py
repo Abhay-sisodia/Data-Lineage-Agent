@@ -139,6 +139,15 @@ def analyse_source(
         _written_relations(program, dynamic), dictionary
     )
     result.edges.extend(trigger_edges)
+
+    # S2-10: a trigger body is analysed out of the DICTIONARY, wrapped in a synthetic
+    # procedure, so its edges carry lines relative to that wrapper while a refusal on the
+    # same statement carries the line in the FILE. Recording the units here is what lets
+    # `refusals_not_cross_checkable` say "unknown" instead of letting `covers()` answer
+    # "no" for a reason that has nothing to do with the truth.
+    result.incomparable_units.update(
+        qualified.rpartition(".")[2].upper() for qualified in dictionary.triggers
+    )
     for note in trigger_boundaries:
         trigger_note = Boundary(
             kind=BoundaryKind.SOURCE_UNAVAILABLE,
