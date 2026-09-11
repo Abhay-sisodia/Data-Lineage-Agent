@@ -214,8 +214,11 @@ def collect_scopes(program: Program) -> dict[str, UnitScope]:
                 if _within_package(ctx, package):
                     scope.variables.update(state)
             scope.variables.update(_declarations_of(ctx, None))
-            _collect_row_sources(ctx, scope)
+            # CURSORS FIRST (stress finding S4-02). `_collect_row_sources` has to resolve
+            # `FOR rec IN c` through the cursor `c` was declared with, so the cursor map
+            # must already exist when it runs. These two lines were the other way round.
             _collect_cursors(ctx, scope)
+            _collect_row_sources(ctx, scope)
             scopes[unit] = scope
 
     return scopes
@@ -233,6 +236,27 @@ def _collect_row_sources(ctx: Any, scope: UnitScope) -> None:
         if record is not None and select is not None:
             name = str(record.getText()).upper()
             scope.row_sources[name] = RowSource(name, source_slice(select), param.start.line)
+            continue
+
+        # `FOR rec IN c` - A DECLARED CURSOR RATHER THAN AN INLINE QUERY (stress finding
+        # S4-02). Only the inline form was handled, so this loop registered no row source
+        # at all and `rec.field` fell through to the generic binding below `_classify`.
+        #
+        # THE CONSEQUENCE WAS A WRONG EDGE, NOT A MISSING ONE, which is why it survived.
+        # With no row source, `INSERT INTO tgt (amt) VALUES (rec.amt)` bound `rec.amt` to
+        # the only relation in scope - THE TARGET - and emitted `TGT.AMT -> TGT.AMT`: a
+        # self-edge that reads exactly like a legitimate accumulator, from a table the
+        # cursor never mentioned. The s2 silent-failure shape, reached through a record.
+        #
+        # Both forms are ordinary Oracle and the declared one is the more common in real
+        # code, because a named cursor is what you write when the query is long enough to
+        # deserve a name - which is exactly when it is also deep enough to matter.
+        cursor = param.cursor_name() if hasattr(param, "cursor_name") else None
+        if record is not None and cursor is not None:
+            query = scope.cursors.get(str(cursor.getText()).upper())
+            if query is not None:
+                name = str(record.getText()).upper()
+                scope.row_sources[name] = RowSource(name, query, param.start.line)
             continue
 
         index = param.index_name() if hasattr(param, "index_name") else None
