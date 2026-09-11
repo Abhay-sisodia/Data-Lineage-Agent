@@ -351,6 +351,7 @@ def _trace(
     dictionary: Dictionary,
     unresolved: list[Boundary],
     depth: int = 0,
+    constraining: list[tuple[str, str, Transform]] | None = None,
 ) -> list[tuple[str, str, Transform]]:
     """Follow a column reference down to base-table columns.
 
@@ -376,7 +377,7 @@ def _trace(
         # the edge entirely rather than getting it wrong.
         for nested in getattr(scope, "subquery_scopes", []) or []:
             if column.table in nested.sources:
-                return _trace(column, nested, dictionary, unresolved, depth + 1)
+                return _trace(column, nested, dictionary, unresolved, depth + 1, constraining)
 
         # AND OUTWARD, for a CORRELATED reference (stress finding S3-10). Inside
         # `(SELECT SUM(r.net) FROM rev r WHERE r.rid = s.sid)` the alias `s` belongs to the
@@ -387,7 +388,7 @@ def _trace(
         climbed = 0
         while outer is not None and climbed < 20:
             if column.table in outer.sources:
-                return _trace(column, outer, dictionary, unresolved, depth + 1)
+                return _trace(column, outer, dictionary, unresolved, depth + 1, constraining)
             outer = getattr(outer, "parent", None)
             climbed += 1
 
@@ -485,7 +486,9 @@ def _trace(
         # column, so missing one is a silent under-report of a whole feed.
         arms = getattr(source, "union_scopes", None)
         if arms:
-            return _trace_through_set_operation(column, arms, dictionary, unresolved, depth)
+            return _trace_through_set_operation(
+                column, source, dictionary, unresolved, depth, constraining
+            )
 
         projection = _projection_named(source, column.name)
         if projection is None:
@@ -509,7 +512,9 @@ def _trace(
         # number when it only decided the row ordering. The rule was right and reached one
         # scope; a rule that depends on how the CTEs are stacked is not a rule.
         for inner in _value_columns(projection):
-            for table, name, transform in _trace(inner, source, dictionary, unresolved, depth + 1):
+            for table, name, transform in _trace(
+                inner, source, dictionary, unresolved, depth + 1, constraining
+            ):
                 traced.append((table, name, _combine(own, transform)))
         return traced
 
@@ -656,12 +661,36 @@ def _flatten_arms(arms: list[Any]) -> list[Any]:
     return flat
 
 
+def _arm_roles(scope: Any) -> list[tuple[Any, bool]]:
+    """Leaf arms of a set-operation SCOPE, each flagged `supplies_values` (S4-04).
+
+    `_flatten_arms` returns the arms and throws away which OPERATOR joined them, so a
+    `MINUS`'s constraining arm arrived indistinguishable from a `UNION`'s contributing one.
+    That is why convention (a) - *an `INTERSECT`/`MINUS` second arm decides which rows
+    survive and supplies no value* - held only for a set operation at the TOP LEVEL of an
+    `INSERT`, where `_set_operation_arms` computes the same roles over EXPRESSIONS. Written
+    inside a CTE, the same `MINUS` reached `_trace` instead and every arm was traced as a
+    value source.
+
+    This is that function's logic over scopes rather than expressions, and the two are
+    deliberately the same shape: `A UNION B MINUS C` is `Except(Union(A, B), C)`, so A and B
+    supply values and C constrains, however deep the nesting goes.
+    """
+    arms = getattr(scope, "union_scopes", None)
+    if not arms or len(arms) < 2:
+        return [(scope, True)]
+    supplies_values = isinstance(scope.expression, exp.Union)
+    left, right = arms[0], arms[1]
+    return [*_arm_roles(left), (right, supplies_values)]
+
+
 def _trace_through_set_operation(
     column: exp.Column,
-    arms: list[Any],
+    scope: Any,
     dictionary: Dictionary,
     unresolved: list[Boundary],
     depth: int,
+    constraining: list[tuple[str, str, Transform]] | None = None,
 ) -> list[tuple[str, str, Transform]]:
     """Follow a column into every arm of a UNION / INTERSECT / MINUS.
 
@@ -673,7 +702,8 @@ def _trace_through_set_operation(
     # `A UNION B UNION C` parses as Union(Union(A, B), C), so the first "arm" is itself
     # a set operation with no select list of its own. Flatten before binding by position,
     # or only the outermost arm resolves and the rest of the feeds vanish silently.
-    flattened = _flatten_arms(arms)
+    roles = _arm_roles(scope)
+    flattened = [arm for arm, _ in roles]
 
     first = getattr(flattened[0].expression, "selects", []) or [] if flattened else []
     name = column.name.upper()
@@ -692,7 +722,7 @@ def _trace_through_set_operation(
         return []
 
     traced: list[tuple[str, str, Transform]] = []
-    for arm in flattened:
+    for arm, supplies_values in roles:
         projections = getattr(arm.expression, "selects", []) or []
         if position >= len(projections):
             unresolved.append(
@@ -706,11 +736,18 @@ def _trace_through_set_operation(
             continue
         projection = projections[position]
         own = _transform_of(projection)
+        # An INTERSECT / MINUS arm decides WHICH ROWS survive and supplies none of the
+        # value (convention (a), stress 2). Its columns are collected separately so the
+        # caller can state them as filter influence on the written relation; tracing them
+        # as value would claim a value for rows a MINUS specifically removed.
+        sink = traced if supplies_values else constraining
+        if sink is None:
+            continue
         for inner in _value_columns(projection):
             for table, source_column, transform in _trace(
                 inner, arm, dictionary, unresolved, depth + 1
             ):
-                traced.append((table, source_column, _combine(own, transform)))
+                sink.append((table, source_column, _combine(own, transform)))
     return traced
 
 
@@ -1034,9 +1071,15 @@ def _analyse_select_into(
             edges.extend(call_edges)
             continue
 
+        # `constraining` collects what an INTERSECT / MINUS arm reached on the way down
+        # (stress finding S4-04). Those columns decide which rows survive and supply none
+        # of the value, so they are restated as filter influence on the relation rather than
+        # dropped - convention (a) from stress 2, which until now held only for a set
+        # operation at the TOP LEVEL of an INSERT and not for one written inside a CTE.
+        constraining: list[tuple[str, str, Transform]] = []
         for column in _value_columns(projection):
             for source_table, source_column, traced in _trace(
-                column, scope, dictionary, unresolved
+                column, scope, dictionary, unresolved, 0, constraining
             ):
                 edges.append(
                     _edge(
@@ -1049,6 +1092,19 @@ def _analyse_select_into(
                         origin,
                     )
                 )
+        for source_table, source_column, _ in constraining:
+            edges.append(
+                _edge(
+                    source_table,
+                    source_column,
+                    target_name,
+                    "",
+                    Transform.IDENTITY,
+                    band,
+                    origin,
+                    flow=Flow.FILTER,
+                )
+            )
 
         # A correlated predicate selects the row the subquery reads, so it is filter
         # influence on the written relation.

@@ -50,7 +50,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S4-08 | `transform-classification` | **fixed** | a transform inside a cursor query did not reach the edge; fixed WITH S4-07 because they are one fact |
 | S4-09 | `construct-coverage` | open | a declared cursor's own `WHERE` produces no filter edge against what the loop writes |
 | S4-03 | `construct-coverage` | **fixed** | a `MERGE` emitted no **influence** edge — neither `GROUP BY` nor window; S3-03 added its filters and stopped there |
-| S4-04 | `flow-classification` | open | a `MINUS`/`INTERSECT` second arm is read as **value**, not filter — stress 2's convention (a) was never implemented |
+| S4-04 | `flow-classification` | **fixed** | a `MINUS`/`INTERSECT` second arm was read as **value** when the set operation sits in a CTE — convention (a) held for the top-level form only |
 | S4-05 | `construct-coverage` | open | `BULK COLLECT` into **two** collections resolves only the first — the second target loses its column source |
 | S4-06 | `key-error` | **fixed** | three in stress 4's own key: a trigger inheritance omitted, a view's internal `CASE` missed, an `ON` clause labelled as filter |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
