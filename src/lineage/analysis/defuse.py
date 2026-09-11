@@ -299,6 +299,58 @@ def _value_columns(expression: Any) -> list[Any]:
     return [c for c in expression.find_all(exp.Column) if id(c) not in excluded]
 
 
+def _subscript_columns(expression: Any, scope: UnitScope) -> set[int]:
+    """Columns that only INDEX a collection, by node id (stress finding S3-06).
+
+    `l_batch(i).refund_amount` parses as `Dot(Anonymous(l_batch, [Column(i)]), refund_amount)`,
+    so the subscript `i` is the ONLY `exp.Column` in it - the collection name is the
+    function name and the field is a bare identifier. Every path that looks for value
+    sources therefore found `i` and nothing else, and emitted `i -> l_adjusted`.
+
+    **A subscript chooses WHICH element, exactly as a join key chooses which row.** None of
+    the loop counter is in the number that comes out; incrementing it moves you to a
+    different element rather than changing any value. This is the collection form of the
+    argument D-5 made for join conditions and D-4 made for a window's ordering, and it
+    reaches the same answer: no value edge.
+
+    THE SCOPE LOOKUP IS WHAT MAKES IT SAFE. `pkg.f(amt)` is a real function call and its
+    arguments really are value sources; only a call on a name that is a DECLARED VARIABLE
+    is an index, because PL/SQL has no way to call a variable.
+
+    Returns ids rather than names so a name used both as a subscript and as a value keeps
+    its value edge - `l_batch(i).amt + i` is contrived, but excluding by name would quietly
+    drop the second half of it.
+    """
+    found: set[int] = set()
+    for call in expression.find_all(exp.Anonymous):
+        name = str(call.this or "")
+        if not name or scope.lookup(name) is None:
+            continue  # a genuine function call: its arguments ARE value sources
+        for argument in call.expressions:
+            found.update(id(column) for column in argument.find_all(exp.Column))
+    return found
+
+
+def _subscript_only_names(expression_text: str, scope: UnitScope) -> set[str]:
+    """Names appearing ONLY as collection subscripts in this expression (S3-06).
+
+    The assignment path scans identifiers out of TEXT rather than an AST, so it needs names
+    rather than node ids. Built on `_subscript_columns` rather than repeating the rule: two
+    copies of one rule is how S2-08 happened, and this one would drift the same way.
+    """
+    try:
+        parsed = sqlglot.parse_one(expression_text, dialect=DIALECT)
+    except Exception:
+        # An unparseable right-hand side is the caller's problem; here it just means no
+        # subscript can be proven, and proving none is the safe direction.
+        return set()
+
+    indexes = _subscript_columns(parsed, scope)
+    as_subscript = {c.name.upper() for c in parsed.find_all(exp.Column) if id(c) in indexes}
+    elsewhere = {c.name.upper() for c in parsed.find_all(exp.Column) if id(c) not in indexes}
+    return as_subscript - elsewhere
+
+
 def _predicate_columns(expression: Any) -> list[Any]:
     """Columns inside a nested WHERE — filter influence rather than value flow.
 
@@ -551,11 +603,17 @@ def _analyse_assignment(
     expression_text = source_slice(inner.expression()) if inner.expression() else ""
     transform = _assignment_transform(expression_text)
 
+    subscripts = _subscript_only_names(expression_text, scope)
+
     for name in _identifiers_in(expression_text):
         if name in carriers:
             # `v_rows := DBMS_SQL.EXECUTE(v_cursor)` - a cursor handle is API plumbing,
             # not a value. The row count genuinely derives from the statement's effect,
             # which no static edge can express.
+            continue
+        if name in subscripts:
+            # `l_adjusted := l_batch(i).refund_amount * 1.2` - `i` picks the element and
+            # contributes none of the value (S3-06).
             continue
         source_decl = scope.lookup(name)
         if source_decl is None:
@@ -976,7 +1034,12 @@ def _analyse_insert_values(
                 break
             item = items[index]
             target = Node(kind=IRNodeKind.COLUMN, name=f"{target_name}.{column}")
+            indexes = _subscript_columns(item, scope)
             for reference in item.find_all(exp.Column):
+                if id(reference) in indexes:
+                    # `VALUES (l_batch(i).product_id, ...)` - the subscript is not a source
+                    # of the column it indexes into (S3-06).
+                    continue
                 classified = _classify(reference, scope, relations, dictionary)
                 if classified is None:
                     result.unresolved.append(

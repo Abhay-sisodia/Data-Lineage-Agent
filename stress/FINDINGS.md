@@ -40,7 +40,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S3-04 | `flow-classification` | **fixed** | **misdiagnosed** — not a D-5 call site; the same `find_all` as S3-02, and closed by the same one-line change |
 | S3-05 | `key-error` | **fixed** | four omissions in stress 3's own key, corrected 2026-09-12 and kept as evidence |
 | S3-08 | `key-error` | **fixed** | three more, from applying D-2's exclusion as a NAME MATCH instead of by the reason it states |
-| S3-06 | `flow-classification` | open | a `FOR` loop index is emitted as a **value source** — the subscript chooses an element, it is not in the value |
+| S3-06 | `flow-classification` | **fixed** | a `FOR` loop index emitted as a **value source** — the subscript chooses an element, it is not in the value |
 | S3-07 | `construct-coverage` | open | `t.col` on the right of a `MERGE` `SET` does not resolve to the target's own column — declared, not silent |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
@@ -1883,6 +1883,57 @@ the three:
 applied by pattern rather than by the reason it was written for. Worth naming as a pattern
 rather than logging twice — when a rule carries its justification, the justification is the
 rule, and the summary is a lossy copy of it.
+
+### S3-06 · FIXED 2026-09-12 — a subscript is not a value
+
+`l_batch(i).refund_amount` parses as `Dot(Anonymous(l_batch, [Column(i)]), refund_amount)`,
+so **the subscript `i` is the only `exp.Column` in the whole expression** - the collection
+name is the function name and the field is a bare identifier. Every path looking for value
+sources found `i`, and nothing else, and emitted `i -> l_adjusted`.
+
+**A subscript chooses WHICH element, exactly as a join key chooses which row.** None of the
+loop counter is in the number that comes out; incrementing it moves you to a different
+element rather than changing any value. The same argument D-5 made for join conditions and
+D-4 made for a window's ordering, reaching the same answer - and it is the third time this
+register has had to make it.
+
+**The scope lookup IS the rule.** `pkg.f(amt)` is a genuine call whose argument genuinely
+contributes; only a call on a name that is a DECLARED VARIABLE is an index, because PL/SQL
+has no way to call a variable. So the test is "is this name in scope", not "does this look
+like a subscript" - and a control test asserts a real function's argument still produces its
+edge, because "call arguments are never values" is the obvious wrong fix.
+
+**Two call sites, one home.** The assignment path scans identifiers out of TEXT and needed
+names; the `VALUES` path walks an AST and needed node ids. Both derive from one
+`_subscript_columns` rather than carrying the rule twice - S2-08 is on this register for a
+rule duplicated across these two modules that then drifted, and a second copy would have
+drifted the same way. Ids rather than names, so `l_batch(i).amt + i` keeps the value edge it
+is owed.
+
+**Stress 3 now has ZERO FALSE POSITIVES on every band and every flow.** Band-1 value
+precision 57.1% -> 100%. Phase 0 byte-identical.
+
+### What stress 3 has left, and what it is
+
+```
+  band  flow       TP  FP  FN   precision    recall
+  0     filter      7   0   2      100.0%     77.8%
+  0     influence  24   0   0      100.0%    100.0%
+  0     value      27   0   1      100.0%     96.4%
+  1     filter      0   0   1         n/a      0.0%
+  1     value       4   0   3      100.0%     57.1%
+  2     filter      2   0   0      100.0%    100.0%
+  2     value       1   0   0      100.0%    100.0%
+```
+
+**Every remaining miss is one of three open findings, and none of them is a wrong answer.**
+S3-03 (a `MERGE` emits no filter edge) accounts for the two band-0 filter FNs; S3-07 (`t.col`
+in a `MERGE SET`) for the one band-0 value FN, declared as `unresolved_identifier`; and the
+four band-1 misses are the `FETCH ... BULK COLLECT` refusal, which is declared and counted.
+
+**The package is now measuring recall against declared gaps rather than hunting false
+claims** - which is the state the phase-0 corpus reached after eighteen findings, and this
+one reached in a day.
 
 ### S3-04 was misdiagnosed, and the register says so
 
