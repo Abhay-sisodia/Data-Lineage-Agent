@@ -142,6 +142,32 @@ class Flow(StrEnum):
     """
 
 
+class FilterPhase(StrEnum):
+    """WHEN a filter acts, relative to aggregation. Part of the match key.
+
+    Stress finding S1-03, decision D-2. `WHERE` and `HAVING` both remove rows, so both are
+    `Flow.FILTER` — but they do it at different points and **produce different results from
+    the same-looking predicate**. `WHERE amount > 100` discards rows before they are summed;
+    `HAVING SUM(amount) > 100` discards groups after. A report that cannot tell them apart
+    cannot answer the question a reader actually has about an aggregate.
+
+    This field answers exactly one question: *does this predicate run after aggregation?*
+    It makes no claim about anything else, which is why `PRE_AGGREGATION` is the default and
+    is correct for every filter edge that is not a `HAVING` — a set operation's later arm, a
+    `PIVOT`'s `FOR` column, a `DELETE`'s predicate and an ordinary `WHERE` all select rows
+    without waiting for a group to form.
+
+    **Defaulting rather than requiring it is a deliberate choice about the keys.** There are
+    170 filter labels across 38 key files and every one of them predates D-2. Adding
+    `phase: pre-aggregation` to all of them would restate the default 170 times, and the
+    churn would be indistinguishable from a real change in any future diff. The default is
+    the assertion; only a `HAVING` writes the field.
+    """
+
+    PRE_AGGREGATION = "pre-aggregation"
+    POST_AGGREGATION = "post-aggregation"
+
+
 class Transform(StrEnum):
     """How the value was changed in transit. Part of the match key."""
 
@@ -284,7 +310,7 @@ class Boundary(BaseModel):
         return self.detail
 
 
-MatchKey = tuple[str, str, str, str]
+MatchKey = tuple[str, str, str, str, str]
 IdentityKey = tuple[str, str, str, str, str, str]
 
 
@@ -301,6 +327,7 @@ class IREdge(BaseModel):
     target: Node
     flow: Flow = Flow.VALUE
     transform: Transform = Transform.IDENTITY
+    phase: FilterPhase = FilterPhase.PRE_AGGREGATION
     band: int = Field(ge=0, le=3)
 
     mechanism: Mechanism
@@ -340,7 +367,13 @@ class IREdge(BaseModel):
         Guard and origin are excluded on purpose (ADR-0001 §5): otherwise the gate would
         move on string-comparison noise rather than on analysis quality.
         """
-        return (str(self.source), str(self.target), self.flow.value, self.transform.value)
+        return (
+            str(self.source),
+            str(self.target),
+            self.flow.value,
+            self.transform.value,
+            self.phase.value,
+        )
 
     def identity(self) -> IdentityKey:
         """What makes this fact distinct in the ledger (ADR-0001 amendment 1).

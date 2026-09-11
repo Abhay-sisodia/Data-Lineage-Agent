@@ -29,10 +29,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # The IR is the shared vocabulary. Labels describe the same world the analyser emits
 # into, so they use the same node kinds, flow kinds and transform classes rather than a
 # parallel set that could drift.
-from lineage.ir.model import BoundaryKind, Flow, Node, NodeKind, Origin, Transform
+from lineage.ir.model import BoundaryKind, FilterPhase, Flow, Node, NodeKind, Origin, Transform
 
 __all__ = [
     "Evidence",
+    "FilterPhase",
     "Flow",
     "ForbiddenEdge",
     "GroundTruth",
@@ -65,6 +66,11 @@ class LabelledEdge(BaseModel):
     target: Node
     flow: Flow = Flow.VALUE
     transform: Transform = Transform.IDENTITY
+    phase: FilterPhase = Field(
+        default=FilterPhase.PRE_AGGREGATION,
+        description="When a filter acts, relative to aggregation (D-2). Only a HAVING "
+        "writes this; see FilterPhase for why the default carries the assertion.",
+    )
     band: int = Field(ge=0, le=3, description="Hardest construct on the path (ADR-0001 §6)")
     origin: Origin
     evidence: Evidence
@@ -81,14 +87,24 @@ class LabelledEdge(BaseModel):
     )
     note: str | None = None
 
-    def key(self) -> tuple[str, str, str, str]:
-        """The ADR-0001 §4 match key: source, target, flow, transform.
+    def key(self) -> tuple[str, str, str, str, str]:
+        """The ADR-0001 §4 match key: source, target, flow, transform, phase.
 
         Band, origin and evidence are deliberately absent — carried and reported, but not
         part of whether an edge matches. Guard is absent HERE and added back by the
         scoring layer; see ``scoring.scoring_key`` for why the two differ.
+
+        ``phase`` joined the key under decision D-2. It defaults to ``pre-aggregation``, so
+        every label written before D-2 keeps exactly the identity it had - see
+        ``FilterPhase`` for why defaulting rather than requiring it was the right call.
         """
-        return (str(self.source), str(self.target), self.flow.value, self.transform.value)
+        return (
+            str(self.source),
+            str(self.target),
+            self.flow.value,
+            self.transform.value,
+            self.phase.value,
+        )
 
 
 class ForbiddenEdge(BaseModel):
@@ -119,9 +135,16 @@ class ForbiddenEdge(BaseModel):
     )
     reason: str = Field(description="Why this looks right and is not. Stated, never implied.")
 
-    def matches(self, key: tuple[str, str, str, str]) -> bool:
-        """Does an emitted edge's match key describe this forbidden fact?"""
-        source, target, flow, transform = key
+    def matches(self, key: tuple[str, ...]) -> bool:
+        """Does an emitted edge's match key describe this forbidden fact?
+
+        Deliberately indifferent to `phase`, which joined the match key under D-2. A
+        forbidden edge names a wrong ENDPOINT BINDING, and `s5`'s positional-union defect is
+        the wrong answer whether the predicate that reached it ran before or after
+        aggregation. Narrowing a forbidden rule by phase would let the same wrong binding
+        through under the other one.
+        """
+        source, target, flow, transform = key[:4]
         if (source, target, flow) != (str(self.source), str(self.target), self.flow.value):
             return False
         return self.transform is None or transform == self.transform.value
@@ -234,9 +257,13 @@ class OriginAssertion(BaseModel):
     )
     reason: str = Field(description="What the wrong derivation is, and why it looks right.")
 
-    def matches(self, key: tuple[str, str, str, str]) -> bool:
-        """Does an emitted edge's match key fall under this assertion?"""
-        source, target, flow, transform = key
+    def matches(self, key: tuple[str, ...]) -> bool:
+        """Does an emitted edge's match key fall under this assertion?
+
+        Phase-indifferent, for the same reason as `ForbiddenEdge.matches`: an origin
+        assertion is about where an edge came FROM, which no predicate phase changes.
+        """
+        source, target, flow, transform = key[:4]
         if (source, target, flow) != (str(self.source), str(self.target), self.flow.value):
             return False
         return self.transform is None or transform == self.transform.value

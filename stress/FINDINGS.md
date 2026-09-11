@@ -23,7 +23,7 @@ with the code has stopped measuring anything.
 |---|---|---|---|
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
-| S1-03 | `flow-classification` | open | **misdiagnosed** — no `GROUP BY`/`HAVING` edge is emitted; the FPs are window `PARTITION BY`/`ORDER BY` |
+| S1-03 | `flow-classification` | **fixed** | **misdiagnosed** — no `GROUP BY`/`HAVING` edge was emitted at all; D-2 adds both |
 | S2-12 | `flow-classification` | **fixed** | a window's `PARTITION BY`/`ORDER BY` is neither value nor filter — it is a third flow |
 | S2-13 | `key-error` | **fixed** | the `MINUS` arm's other two columns — a uniform rule applied to the first instance only |
 | S2-14 | `flow-classification` | **fixed** | a join condition is structural in a `FROM` and a filter inside an `EXISTS` — the same clause, two answers |
@@ -179,9 +179,10 @@ runs — the **S2-11 shape**, and the second instance of it in two days.
 
 ## Open work — what is left, and what each one needs
 
-**Four open. Fourteen fixed. Nothing in the register has yet failed to recur across stress
-runs.** **Both stress packages now have ZERO false positives** — 100% precision on every
-band and every flow in each. **D-1 and D-3 are landed in full** (S1-04's three halves, S2-07). D-2 is decided and
+**Three open. Fifteen fixed. Nothing in the register has yet failed to recur across stress
+runs.** **Both stress packages have ZERO false positives** — 100% precision on every band
+and every flow in each — and so does the phase-0 corpus outside its one long-standing
+band-1 value FP. **All five decisions D-1 to D-5 are landed.** **D-1 and D-3 are landed in full** (S1-04's three halves, S2-07). D-2 is decided and
 not yet implemented — it is the last of the three and the largest.
 
 Each implementation turned up a new finding — **S2-08** from D-3, and **S2-09**, **S2-10**
@@ -192,7 +193,6 @@ rather than the analyser, and neither would have been found by running the analy
 | ID | Category | Blocked on | Cost if left |
 |---|---|---|---|
 | **S2-10** | `measurement-error` | someone reconciling two line-number spaces in `measure.py` | `false_abstentions_recovered` and `edges_from_refused_statements` cannot see trigger edges at all — two reported zeros that are artifacts |
-| **S1-03** | `flow-classification` | **D-2 needs re-confirming** — the finding was misdiagnosed, so the decision is a feature addition, not a fix | a report that cannot tell a pre- from a post-aggregation filter. Fixes **no** current false positive |
 | **S2-08** | `transform-classification` | a decision on `LAG`/`LEAD`, and a refactor for the duplicated classifier | S2-05 never reached band 1 at all; and a rule that reads as arbitrary from outside |
 | **S2-01** | `construct-coverage` | real work — SQLGlot cannot parse `MERGE … DELETE` at all | 7 edges, and it is a standard slowly-changing-dimension shape |
 | **S2-02** | `construct-coverage` | real work — `INSERT ALL` is genuinely unimplemented | 7 edges; the honest refusal makes this a coverage gap, not a defect |
@@ -203,9 +203,8 @@ rather than the analyser, and neither would have been found by running the analy
 - **S2-09** — done with S1-04; kept in the register because a key error is evidence.
 - **S2-10** — `false_abstentions_recovered: 0` is not a measurement. Trigger edges number
   their lines from the trigger BODY and refusals number theirs from the FILE.
-- **S1-03** — **D-2 stands, but the finding was misdiagnosed.** No `GROUP BY` or `HAVING` edge
-  is emitted anywhere, so D-2 is a feature addition rather than a reclassification, and it
-  fixes none of the current false positives. Needs a fresh go/no-go before implementation.
+- **S1-03** — **D-2 landed.** `HAVING` is a `filter` with `phase: post-aggregation`; `GROUP BY`
+  is `influence` on the aggregated column. 80 new labels across 12 key files.
 - **S2-12** — **D-4: a third flow, `influence`, targeting the COLUMN.** Landed. A window
   removes no rows, so `filter` was false; the dependency is real, so silence was too.
 - **S2-01** — needs a SQLGlot bump, a pre-parse rewrite that strips the `DELETE` clause, or a
@@ -510,6 +509,91 @@ But the cost profile is the opposite of what the fix order assumed:
   having existing ones re-tagged;
 * precision can only go **down** until the keys are updated, and recall is unaffected either
   way.
+
+### D-2 as built, 2026-09-11
+
+**Three clauses, sorted by what they actually do**, rather than one field covering all
+three. D-4 had just created `Flow.INFLUENCE` for "decided which value, not which rows", and
+`GROUP BY` turned out to be exactly that shape - so the mechanism was already there.
+
+| clause | flow | target | phase |
+|---|---|---|---|
+| `WHERE` | `filter` | the written relation | `pre-aggregation` |
+| `HAVING` | `filter` | the written relation | **`post-aggregation`** |
+| `GROUP BY` | **`influence`** | **the aggregated column** | n/a |
+
+`WHERE` and `HAVING` both **remove rows** - a group is a row once it has formed - so both
+are `filter`, and the phase is what separates them. `GROUP BY` removes nothing, so calling
+it a filter would repeat the error D-4 was raised to fix.
+
+**`phase` defaults to `pre-aggregation` and only a `HAVING` writes it.** There are 170
+filter labels across 38 key files and every one predates D-2; adding `phase:
+pre-aggregation` to all of them would restate the default 170 times and make the churn
+indistinguishable from a real change in any future diff. The default *is* the assertion, and
+it is correct for every filter edge that is not a `HAVING`. Phase is fully in the match key -
+there is no soft matching. `ForbiddenEdge` and `OriginAssertion` are deliberately
+phase-indifferent: a forbidden edge names a wrong endpoint BINDING, and no predicate phase
+changes that.
+
+**Only aggregated columns are influenced.** The grouping keys are usually projected as well,
+and their values are copied through untouched; emitting influence onto one would say a column
+decides its own value.
+
+### Two defects found by building it
+
+**The grouping scope has to be resolved, and the first cut resolved it wrongly.** A statement
+with two aggregating CTEs has two independent groupings, and attaching the union to every
+aggregated column would claim `refund_total` is governed by the revenue CTE's `GROUP BY`.
+That much was designed in. What was not: the first implementation **returned at the first
+aggregating scope it found**, so a grouping two levels down was silently dropped.
+`sq_02_cte_chain` is the case - `net_sales` is `gross - refunded` where `refunded` is a
+`MAX(...)` over a `SUM(...)` from a different CTE, each with its own `GROUP BY` - and
+`STG_RETURNS.PRODUCT_ID` was missing. It looked right in `stress_cte_window` only because
+there the two aggregations are **siblings rather than nested**, so both are found at depth 1.
+A rule that depends on how the CTEs are stacked is not a rule. Fixed to traverse every
+aggregating scope on the path, which is what this analyser does everywhere else.
+
+**The report started lying, and that is worse than a report that omits.** `EdgeKey` grew from
+`(source, target, flow, transform, guard)` to `(..., phase, guard)`, and four renderers read
+the guard at index 4. Every miss and false positive printed `when pre-aggregation` where the
+guard belonged - so two edges differing only by guard looked identical, and a guard that was
+there looked absent. Fixed in one `describe_key`, which also shows the phase **only for a
+`filter`**: on a value edge it would be noise that reads like a claim.
+
+### Effect
+
+| | signed | now |
+|---|---|---|
+| phase-0 gate | 96.2% / 96.2% | **identical** |
+| phase-0 0/filter | 38 TP, 0 FP, 5 FN | 35 TP, 0 FP, 5 FN |
+| phase-0 0/influence | - | **50 TP, 0 FP, 0 FN** |
+| phase-0 1/influence | - | **4 TP, 0 FP, 0 FN** |
+| stress 1 0/influence | - | **25 TP, 0 FP, 0 FN** |
+| stress 1 2/influence | - | **4 TP, 0 FP, 0 FN** |
+| stress 2 0/influence | 11 TP (D-4 only) | **16 TP, 0 FP, 0 FN** |
+| false positives, both stress packages | 0 | **0** |
+
+**Every influence cell is 100% / 100%, in all three packages.** 80 new labels across 12 key
+files, and not one of them disagrees with the analyser - which is the expected result for a
+mechanical rule and is *not* evidence the rule is right. The evidence for that is the
+clause-by-clause check against source in `sq_01` (flat `GROUP BY`, three grouping keys, four
+aggregates), `sq_02` (nested CTEs), `stress_cte_window` (sibling CTEs) and `sq_03` (a window
+and a grouping on the same column).
+
+**One label needed correcting by hand and a test caught it.** `s7_unexercised_branch`'s
+generated labels missed `unexercised: true` and sat at band 0, because the analyser reports
+the INSERT's line and the key reports the SELECT's, so the lookup that copies band and guard
+from the same statement's existing labels missed by one line.
+`test_the_harness_separates_disagreement_from_absence` failed on
+`unexercised_accuracy == 1.0`. **The unexercised axis is the one thing in this key set that
+cannot be backfilled**, and a generated label silently defaulting it to false is exactly the
+error that axis exists to prevent.
+
+**The one `HAVING` in the entire corpus is in stress 1.** That is why the construct went
+unread for three stress runs, and it is the sharpest available statement about the corpus:
+a clause present in almost every real aggregate query appears once across 38 packages.
+Stress 1's key had already flagged `HAVING` as one of three constructs with no precedent in
+phase 0 - it was right, and the gap was in the analyser rather than the labelling.
 
 ### The question the false positives actually raise — undecided
 

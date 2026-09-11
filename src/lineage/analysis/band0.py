@@ -46,7 +46,7 @@ from lineage.analysis.refusal import (
 from lineage.config import AnalysisConfig
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
-from lineage.ir.model import Boundary, BoundaryKind
+from lineage.ir.model import Boundary, BoundaryKind, FilterPhase
 from lineage.parsing.plsql import ParsedStatement, Program, parse_program
 from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
@@ -439,6 +439,66 @@ def _trace(
     return []
 
 
+def _grouping_influence(
+    projection: Any,
+    scope: Scope,
+    dictionary: Dictionary,
+    unresolved: list[Boundary],
+    depth: int = 0,
+) -> list[tuple[str, str, Transform]]:
+    """`GROUP BY` columns that govern THIS projection's aggregation (S1-03, decision D-2).
+
+    A `GROUP BY` removes no rows - it decides which rows collapse together - so it is not a
+    filter. What it decides is the VALUE of every aggregated output column: change the
+    grouping and `SUM(amount)` changes, while no part of `cust_id` is in the number. That is
+    `Flow.INFLUENCE`, the flow D-4 created for exactly this shape.
+
+    **Only aggregated columns are influenced.** `cust_id` and `TRUNC(order_date)` are in the
+    `GROUP BY` and also projected - their values are copied through unchanged, and the
+    grouping does nothing to them. Emitting influence onto a grouping key would say the
+    column decides its own value.
+
+    **The scope has to be found, not assumed, or the edges are wrong rather than missing.**
+    A statement with two aggregating CTEs has two independent groupings, and attaching the
+    union of them to every aggregated column would claim `refund_total` is governed by the
+    revenue CTE's `GROUP BY`. `stress_cte_window` is exactly that shape. So this walks the
+    same path `_trace` walks: a scope contributes its grouping when the projection
+    aggregates *there*.
+
+    **EVERY aggregating scope on the path contributes, not just the nearest one.** The first
+    cut of this function returned as soon as it found one, and `sq_02_cte_chain` showed what
+    that costs: `net_sales` is `gross - refunded` where `refunded` is `MAX(...)` in one CTE
+    over a `SUM(...)` from another, each with its own `GROUP BY`. Stopping at the first meant
+    the deeper grouping was silently dropped - and it only looked correct in
+    `stress_cte_window` because there the two aggregations are siblings rather than nested,
+    so both happen to be found at depth 1. A rule that depends on how the CTEs are stacked
+    is not a rule. Tracing transitively is what this analyser does everywhere else - through
+    views, CTEs and alias chains - and a grouping two levels down is a real dependency of
+    the value that comes out.
+    """
+    if depth > 20:
+        return []
+
+    found: list[tuple[str, str, Transform]] = []
+    group = scope.expression.args.get("group")
+    if group is not None and any(_is_aggregate(node) for node in projection.walk()):
+        for expression in group.expressions:
+            for column in expression.find_all(exp.Column):
+                found.extend(_trace(column, scope, dictionary, unresolved, depth + 1))
+
+    for column in projection.find_all(exp.Column):
+        source = scope.sources.get(column.table) if column.table else None
+        if source is None and len(scope.sources) == 1:
+            source = next(iter(scope.sources.values()))
+        if not isinstance(source, Scope):
+            continue
+        inner = _projection_named(source, column.name)
+        if inner is None:
+            continue
+        found.extend(_grouping_influence(inner, source, dictionary, unresolved, depth + 1))
+    return found
+
+
 def _flatten_arms(arms: list[Any]) -> list[Any]:
     """Expand nested set operations into a flat list of leaf arms."""
     flat: list[Any] = []
@@ -518,6 +578,7 @@ def _edge(
     band: int,
     origin: Origin,
     flow: Flow = Flow.VALUE,
+    phase: FilterPhase = FilterPhase.PRE_AGGREGATION,
 ) -> PredictedEdge:
     """Build one IR edge.
 
@@ -534,6 +595,7 @@ def _edge(
         ),
         flow=flow,
         transform=transform,
+        phase=phase,
         band=band,
         mechanism=Mechanism.AST,
         tier=Tier.A,
@@ -853,6 +915,26 @@ def _analyse_select_into(
                     )
                 )
 
+        # A GROUP BY decides which rows collapse together, so it decides the VALUE of an
+        # aggregated column without supplying any of it (S1-03, decision D-2). Same flow as
+        # the window case above, for the same reason, and the scope is resolved rather than
+        # assumed - see `_grouping_influence`.
+        for source_table, source_column, _ in _grouping_influence(
+            projection, scope, dictionary, unresolved
+        ):
+            edges.append(
+                _edge(
+                    source_table,
+                    source_column,
+                    target_name,
+                    target_column,
+                    Transform.IDENTITY,
+                    band,
+                    origin,
+                    flow=Flow.INFLUENCE,
+                )
+            )
+
     # The pivot's FOR column decides WHICH output column a row lands in. It supplies no
     # value to any of them, which is exactly what a filter edge says.
     for for_column in pivot_for_columns:
@@ -992,22 +1074,52 @@ def _filter_edges(
     # constraint that makes filter lineage worth reporting.
     for current in scope.traverse():
         where = current.expression.args.get("where")
-        if where is None:
-            continue
-        for column in predicate_columns(where):
-            for source_table, source_column, _ in _trace(column, current, dictionary, unresolved):
-                edges.append(
-                    _edge(
-                        source_table,
-                        source_column,
-                        target_name,
-                        "",
-                        Transform.IDENTITY,
-                        band,
-                        origin,
-                        flow=Flow.FILTER,
+        if where is not None:
+            for column in predicate_columns(where):
+                for source_table, source_column, _ in _trace(
+                    column, current, dictionary, unresolved
+                ):
+                    edges.append(
+                        _edge(
+                            source_table,
+                            source_column,
+                            target_name,
+                            "",
+                            Transform.IDENTITY,
+                            band,
+                            origin,
+                            flow=Flow.FILTER,
+                        )
                     )
-                )
+
+        # A HAVING removes GROUPS, after every row has been counted (S1-03, decision D-2).
+        # It is a filter - rows do disappear - but `WHERE amount > 100` and
+        # `HAVING SUM(amount) > 100` produce different results from the same-looking
+        # predicate, so the phase is on the edge and the two are distinguishable.
+        #
+        # THIS CLAUSE WAS NOT READ AT ALL BEFORE D-2. `args.get("having")` appears nowhere
+        # in the pre-D-2 source, which is why S1-03's premise - "GROUP BY columns emitted
+        # as filter edges" - was false for three stress runs: no GROUP BY or HAVING edge
+        # had ever been emitted.
+        having = current.expression.args.get("having")
+        if having is not None:
+            for column in predicate_columns(having):
+                for source_table, source_column, _ in _trace(
+                    column, current, dictionary, unresolved
+                ):
+                    edges.append(
+                        _edge(
+                            source_table,
+                            source_column,
+                            target_name,
+                            "",
+                            Transform.IDENTITY,
+                            band,
+                            origin,
+                            flow=Flow.FILTER,
+                            phase=FilterPhase.POST_AGGREGATION,
+                        )
+                    )
     return edges
 
 

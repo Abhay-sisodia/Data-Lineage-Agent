@@ -71,4 +71,75 @@ edges:
     origin: {unit: SQ_CTE_CHAIN, line: 43}
     evidence: observed
 
+  # === GROUP BY influence, added 2026-09-11 under stress finding S1-03, decision D-2 ===
+  #
+  # A GROUP BY removes no rows - it decides which rows collapse together - so it is not a
+  # filter. What it decides is the VALUE of every aggregated output column: change the
+  # grouping and SUM(amount) changes, while no part of cust_id is in the number. That is
+  # `Flow.INFLUENCE`, the flow D-4 created for the window case, reused here for the same
+  # reason and for the same target - the COLUMN, not the relation.
+  #
+  # ONLY AGGREGATED COLUMNS ARE INFLUENCED. The grouping keys are usually projected too, and
+  # their values are copied through untouched; emitting influence onto one would say a
+  # column decides its own value.
+  #
+  # These are NEW labels for a construct the analyser never read before D-2, not a
+  # re-tagging of existing ones. `args.get("group")` appeared nowhere in the source until
+  # now, which is why S1-03's premise - "GROUP BY columns emitted as filter edges" - was
+  # false for three stress runs.
+  #
+  # Derived by applying the rule to this package's GROUP BY and its aggregated projections,
+  # checked clause by clause against the source. Band and guard follow this key's existing
+  # labels for the same statement rather than being restated.
+
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 12}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 12}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 12}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 12}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 12}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 12}
+    evidence: source_read
+  - source: {kind: column, name: STG_RETURNS.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: SQ_CTE_CHAIN, line: 12}
+    evidence: source_read
+
 boundaries: []

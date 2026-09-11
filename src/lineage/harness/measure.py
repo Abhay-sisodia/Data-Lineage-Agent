@@ -538,7 +538,7 @@ def render(measurement: Measurement) -> str:
             "  <- named wrong answers, not anonymous false positives"
         )
         for package, edge, reason in measurement.forbidden:
-            guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
+            guard = f"  when {edge[5]}" if len(edge) > 5 and edge[5] else ""
             lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
             lines.append(f"    {' '.join(reason.split())[:96]}")
 
@@ -573,14 +573,14 @@ def render(measurement: Measurement) -> str:
         lines.append("")
         lines.append(f"FALSE POSITIVES ({len(measurement.spurious)})")
         for package, edge in measurement.spurious:
-            guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
+            guard = f"  when {edge[5]}" if len(edge) > 5 and edge[5] else ""
             lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
 
     if measurement.missed:
         lines.append("")
         lines.append(f"MISSED ({len(measurement.missed)})")
         for package, edge in measurement.missed:
-            guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
+            guard = f"  when {edge[5]}" if len(edge) > 5 and edge[5] else ""
             lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
 
     # Last, and generated rather than written (T3.6e). It answers the question the

@@ -214,6 +214,33 @@ edges:
     band: 0
     origin: {unit: STRESS_CTE_WINDOW, line: 25}
     evidence: source_read
+    note: >
+      `WHERE o.currency = 'GBP'`, inside the `monthly` CTE. Its phase is the default
+      `pre-aggregation` and is not written out - see the HAVING below, and `FilterPhase`.
+
+  - source: {kind: column, name: STG_ORDER_LINES.LINE_AMOUNT}
+    target: {kind: relation, name: FCT_PRODUCT_SALES}
+    flow: filter
+    phase: post-aggregation
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: >
+      ADDED 2026-09-11 under stress finding S1-03, decision D-2. `HAVING SUM(l.line_amount)
+      > 0` in the `monthly` CTE - THE ONLY HAVING IN THE CORPUS OR EITHER STRESS PACKAGE,
+      which is why the construct went unread for three stress runs and why S1-03's
+      diagnosis survived so long.
+
+      A HAVING removes rows - groups are rows, once they have formed - so it is `filter`
+      and not `influence`. What separates it from the WHERE above is WHEN: `WHERE
+      line_amount > 0` would discard line items before they were summed, and this discards
+      products whose total came to zero. Same column, same flow, different results, so the
+      phase is on the edge and the two are distinguishable.
+
+      This key's own header flagged HAVING as one of three constructs with no precedent in
+      the phase-0 corpus. It was right, and the gap turned out to be in the analyser rather
+      than in the labelling.
 
   - source: {kind: column, name: STG_RETURNS.STATUS_CODE}
     target: {kind: relation, name: FCT_PRODUCT_SALES}
@@ -949,6 +976,209 @@ edges:
 # happens to be absent from the key is only ever one anonymous false positive among
 # others - and naming it changes what a regression means.
 # ====================================================================================
+
+  # === GROUP BY influence, added 2026-09-11 under stress finding S1-03, decision D-2 ===
+  #
+  # A GROUP BY removes no rows - it decides which rows collapse together - so it is not a
+  # filter. What it decides is the VALUE of every aggregated output column: change the
+  # grouping and SUM(amount) changes, while no part of cust_id is in the number. That is
+  # `Flow.INFLUENCE`, the flow D-4 created for the window case, reused here for the same
+  # reason and for the same target - the COLUMN, not the relation.
+  #
+  # ONLY AGGREGATED COLUMNS ARE INFLUENCED. The grouping keys are usually projected too, and
+  # their values are copied through untouched; emitting influence onto one would say a
+  # column decides its own value.
+  #
+  # These are NEW labels for a construct the analyser never read before D-2, not a
+  # re-tagging of existing ones. `args.get("group")` appeared nowhere in the source until
+  # now, which is why S1-03's premise - "GROUP BY columns emitted as filter edges" - was
+  # false for three stress runs.
+  #
+  # Derived by applying the rule to this package's GROUP BY and its aggregated projections,
+  # checked clause by clause against the source. Band and guard follow this key's existing
+  # labels for the same statement rather than being restated.
+
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    guard: "v_count <> 0 AND p_strict = 1"
+    origin: {unit: STRESS_TRANSACTION_CONTROL, line: 239}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    guard: "v_count <> 0 AND p_strict = 1"
+    origin: {unit: STRESS_TRANSACTION_CONTROL, line: 239}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    guard: "v_seen > 0"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 161}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    guard: "v_count <> 0 AND p_strict = 1"
+    origin: {unit: STRESS_TRANSACTION_CONTROL, line: 239}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    guard: "v_count <> 0 AND p_strict = 1"
+    origin: {unit: STRESS_TRANSACTION_CONTROL, line: 239}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: GTT_STAGE.AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    guard: "v_seen > 0"
+    origin: {unit: STRESS_CURSOR_AND_HANDLER, line: 161}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.GROSS_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.RANK_IN_MONTH}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDER_LINES.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.UNITS_SOLD}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+  - source: {kind: column, name: STG_RETURNS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+  - source: {kind: column, name: STG_RETURNS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_SET_OPS, line: 74}
+    evidence: source_read
+  - source: {kind: column, name: STG_RETURNS.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+  - source: {kind: column, name: STG_RETURNS.PRODUCT_ID}
+    target: {kind: column, name: FCT_PRODUCT_SALES.REFUND_TOTAL}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 2
+    origin: {unit: STRESS_DYNAMIC_MIXED, line: 262}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.CUST_ID}
+    target: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 2
+    origin: {unit: STRESS_DYNAMIC_MIXED, line: 262}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.NET_AMOUNT}
+    flow: influence
+    transform: identity
+    band: 2
+    origin: {unit: STRESS_DYNAMIC_MIXED, line: 262}
+    evidence: source_read
+  - source: {kind: column, name: STG_ORDERS.ORDER_DATE}
+    target: {kind: column, name: FCT_REVENUE_STAGE.ORDER_COUNT}
+    flow: influence
+    transform: identity
+    band: 2
+    origin: {unit: STRESS_DYNAMIC_MIXED, line: 262}
+    evidence: source_read
 
 forbidden:
   - source: {kind: column, name: STG_ORDERS.ORDER_ID}
