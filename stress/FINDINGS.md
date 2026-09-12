@@ -52,7 +52,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S4-03 | `construct-coverage` | **fixed** | a `MERGE` emitted no **influence** edge — neither `GROUP BY` nor window; S3-03 added its filters and stopped there |
 | S4-04 | `flow-classification` | **fixed** | a `MINUS`/`INTERSECT` second arm was read as **value** when the set operation sits in a CTE — convention (a) held for the top-level form only |
 | S4-05 | `construct-coverage` | open | `BULK COLLECT` into **two** collections resolves only the first — the second target loses its column source |
-| S4-06 | `key-error` | **fixed** | three in stress 4's own key: a trigger inheritance omitted, a view's internal `CASE` missed, an `ON` clause labelled as filter |
+| S4-06 | `key-error` | **fixed** | **four** in stress 4's own key: a trigger inheritance omitted, a view's internal `CASE` missed, a `GROUP BY` column omitted from a rank's influence, and an `ON` clause carrying a LITERAL labelled as filter |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
 | S1-03 | `flow-classification` | **fixed** | **misdiagnosed** — no `GROUP BY`/`HAVING` edge was emitted at all; D-2 adds both |

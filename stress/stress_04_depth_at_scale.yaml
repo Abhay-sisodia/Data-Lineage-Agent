@@ -130,7 +130,15 @@ note: '1504 lines, 28 units, 48 statements. Depth rather than novelty: five-leve
   collapsed. 56 keys collide; 27 of the 28 units are affected. The worst is STG_ORDERS.ORDER_DATE -> FCT_PRODUCT_SALES.PERIOD_MONTH
   [value/derived], produced by SEVEN different statements doing seven different things, which this key
   can say once. The edges kept are the first occurrence of each key. Every dropped claim is listed in
-  the comment block at the top of this file, so the loss is counted rather than hidden.'
+  the comment block at the top of this file, so the loss is counted rather than hidden.
+
+
+  FOUR KEY ERRORS CORRECTED 2026-09-12, after the first measurement and recorded as S4-06: a trigger inheritance
+  omitted, a view''s internal CASE missed, a GROUP BY column omitted from a rank''s influence, and an
+  ON clause carrying a LITERAL labelled as a filter. The last is the fifth instance of the mistake S3-09
+  named - a convention applied by the pattern I remembered rather than by the reason it states - because
+  `ON p.region = ''EU''` LOOKS like a filter and D-5 is about where a condition sits, not what it compares
+  to.'
 edges:
 - source:
     kind: column
@@ -1947,16 +1955,16 @@ edges:
     kind: column
     name: DW_DIM_CUSTOMER_V2.EMAIL
   flow: value
-  transform: derived
+  transform: conditional
   band: 0
   origin:
     unit: S4_VIEW_RESOLUTION
     line: 699
   evidence: source_read
-  note: 'LOWER(status_flag). v_cust_l2 derives status_flag from v_cust_l1.status, which is stg_customer.status_code
-    - four names for one column, ending in a column of a different name in the target.
-
-    '
+  note: KEY ERROR, CORRECTED 2026-09-12 (S4-06). Labelled `derived` for LOWER(status_flag). v_cust_l2
+    derives status_flag as CASE WHEN status = 1 THEN 1 ELSE 0 END, so the path carries a CASE and conditional
+    outranks derived. I read the outer expression and not the view - which is the whole point of a unit
+    that reads through a three-deep view chain, so the key made the mistake the unit exists to catch.
 - source:
     kind: column
     name: FCT_REVENUE.NET_AMOUNT
@@ -3025,19 +3033,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: REF_POLICY.REGION
-  target:
-    kind: relation
-    name: GTT_STAGE
-  flow: filter
-  transform: identity
-  band: 0
-  origin:
-    unit: S4_DEEP_ALIAS_CHAIN
-    line: 1360
-  evidence: source_read
-- source:
-    kind: column
     name: REF_POLICY.WINDOW_DAYS
   target:
     kind: relation
@@ -3297,6 +3292,42 @@ edges:
     unit: S4_FILTER_CASCADE
     line: 1464
   evidence: source_read
+- source:
+    kind: column
+    name: DIM_CUSTOMER.REGION
+  target:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  flow: value
+  transform: conditional
+  band: 2
+  guard: TRIGGERING_ROW.IS_ACTIVE IS NULL
+  origin:
+    unit: TRG_CUSTOMER_DEFAULT
+    line: 3
+  evidence: source_read
+  note: 'KEY ERROR, CORRECTED 2026-09-12 (S4-06). Unit 5 writes dim_customer, which carries trg_customer_default
+    - `IF :NEW.is_active IS NULL THEN :NEW.is_active := CASE WHEN :NEW.region = ''EU'' ...`. I labelled
+    the trg_recent_audit inheritance in unit 11 and forgot this one, which is the same omission in the
+    same key: a trigger fires on the TABLE, so every unit that writes it inherits, and checking one write
+    is not checking the rule.'
+- source:
+    kind: column
+    name: STG_PRODUCTS.CATEGORY_ID
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.RANK_IN_MONTH
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_ORDER_VELOCITY
+    line: 1200
+  evidence: source_read
+  note: KEY ERROR, CORRECTED 2026-09-12 (S4-06). velocity_grain groups by (period_month, product_id, category_id)
+    and NTILE orders by unit_total, which that grouping governs - so category_id influences the rank as
+    surely as the other two grouping keys do. I listed order_date and quantity and stopped at the two
+    that appear in the window clause itself.
 forbidden:
 - source:
     kind: column
