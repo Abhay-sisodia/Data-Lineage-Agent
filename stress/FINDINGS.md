@@ -51,7 +51,8 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S4-09 | `construct-coverage` | open | a declared cursor's own `WHERE` produces no filter edge against what the loop writes |
 | S4-03 | `construct-coverage` | **fixed** | a `MERGE` emitted no **influence** edge — neither `GROUP BY` nor window; S3-03 added its filters and stopped there |
 | S4-04 | `flow-classification` | **fixed** | a `MINUS`/`INTERSECT` second arm was read as **value** when the set operation sits in a CTE — convention (a) held for the top-level form only |
-| S4-05 | `construct-coverage` | open | `BULK COLLECT` into **two** collections resolves only the first — the second target loses its column source |
+| S4-05 | `construct-coverage` | **fixed** | **misdiagnosed as two-collection.** A projection COMPUTED OR RENAMED in a derived table had no source at all; the second collection was just the one receiving it |
+| S4-10 | `silent-loss` | open | a subscripted collection in a `VALUES` list contributes NO source — S3-06 removed the subscript and nothing was put in its place |
 | S4-06 | `key-error` | **fixed** | **four** in stress 4's own key: a trigger inheritance omitted, a view's internal `CASE` missed, a `GROUP BY` column omitted from a rank's influence, and an `ON` clause carrying a LITERAL labelled as filter |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |

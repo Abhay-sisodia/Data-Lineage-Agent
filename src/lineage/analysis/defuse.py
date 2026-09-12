@@ -893,10 +893,11 @@ def _analyse_select_into(
             result.unresolved.append(f"line {origin.line}: INTO undeclared {target_name}")
             continue
         own = _transform_of(projection)
+        unresolved_here: list[Any] = []
         for column in _value_columns(projection):
             classified = _classify(column, scope, relations, dictionary)
             if classified is None:
-                result.unresolved.append(f"line {origin.line}: unresolved {column.name}")
+                unresolved_here.append(column)
                 continue
             kind, name = classified
             result.edges.append(
@@ -911,6 +912,47 @@ def _analyse_select_into(
                     band=1,  # the target is a variable, so the path is band 1
                 )
             )
+
+        # A COLUMN COMPUTED OR RENAMED IN A DERIVED TABLE (stress finding S4-05).
+        #
+        # `_classify` binds a name through a FLAT alias -> relation map, so
+        # `SELECT g.total BULK COLLECT INTO b FROM (SELECT SUM(s.amt) AS total ...) g`
+        # had nothing to bind `total` to - it is a column of no dictionary relation - and
+        # the collection lost its source entirely.
+        #
+        # Note which half was silent and which was luck: `g.sid` resolved, because SID
+        # HAPPENS to be a column of the only relation in scope and the fallback found it.
+        # The statement's own alias was being discarded and the answer was right by
+        # coincidence of naming - the s2 shape again, and it is why fixing the visibly
+        # broken half alone would have left a guess behind it.
+        #
+        # Band 0 traverses derived tables, CTEs, joins and views to answer exactly this, so
+        # the projection is resolved there rather than teaching this module a second
+        # traversal - the same delegation S4-02 made for a cursor record, for the same
+        # reason S2-08 is on the register.
+        if unresolved_here:
+            probe = statement.copy()
+            probe.set("into", None)
+            resolved = resolve_projection(
+                probe.sql(dialect=DIALECT), projection.alias_or_name, dictionary
+            )
+            if resolved is None:
+                for column in unresolved_here:
+                    result.unresolved.append(f"line {origin.line}: unresolved {column.name}")
+            else:
+                relation, column_name, inner = resolved
+                result.edges.append(
+                    _edge(
+                        Node(kind=IRNodeKind.COLUMN, name=f"{relation}.{column_name}"),
+                        declaration.as_node(),
+                        Flow.VALUE,
+                        _combine(inner, own),
+                        origin,
+                        guard,
+                        Mechanism.AST,
+                        band=1,
+                    )
+                )
 
     # A predicate on the read relation decides which row the variable receives.
     result.edges += _filter_edges_for(
