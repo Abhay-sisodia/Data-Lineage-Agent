@@ -72,7 +72,8 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S1-05 | `identity` | open | label format cannot express five facts in one file |
 | S1-06 | `key-error` | **fixed** | two gaps in my own key, stated rather than quietly fixed — corrected 2026-09-09 |
 | S2-01 | `construct-coverage` | open | `MERGE` with a `DELETE` arm fails to parse at all |
-| S2-02 | `construct-coverage` | open | `INSERT ALL` unsupported — declared, but 7 edges lost; **parses fine**, so this is semantics, not parsing |
+| S2-02 | `construct-coverage` | **fixed** | `INSERT ALL`/`INSERT FIRST` walked at last — the node was always there and the analyser declined it. Closed with **no new traversal**: both public delegations already existed |
+| S2-15 | `key-error` | **fixed** | stress 2's key gave the source `WHERE` a filter edge on the FIRST target of a two-target `INSERT ALL` — the six VALUE edges were written for both |
 | S2-03 | `refusal-taxonomy` | **fixed** | `PIVOT`/`UNPIVOT` refused even with a static column list |
 | S2-04 | `silent-loss` | **fixed** | `BULK COLLECT` into a record collection yielded nothing, silently |
 | S2-05 | `transform-classification` | **fixed** | `DECODE`/`NULLIF`/`GREATEST` read as derived, not conditional |
@@ -1409,6 +1410,66 @@ rewrite rule — and its shape (one `SELECT` fanning into several targets, each 
 checking which parser was refusing. The refusal message was accurate the entire time; nobody
 asked it the follow-up question.
 
+### Fixed 2026-09-14 — and it cost no new traversal at all
+
+The prediction in the paragraph above held: ordinary analyser work on a parsed structure. What
+was not predicted is how little of it there was, because **both delegations this needed were
+already public for other findings.**
+
+* `resolve_projection` (public for S4-02) binds each `VALUES` item. An arm's values name the
+  SOURCE QUERY'S OUTPUT COLUMNS — `VALUES (cust_id, period_month, gross_amount)` are select
+  list aliases, not base columns — so every one of them is precisely the question S4-02 made
+  that function public to answer. It also carries the transform: `TRUNC(order_date,'MM')` is
+  derived in the source and the arm's item is a bare name, so reading only the arm would score
+  `identity` on all six value edges.
+* `resolve_query_influence` (public for S4-09, three days ago) gives the source's `WHERE`,
+  `HAVING` and grouping, because the source is an ordinary query and nothing about it is
+  special to this statement type.
+
+**The `WHEN` becomes a guard, not a filter edge.** `gross_amount` deciding which of two tables
+a row lands in is a condition on the edge, and `guard` is the field for exactly that; emitting
+it as filter influence as well would report one fact twice in two mechanisms. Drop the guards
+instead and the IR says `gross_amount` always reaches both tables — a false statement rather
+than a missing one.
+
+**The guard had to be rendered unquoted, and the measurement is what said so.** By the time a
+statement reaches band 0, `qualify` has quoted every identifier, so `.sql()` gives
+`"GROSS_AMOUNT" > 100` while every other guard in the project comes from CFG source text and
+reads `gross_amount > 100`. `normalise_guard` folds case, operand order, conjunct order and
+negated equality — and **does not touch quotes**. The edges would have matched on their keys
+and then scored guard-INCORRECT. Stress 2 reported `guard correct n/a of 0` before this fix
+because all six guarded claims were missing; it now reports **100% of 6**, which is a number
+that only exists because the quoting was checked before the run rather than after.
+
+**`INSERT FIRST` is not `INSERT ALL` with different spelling**, and no key covers it. Under
+`FIRST` a row goes to the first matching arm only, so arm two fires on `NOT (c1) AND c2`; an
+`ELSE` arm fires on the negation of every condition. The edges are identical under either
+kind and **only the guard differs — which is the one kind of error that can never surface as a
+false positive.** Handled here, with the regression test using overlapping conditions so the
+difference is observable, rather than left for a package that happens to contain one.
+
+**Result.** Stress 2 band-0 value 33/0/16 → **39/0/10**, band-0 filter 23/0/4 → **25/0/3**,
+guard correct **100% of 6**, parse coverage 80.0% → **83.3%** and statements analysed 24 → 25.
+Zero false positives in every cell of all four packages. Phase 0 unmoved — the corpus contains
+no multi-table insert, which is itself worth knowing: **this construct was measured only by
+the stress packages, and phase 0 could never have found it.**
+
+## S2-15 · `key-error` · FIXED — the filter edge for one of two targets
+
+`s2_multi_table_insert` writes two tables from one `SELECT`. The key wrote the six VALUE
+edges for both targets and the one FILTER edge for the first:
+
+```sql
+WHERE o.currency = 'GBP'    -- evaluated ONCE, before any WHEN is tested
+```
+
+Every row reaching either arm passed that predicate, so which rows land in `gtt_stage` depend
+on `currency` exactly as much as for `fct_revenue_stage`. S2-13 is already on the register for
+*"a uniform rule applied to the first instance only"* — this is that, in the key written to
+measure the very statement S2-02 is about, and **it stood for five days because the whole
+statement was refused, so nothing ever contradicted it.** A refusal does not just cost edges;
+it also suspends the check on the key that describes them.
+
 ## S2-03 · `refusal-taxonomy` · FIXED — `PIVOT`/`UNPIVOT` refused even when decidable
 
 **As first measured:** both `s2_pivot_static` and the `UNPIVOT` in `s2_unpivot_listagg` were
@@ -2527,11 +2588,14 @@ corrections, none moved the phase-0 measurement.
 3. ~~**S1-03** (`flow-classification`). **D-2.**~~ **Done.** `HAVING` became a `filter` with
    `phase: post-aggregation` and `GROUP BY` an `influence`; 80 new labels across 12 key files.
    It moved the grid once, deliberately, and nothing else.
-4. **S2-02** (`construct-coverage`). **Promoted above S2-01 on 2026-09-11**, because the probe
+4. ~~**S2-02** (`construct-coverage`). **Promoted above S2-01 on 2026-09-11**, because the probe
    showed the two are not the same kind of problem. `INSERT ALL` **parses** — the tree is
    already there and the analyser declines to walk it. No version bump, no rewrite rule, no
    external dependency: ordinary lineage semantics on a parsed node, and the cheapest real
-   coverage left on the board.
+   coverage left on the board.~~ **Done 2026-09-14**, and the promotion was right: it needed no
+   new traversal, because `resolve_projection` and `resolve_query_influence` were both already
+   public. Six value edges, two filter edges, six correct guards, +3.3pp parse coverage. The
+   probe that re-read the refusal message in September paid for itself here.
 5. **S2-01** (`construct-coverage`). `MERGE … DELETE` never becomes a tree. Confirmed against
    SQLGlot 30.18.0; **a newer SQLGlot has not been tried, and trying it is the first step**,
    because it is the only option that costs nothing if it works. Failing that, a refusal code

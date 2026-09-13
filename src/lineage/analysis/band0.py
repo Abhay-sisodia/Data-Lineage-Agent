@@ -863,12 +863,18 @@ def _edge(
     origin: Origin,
     flow: Flow = Flow.VALUE,
     phase: FilterPhase = FilterPhase.PRE_AGGREGATION,
+    guard: str | None = None,
 ) -> PredictedEdge:
     """Build one IR edge.
 
     Mechanism is AST throughout this module by construction: every edge here comes from
     a resolved syntax tree, not from dataflow, the query log, or inference. Tier is A for
     the same reason - a parser-only derivation with nothing contradicting it.
+
+    `guard` is None for every set-based statement except a multi-table insert, where the
+    `WHEN` clause is the whole point: the same source column reaches two different tables
+    under two different conditions, and an unguarded pair of edges would say it always
+    reaches both.
     """
     return PredictedEdge(
         source=Node(kind=NodeKind.COLUMN, name=f"{source_table}.{source_column}"),
@@ -884,6 +890,7 @@ def _edge(
         mechanism=Mechanism.AST,
         tier=Tier.A,
         origin=origin,
+        guard=guard or None,
     )
 
 
@@ -1455,6 +1462,234 @@ def _filter_edges(
     return edges
 
 
+def _condition_text(expression: Any) -> str:
+    """A condition rendered the way the source wrote it, for use as a guard.
+
+    Unquoted deliberately. By the time a statement reaches here `qualify` has quoted every
+    identifier, so `.sql()` returns `"GROSS_AMOUNT" > 100` while every other guard in the
+    project comes from CFG source text and reads `gross_amount > 100`. `normalise_guard`
+    folds case and operand order and **does not touch quotes**, so the two would compare
+    unequal - the edge would still match on its key and then be counted guard-INCORRECT.
+    Guard correctness is reported separately and was 100%; a quoting artefact is not the way
+    to move it.
+    """
+    rendered = expression.copy()
+    for identifier in rendered.find_all(exp.Identifier):
+        identifier.set("quoted", False)
+    return str(rendered.sql(dialect=DIALECT))
+
+
+def _analyse_multitable_insert(
+    statement: Any,
+    dictionary: Dictionary,
+    band: int,
+    unresolved: list[Boundary],
+    origin: Origin,
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
+    """`INSERT ALL` / `INSERT FIRST` — one SELECT fanning into several tables.
+
+    Stress finding S2-02. The statement was refused as *"unsupported statement type
+    MultitableInserts"*, which was an honest refusal and cost seven labelled edges.
+
+    **The refusal was true and was read as something it did not say.** "Unsupported" was
+    taken to mean "unparseable" for the whole life of that entry, by me, in every summary
+    table, until the parser probe handed SQLGlot the statement and it parsed cleanly. There
+    was never a parser problem here: `MultitableInserts` is a node we are given and the
+    analyser declined to walk it. That is the finding's real content, and it is why S2-02
+    needed no version bump and no rewrite rule while S2-01 still does.
+
+    Two delegations do the work, both already public for other findings:
+
+    * `resolve_projection` binds each `VALUES` item. An arm's values name the SOURCE
+      QUERY'S OUTPUT COLUMNS, not base columns - `VALUES (cust_id, period_month,
+      gross_amount)` are the select list's aliases - so every one of them is exactly the
+      question S4-02 made that function public to answer.
+    * `resolve_query_influence` gives the source's own `WHERE`/`HAVING` and its grouping
+      (S4-09), because the source is an ordinary query and its predicates decide which rows
+      reach every arm.
+
+    **The `WHEN` becomes a guard, not a filter edge.** `gross_amount` deciding which of two
+    tables a row lands in is a condition on the edge, which is what `guard` is for; emitting
+    it as filter influence as well would report one fact twice in two mechanisms. The source
+    `WHERE` is the opposite case - it applies before any `WHEN` is evaluated - so its edges
+    are unguarded and land on every target.
+
+    **`INSERT FIRST` is not `INSERT ALL` with different spelling.** Under `FIRST` a row goes
+    to the first matching arm only, so arm two fires on `NOT (c1) AND c2`. The edges are
+    identical either way and only the guard differs, which is exactly the kind of difference
+    that would never show up as a false positive - so it is handled here rather than left
+    for a package that happens to contain one. No key covers `FIRST` yet; this is the
+    behaviour a key would be written against.
+    """
+    source = statement.args.get("source")
+    if not isinstance(source, exp.Select):
+        return [], (
+            RefusalCode.UNSUPPORTED_CONSTRUCT,
+            f"multi-table insert whose source is {type(source).__name__}, not a SELECT",
+        )
+
+    arms = [a for a in (statement.args.get("expressions") or []) if a.this is not None]
+    if not arms:
+        return [], (RefusalCode.UNSUPPORTED_CONSTRUCT, "multi-table insert with no INTO arm")
+
+    source_sql = source.sql(dialect=DIALECT)
+    influencing = resolve_query_influence(source_sql, dictionary)
+    first_only = str(statement.args.get("kind") or "").upper() == "FIRST"
+
+    # Collected before the loop because an ELSE arm fires when NO condition matched,
+    # including conditions written after it.
+    conditions = [
+        _condition_text(arm.args["expression"])
+        for arm in arms
+        if arm.args.get("expression") is not None
+    ]
+
+    edges: list[PredictedEdge] = []
+    targets: list[str] = []
+    preceding: list[str] = []
+
+    for arm in arms:
+        insert = arm.this
+        try:
+            target_name, columns = _target_of(insert, dictionary)
+        except UnknownObjectError as exc:
+            unresolved.append(
+                Boundary(
+                    kind=BoundaryKind.DANGLING_REFERENCE,
+                    subject=str(exc),
+                    detail=(
+                        f"{origin.unit}: multi-table insert names a relation "
+                        f"that is not in the dictionary"
+                    ),
+                )
+            )
+            continue
+        targets.append(target_name)
+
+        condition = arm.args.get("expression")
+        if arm.args.get("else_"):
+            guard = " AND ".join(f"NOT ({c})" for c in conditions) or None
+        elif condition is None:
+            # An unconditional arm of an INSERT ALL: every row reaches it.
+            guard = None
+        elif first_only:
+            guard = " AND ".join([*(f"NOT ({c})" for c in preceding), _condition_text(condition)])
+        else:
+            guard = _condition_text(condition)
+        if condition is not None:
+            preceding.append(_condition_text(condition))
+
+        values = insert.expression
+        if not isinstance(values, exp.Values) or not values.expressions:
+            unresolved.append(
+                Boundary(
+                    kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                    subject=target_name,
+                    detail=f"{origin.unit}: multi-table insert arm has no VALUES list",
+                )
+            )
+            continue
+        if columns is None:
+            # Positional binding with nothing to bind TO. The target's dictionary order
+            # would be a guess, and a wrong guess writes a value into the wrong column -
+            # the same refusal `defuse` makes for `INSERT ... VALUES` (D-1).
+            unresolved.append(
+                Boundary(
+                    kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                    subject=target_name,
+                    detail=(
+                        f"{origin.unit}: multi-table insert arm without a column list - "
+                        f"positional binding needs the target's column order stated"
+                    ),
+                )
+            )
+            continue
+
+        items = list(values.expressions[0].expressions)
+        for index, column_name in enumerate(columns):
+            if index >= len(items):
+                break
+            item = items[index]
+            own = _transform_of(item)
+            for reference in _value_columns(item):
+                resolved = resolve_projection(source_sql, reference.name, dictionary)
+                if resolved is None:
+                    unresolved.append(
+                        Boundary(
+                            kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                            subject=reference.name.upper(),
+                            detail=(
+                                f"{origin.unit}: multi-table insert reads {reference.name}, "
+                                f"which the source query does not project"
+                            ),
+                        )
+                    )
+                    continue
+                relation, base_column, inner = resolved
+                edges.append(
+                    _edge(
+                        relation,
+                        base_column,
+                        target_name,
+                        column_name,
+                        _combine(inner, own),
+                        band,
+                        origin,
+                        guard=guard,
+                    )
+                )
+
+            for projection, relation, base_column in influencing.influence:
+                if projection != (_reference_name_of(item) or "").upper():
+                    continue
+                edges.append(
+                    _edge(
+                        relation,
+                        base_column,
+                        target_name,
+                        column_name,
+                        Transform.IDENTITY,
+                        band,
+                        origin,
+                        flow=Flow.INFLUENCE,
+                        guard=guard,
+                    )
+                )
+
+    # **THE SOURCE PREDICATE REACHES EVERY TARGET.** It is evaluated once, before any `WHEN`,
+    # so the rows it admits are the rows all the arms draw from. Stress 2's key claims this
+    # edge for the first target only - logged as S2-15, and it is S2-13's shape again: a
+    # uniform rule applied to the first instance of it.
+    for relation, column_name, phase in influencing.filters:
+        for target_name in dict.fromkeys(targets):
+            edges.append(
+                _edge(
+                    relation,
+                    column_name,
+                    target_name,
+                    "",
+                    Transform.IDENTITY,
+                    band,
+                    origin,
+                    flow=Flow.FILTER,
+                    phase=phase,
+                )
+            )
+
+    return edges, None
+
+
+def _reference_name_of(item: Any) -> str | None:
+    """The single source projection an arm's VALUES item names, if it names exactly one.
+
+    Influence attaches to a projection, so it can only be carried onto a target column that
+    IS that projection - `VALUES (total)` takes the grouping's influence, `VALUES (total *
+    rate)` is a derived value of two and naming either one as influenced would be a guess.
+    """
+    columns = _value_columns(item)
+    return columns[0].name if len(columns) == 1 else None
+
+
 def _analyse_delete(
     statement: exp.Delete,
     dictionary: Dictionary,
@@ -1966,6 +2201,10 @@ def _analyse_statement(
         edges, refusal = _analyse_merge(parsed, dictionary, band, unresolved, origin, summaries)
     elif isinstance(parsed, exp.Delete):
         edges, refusal = _analyse_delete(parsed, dictionary, band, unresolved, origin)
+    elif isinstance(parsed, exp.MultitableInserts):
+        edges, refusal = _analyse_multitable_insert(
+            parsed, dictionary, band, unresolved, origin
+        )
     else:
         return (
             [],

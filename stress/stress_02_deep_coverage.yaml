@@ -438,6 +438,28 @@ edges:
     origin: {unit: S2_MULTI_TABLE_INSERT, line: 123}
     evidence: source_read
 
+  # --- KEY ERROR, CORRECTED 2026-09-14 (finding S2-15) --------------------------------
+  #
+  # This statement writes TWO tables and the claim above names one of them. `WHERE
+  # o.currency = 'GBP'` is evaluated ONCE, before any WHEN is tested, so every row that
+  # reaches either arm passed it - which rows land in gtt_stage depends on currency exactly
+  # as much as for fct_revenue_stage.
+  #
+  # The six VALUE edges were written for both targets on this key; the one FILTER edge was
+  # written for the first. S2-13 is already on the register for "a uniform rule applied to
+  # the first instance only" - this is that, in the key written to measure the very
+  # statement S2-02 is about, and it stood for three days because the whole statement was
+  # refused so nothing ever contradicted it.
+  #
+  # Unguarded, like its sibling: the source predicate is not conditional on any WHEN.
+  - source: {kind: column, name: STG_ORDERS.CURRENCY}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_MULTI_TABLE_INSERT, line: 123}
+    evidence: source_read
+
   # === 5. s2_merge_with_delete ==============================================
 
   - source: {kind: column, name: STG_CUSTOMER.EMAIL}
