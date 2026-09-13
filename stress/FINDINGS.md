@@ -19,11 +19,14 @@ with the code has stopped measuring anything.
 
 ## Register
 
-**Provenance is part of a finding's identity, so it is in the ID.** `S1-`/`S2-` are the two
-stress packages. `P-` is the probe pair (`scripts/probe_parsers.py`,
-`scripts/probe_analyser.py`) — a different instrument asking a different question, and one
-that has already found things no stress package could. Keeping the series apart is what
-lets "every finding recurred across stress runs" stay a true sentence about stress runs.
+**Provenance is part of a finding's identity, so it is in the ID.** `S1-` to `S4-` are the
+four stress packages. `P-` is a probe — the standing pair (`scripts/probe_parsers.py`,
+`scripts/probe_analyser.py`) or a one-off written to answer a specific question — a
+different instrument asking a different question, and one that has already found things no
+stress package could: P-01 was a crash, P-02 a gap no package exercises, and a one-off probe
+is what turned up the false-positive half of S4-10 that all four packages scored 0 FP around.
+Keeping the series apart is what lets "every finding recurred across stress runs" stay a
+true sentence about stress runs.
 
 **Parser-capability facts are NOT in this register.** They live in
 `docs/grammar_limitations.md` as the `GL-` and `SG-` series, because "Oracle allows this and
@@ -52,7 +55,9 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S4-03 | `construct-coverage` | **fixed** | a `MERGE` emitted no **influence** edge — neither `GROUP BY` nor window; S3-03 added its filters and stopped there |
 | S4-04 | `flow-classification` | **fixed** | a `MINUS`/`INTERSECT` second arm was read as **value** when the set operation sits in a CTE — convention (a) held for the top-level form only |
 | S4-05 | `construct-coverage` | **fixed** | **misdiagnosed as two-collection.** A projection COMPUTED OR RENAMED in a derived table had no source at all; the second collection was just the one receiving it |
-| S4-10 | `silent-loss` | open | a subscripted collection in a `VALUES` list contributes NO source — S3-06 removed the subscript and nothing was put in its place |
+| S4-10 | `silent-loss` | **fixed** | **filed too narrowly, in the safer direction.** S3-06 removed the subscript at four call sites and put nothing in any of them — so the collection was lost in a `VALUES` list, an `UPDATE ... SET` and every `WHERE`, **and the index was still emitted as a source on the two paths S3-06 never reached**. That half is a false positive and was not filed at all |
+| S3-11 | `key-error` | **fixed** | stress 3's key labelled two of the three reads of `l_batch` in one `INSERT` — the two that pass through a variable. Found when S4-10's fix made the analyser emit the third and the grid called a correct edge spurious |
+| P-02 | `silent-loss` | open | a `DELETE`'s predicate never sees variables at all — `DELETE ... WHERE sid = v_cutoff` loses `V_CUTOFF` where the identical `UPDATE` keeps it |
 | S4-06 | `key-error` | **fixed** | **four** in stress 4's own key: a trigger inheritance omitted, a view's internal `CASE` missed, a `GROUP BY` column omitted from a rank's influence, and an `ON` clause carrying a LITERAL labelled as filter |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
@@ -1922,6 +1927,16 @@ rule duplicated across these two modules that then drifted, and a second copy wo
 drifted the same way. Ids rather than names, so `l_batch(i).amt + i` keeps the value edge it
 is owed.
 
+> **Amended 2026-09-13 by S4-10, and the two sentences above are why.** There were FOUR
+> call sites, not two, and this entry says "two" because those were the two that emitted the
+> false positive I was looking at. The other two — `UPDATE ... SET` and every predicate walk
+> — kept emitting `i` for another nine days. **And none of the four said what IS read**: the
+> index was removed and the collection was never put in its place, so the rule was applied
+> in the subtractive direction only. `_subscript_columns` is now `_subscripted` and returns
+> both halves together, for exactly that reason. Left in place rather than rewritten,
+> because "it is the third time this register has had to make it" reads differently once you
+> know the count was wrong when it was written.
+
 **Stress 3 now has ZERO FALSE POSITIVES on every band and every flow.** Band-1 value
 precision 57.1% -> 100%. Phase 0 byte-identical.
 
@@ -2163,6 +2178,12 @@ arm-level filters at the bottom of a four-level chain (S3-03); a subscript exclu
 **two** collections indexed by one loop variable (S3-06); a `MERGE` accumulator self-edge
 (S3-07); a correlation resolving outward from two scopes down (S3-10).
 
+> **One of those six is weaker than it reads, per S4-10 on 2026-09-13.** The S3-06 check
+> confirmed the index was *excluded* at depth and said nothing about whether the collection
+> was *reported* — it was not, in any of the three statements it appears in. Verifying an
+> exclusion is half a verification when the rule has two halves, which is the same shape as
+> the test error S4-10 records.
+
 ### S1-05 IS NOW A HARD BLOCKER, AND THIS IS THE EVIDENCE ITS GATE ASKED FOR
 
 **334 edges were written from source. Only 240 could be STATED.**
@@ -2256,6 +2277,119 @@ looks like.
 and the single false positive is a convention that was never implemented. Every other gap
 is something the analyser does not know and does not say. Two of them it does not say *at
 all*.
+
+## S4-10 · `silent-loss` · FIXED — one rule, half-applied at four call sites, 2026-09-13
+
+Filed from stress 4 as *"a subscripted collection in a `VALUES` list contributes no
+source"*. **Measuring it found one defect with two directions across five statement paths,
+and the direction that was not filed is the worse one.**
+
+S3-06 settled the rule on 2026-09-12: `l_batch(i)` reads the collection, `i` only chooses
+which element, so the index is not a source — the collection form of D-5's argument about
+join keys. **It removed `i` from the paths it knew about and put nothing in any of them.**
+
+The assignment path kept working by accident. It scans identifiers out of TEXT, so
+`l_batch` arrives as a name whatever the AST looks like. Every path that walks the AST saw
+the collection only as `Anonymous.this` — never an `exp.Column`, so never a candidate:
+
+| written | lost | AND emitted |
+|---|---|---|
+| `VALUES (l_ids(i))` | `L_IDS` | — |
+| `VALUES (l_batch(i).sid)` | `L_BATCH` | — |
+| `SET amt = l_amts(i)` | `L_AMTS` | **`I -> TGT.AMT` value** |
+| `WHERE sid = l_ids(i)` | `L_IDS` | **`I -> TGT` filter** |
+| `INSERT … SELECT … WHERE sid = l_ids(i)` | `L_IDS` | **`I -> TGT` filter** |
+
+**The last three rows are false positives, and they are S3-06's own defect still live on
+paths S3-06 never reached** — a loop counter reported as the value source of a monetary
+column and as a filter source of a read table. All four stress packages scored zero false
+positives with these standing, because no package subscripts a collection inside an
+`UPDATE` or a `WHERE`. A probe found them in one run.
+
+**Why the exclusion and the replacement are now one object.** `_subscripted` returns
+`index_ids` and `collections` together, so a call site that drops the index from its walk
+is holding the collection at the same moment. The previous design let a call site take half
+the rule and look finished, which is exactly what four of them did.
+
+### A third defect underneath: the transform
+
+`l_amts(i)` parses as a function call, so the ladder scored every value written from a
+collection as `derived` when nothing had been done to it. ADR-0001 §4 makes a wrong
+transform **a miss on both sides**, so this was a false positive *and* a miss per edge, not
+a cosmetic slip. Each declared-variable call is now rewritten to a plain name and the
+ladder is asked the ordinary question: `l_amts(i)` → identity, `l_amts(i) * 1.05` →
+derived, `CASE WHEN l_amts(i) …` → conditional, `SUM(l_amts(i))` → aggregated,
+`pkg.f(l_amts(i))` → derived. Writing a second ladder here is how S2-08 happened.
+
+Worth recording that the first version of this guard **matched nothing**: `transform` is
+top-down, so the `Dot` of `l_batch(i).sid` is visited while its child is still the call, and
+a guard written against the rewritten shape never fires. It looked right, and the
+measurement said `derived`. Diagnosis before treatment, for the fifth time in this file.
+
+### Why a regression suite did not catch it — a test error
+
+`test_collection_subscript.py` asserts BOTH halves for the assignment form:
+
+```python
+assert "I" not in sources, "the loop index leaked as a value source"
+assert "L_BATCH" in sources, "the collection itself is the real source and was lost"
+```
+
+and, six lines below, **only the first** for the `VALUES` form. So that test passed against
+a statement that emitted no edge whatever, and the silent loss survived the suite for nine
+days. The convention was stated in that file and applied to one of its two cases — the same
+*applied by the pattern remembered rather than by the reason it states* shape the register
+already carries five times, this time in the instrument rather than in the key. The missing
+assertion is now there, with the date and the reason on it.
+
+**Result.** Stress 4 band-1 value 26/0/3 → **29/0/0**, stress 3 band-1 value 4/1/3 →
+**5/0/3**, all four packages back to zero false positives in every cell, phase 0 unmoved:
+gate 96.2% / 96.2%, guard 100% of 27, parse coverage 81.6%. Eleven regression tests fail
+without the fix; the four that pass without it are the controls.
+
+## S3-11 · `key-error` · FIXED — two of the three reads of one collection
+
+The `INSERT` at stress 3 line 192 writes three columns:
+
+```sql
+VALUES (l_batch(i).product_id, l_adjusted, l_flag)
+```
+
+S3-05's correction block labelled the two that arrive **through a variable** and missed the
+third, whose value comes straight out of the collection. The block exists to state that
+*"everything downstream of `l_batch` is still real def-use and still emitted"* — and then
+listed two of the three places it is emitted.
+
+Found on 2026-09-13 when S4-10's fix made the analyser emit the third edge and the grid
+reported a correct edge as spurious, dropping band-1 value precision to 80%. **The edge was
+judged on its own terms before being added** — it is right by exactly the argument that
+justifies the two already there — because a benchmark that edits itself to agree with the
+code has stopped measuring anything.
+
+Same family as S3-09, S3-08 and S4-06#4, for which the register already carries the rule
+rather than a further entry. Logged anyway, because **the grid moved**, and a measurement
+that changes with no register entry behind it is the thing the register is for.
+
+## P-02 · `silent-loss` · OPEN — a `DELETE`'s predicate never sees variables
+
+Found by probe on 2026-09-13 while measuring S4-10, and **deliberately not fixed with it**:
+
+```sql
+DELETE FROM tgt WHERE sid = v_cutoff;   -- V_CUTOFF lost
+UPDATE tgt SET flag = 1 WHERE sid = v_cutoff;   -- V_CUTOFF reported
+```
+
+`_analyse_delete` lives in **band 0**, which has no `UnitScope` and therefore cannot tell a
+variable from a column at all. The def-use pass never claims a `DELETE`, so nothing looks
+at its predicate for variables — the S2-04 shape again: two passes each correctly deciding
+the statement is not theirs, and nobody owning the result.
+
+This is wider than subscripts and is not what S4-10 was about, so it is filed rather than
+folded in — one fix per measurement. It also explains why the `DELETE` form of the S4-10
+probe showed no `I -> TGT` false positive: not a rule, just band 0 being unable to resolve
+`i` to anything. **A correct output for the wrong reason, which stops being correct the
+moment the gap is closed** — so whoever takes P-02 must add the subscript rule in the same
+change, and the S4-10 regression tests are what will say so.
 
 ## Fix order for what remains
 

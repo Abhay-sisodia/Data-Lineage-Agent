@@ -116,6 +116,13 @@ def test_a_loop_index_is_not_a_value_source_in_a_values_list(dictionary: Diction
     sources = _variable_sources(SUBSCRIPT_IN_VALUES, dictionary)
 
     assert "I" not in sources, "the loop index leaked from a VALUES list"
+    # ADDED 2026-09-13, WITH S4-10. The assertion above had no partner here, while the
+    # assignment test six lines up asserts BOTH halves - so this test passed against a
+    # statement that emitted no edge whatever, and the silent loss survived the suite for
+    # nine days. The convention was stated in this file and applied to one of its two
+    # cases: the same "applied by the pattern rather than by the reason" shape the register
+    # already carries five times. Path coverage is in test_collection_subscript_sources.py.
+    assert "L_BATCH" in sources, "the collection itself is the real source and was lost"
 
 
 def test_a_real_functions_argument_is_still_a_value_source(dictionary: Dictionary) -> None:

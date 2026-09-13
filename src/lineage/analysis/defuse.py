@@ -324,8 +324,25 @@ def _value_columns(expression: Any) -> list[Any]:
     return [c for c in expression.find_all(exp.Column) if id(c) not in excluded]
 
 
-def _subscript_columns(expression: Any, scope: UnitScope) -> set[int]:
-    """Columns that only INDEX a collection, by node id (stress finding S3-06).
+@dataclass(frozen=True)
+class Subscripted:
+    """What a collection subscript takes away, and what it puts back.
+
+    The two halves are returned TOGETHER because separating them is the defect. See
+    `_subscripted`.
+    """
+
+    # Columns that only index a collection, by node id. Never value or filter sources.
+    index_ids: frozenset[int]
+    # The collections those subscripts read, as declarations. These ARE the sources.
+    collections: tuple[Any, ...]
+
+
+def _subscripted(expression: Any, scope: UnitScope) -> Subscripted:
+    """A collection subscript: the index is not a source, and the collection is.
+
+    Stress finding S3-06 (the index) and S4-10 (the collection), which are one fact stated
+    from two directions and were fixed nine days apart.
 
     `l_batch(i).refund_amount` parses as `Dot(Anonymous(l_batch, [Column(i)]), refund_amount)`,
     so the subscript `i` is the ONLY `exp.Column` in it - the collection name is the
@@ -336,32 +353,137 @@ def _subscript_columns(expression: Any, scope: UnitScope) -> set[int]:
     the loop counter is in the number that comes out; incrementing it moves you to a
     different element rather than changing any value. This is the collection form of the
     argument D-5 made for join conditions and D-4 made for a window's ordering, and it
-    reaches the same answer: no value edge.
+    reaches the same answer: no value edge, and no filter edge either - the index decides
+    nothing about which ROWS are read.
 
-    THE SCOPE LOOKUP IS WHAT MAKES IT SAFE. `pkg.f(amt)` is a real function call and its
-    arguments really are value sources; only a call on a name that is a DECLARED VARIABLE
-    is an index, because PL/SQL has no way to call a variable.
+    **BUT SOMETHING IS READ, AND IT HAS A NAME.** S3-06 removed `i` from four call sites
+    and put nothing in any of them. The assignment path kept working by accident: it scans
+    identifiers out of TEXT, so `l_batch` arrives as a name regardless. Every path that
+    walks the AST instead saw the collection only as `Anonymous.this` - never an
+    `exp.Column`, so never a candidate - and fell silent about the one variable the
+    statement actually reads. That is S4-10, and it was silent in a `VALUES` list, an
+    `UPDATE ... SET`, and every `WHERE`.
 
-    Returns ids rather than names so a name used both as a subscript and as a value keeps
-    its value edge - `l_batch(i).amt + i` is contrived, but excluding by name would quietly
-    drop the second half of it.
+    So the exclusion and the replacement are returned as one object. A call site that
+    drops `index_ids` from its walk has `collections` in its hand at the same moment, and
+    skipping it is then a visible omission rather than the default.
+
+    THE SCOPE LOOKUP IS WHAT MAKES IT SAFE, in both directions. `pkg.f(amt)` is a real
+    function call: its arguments really are value sources and `pkg.f` is not a variable to
+    report. Only a call on a name that is a DECLARED VARIABLE is an index, because PL/SQL
+    has no way to call a variable.
+
+    `index_ids` holds ids rather than names so a name used both as a subscript and as a
+    value keeps its value edge - `VALUES (i, l_amts(i))` is contrived, but excluding by
+    name would quietly drop the first item.
     """
-    found: set[int] = set()
+    index_ids: set[int] = set()
+    collections: list[Any] = []
+    seen: set[str] = set()
     for call in expression.find_all(exp.Anonymous):
         name = str(call.this or "")
-        if not name or scope.lookup(name) is None:
+        if not name:
+            continue
+        declaration = scope.lookup(name)
+        if declaration is None:
             continue  # a genuine function call: its arguments ARE value sources
         for argument in call.expressions:
-            found.update(id(column) for column in argument.find_all(exp.Column))
-    return found
+            index_ids.update(id(column) for column in argument.find_all(exp.Column))
+        if name.upper() not in seen:
+            seen.add(name.upper())
+            collections.append(declaration)
+    return Subscripted(frozenset(index_ids), tuple(collections))
+
+
+def _transform_of_element(expression: Any, scope: UnitScope) -> Transform:
+    """`_transform_of`, with a collection subscript read as the element it names.
+
+    `l_amts(i)` parses as an `Anonymous` call, and to the transform ladder a call is a
+    function application - so the element of a collection scored `derived` when nothing had
+    been done to it. ADR-0001 §4 makes a wrong transform a MISS ON BOTH SIDES, so that is a
+    false positive and a miss for every row written from a collection, not a cosmetic slip.
+
+    Each declared-variable call is rewritten to a plain name and the LADDER IS THEN ASKED
+    THE ORDINARY QUESTION, rather than a second ladder being written for this case:
+    `l_amts(i)` -> identity, `l_amts(i) * 1.05` -> derived, `CASE WHEN l_amts(i) ...` ->
+    conditional. Reimplementing the ranking here is how S2-08 got two copies of
+    `_transform_of` that had already drifted.
+    """
+
+    def _collection(node: Any) -> str | None:
+        """The declared collection a subscript call names, or None if it is a real call."""
+        if not isinstance(node, exp.Anonymous):
+            return None
+        name = str(node.this or "")
+        return name if name and scope.lookup(name) is not None else None
+
+    def _unsubscript(node: Any) -> Any:
+        # `l_batch(i).refund_amount` is `Dot(<the call>, refund_amount)`. Reading a field
+        # of a record is no more a transformation than reading the record, but
+        # `transform_of` returns IDENTITY only for a bare `exp.Column`, so a `Dot` fell
+        # through to DERIVED. Collapsed to the collection's name for that reason.
+        #
+        # HANDLED HERE RATHER THAN AFTER THE CALL IS REPLACED BECAUSE `transform` IS
+        # TOP-DOWN: the Dot is visited while its child is still the Anonymous, so a guard
+        # written against the rewritten shape matches nothing. Measured, after writing that
+        # guard and finding the record form still scoring `derived`.
+        #
+        # `rec.email` is untouched: a cursor record lives in `row_sources`, not
+        # `variables`, so `_collection` does not resolve it.
+        if isinstance(node, exp.Dot):
+            name = _collection(node.this)
+            if name is not None:
+                return exp.column(name)
+        name = _collection(node)
+        return exp.column(name) if name is not None else node
+
+    return _transform_of(expression.copy().transform(_unsubscript))
+
+
+def _collection_edges(
+    subscripted: Subscripted,
+    target: Node,
+    flow: Flow,
+    transform: Transform,
+    origin: Origin,
+    guard: str | None,
+) -> list[IREdge]:
+    """The replacement half of `_subscripted`, as edges (S4-10).
+
+    One emitter for all three AST call sites. `l_batch(i).refund_amount` and `l_batch(i)`
+    both report `L_BATCH`, not a field-qualified name: a locally declared record type has
+    no query behind it to resolve a field against, and stress 3's key has named the
+    collection itself since 2026-09-12. A `L_BATCH.REFUND_AMOUNT` node would be a
+    relation-shaped name for something that is not a relation.
+
+    Always band 1 and always `DEF_USE`: the source is a declared variable by construction -
+    `_subscripted` only returns names `scope.lookup` resolved.
+    """
+    return [
+        _edge(
+            declaration.as_node(),
+            target,
+            flow,
+            transform,
+            origin,
+            guard,
+            Mechanism.DEF_USE,
+            band=_band_for("variable", target_is_variable=False),
+        )
+        for declaration in subscripted.collections
+    ]
 
 
 def _subscript_only_names(expression_text: str, scope: UnitScope) -> set[str]:
     """Names appearing ONLY as collection subscripts in this expression (S3-06).
 
     The assignment path scans identifiers out of TEXT rather than an AST, so it needs names
-    rather than node ids. Built on `_subscript_columns` rather than repeating the rule: two
+    rather than node ids. Built on `_subscripted` rather than repeating the rule: two
     copies of one rule is how S2-08 happened, and this one would drift the same way.
+
+    This path needs only the exclusion half. It is the one path where that is not the
+    S4-10 mistake: the text scan finds `l_batch` as an identifier by itself, so the
+    collection already reaches `scope.lookup` and gets its edge a few lines below.
     """
     try:
         parsed = sqlglot.parse_one(expression_text, dialect=DIALECT)
@@ -370,7 +492,7 @@ def _subscript_only_names(expression_text: str, scope: UnitScope) -> set[str]:
         # subscript can be proven, and proving none is the safe direction.
         return set()
 
-    indexes = _subscript_columns(parsed, scope)
+    indexes = _subscripted(parsed, scope).index_ids
     as_subscript = {c.name.upper() for c in parsed.find_all(exp.Column) if id(c) in indexes}
     elsewhere = {c.name.upper() for c in parsed.find_all(exp.Column) if id(c) not in indexes}
     return as_subscript - elsewhere
@@ -1007,12 +1129,23 @@ def _analyse_update(
         if not isinstance(setter, exp.EQ):
             continue
         column_name = setter.this.name.upper()
-        own = _transform_of(setter.expression)
+        own = _transform_of_element(setter.expression, scope)
         target_node = Node(kind=IRNodeKind.COLUMN, name=f"{target_name}.{column_name}")
+
+        # `SET amt = l_amts(i)` reads the collection, not the index (S3-06, S4-10). This
+        # path had NEITHER half: it emitted `I -> TGT.AMT` as a value, which is the S3-06
+        # false positive still live nine days after S3-06 was closed - no stress package
+        # subscripts a collection inside an UPDATE, so nothing measured it until a probe did.
+        subscripted = _subscripted(setter.expression, scope)
+        result.edges.extend(
+            _collection_edges(subscripted, target_node, Flow.VALUE, own, origin, guard)
+        )
 
         # A correlation predicate inside the assigned expression selects rows; it does
         # not supply the value. Its columns become filter edges on the updated relation.
         for column in _predicate_columns(setter.expression):
+            if id(column) in subscripted.index_ids:
+                continue
             classified = _classify(column, scope, relations, dictionary)
             if classified is None:
                 continue
@@ -1031,6 +1164,8 @@ def _analyse_update(
             )
 
         for column in _value_columns(setter.expression):
+            if id(column) in subscripted.index_ids:
+                continue
             classified = _classify(column, scope, relations, dictionary)
             if classified is None:
                 result.unresolved.append(f"line {origin.line}: unresolved {column.name}")
@@ -1104,7 +1239,23 @@ def _analyse_insert_filter(
         where = scoped.args.get("where")
         if where is None:
             continue
+        # `WHERE s.sid = l_ids(i)` - the collection decides which rows load, the index does
+        # not (S3-06, S4-10). The fourth predicate walk in this module, and the fourth to
+        # need this; D-5 took four call sites too.
+        subscripted = _subscripted(where, scope)
+        result.edges.extend(
+            _collection_edges(
+                subscripted,
+                Node(kind=IRNodeKind.RELATION, name=target_name),
+                Flow.FILTER,
+                Transform.IDENTITY,
+                origin,
+                guard,
+            )
+        )
         for column in predicate_columns(where):
+            if id(column) in subscripted.index_ids:
+                continue
             classified = _classify(column, scope, relations, dictionary)
             if classified is None or classified[0] != "variable":
                 continue  # column-side filters belong to the band-0 analyser
@@ -1174,11 +1325,22 @@ def _analyse_insert_values(
                 break
             item = items[index]
             target = Node(kind=IRNodeKind.COLUMN, name=f"{target_name}.{column}")
-            indexes = _subscript_columns(item, scope)
+            subscripted = _subscripted(item, scope)
+            # `VALUES (l_batch(i).product_id, ...)` - `i` is not a source and `l_batch` is
+            # (S3-06, S4-10). Emitted before the walk below because the walk cannot see it:
+            # the collection is never an `exp.Column`.
+            result.edges.extend(
+                _collection_edges(
+                    subscripted,
+                    target,
+                    Flow.VALUE,
+                    _transform_of_element(item, scope),
+                    origin,
+                    guard,
+                )
+            )
             for reference in item.find_all(exp.Column):
-                if id(reference) in indexes:
-                    # `VALUES (l_batch(i).product_id, ...)` - the subscript is not a source
-                    # of the column it indexes into (S3-06).
+                if id(reference) in subscripted.index_ids:
                     continue
                 classified = _classify(reference, scope, relations, dictionary)
                 if classified is None:
@@ -1192,7 +1354,7 @@ def _analyse_insert_values(
                         _node_for(kind, name),
                         target,
                         Flow.VALUE,
-                        _transform_of(item),
+                        _transform_of_element(item, scope),
                         origin,
                         guard,
                         Mechanism.DEF_USE,
@@ -1212,14 +1374,27 @@ def _filter_edges_for(
     guard: str | None,
     result: DefUseResult,
 ) -> list[IREdge]:
-    """Every operand of a predicate influences which rows are selected."""
+    """Every operand of a predicate influences which rows are selected.
+
+    Except a collection subscript. `WHERE sid = l_ids(i)` is decided by what is IN `l_ids`;
+    the index only says which element of it to compare against, and no rows depend on that
+    (S3-06's argument, and S4-10's answer to what replaces it). Before this, the loop
+    counter was reported as a filter source of every table read this way.
+    """
     if where is None or target_relation is None:
         return []
 
     edges: list[IREdge] = []
     target = Node(kind=IRNodeKind.RELATION, name=target_relation)
 
+    subscripted = _subscripted(where, scope)
+    edges.extend(
+        _collection_edges(subscripted, target, Flow.FILTER, Transform.IDENTITY, origin, guard)
+    )
+
     for column in predicate_columns(where):
+        if id(column) in subscripted.index_ids:
+            continue
         classified = _classify(column, scope, relations, dictionary)
         if classified is None:
             result.unresolved.append(f"line {origin.line}: unresolved {column.name}")

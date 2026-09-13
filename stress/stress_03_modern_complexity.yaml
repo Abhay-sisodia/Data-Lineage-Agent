@@ -755,6 +755,35 @@ edges:
     origin: {unit: S3_BULK_RECONCILE, line: 192}
     evidence: source_read
 
+  # --- KEY ERROR, CORRECTED 2026-09-13 (finding S3-11) --------------------------------
+  #
+  # The INSERT at line 192 writes THREE columns. The correction above labelled the two
+  # that arrive through a variable - `l_adjusted` and `l_flag` - and missed the third,
+  # whose value comes straight out of the collection with no variable in between:
+  #
+  #     VALUES (l_batch(i).product_id, l_adjusted, l_flag)
+  #
+  # So the very block that exists to state "everything downstream of `l_batch` is still
+  # real def-use and still emitted" listed two of the three places it is emitted. Written
+  # on 2026-09-12 while correcting S3-05, and found on 2026-09-13 when fixing S4-10 made
+  # the analyser emit it and the grid called a correct edge a false positive.
+  #
+  # This is the same family the register already carries a rule for: a convention applied
+  # by the pattern remembered rather than by the reason it states. Logged as S3-11 anyway,
+  # because the grid MOVED - band-1 value precision read 80% - and a measurement that
+  # changes with no register entry behind it is the thing the register is for.
+  - source: {kind: variable, name: L_BATCH}
+    target: {kind: column, name: FCT_PRODUCT_SALES.PRODUCT_ID}
+    flow: value
+    transform: identity
+    band: 1
+    origin: {unit: S3_BULK_RECONCILE, line: 192}
+    evidence: source_read
+    note: >
+      l_batch(i).product_id, read directly into the column. The collection is the source
+      and the subscript is not (S3-06, S4-10); a locally declared record type has no query
+      behind it, so the node is the collection itself rather than a field-qualified name.
+
   # === 6. s3_audit_fanout ===================================================
   #
   # The procedure never mentions dim_customer. Two of its edges land there,
