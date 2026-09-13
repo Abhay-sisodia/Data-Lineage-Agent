@@ -40,7 +40,7 @@ def _facts(source: str, unit: str):
     definitions: dict[int, set[str]] = {}
     uses: dict[int, set[str]] = {}
     for node in cfg.nodes.values():
-        defined, used = definitions_and_uses(node, scope)
+        defined, used = definitions_and_uses(node, scope, "oracle")
         if defined:
             definitions[node.id] = defined
         if used:
@@ -64,7 +64,7 @@ def test_converges_on_every_band1_package(name: str) -> None:
             continue
         definitions: dict[int, set[str]] = {}
         for node in cfg.nodes.values():
-            defined, _ = definitions_and_uses(node, scope)
+            defined, _ = definitions_and_uses(node, scope, "oracle")
             if defined:
                 definitions[node.id] = defined
         result = reaching_definitions(cfg, definitions, iteration_cap=10)

@@ -36,6 +36,7 @@ from lineage.analysis.refusal import classify_program, enclosing_unit_at
 from lineage.analysis.scratch import find_fusion_hazards
 from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
+from lineage.dialects import resolve_dialect
 from lineage.evidence.witness import ExecutionWitness
 from lineage.ir.model import Boundary, BoundaryKind, IREdge, Node, NodeKind
 from lineage.parsing.generated.PlSqlParser import PlSqlParser
@@ -58,6 +59,7 @@ def analyse_source(
     ``unexercised=None`` - nothing was observed, so nothing is claimed either way.
     """
     settings = config or AnalysisConfig()
+    resolve_dialect(settings, dictionary)
 
     program = parse_program(source)
 
@@ -161,7 +163,7 @@ def analyse_source(
         if suppressed not in result.boundaries:
             result.boundaries.append(suppressed)
 
-    for contextual in _context_dependent_names(program, result):
+    for contextual in _context_dependent_names(program, result, dictionary.dialect):
         if contextual not in result.boundaries:
             result.boundaries.append(contextual)
 
@@ -354,7 +356,9 @@ def _suppressed_errors(program: Program) -> list[Boundary]:
     return found
 
 
-def _context_dependent_names(program: Program, result: AnalysisResult) -> list[Boundary]:
+def _context_dependent_names(
+    program: Program, result: AnalysisResult, dialect: str
+) -> list[Boundary]:
     """Units whose lineage is only valid for the schema that executed them.
 
     Silent failure s2, the half that survives a correct analyser. An unqualified name binds
@@ -371,7 +375,7 @@ def _context_dependent_names(program: Program, result: AnalysisResult) -> list[B
         if statement.kind not in band0.SUPPORTED:
             continue
         try:
-            parsed = sqlglot.parse_one(statement.text, dialect=band0.DIALECT)
+            parsed = sqlglot.parse_one(statement.text, dialect=dialect)
         except Exception:
             continue
         for table in parsed.find_all(exp.Table):
@@ -412,7 +416,7 @@ def _reaching_findings(cfg: Cfg, scope: UnitScope, config: AnalysisConfig) -> li
             continue
         if node.kind is not CfgNodeKind.STATEMENT:
             continue
-        defined, used = definitions_and_uses(node, scope)
+        defined, used = definitions_and_uses(node, scope, config.dialect)
         if defined:
             definitions[node.id] = defined
         if used:

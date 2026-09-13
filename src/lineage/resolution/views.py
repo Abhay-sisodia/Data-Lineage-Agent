@@ -34,7 +34,11 @@ from sqlglot import exp
 from lineage.ir.model import IREdge, Node, NodeKind
 from lineage.resolution.dictionary import Dictionary
 
-DIALECT = "oracle"
+# The dialect is not a constant here any more. It travels on the captured dictionary,
+# because a dictionary belongs to one database and already reaches every resolver in this
+# module - see `lineage.dialects.base` for what the seam holds and what it deliberately
+# does not. `AnalysisConfig.dialect` stays the declared authority and the entry points
+# check the two agree.
 
 __all__ = ["base_column", "base_tables_of", "is_view", "resolve_views"]
 
@@ -62,7 +66,7 @@ def _definition(relation: str, dictionary: Dictionary) -> exp.Select | None:
     if not text:
         return None
     try:
-        parsed = sqlglot.parse_one(text, dialect=DIALECT)
+        parsed = sqlglot.parse_one(text, dialect=dictionary.dialect)
     except Exception:
         return None
     return parsed if isinstance(parsed, exp.Select) else None

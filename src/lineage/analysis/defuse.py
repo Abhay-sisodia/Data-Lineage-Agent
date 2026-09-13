@@ -58,7 +58,11 @@ from lineage.parsing.plsql import Program, iter_contexts, source_slice
 from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
-DIALECT = "oracle"
+# The dialect is not a constant here any more. It travels on the captured dictionary,
+# because a dictionary belongs to one database and already reaches every resolver in this
+# module - see `lineage.dialects.base` for what the seam holds and what it deliberately
+# does not. `AnalysisConfig.dialect` stays the declared authority and the entry points
+# check the two agree.
 
 
 
@@ -475,7 +479,7 @@ def _collection_edges(
     ]
 
 
-def _subscript_only_names(expression_text: str, scope: UnitScope) -> set[str]:
+def _subscript_only_names(expression_text: str, scope: UnitScope, dialect: str) -> set[str]:
     """Names appearing ONLY as collection subscripts in this expression (S3-06).
 
     The assignment path scans identifiers out of TEXT rather than an AST, so it needs names
@@ -487,7 +491,7 @@ def _subscript_only_names(expression_text: str, scope: UnitScope) -> set[str]:
     collection already reaches `scope.lookup` and gets its edge a few lines below.
     """
     try:
-        parsed = sqlglot.parse_one(expression_text, dialect=DIALECT)
+        parsed = sqlglot.parse_one(expression_text, dialect=dialect)
     except Exception:
         # An unparseable right-hand side is the caller's problem; here it just means no
         # subscript can be proven, and proving none is the safe direction.
@@ -604,7 +608,7 @@ def _projection_of(query: str, dictionary: Dictionary) -> tuple[list[Any] | None
     if text.startswith("(") and text.endswith(")"):
         text = text[1:-1]
     try:
-        parsed = sqlglot.parse_one(text, dialect=DIALECT)
+        parsed = sqlglot.parse_one(text, dialect=dictionary.dialect)
     except Exception:
         return None, {}
     if not isinstance(parsed, exp.Select):
@@ -677,7 +681,9 @@ def analyse_statement(
     if dynamic is not None and recovered:
         text = dynamic.recovered[node.line]
     try:
-        statement: Any = sqlglot.parse_one(strip_unparseable_clauses(text), dialect=DIALECT)
+        statement: Any = sqlglot.parse_one(
+            strip_unparseable_clauses(text), dialect=dictionary.dialect
+        )
     except Exception:
         result.unresolved.append(
             Boundary(
@@ -745,7 +751,7 @@ def _row_field_edges(
     into two commits would have meant shipping a known-wrong answer in between.
     """
     try:
-        parsed: Any = sqlglot.parse_one(expression_text, dialect=DIALECT)
+        parsed: Any = sqlglot.parse_one(expression_text, dialect=dictionary.dialect)
     except Exception:
         return []
 
@@ -818,7 +824,7 @@ def _analyse_assignment(
     expression_text = source_slice(inner.expression()) if inner.expression() else ""
     transform = _assignment_transform(expression_text)
 
-    subscripts = _subscript_only_names(expression_text, scope)
+    subscripts = _subscript_only_names(expression_text, scope, dictionary.dialect)
 
     # A cursor record's fields, which the identifier scan below cannot see: `rec` is not a
     # declared variable and `gross_total` is not a column of anything (S4-07).
@@ -1017,7 +1023,7 @@ def _analyse_select_into(
     # SQLGlot's optimiser can qualify, because `v` sits where a table would.
     probe = statement.copy()
     probe.set("into", None)
-    probe_sql = probe.sql(dialect=DIALECT)
+    probe_sql = probe.sql(dialect=dictionary.dialect)
 
     receivers: dict[str, VariableDecl] = {}
 
@@ -1514,7 +1520,9 @@ def _filter_edges_for(
     return edges
 
 
-def definitions_and_uses(node: CfgNode, scope: UnitScope) -> tuple[set[str], set[str]]:
+def definitions_and_uses(
+    node: CfgNode, scope: UnitScope, dialect: str
+) -> tuple[set[str], set[str]]:
     """Variables this statement defines, and variables it reads.
 
     Names only — the edges themselves are built elsewhere. This feeds reaching-definitions
@@ -1552,7 +1560,9 @@ def definitions_and_uses(node: CfgNode, scope: UnitScope) -> tuple[set[str], set
 
     # SQL statements: an INTO target is a definition, everything else a read.
     try:
-        statement: Any = sqlglot.parse_one(strip_unparseable_clauses(text), dialect=DIALECT)
+        statement: Any = sqlglot.parse_one(
+            strip_unparseable_clauses(text), dialect=dialect
+        )
     except Exception:
         return defined, used
 

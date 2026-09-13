@@ -133,6 +133,20 @@ class Dictionary(BaseModel):
 
     captured_at: str
     default_schema: str
+    dialect: str = Field(
+        default="oracle",
+        description=(
+            "The database this snapshot was captured from. A dictionary belongs to ONE "
+            "database, so its dialect is a property of the snapshot rather than of the run "
+            "- and carrying it here is what lets every resolver reach the dialect without a "
+            "new parameter, because the dictionary already reaches all of them. "
+            "`AnalysisConfig.dialect` remains the declared authority: the entry points "
+            "check the two agree, so analysing Oracle source against a PostgreSQL catalogue "
+            "fails loudly instead of resolving nothing and calling it a coverage gap. "
+            "Defaulted for backward compatibility - every dictionary captured before this "
+            "field existed is an Oracle one."
+        ),
+    )
     objects: dict[str, ObjectInfo] = Field(default_factory=dict)
     synonyms: dict[str, str] = Field(
         default_factory=dict, description="OWNER.SYNONYM -> OWNER.TARGET"

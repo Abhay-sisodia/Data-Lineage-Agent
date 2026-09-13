@@ -56,7 +56,11 @@ from lineage.resolution.views import resolve_views
 
 __all__ = ["TriggerAnalysis", "analyse_trigger", "inherited_edges"]
 
-DIALECT = "oracle"
+# The dialect is not a constant here any more. It travels on the captured dictionary,
+# because a dictionary belongs to one database and already reaches every resolver in this
+# module - see `lineage.dialects.base` for what the seam holds and what it deliberately
+# does not. `AnalysisConfig.dialect` stays the declared authority and the entry points
+# check the two agree.
 
 # `:NEW.cust_id` / `:OLD.region`, in any case, with or without the colon Oracle strips
 # inside a trigger body.
@@ -89,7 +93,12 @@ def _rewrite_correlations(body: str) -> str:
 
 
 def _assignment_edges(
-    text: str, trigger: TriggerInfo, table: str, origin: Origin, guard: str | None
+    text: str,
+    trigger: TriggerInfo,
+    table: str,
+    origin: Origin,
+    guard: str | None,
+    dialect: str,
 ) -> list[IREdge]:
     """`:NEW.col := expr` — a column write with no SQL statement anywhere.
 
@@ -107,7 +116,7 @@ def _assignment_edges(
 
     expression = expression.strip().rstrip(";")
     try:
-        parsed = sqlglot.parse_one(expression, dialect=DIALECT)
+        parsed = sqlglot.parse_one(expression, dialect=dialect)
     except Exception:
         return []
 
@@ -142,7 +151,9 @@ def _assignment_edges(
     return edges
 
 
-def _insert_values_edges(text: str, table: str, origin: Origin, guard: str | None) -> list[IREdge]:
+def _insert_values_edges(
+    text: str, table: str, origin: Origin, guard: str | None, dialect: str
+) -> list[IREdge]:
     """`INSERT INTO t (a, b) VALUES (:NEW.x, USER)` — positional, and nothing else reads it.
 
     The set-based analyser handles `INSERT ... SELECT`; a VALUES list has no select list
@@ -153,7 +164,7 @@ def _insert_values_edges(text: str, table: str, origin: Origin, guard: str | Non
     values from nowhere and produce no edge, which is the literal rule again.
     """
     try:
-        parsed = sqlglot.parse_one(text, dialect=DIALECT)
+        parsed = sqlglot.parse_one(text, dialect=dialect)
     except Exception:
         return []
     if not isinstance(parsed, exp.Insert):
@@ -246,12 +257,18 @@ def analyse_trigger(trigger: TriggerInfo, dictionary: Dictionary) -> TriggerAnal
 
             if node.statement_kind == "assignment_statement":
                 analysis.edges.extend(
-                    _assignment_edges(node.label, trigger, simple_table, origin, guard)
+                    _assignment_edges(
+                        node.label, trigger, simple_table, origin, guard, dictionary.dialect
+                    )
                 )
                 continue
 
             if node.statement_kind == "insert_statement":
-                analysis.edges.extend(_insert_values_edges(node.label, simple_table, origin, guard))
+                analysis.edges.extend(
+                    _insert_values_edges(
+                        node.label, simple_table, origin, guard, dictionary.dialect
+                    )
+                )
 
             result = analyse_statement(node, cfg, scope, dictionary, trigger.name.upper())
             analysis.edges.extend(_as_band_2(result))

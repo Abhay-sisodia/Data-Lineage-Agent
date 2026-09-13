@@ -62,7 +62,11 @@ from lineage.parsing.plsql import ParsedStatement, Program, parse_program
 from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
-DIALECT = "oracle"
+# The dialect is not a constant here any more. It travels on the captured dictionary,
+# because a dictionary belongs to one database and already reaches every resolver in this
+# module - see `lineage.dialects.base` for what the seam holds and what it deliberately
+# does not. `AnalysisConfig.dialect` stays the declared authority and the entry points
+# check the two agree.
 
 # Statement kinds this module claims to handle. Anything else is refused rather than
 # half-analysed - band 1 constructs belong to the procedural analyser, not here.
@@ -175,7 +179,7 @@ def _inline_views(
                 continue
             seen.add(resolved.qualified)
             try:
-                inner = sqlglot.parse_one(text, dialect=DIALECT)
+                inner = sqlglot.parse_one(text, dialect=dictionary.dialect)
             except Exception:
                 notes.append(f"view {resolved.qualified} did not parse")
                 continue
@@ -279,7 +283,7 @@ def resolve_projection(
     if text.startswith("(") and text.endswith(")"):
         text = text[1:-1]
     try:
-        parsed: Any = sqlglot.parse_one(text, dialect=DIALECT)
+        parsed: Any = sqlglot.parse_one(text, dialect=dictionary.dialect)
     except Exception:
         return None
     if not isinstance(parsed, exp.Select):
@@ -290,7 +294,7 @@ def resolve_projection(
         parsed = qualify(
             parsed,
             schema=_schema_for(dictionary),
-            dialect=DIALECT,
+            dialect=dictionary.dialect,
             validate_qualify_columns=False,
             infer_schema=True,
         )
@@ -364,7 +368,7 @@ def resolve_query_influence(
     if text.startswith("(") and text.endswith(")"):
         text = text[1:-1]
     try:
-        parsed: Any = sqlglot.parse_one(text, dialect=DIALECT)
+        parsed: Any = sqlglot.parse_one(text, dialect=dictionary.dialect)
     except Exception:
         return QueryInfluence((), ())
     if not isinstance(parsed, exp.Select):
@@ -375,7 +379,7 @@ def resolve_query_influence(
         parsed = qualify(
             parsed,
             schema=_schema_for(dictionary),
-            dialect=DIALECT,
+            dialect=dictionary.dialect,
             validate_qualify_columns=False,
             infer_schema=True,
         )
@@ -417,7 +421,7 @@ def resolve_query_influence(
     return QueryInfluence(tuple(dict.fromkeys(filters)), tuple(dict.fromkeys(influence)))
 
 
-def _row_source_subject(source: exp.Table) -> str:
+def _row_source_subject(source: exp.Table, dialect: str) -> str:
     """A comparable subject for a row source that has no relation name.
 
     `FROM TABLE(f(1))` has no table to name, but a boundary's identity is its kind plus
@@ -439,11 +443,11 @@ def _row_source_subject(source: exp.Table) -> str:
         # Quotes are stripped so `pkg.f` and `"PKG".f` produce the same subject - a
         # boundary's identity is what makes two statements of the same fact comparable,
         # and quoting is not part of the fact.
-        called = arguments[0].sql(dialect=DIALECT).strip().upper().replace('"', "")
+        called = arguments[0].sql(dialect=dialect).strip().upper().replace('"', "")
         head = called.split("(", 1)[0].strip()
         if head:
             return f"TABLE({head})"
-    rendered = source.sql(dialect=DIALECT).strip().upper()
+    rendered = source.sql(dialect=dialect).strip().upper()
     return rendered or "TABLE(?)"
 
 
@@ -530,9 +534,9 @@ def _trace(
             unresolved.append(
                 Boundary(
                     kind=BoundaryKind.DANGLING_REFERENCE,
-                    subject=_row_source_subject(source),
+                    subject=_row_source_subject(source, dictionary.dialect),
                     detail=(
-                        f"{_row_source_subject(source)}.{name} "
+                        f"{_row_source_subject(source, dictionary.dialect)}.{name} "
                         "(row source is a function; its shape is its return type, "
                         "which is not in the dictionary)"
                     ),
@@ -1462,7 +1466,7 @@ def _filter_edges(
     return edges
 
 
-def _condition_text(expression: Any) -> str:
+def _condition_text(expression: Any, dialect: str) -> str:
     """A condition rendered the way the source wrote it, for use as a guard.
 
     Unquoted deliberately. By the time a statement reaches here `qualify` has quoted every
@@ -1476,7 +1480,7 @@ def _condition_text(expression: Any) -> str:
     rendered = expression.copy()
     for identifier in rendered.find_all(exp.Identifier):
         identifier.set("quoted", False)
-    return str(rendered.sql(dialect=DIALECT))
+    return str(rendered.sql(dialect=dialect))
 
 
 def _analyse_multitable_insert(
@@ -1532,14 +1536,14 @@ def _analyse_multitable_insert(
     if not arms:
         return [], (RefusalCode.UNSUPPORTED_CONSTRUCT, "multi-table insert with no INTO arm")
 
-    source_sql = source.sql(dialect=DIALECT)
+    source_sql = source.sql(dialect=dictionary.dialect)
     influencing = resolve_query_influence(source_sql, dictionary)
     first_only = str(statement.args.get("kind") or "").upper() == "FIRST"
 
     # Collected before the loop because an ELSE arm fires when NO condition matched,
     # including conditions written after it.
     conditions = [
-        _condition_text(arm.args["expression"])
+        _condition_text(arm.args["expression"], dictionary.dialect)
         for arm in arms
         if arm.args.get("expression") is not None
     ]
@@ -1573,11 +1577,13 @@ def _analyse_multitable_insert(
             # An unconditional arm of an INSERT ALL: every row reaches it.
             guard = None
         elif first_only:
-            guard = " AND ".join([*(f"NOT ({c})" for c in preceding), _condition_text(condition)])
+            guard = " AND ".join(
+                [*(f"NOT ({c})" for c in preceding), _condition_text(condition, dictionary.dialect)]
+            )
         else:
-            guard = _condition_text(condition)
+            guard = _condition_text(condition, dictionary.dialect)
         if condition is not None:
-            preceding.append(_condition_text(condition))
+            preceding.append(_condition_text(condition, dictionary.dialect))
 
         values = insert.expression
         if not isinstance(values, exp.Values) or not values.expressions:
@@ -2166,7 +2172,7 @@ def _analyse_statement(
     unresolved: list[Boundary] = []
     try:
         parsed: Any = sqlglot.parse_one(
-            strip_unparseable_clauses(statement.text), dialect=DIALECT
+            strip_unparseable_clauses(statement.text), dialect=dictionary.dialect
         )
     except Exception as exc:
         return (
@@ -2181,7 +2187,7 @@ def _analyse_statement(
         parsed = qualify(
             parsed,
             schema=_schema_for(dictionary),
-            dialect=DIALECT,
+            dialect=dictionary.dialect,
             validate_qualify_columns=False,
             infer_schema=True,
         )
