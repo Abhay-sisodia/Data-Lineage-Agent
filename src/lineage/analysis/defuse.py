@@ -24,7 +24,7 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
-from lineage.analysis.band0 import resolve_projection
+from lineage.analysis.band0 import resolve_projection, resolve_query_influence
 from lineage.analysis.cfg import Cfg, CfgNode, NodeKind
 from lineage.analysis.dynamic import Resolution
 from lineage.analysis.predicates import predicate_columns
@@ -41,6 +41,7 @@ from lineage.analysis.transforms import (
 from lineage.ir.model import (
     Boundary,
     BoundaryKind,
+    FilterPhase,
     Flow,
     IREdge,
     Mechanism,
@@ -624,6 +625,7 @@ def _edge(
     guard: str | None,
     mechanism: Mechanism,
     band: int = 1,
+    phase: FilterPhase = FilterPhase.PRE_AGGREGATION,
 ) -> IREdge:
     return IREdge(
         source=source,
@@ -635,6 +637,7 @@ def _edge(
         tier=Tier.A,
         guard=guard or None,
         origin=origin,
+        phase=phase,
     )
 
 
@@ -1009,11 +1012,21 @@ def _analyse_select_into(
         )
         return result
 
+    # Built once and shared by the value path (S4-05) and the influence path (S4-09), both
+    # of which need the statement without its INTO: `SELECT x INTO v FROM t` is not a query
+    # SQLGlot's optimiser can qualify, because `v` sits where a table would.
+    probe = statement.copy()
+    probe.set("into", None)
+    probe_sql = probe.sql(dialect=DIALECT)
+
+    receivers: dict[str, VariableDecl] = {}
+
     for target_name, projection in zip(targets, projections, strict=True):
         declaration = scope.lookup(target_name)
         if declaration is None:
             result.unresolved.append(f"line {origin.line}: INTO undeclared {target_name}")
             continue
+        receivers[(projection.alias_or_name or "").upper()] = declaration
         own = _transform_of(projection)
         unresolved_here: list[Any] = []
         for column in _value_columns(projection):
@@ -1053,11 +1066,7 @@ def _analyse_select_into(
         # traversal - the same delegation S4-02 made for a cursor record, for the same
         # reason S2-08 is on the register.
         if unresolved_here:
-            probe = statement.copy()
-            probe.set("into", None)
-            resolved = resolve_projection(
-                probe.sql(dialect=DIALECT), projection.alias_or_name, dictionary
-            )
+            resolved = resolve_projection(probe_sql, projection.alias_or_name, dictionary)
             if resolved is None:
                 for column in unresolved_here:
                     result.unresolved.append(f"line {origin.line}: unresolved {column.name}")
@@ -1076,7 +1085,11 @@ def _analyse_select_into(
                     )
                 )
 
-    # A predicate on the read relation decides which row the variable receives.
+    # A predicate on the read relation decides which row the variable receives. Variables in
+    # that predicate are this module's to classify - `WHERE cust_id = v_cutoff` is the whole
+    # reason band 1 exists, and band 0 would bind that name to whichever table is in scope -
+    # so the local walk stays for the VARIABLE side only. The column side is delegated below,
+    # because a single `target_relation` cannot express the convention; see `_filter_edges_for`.
     result.edges += _filter_edges_for(
         statement.args.get("where"),
         scope,
@@ -1086,7 +1099,72 @@ def _analyse_select_into(
         origin,
         guard,
         result,
+        variables_only=True,
     )
+
+    # THE COLUMN SIDE, AT ANY DEPTH (stress finding S4-09).
+    #
+    # The walk above sees one `WHERE` and needs `_read_relation` to name a target, which
+    # returns None as soon as the FROM is a subquery. So a statement reading into variables
+    # said nothing about a `HAVING`, nothing about a `GROUP BY`, and nothing about a `WHERE`
+    # written one level down - while the identical query writing a TABLE produced all three.
+    # Delegated for the same reason S4-02 and S4-05 delegated the value side.
+    #
+    # **WHICH RELATION A FILTER EDGE TARGETS**, and the convention has two clauses that are
+    # easy to read as one: *the relation the statement WRITES; when it writes a variable,
+    # the relation read.* A `SELECT ... INTO` is the second clause, and "the relation read"
+    # resolves to **the relation the filtered column itself belongs to** - which is what
+    # every band-1 claim in every key shows, ten of them across three packages.
+    #
+    # I implemented the other reading in between, targeting the relations the statement's
+    # VALUES come from, on the strength of the band-0 claims: `DIM_CUSTOMER.IS_ACTIVE`
+    # targets `FCT_REVENUE`, `GTT_STAGE` and `TMP_RECENT` there, never `DIM_CUSTOMER`. But
+    # those statements WRITE a relation, so they are the first clause and say nothing about
+    # this one. `fn_stress_net` settled it in one run: it reads values from two relations
+    # through a join and its key claims exactly ONE filter edge,
+    # `STG_ORDERS.ORDER_ID -> STG_ORDERS`. The value-relations reading emitted two, scoring
+    # a true positive and a false one off a single predicate.
+    #
+    # The two claims that look like counter-examples - `STG_ORDERS.CURRENCY` and
+    # `DIM_CUSTOMER.IS_ACTIVE` onto `FCT_REVENUE_PART` at band 1 - are the CURSOR case,
+    # where the loop does write a relation. First clause again, and still open as S4-09's
+    # remaining half.
+    #
+    # Influence targets the VARIABLE receiving that projection - the variable standing where
+    # D-2 puts the aggregated column.
+    influencing = resolve_query_influence(probe_sql, dictionary)
+
+    for relation, column_name, phase in influencing.filters:
+        result.edges.append(
+            _edge(
+                Node(kind=IRNodeKind.COLUMN, name=f"{relation}.{column_name}"),
+                Node(kind=IRNodeKind.RELATION, name=relation),
+                Flow.FILTER,
+                Transform.IDENTITY,
+                origin,
+                guard,
+                Mechanism.AST,
+                band=1,  # the statement's target is a variable, so the path is band 1
+                phase=phase,
+            )
+        )
+
+    for projection_name, relation, column_name in influencing.influence:
+        declaration = receivers.get(projection_name)
+        if declaration is None:
+            continue
+        result.edges.append(
+            _edge(
+                Node(kind=IRNodeKind.COLUMN, name=f"{relation}.{column_name}"),
+                declaration.as_node(),
+                Flow.INFLUENCE,
+                Transform.IDENTITY,
+                origin,
+                guard,
+                Mechanism.AST,
+                band=1,
+            )
+        )
     return result
 
 
@@ -1373,6 +1451,7 @@ def _filter_edges_for(
     origin: Origin,
     guard: str | None,
     result: DefUseResult,
+    variables_only: bool = False,
 ) -> list[IREdge]:
     """Every operand of a predicate influences which rows are selected.
 
@@ -1380,6 +1459,19 @@ def _filter_edges_for(
     the index only says which element of it to compare against, and no rows depend on that
     (S3-06's argument, and S4-10's answer to what replaces it). Before this, the loop
     counter was reported as a filter source of every table read this way.
+
+    **`variables_only` exists because `target_relation` is a single name and a predicate's
+    columns do not all belong to it** (stress finding S4-09). Callers that write a relation
+    have one correct target and pass nothing here. `_analyse_select_into` does not: it writes
+    variables, the convention makes each filter edge target the relation its own column
+    belongs to, and one target cannot express that.
+
+    Passing `_read_relation`'s answer for every column was the old behaviour, and it was
+    right only when the filtered column happened to sit on the outermost FROM's first table.
+    `WHERE d.is_active = 1` over `FROM src s JOIN dim d` emitted `DIM.IS_ACTIVE -> SRC`. No
+    stress package caught it, because in every package the predicate is on the driving table.
+    The column side now belongs to `resolve_query_influence`, which knows each column's own
+    relation; this keeps the variable side, which only this module can classify at all.
     """
     if where is None or target_relation is None:
         return []
@@ -1397,9 +1489,16 @@ def _filter_edges_for(
             continue
         classified = _classify(column, scope, relations, dictionary)
         if classified is None:
+            if variables_only:
+                # Not an omission to declare: the caller's delegated walk resolves the
+                # column side through the whole query, and will either name it or declare
+                # its own boundary. Reporting it here would double-count one name.
+                continue
             result.unresolved.append(f"line {origin.line}: unresolved {column.name}")
             continue
         kind, name = classified
+        if variables_only and kind != "variable":
+            continue
         edges.append(
             _edge(
                 _node_for(kind, name),

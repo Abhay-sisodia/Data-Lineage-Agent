@@ -51,7 +51,10 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S4-02 | `silent-loss` | **fixed** | **misdiagnosed as CTE-specific.** A declared-cursor loop registered no row source at all, so `rec.field` bound to the TARGET; and `_field_of_row` was one-level. Both fixed; the assignment path remains |
 | S4-07 | `silent-loss` | **fixed** | `v := rec.field` produced no edge in either loop form — the chain appeared to BEGIN at a variable, which the IR is entitled to say |
 | S4-08 | `transform-classification` | **fixed** | a transform inside a cursor query did not reach the edge; fixed WITH S4-07 because they are one fact |
-| S4-09 | `construct-coverage` | open | a declared cursor's own `WHERE` produces no filter edge against what the loop writes |
+| S4-09 | `construct-coverage` | **fixed** | **filed against the wrong construct.** Nothing to do with cursors: a statement read INTO variables reported *none* of its own predicates or grouping — no `HAVING`, no `GROUP BY` influence, and not even a `WHERE` one level down — while the identical query writing a table produced all three |
+| S4-11 | `key-error` | **fixed** | stress 4's key labelled the `HAVING` of one derived table and not the `WHERE` beside it — one clause of one statement, its sibling missed |
+| S4-12 | `flow-classification` | **fixed** | a filter edge on a `SELECT … INTO` named the **wrong relation**: one `target_relation` for every column in the predicate, right only when the filtered column sat on the outermost `FROM`'s first table. Found by S4-09's own regression test, not by any package |
+| S4-13 | `construct-coverage` | open | what a cursor FOR loop writes carries none of the cursor query's predicates — S4-09's remaining half, and the one the register's old S4-09 row described |
 | S4-03 | `construct-coverage` | **fixed** | a `MERGE` emitted no **influence** edge — neither `GROUP BY` nor window; S3-03 added its filters and stopped there |
 | S4-04 | `flow-classification` | **fixed** | a `MINUS`/`INTERSECT` second arm was read as **value** when the set operation sits in a CTE — convention (a) held for the top-level form only |
 | S4-05 | `construct-coverage` | **fixed** | **misdiagnosed as two-collection.** A projection COMPUTED OR RENAMED in a derived table had no source at all; the second collection was just the one receiving it |
@@ -1237,6 +1240,15 @@ was always right, so D-5 cannot regress it.
 
 ## S1-05 · `identity` · OPEN — the label format could not express five facts in one file
 
+> **Escalated 2026-09-13 by S4-09, and the argument has changed kind.** Everything below,
+> and stress 4's 28.1%, is about labels that *cannot be stated*. S4-09 showed the collision
+> **hiding a live defect**: `STG_ORDERS.CURRENCY -> FCT_REVENUE_PART [filter]` scored as a
+> true positive while the unit it was labelled against emitted nothing, because the same key
+> was collapsed out of a different unit that emits it correctly. A cell read 100% over a
+> silent miss. That is no longer a cost in expressiveness — **it is the measurement reporting
+> a pass it did not earn**, which is the one failure mode this whole register exists to
+> prevent.
+
 The **first draft of the key was rejected by the validator.** Five genuine facts, each
 written by two different procedures in this one file, collide on the match key — and unlike
 `b1_02`/`b1_03`/`b1_09`/`s7`, **guard does not separate them.** All ten edges are
@@ -2391,6 +2403,113 @@ probe showed no `I -> TGT` false positive: not a rule, just band 0 being unable 
 moment the gap is closed** — so whoever takes P-02 must add the subscript rule in the same
 change, and the S4-10 regression tests are what will say so.
 
+## S4-09 · `construct-coverage` · FIXED — a statement read into a variable has predicates too
+
+Filed as *"a declared cursor's own `WHERE` produces no filter edge against what the loop
+writes"*. **The construct was wrong.** Cursors are one place this shows; the defect is that
+a `SELECT … INTO` — bulk or scalar — reported nothing about the clauses that decide which
+rows it reads:
+
+| written | band 0, writing a table | band 1, reading into a variable |
+|---|---|---|
+| `WHERE region = 'EU'` one level down | filter, pre-aggregation | **nothing** |
+| `HAVING SUM(amt) > 0` | filter, post-aggregation | **nothing** |
+| `GROUP BY sid` | influence onto the aggregate | **nothing** |
+
+`_analyse_select_into` had its own one-level walk: one top-level `WHERE`, with a target from
+`_read_relation` — **which returns `None` the moment the `FROM` is a subquery.** So a
+derived table or a CTE silenced the clause that WAS handled, as well as the two that never
+were. The S2-04 shape a fourth time: a construct each pass correctly decides is not quite
+its own.
+
+Closed by `band0.resolve_query_influence`, **the third use of one handoff**: S4-02 gave
+band 1 `resolve_projection` for a cursor record's field, S4-05 reused it for a projection
+computed in a derived table, and this is the same delegation for the non-value half. The
+traversal and both influence resolvers are reused unchanged; S2-08 is on the register for a
+rule that lived in two modules and drifted, and the one-level walk this replaces is what
+that drift looks like before anyone notices.
+
+### The target convention, which I got wrong twice
+
+*A filter edge targets the relation the statement WRITES; when it writes a variable, the
+relation read.* **Those are two clauses, and I read them as one.**
+
+My first cut targeted the filtered column's own relation. I then "corrected" it to the
+relations the statement's VALUES come from, on the strength of the band-0 claims — where
+`DIM_CUSTOMER.IS_ACTIVE` targets `FCT_REVENUE`, `GTT_STAGE` and `TMP_RECENT`, never
+`DIM_CUSTOMER`. But **those statements write a relation**, so they are the first clause and
+say nothing about this one.
+
+`fn_stress_net` settled it in a single run. It reads values from two relations through a
+join and its key claims exactly ONE filter edge, `STG_ORDERS.ORDER_ID -> STG_ORDERS`; the
+value-relations reading emitted two, scoring a true positive and a false one off one
+predicate. Ten band-1 claims across three packages agree with the first reading, and the two
+that appear not to — `STG_ORDERS.CURRENCY` and `DIM_CUSTOMER.IS_ACTIVE` onto
+`FCT_REVENUE_PART` — are the cursor case, where the loop does write a relation. First clause
+again. **Six examples agreed with the wrong answer; one disagreed, and it was the only one
+that mattered.**
+
+### S1-05 was concealing this, not merely counting it
+
+`STG_ORDERS.CURRENCY -> FCT_REVENUE_PART [filter]` scores as a **true positive** in stress
+4. The cursor ladder emits nothing of the sort — the claim was collapsed out of
+`S4_FILTER_CASCADE`, which writes a table and emits it correctly, and origin is not in the
+match key. So a correct-looking cell was carrying a silent miss from a different unit.
+
+Until now S1-05's cost has been recorded as *claims that cannot be stated*. This is the
+first demonstration that the collision **hides a defect** rather than losing a label, and it
+argues the finding up rather than merely confirming it.
+
+**Result.** Stress 4 band-1 filter 2/0/3 → **5/0/1**, band-1 influence 0/0/1 → **1/0/0**,
+zero false positives in every cell of all four packages, stress 1/2/3 identical to the digit.
+Phase 0 unmoved: gate 96.2% / 96.2%, guard 100% of 27, parse coverage 81.6%. Five of the
+nine new tests fail without the fix.
+
+## S4-12 · `flow-classification` · FIXED — a filter edge naming the wrong relation
+
+Found by S4-09's own regression test, having survived four stress packages.
+
+```sql
+SELECT SUM(s.amt) INTO v FROM src s JOIN dim d ON d.sid = s.sid WHERE d.is_active = 1;
+```
+
+emitted `DIM.IS_ACTIVE -> SRC [filter]`. `_filter_edges_for` takes ONE `target_relation` and
+points every column in the predicate at it, and `_read_relation` answers with the outermost
+`FROM`'s first table. **A predicate's columns do not all belong to that table.** The edge was
+right only by coincidence, and in every stress package the coincidence holds — the predicate
+is always on the driving table, so nothing measured it.
+
+The column side now belongs to the delegated walk, which knows each column's own relation.
+`variables_only=True` keeps the local walk for the variable side, which is the half only this
+module can classify: to band 0, `v_cutoff` in a `WHERE` is a column, and binding it to
+whichever table is in scope is this module's opening paragraph.
+
+**Worth noting which instrument found it.** Not a stress package and not a probe — a
+regression test written to pin a convention, whose first run disagreed with the code for a
+reason I had not predicted. A test written to state *why* an answer is right will sometimes
+find that a different answer was wrong.
+
+## S4-13 · `construct-coverage` · OPEN — a cursor loop writes without its cursor's predicates
+
+S4-09's remaining half, and what the old S4-09 row actually described:
+
+```sql
+CURSOR c_customer IS SELECT ... WHERE o.currency = 'GBP' ... HAVING SUM(...) > 0;
+BEGIN
+  FOR rec IN c_customer LOOP
+    INSERT INTO fct_revenue_part (...) VALUES (v_cust_id, ...);
+```
+
+Which rows reach `fct_revenue_part` is decided entirely by the cursor's query, and none of
+it is reported. Separate from S4-09 because it is a different problem: **the predicates are
+in one statement and the write is in another**, so this needs the loop's written relation
+connected to the cursor's query, not a resolver reached from the statement being analysed.
+
+`STG_ORDERS.GROSS_AMOUNT -> FCT_REVENUE_PART [filter/post-aggregation]` is the one remaining
+miss in stress 4. Two of its siblings score as true positives only because of the collision
+described under S4-09 — so closing this will move the grid less than it should, and that is
+S1-05's doing rather than this fix's.
+
 ## Fix order for what remains
 
 Ordered by what each one would teach, not by how annoying it is. Eleven are done; this is the
@@ -2426,6 +2545,13 @@ corrections, none moved the phase-0 measurement.
    the verdict's condition still stands, and this is precisely the decision that wants real
    code in front of it rather than more synthetic evidence. It is now blocking key
    *corrections* as well as measurements: see S2-06's trigger edge.
+
+   > **Its condition is now met, and the case is stronger than the entry says.** Stress 4 is
+   > the production-shaped package the verdict asked for: 334 labels, 28 units, **28.1% of
+   > the key unstatable across 27 of them**. And S4-09 found the collision *concealing a
+   > silent miss behind a 100% cell*, which is a different and worse charge than the one
+   > this queue was waiting on evidence for. Promoting it is a decision for Abhay, not a
+   > detail to be settled by whoever picks up the next finding.
 
 **`lineage.parsing.rewrite` is now on the table for S2-01.** That entry has proposed a
 pre-parse rewrite since it was written, and S1-04's `UPDATE` half built the module and the

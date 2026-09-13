@@ -2599,6 +2599,37 @@ edges:
     unit: S4_BATCH_WRITER
     line: 1115
   evidence: source_read
+# --- KEY ERROR, CORRECTED 2026-09-13 (finding S4-11) ---------------------------------
+#
+# The derived table at line 1115 carries a WHERE and a HAVING. The claim above labels the
+# HAVING and the one below was missing, so one clause of one statement was labelled and its
+# sibling was not - the third time in two days (S3-11, S4-06#4). Found when S4-09's fix made
+# the analyser emit it and the grid reported a correct edge as spurious.
+#
+# The target is DIM_CUSTOMER because the statement writes VARIABLES, so the convention's
+# second clause applies: the filter targets the relation read, which is the relation the
+# filtered column belongs to. Ten band-1 claims across three packages agree, and
+# `fn_stress_net` in stress 1 is the one that distinguishes this from "the relation the
+# VALUES come from" - it reads values from two relations through a join and claims exactly
+# one filter edge.
+- source:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  target:
+    kind: relation
+    name: DIM_CUSTOMER
+  flow: filter
+  phase: pre-aggregation
+  transform: identity
+  band: 1
+  origin:
+    unit: S4_BATCH_WRITER
+    line: 1115
+  evidence: source_read
+  note: >
+    WHERE d.is_active = 1 inside the BULK COLLECT's derived table. It decides which
+    dim_customer rows join, hence which fct_revenue rows aggregate, hence what reaches both
+    collections.
 - source:
     kind: variable
     name: L_AMOUNTS

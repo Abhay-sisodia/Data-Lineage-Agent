@@ -315,6 +315,108 @@ def resolve_projection(
     return None
 
 
+@dataclass(frozen=True)
+class QueryInfluence:
+    """What a query's predicates and grouping decide, resolved to base columns.
+
+    The non-value half of `resolve_projection`: everything about a query that governs its
+    result without being in it. Returned as facts rather than edges because the caller owns
+    the target — band 0 points them at the written relation, band 1 at a variable — and
+    getting that wrong is how a filter edge ends up claiming a variable is a table.
+    """
+
+    # (relation, column, phase) — a predicate column and when it acts.
+    filters: tuple[tuple[str, str, FilterPhase], ...]
+    # (projection name, relation, column) — a grouping or window column governing that
+    # output column's value (D-2, D-4).
+    influence: tuple[tuple[str, str, str], ...]
+
+
+def resolve_query_influence(
+    query: str,
+    dictionary: Dictionary,
+    config: AnalysisConfig | None = None,
+) -> QueryInfluence:
+    """Public: which columns decide this SELECT's rows and groups, at any depth?
+
+    **Stress finding S4-09, and the third time this exact delegation has been needed.**
+    S4-02 gave band 1 `resolve_projection` for a cursor record's field, S4-05 reused it for
+    a projection computed in a derived table, and this is the same handoff for the clauses
+    that decide WHICH rows a statement reads rather than what value comes out.
+
+    `defuse._analyse_select_into` had its own one-level version: a top-level `WHERE`, whose
+    target came from `_read_relation` — which returns `None` the moment the `FROM` is a
+    subquery. So `SELECT ... BULK COLLECT INTO c FROM (SELECT ... WHERE ... GROUP BY ...
+    HAVING ...) g` reported none of it. No `HAVING`, no `GROUP BY` influence, and not even
+    the inner `WHERE`: **every band-1 statement that reads into a variable was silent about
+    its own predicates**, while the identical query writing a table produced all of them.
+    That is the S2-04 shape once more — a construct each pass correctly decides is not
+    quite its own.
+
+    Reuses `_filter_edges`' traversal and both influence resolvers unchanged, rather than
+    growing a second copy in `defuse`. S2-08 is on the register for precisely a rule that
+    lived in two modules and drifted, and the one-level version this replaces is what that
+    drift looks like before anyone notices.
+    """
+    settings = config or AnalysisConfig()
+
+    text = query.strip()
+    if text.startswith("(") and text.endswith(")"):
+        text = text[1:-1]
+    try:
+        parsed: Any = sqlglot.parse_one(text, dialect=DIALECT)
+    except Exception:
+        return QueryInfluence((), ())
+    if not isinstance(parsed, exp.Select):
+        return QueryInfluence((), ())
+
+    parsed, _ = _inline_views(parsed, dictionary, settings.budgets.view_expansion_depth_cap)
+    try:
+        parsed = qualify(
+            parsed,
+            schema=_schema_for(dictionary),
+            dialect=DIALECT,
+            validate_qualify_columns=False,
+            infer_schema=True,
+        )
+    except Exception:
+        return QueryInfluence((), ())
+
+    scope = build_scope(parsed)
+    if scope is None:
+        return QueryInfluence((), ())
+
+    # Discarded rather than surfaced, for the reason `resolve_projection` gives: a boundary
+    # raised here would be attributed to this query rather than to the statement that read
+    # from it, and the caller declares what it could not resolve in its own terms.
+    discarded: list[Boundary] = []
+
+    filters: list[tuple[str, str, FilterPhase]] = []
+    for current in scope.traverse():
+        for clause, phase in (
+            ("where", FilterPhase.PRE_AGGREGATION),
+            ("having", FilterPhase.POST_AGGREGATION),
+        ):
+            predicate = current.expression.args.get(clause)
+            if predicate is None:
+                continue
+            for column in predicate_columns(predicate):
+                for table, name, _ in _trace(column, current, dictionary, discarded):
+                    filters.append((table, name, phase))
+
+    influence: list[tuple[str, str, str]] = []
+    for item in getattr(scope.expression, "selects", []) or []:
+        name = (item.alias_or_name or "").upper()
+        if not name:
+            continue
+        for table, column, _ in _grouping_influence(item, scope, dictionary, discarded):
+            influence.append((name, table, column))
+        for table, column, _ in _window_influence(item, scope, dictionary, discarded):
+            influence.append((name, table, column))
+
+    return QueryInfluence(tuple(dict.fromkeys(filters)), tuple(dict.fromkeys(influence)))
+
+
 def _row_source_subject(source: exp.Table) -> str:
     """A comparable subject for a row source that has no relation name.
 
