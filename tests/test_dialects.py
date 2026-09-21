@@ -17,10 +17,12 @@ import pytest
 from lineage.config import AnalysisConfig
 from lineage.dialects import (
     SUPPORTED,
+    DialectContractError,
     DialectMismatchError,
     UnsupportedDialectError,
     for_name,
     resolve_dialect,
+    validate,
 )
 from lineage.dialects.base import Dialect
 from lineage.dialects.oracle import ORACLE
@@ -94,6 +96,58 @@ def test_config_and_dictionary_must_agree() -> None:
 
     with pytest.raises(DialectMismatchError):
         resolve_dialect(AnalysisConfig(dialect="postgres"), _dictionary("oracle"))
+
+
+def test_the_registry_key_must_be_the_sqlglot_dialect_name() -> None:
+    """The first invariant, learned the hard way.
+
+    A1 stored the registry key on `Dictionary` and handed it straight to
+    `sqlglot.parse_one(dialect=...)`. For Oracle the key and the SQLGlot name coincide, so
+    nothing distinguished them - until a test registered a dialect under a different key and
+    every statement refused with *"Unknown dialect"*. One name, used everywhere.
+    """
+
+    class Misnamed:
+        @property
+        def name(self) -> str:
+            return "postgres"
+
+        def fold(self, identifier: str) -> str:
+            return identifier.lower()
+
+    with pytest.raises(DialectContractError, match="must equal"):
+        validate("pg", Misnamed())  # type: ignore[arg-type]
+
+
+def test_fold_must_agree_with_sqlglots_own_normalisation() -> None:
+    """The second invariant, and the more dangerous of the two.
+
+    `qualify` applies `normalize_identifiers`, which is keyed on the dialect name. A dialect
+    that folds one way while SQLGlot folds the other keys the dictionary in one casing and
+    the parse tree in the other: NOTHING binds, no error is raised, and every relation is
+    reported as a dangling reference. The failure is total rather than partial, which is what
+    makes it hard to spot - a smaller mistake would show up as a few missing edges.
+
+    Found by building exactly this: `name="oracle"` with `fold=lower`, which is not a dialect
+    that can exist. The analysis produced zero edges and the "nothing escaped folding"
+    assertion passed over the wreckage.
+    """
+
+    class Incoherent:
+        @property
+        def name(self) -> str:
+            return "oracle"  # SQLGlot normalises this UP
+
+        def fold(self, identifier: str) -> str:
+            return identifier.lower()  # ... and this folds DOWN
+
+    with pytest.raises(DialectContractError, match="SQLGlot normalises"):
+        validate("oracle", Incoherent())  # type: ignore[arg-type]
+
+
+def test_oracle_satisfies_its_own_contract() -> None:
+    """The shipped dialect passes the checks the registry applies to newcomers."""
+    validate(ORACLE.name, ORACLE)
 
 
 def test_a_dictionary_captured_before_the_field_existed_is_oracle() -> None:

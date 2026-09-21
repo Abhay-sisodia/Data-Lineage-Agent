@@ -28,6 +28,7 @@ from lineage.analysis.band0 import resolve_projection, resolve_query_influence
 from lineage.analysis.cfg import Cfg, CfgNode, NodeKind
 from lineage.analysis.dynamic import Resolution
 from lineage.analysis.predicates import predicate_columns
+from lineage.dialects import fold
 from lineage.analysis.transforms import (
     AGGREGATE_FUNCTIONS,
     CONDITIONAL_EXPRESSIONS,
@@ -100,6 +101,7 @@ class UnitScope:
     """Variables visible inside one program unit."""
 
     unit: str
+    dialect: str = "oracle"
     variables: dict[str, VariableDecl] = field(default_factory=dict)
     row_sources: dict[str, RowSource] = field(default_factory=dict)
     cursors: dict[str, str] = field(default_factory=dict)  # cursor name -> SELECT text
@@ -117,10 +119,10 @@ class UnitScope:
     )
 
     def lookup(self, name: str) -> VariableDecl | None:
-        return self.variables.get(name.strip().upper())
+        return self.variables.get(fold(name.strip(), self.dialect))
 
     def row_source(self, name: str) -> RowSource | None:
-        return self.row_sources.get(name.strip().upper())
+        return self.row_sources.get(fold(name.strip(), self.dialect))
 
 
 # --- declarations --------------------------------------------------------------------
@@ -142,7 +144,7 @@ def _is_inside_nested_unit(ctx: Any, root: Any) -> bool:
     return False
 
 
-def _declarations_of(ctx: Any, package: str | None) -> dict[str, VariableDecl]:
+def _declarations_of(ctx: Any, package: str | None, dialect: str) -> dict[str, VariableDecl]:
     """Variables declared directly in this unit — not in units nested inside it."""
     found: dict[str, VariableDecl] = {}
 
@@ -151,7 +153,7 @@ def _declarations_of(ctx: Any, package: str | None) -> dict[str, VariableDecl]:
         for node in iter_contexts(ctx, parameter_ctx):
             if _is_inside_nested_unit(node, ctx):
                 continue
-            name = str(node.getText()).upper()
+            name = fold(str(node.getText()), dialect)
             found[name] = VariableDecl(name, name, "parameter", node.start.line)
 
     declaration_ctx = getattr(PlSqlParser, "Variable_declarationContext", None)
@@ -162,7 +164,7 @@ def _declarations_of(ctx: Any, package: str | None) -> dict[str, VariableDecl]:
             identifier = node.identifier()
             if identifier is None:
                 continue
-            name = str(identifier.getText()).upper()
+            name = fold(str(identifier.getText()), dialect)
             scope = "package" if package else "local"
             qualified = f"{package}.{name}" if package else name
             default = getattr(node, "default_value_part", lambda: None)()
@@ -173,7 +175,7 @@ def _declarations_of(ctx: Any, package: str | None) -> dict[str, VariableDecl]:
     return found
 
 
-def collect_scopes(program: Program) -> dict[str, UnitScope]:
+def collect_scopes(program: Program, dialect: str = "oracle") -> dict[str, UnitScope]:
     """Variables visible in each program unit.
 
     Package-level state is visible to every procedure in the package body, which is what
@@ -192,8 +194,8 @@ def collect_scopes(program: Program) -> dict[str, UnitScope]:
                 name_node = name_node[0] if name_node else None
             if name_node is None:
                 continue
-            package = str(name_node.getText()).upper()
-            package_state[package] = _declarations_of(body, package)
+            package = fold(str(name_node.getText()), dialect)
+            package_state[package] = _declarations_of(body, package, dialect)
 
     unit_specs = [
         ("Create_procedure_bodyContext", "procedure_name"),
@@ -212,14 +214,14 @@ def collect_scopes(program: Program) -> dict[str, UnitScope]:
                 name_node = name_node[0] if name_node else None
             if name_node is None:
                 continue
-            unit = str(name_node.getText()).upper()
+            unit = fold(str(name_node.getText()), dialect)
 
-            scope = UnitScope(unit=unit)
+            scope = UnitScope(unit=unit, dialect=dialect)
             # Enclosing package state, if this unit lives in a package body.
             for package, state in package_state.items():
-                if _within_package(ctx, package):
+                if _within_package(ctx, package, dialect):
                     scope.variables.update(state)
-            scope.variables.update(_declarations_of(ctx, None))
+            scope.variables.update(_declarations_of(ctx, None, dialect))
             # CURSORS FIRST (stress finding S4-02). `_collect_row_sources` has to resolve
             # `FOR rec IN c` through the cursor `c` was declared with, so the cursor map
             # must already exist when it runs. These two lines were the other way round.
@@ -240,7 +242,7 @@ def _collect_row_sources(ctx: Any, scope: UnitScope) -> None:
         record = param.record_name() if hasattr(param, "record_name") else None
         select = param.select_statement() if hasattr(param, "select_statement") else None
         if record is not None and select is not None:
-            name = str(record.getText()).upper()
+            name = fold(str(record.getText()), scope.dialect)
             scope.row_sources[name] = RowSource(name, source_slice(select), param.start.line)
             continue
 
@@ -259,9 +261,9 @@ def _collect_row_sources(ctx: Any, scope: UnitScope) -> None:
         # deserve a name - which is exactly when it is also deep enough to matter.
         cursor = param.cursor_name() if hasattr(param, "cursor_name") else None
         if record is not None and cursor is not None:
-            query = scope.cursors.get(str(cursor.getText()).upper())
+            query = scope.cursors.get(fold(str(cursor.getText()), scope.dialect))
             if query is not None:
-                name = str(record.getText()).upper()
+                name = fold(str(record.getText()), scope.dialect)
                 scope.row_sources[name] = RowSource(name, query, param.start.line)
             continue
 
@@ -269,7 +271,7 @@ def _collect_row_sources(ctx: Any, scope: UnitScope) -> None:
         if index is not None:
             # A plain FOR index is an ordinary local: it can appear in predicates and
             # decide which rows a statement reads.
-            name = str(index.getText()).upper()
+            name = fold(str(index.getText()), scope.dialect)
             scope.variables.setdefault(name, VariableDecl(name, name, "local", param.start.line))
 
 
@@ -283,10 +285,10 @@ def _collect_cursors(ctx: Any, scope: UnitScope) -> None:
         select = node.select_statement()
         if identifier is None or select is None:
             continue
-        scope.cursors[str(identifier.getText()).upper()] = source_slice(select)
+        scope.cursors[fold(str(identifier.getText()), scope.dialect)] = source_slice(select)
 
 
-def _within_package(ctx: Any, package: str) -> bool:
+def _within_package(ctx: Any, package: str, dialect: str) -> bool:
     package_ctx = getattr(PlSqlParser, "Create_package_bodyContext", None)
     if package_ctx is None:
         return False
@@ -296,7 +298,7 @@ def _within_package(ctx: Any, package: str) -> bool:
             name_node = parent.package_name()
             if isinstance(name_node, list):
                 name_node = name_node[0] if name_node else None
-            return name_node is not None and str(name_node.getText()).upper() == package
+            return name_node is not None and fold(str(name_node.getText()), dialect) == package
         parent = parent.parentCtx
     return False
 
@@ -394,8 +396,8 @@ def _subscripted(expression: Any, scope: UnitScope) -> Subscripted:
             continue  # a genuine function call: its arguments ARE value sources
         for argument in call.expressions:
             index_ids.update(id(column) for column in argument.find_all(exp.Column))
-        if name.upper() not in seen:
-            seen.add(name.upper())
+        if fold(name, scope.dialect) not in seen:
+            seen.add(fold(name, scope.dialect))
             collections.append(declaration)
     return Subscripted(frozenset(index_ids), tuple(collections))
 
@@ -498,8 +500,8 @@ def _subscript_only_names(expression_text: str, scope: UnitScope, dialect: str) 
         return set()
 
     indexes = _subscripted(parsed, scope).index_ids
-    as_subscript = {c.name.upper() for c in parsed.find_all(exp.Column) if id(c) in indexes}
-    elsewhere = {c.name.upper() for c in parsed.find_all(exp.Column) if id(c) not in indexes}
+    as_subscript = {fold(c.name, dialect) for c in parsed.find_all(exp.Column) if id(c) in indexes}
+    elsewhere = {fold(c.name, dialect) for c in parsed.find_all(exp.Column) if id(c) not in indexes}
     return as_subscript - elsewhere
 
 
@@ -531,10 +533,10 @@ def _relations_in(statement: exp.Expression, dictionary: Dictionary) -> dict[str
         if not table.name or id(table) in into_tables:
             continue
         resolved = dictionary.resolve(table.name)
-        real = resolved.name or table.name.upper()
-        relations[table.name.upper()] = real
+        real = resolved.name or fold(table.name, dictionary.dialect)
+        relations[fold(table.name, dictionary.dialect)] = real
         if table.alias:
-            relations[table.alias.upper()] = real
+            relations[fold(table.alias, dictionary.dialect)] = real
     return relations
 
 
@@ -547,7 +549,7 @@ def _classify(
     and binding it to whichever table is in scope is the silent failure this module
     exists to prevent.
     """
-    name = column.name.upper()
+    name = fold(column.name, dictionary.dialect)
 
     # `rec.email` is a record field, not a column. Resolve it through the query the row
     # came from, or the value appears to be its own source.
@@ -564,7 +566,7 @@ def _classify(
         if declaration is not None:
             return ("variable", declaration.qualified)
 
-    qualifier = column.table.upper() if column.table else None
+    qualifier = fold(column.table, dictionary.dialect) if column.table else None
     candidates = (
         [relations[qualifier]]
         if qualifier and qualifier in relations
@@ -758,7 +760,7 @@ def _row_field_edges(
     edges: list[IREdge] = []
     seen: set[str] = set()
     for column in _value_columns(parsed):
-        qualifier = (column.table or "").upper()
+        qualifier = fold(column.table or "", dictionary.dialect)
         if not qualifier:
             continue
         row = scope.row_source(qualifier)
@@ -813,7 +815,7 @@ def _analyse_assignment(
     target_ctx = inner.general_element()
     if target_ctx is None:
         return result
-    target_name = str(target_ctx.getText()).upper()
+    target_name = fold(str(target_ctx.getText()), dictionary.dialect)
     if target_name in carriers:
         return result
     target_decl = scope.lookup(target_name)
@@ -834,7 +836,7 @@ def _analyse_assignment(
         )
     )
 
-    for name in _identifiers_in(expression_text):
+    for name in _identifiers_in(expression_text, dictionary.dialect):
         if name in carriers:
             # `v_rows := DBMS_SQL.EXECUTE(v_cursor)` - a cursor handle is API plumbing,
             # not a value. The row count genuinely derives from the statement's effect,
@@ -892,12 +894,12 @@ def _analyse_fetch(
     cursor = inner.cursor_name()
     if cursor is None:
         return result
-    query = scope.cursors.get(str(cursor.getText()).upper())
+    query = scope.cursors.get(fold(str(cursor.getText()), dictionary.dialect))
     if query is None:
         result.unresolved.append(f"line {node.line}: FETCH from an undeclared cursor")
         return result
 
-    targets = [str(v.getText()).upper() for v in inner.variable_or_collection()]
+    targets = [fold(str(v.getText()), dictionary.dialect) for v in inner.variable_or_collection()]
     projection, relations = _projection_of(query, dictionary)
     if projection is None:
         result.unresolved.append(f"line {node.line}: cursor query did not parse")
@@ -917,18 +919,21 @@ def _analyse_fetch(
             continue
         own = _transform_of(item)
         for column in _value_columns(item):
-            table = column.table.upper() if column.table else None
+            table = fold(column.table, dictionary.dialect) if column.table else None
             relation = relations.get(table) if table else next(iter(relations.values()), None)
             if relation is None:
                 continue
             try:
-                if column.name.upper() not in dictionary.columns_of(relation):
+                if fold(column.name, dictionary.dialect) not in dictionary.columns_of(relation):
                     continue
             except UnknownObjectError:
                 continue
             result.edges.append(
                 _edge(
-                    Node(kind=IRNodeKind.COLUMN, name=f"{relation}.{column.name.upper()}"),
+                    Node(
+                        kind=IRNodeKind.COLUMN,
+                        name=f"{relation}.{fold(column.name, dictionary.dialect)}",
+                    ),
                     declaration.as_node(),
                     Flow.VALUE,
                     own,
@@ -988,9 +993,9 @@ NOT_IDENTIFIERS = {
 }
 
 
-def _identifiers_in(text: str) -> list[str]:
+def _identifiers_in(text: str, dialect: str) -> list[str]:
     return [
-        match.group(0).upper()
+        fold(match.group(0), dialect)
         for match in IDENTIFIER.finditer(text)
         if match.group(0).upper() not in NOT_IDENTIFIERS
     ]
@@ -1008,7 +1013,9 @@ def _analyse_select_into(
     result = DefUseResult()
 
     into = statement.args["into"]
-    targets = [t.name.upper() for t in into.find_all(exp.Identifier)] or [into.this.name.upper()]
+    targets = [fold(t.name, dictionary.dialect) for t in into.find_all(exp.Identifier)] or [
+        fold(into.this.name, dictionary.dialect)
+    ]
     projections = statement.selects
 
     if len(targets) != len(projections):
@@ -1032,7 +1039,7 @@ def _analyse_select_into(
         if declaration is None:
             result.unresolved.append(f"line {origin.line}: INTO undeclared {target_name}")
             continue
-        receivers[(projection.alias_or_name or "").upper()] = declaration
+        receivers[fold(projection.alias_or_name or "", dictionary.dialect)] = declaration
         own = _transform_of(projection)
         unresolved_here: list[Any] = []
         for column in _value_columns(projection):
@@ -1101,7 +1108,7 @@ def _analyse_select_into(
         scope,
         relations,
         dictionary,
-        _read_relation(statement, relations),
+        _read_relation(statement, relations, dictionary.dialect),
         origin,
         guard,
         result,
@@ -1174,14 +1181,14 @@ def _analyse_select_into(
     return result
 
 
-def _read_relation(statement: Any, relations: dict[str, str]) -> str | None:
+def _read_relation(statement: Any, relations: dict[str, str], dialect: str) -> str | None:
     # sqlglot stores the FROM clause under "from_", not "from".
     source = statement.args.get("from_") or statement.args.get("from")
     if source is None:
         return next(iter(relations.values()), None)
     table = source.this if isinstance(source, exp.From) else source
     if isinstance(table, exp.Table) and table.name:
-        return relations.get(table.name.upper(), table.name.upper())
+        return relations.get(fold(table.name, dialect), fold(table.name, dialect))
     return next(iter(relations.values()), None)
 
 
@@ -1204,7 +1211,10 @@ def _analyse_update(
     target = statement.this
     target_name = None
     if isinstance(target, exp.Table) and target.name:
-        target_name = relations.get(target.name.upper(), target.name.upper())
+        target_name = relations.get(
+            fold(target.name, dictionary.dialect),
+            fold(target.name, dictionary.dialect),
+        )
     if target_name is None:
         result.unresolved.append(f"line {origin.line}: UPDATE target not resolved")
         return result
@@ -1212,7 +1222,7 @@ def _analyse_update(
     for setter in statement.args.get("expressions") or []:
         if not isinstance(setter, exp.EQ):
             continue
-        column_name = setter.this.name.upper()
+        column_name = fold(setter.this.name, dictionary.dialect)
         own = _transform_of_element(setter.expression, scope)
         target_node = Node(kind=IRNodeKind.COLUMN, name=f"{target_name}.{column_name}")
 
@@ -1306,7 +1316,10 @@ def _analyse_insert_filter(
         target = target.this
     if not isinstance(target, exp.Table) or not target.name:
         return result
-    target_name = relations.get(target.name.upper(), target.name.upper())
+    target_name = relations.get(
+        fold(target.name, dictionary.dialect),
+        fold(target.name, dictionary.dialect),
+    )
 
     values = statement.expression
     if isinstance(values, exp.Values):
@@ -1396,7 +1409,7 @@ def _analyse_insert_values(
         )
         return result
 
-    columns = [c.name.upper() for c in schema.expressions]
+    columns = [fold(c.name, dictionary.dialect) for c in schema.expressions]
 
     rows = list(values.expressions)
     if not rows:
@@ -1541,10 +1554,10 @@ def definitions_and_uses(
         if inner is not None:
             target = inner.general_element()
             if target is not None and scope.lookup(str(target.getText())) is not None:
-                defined.add(str(target.getText()).upper())
+                defined.add(fold(str(target.getText()), dialect))
             expression = inner.expression()
             if expression is not None:
-                for name in _identifiers_in(source_slice(expression)):
+                for name in _identifiers_in(source_slice(expression), dialect):
                     if scope.lookup(name) is not None:
                         used.add(name)
         return defined, used
@@ -1553,7 +1566,7 @@ def definitions_and_uses(
         inner = next(iter(iter_contexts(node.ctx, PlSqlParser.Fetch_statementContext)), None)
         if inner is not None:
             for target in inner.variable_or_collection():
-                name = str(target.getText()).upper()
+                name = fold(str(target.getText()), dialect)
                 if scope.lookup(name) is not None:
                     defined.add(name)
         return defined, used
@@ -1569,7 +1582,7 @@ def definitions_and_uses(
     into = statement.args.get("into") if isinstance(statement, exp.Select) else None
     into_names: set[str] = set()
     if into is not None:
-        into_names = {i.name.upper() for i in into.find_all(exp.Identifier)}
+        into_names = {fold(i.name, dialect) for i in into.find_all(exp.Identifier)}
         for name in into_names:
             if scope.lookup(name) is not None:
                 defined.add(name)
@@ -1577,7 +1590,7 @@ def definitions_and_uses(
     for column in statement.find_all(exp.Column):
         if column.table:
             continue
-        name = column.name.upper()
+        name = fold(column.name, dialect)
         if name in into_names:
             continue
         if scope.lookup(name) is not None:

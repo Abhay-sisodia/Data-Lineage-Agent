@@ -30,6 +30,8 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from lineage.dialects import fold
+
 
 class UnknownObjectError(LookupError):
     """Raised when a name cannot be resolved and the caller demanded resolution.
@@ -219,8 +221,11 @@ class Dictionary(BaseModel):
         in old estates and must not hang the analyser.
         """
         original = name
-        text = name.strip().upper().replace('"', "")
-        context = (schema or self.default_schema).upper()
+        # The central name -> relation lookup, so this is the one fold that everything else
+        # depends on: every key in this snapshot was stored in the source database's own
+        # casing, and a name from source text has to be folded the same way to match.
+        text = fold(name.strip().replace('"', ""), self.dialect)
+        context = fold(schema or self.default_schema, self.dialect)
 
         if "." in text:
             owner, _, simple = text.partition(".")

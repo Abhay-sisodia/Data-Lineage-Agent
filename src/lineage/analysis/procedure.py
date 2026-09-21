@@ -96,7 +96,7 @@ def analyse_source(
         if refused not in result.boundaries:
             result.boundaries.append(refused)
 
-    scopes = collect_scopes(program)
+    scopes = collect_scopes(program, dictionary.dialect)
     graphs = build_all(program)
 
     # Resolved once for the whole source, not per unit: a carrier variable is a carrier

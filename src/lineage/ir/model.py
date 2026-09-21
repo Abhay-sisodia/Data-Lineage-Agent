@@ -206,9 +206,24 @@ class Node(BaseModel):
 
     @model_validator(mode="after")
     def _normalise(self) -> Self:
-        # Oracle identifiers are case-insensitive; comparing raw case would produce
-        # mismatches that say nothing about the analysis.
-        object.__setattr__(self, "name", self.name.strip().upper())
+        """Whitespace only. **Case is decided by the dialect, not here.**
+
+        This used to upper-case the name, on the reasoning that *"Oracle identifiers are
+        case-insensitive"* - true, and the right call while Oracle was the only dialect.
+
+        It is the wrong call for a second one, and it fails in the most expensive way: this
+        validator runs on EVERY node, so it silently overrode all seventy of the folding
+        conversions in A2 at once. The analyser folded each name correctly through
+        `dialects.fold` and the model upper-cased it again on the way into the IR - so a
+        PostgreSQL run would have produced `STG_ORDERS.CUST_ID` for a catalogue that
+        contains `stg_orders.cust_id`, with nothing in the output to say why nothing matched.
+
+        Found by `tests/test_identifier_folding.py`, which is the only reason A2 is not
+        seventy careful edits that did nothing. Every path that builds a node name now folds
+        it with the dialect in force; that test is what keeps this true, because on Oracle
+        `fold` IS `upper` and the difference is otherwise invisible.
+        """
+        object.__setattr__(self, "name", self.name.strip())
         return self
 
     def __str__(self) -> str:
@@ -283,8 +298,18 @@ class Boundary(BaseModel):
         return (self.kind.value, self.subject.upper())
 
     def as_node(self) -> Node:
-        """The boundary as a graph endpoint, so lineage can actually terminate on it."""
-        return Node(kind=NodeKind.BOUNDARY, name=f"{self.kind.value}:{self.subject}")
+        """The boundary as a graph endpoint, so lineage can actually terminate on it.
+
+        Upper-cased HERE rather than in `Node`, which now only strips. A boundary node's
+        name is `KIND:SUBJECT` and neither half is a database identifier: the kind is an
+        enum value and the subject is a label whose only requirement is that two statements
+        of the same boundary compare equal (`identity`). Both are dialect-independent and
+        stay upper in every dialect, deliberately - unlike a column name, which is folded by
+        whoever builds it.
+        """
+        return Node(
+            kind=NodeKind.BOUNDARY, name=f"{self.kind.value}:{self.subject}".upper()
+        )
 
     def prefixed(self, prefix: str, *, subject_prefix: str = "") -> Boundary:
         """The same fact with context prepended to its prose, and optionally its subject.

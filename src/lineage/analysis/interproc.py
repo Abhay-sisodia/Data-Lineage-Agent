@@ -132,7 +132,7 @@ class SummaryBuilder:
         self._dictionary = dictionary
         self._depth_cap = depth_cap
         self._units = _unit_contexts(program)
-        self._scopes: dict[str, UnitScope] = collect_scopes(program)
+        self._scopes: dict[str, UnitScope] = collect_scopes(program, dictionary.dialect)
         self._graphs = build_all(program)
         self._cache: dict[str, Summary] = {}
 

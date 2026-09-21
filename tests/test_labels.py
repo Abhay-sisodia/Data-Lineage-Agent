@@ -40,10 +40,29 @@ def _edge(**overrides: Any) -> LabelledEdge:
     return LabelledEdge.model_validate(payload)
 
 
-def test_identifiers_are_case_normalised() -> None:
-    """Oracle identifiers are case-insensitive; comparing raw case would produce
-    mismatches that say nothing about the analyser."""
-    assert Node(kind=NodeKind.COLUMN, name="ref_policy.window_days").name == (
+def test_a_node_normalises_whitespace_and_leaves_case_to_the_dialect() -> None:
+    """**This assertion was reversed on 2026-09-16, deliberately, and here is why.**
+
+    It used to read `Node(name="ref_policy.window_days").name == "REF_POLICY.WINDOW_DAYS"`,
+    on the reasoning that Oracle identifiers are case-insensitive so comparing raw case
+    would produce mismatches that say nothing about the analyser. That was correct while
+    Oracle was the only dialect.
+
+    It is wrong for a second one, and it failed in the most expensive way available: the
+    validator runs on EVERY node, so it silently undid all seventy identifier-folding
+    conversions in one line. Names were folded correctly by the analyser and upper-cased
+    again on the way into the IR, which for PostgreSQL would mean `STG_ORDERS.CUST_ID`
+    against a catalogue holding `stg_orders.cust_id` - nothing binding, and nothing in the
+    output saying why.
+
+    Case is now decided by `dialects.fold` at every site that builds a name, and `Node`
+    normalises whitespace only. `tests/test_identifier_folding.py` is what keeps that true,
+    because on Oracle `fold` IS `upper` and the difference is otherwise invisible.
+    """
+    assert Node(kind=NodeKind.COLUMN, name="  ref_policy.window_days  ").name == (
+        "ref_policy.window_days"
+    )
+    assert Node(kind=NodeKind.COLUMN, name="REF_POLICY.WINDOW_DAYS").name == (
         "REF_POLICY.WINDOW_DAYS"
     )
 

@@ -55,6 +55,7 @@ from lineage.analysis.refusal import (
     violations,
 )
 from lineage.config import AnalysisConfig
+from lineage.dialects import fold
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
 from lineage.ir.model import Boundary, BoundaryKind, FilterPhase
@@ -410,7 +411,7 @@ def resolve_query_influence(
 
     influence: list[tuple[str, str, str]] = []
     for item in getattr(scope.expression, "selects", []) or []:
-        name = (item.alias_or_name or "").upper()
+        name = fold(item.alias_or_name or "", dictionary.dialect)
         if not name:
             continue
         for table, column, _ in _grouping_influence(item, scope, dictionary, discarded):
@@ -512,8 +513,8 @@ def _trace(
         source = next(iter(scope.sources.values()))
 
     if isinstance(source, exp.Table):
-        table = source.name.upper()
-        name = column.name.upper()
+        table = fold(source.name, dictionary.dialect)
+        name = fold(column.name, dictionary.dialect)
 
         # A ROW SOURCE WITH NO NAME. `FROM TABLE(f(1))` parses as a Table whose `this` is
         # the function call, so `name` is the empty string - there is no relation to look
@@ -556,7 +557,7 @@ def _trace(
         #
         # So resolve the QUALIFIED name. An unqualified name is untouched and still binds
         # through the execution schema, which is the other half of s2 and is correct.
-        qualifier = (source.text("db") or "").upper()
+        qualifier = fold(source.text("db") or "", dictionary.dialect)
         lookup = f"{qualifier}.{table}" if qualifier else table
         try:
             known = dictionary.columns_of(lookup)
@@ -903,11 +904,11 @@ def _target_of(insert: exp.Insert, dictionary: Dictionary) -> tuple[str, list[st
     target = insert.this
     columns: list[str] | None = None
     if isinstance(target, exp.Schema):
-        columns = [c.name.upper() for c in target.expressions]
+        columns = [fold(c.name, dictionary.dialect) for c in target.expressions]
         target = target.this
     name = target.name
     resolved = dictionary.resolve(name)
-    return (resolved.name or name.upper()), columns
+    return (resolved.name or fold(name, dictionary.dialect)), columns
 
 
 def _set_operation_arms(node: Any) -> list[tuple[Any, bool]]:
@@ -1374,11 +1375,11 @@ def _call_site_edges(
                     known = dictionary.columns_of(relation)
                 except UnknownObjectError:
                     continue
-                if column.name.upper() in known:
+                if fold(column.name, dictionary.dialect) in known:
                     edges.append(
                         _edge(
                             relation,
-                            column.name.upper(),
+                            fold(column.name, dictionary.dialect),
                             relation,
                             "",
                             Transform.IDENTITY,
@@ -1646,7 +1647,7 @@ def _analyse_multitable_insert(
                 )
 
             for projection, relation, base_column in influencing.influence:
-                if projection != (_reference_name_of(item) or "").upper():
+                if projection != fold(_reference_name_of(item) or "", dictionary.dialect):
                     continue
                 edges.append(
                     _edge(
@@ -1733,7 +1734,7 @@ def _analyse_delete(
         )
 
     resolved = dictionary.resolve(name)
-    target_name = resolved.name or name.upper()
+    target_name = resolved.name or fold(name, dictionary.dialect)
 
     where = statement.args.get("where")
     if where is None:
@@ -1755,7 +1756,7 @@ def _analyse_delete(
         edges.append(
             _edge(
                 source_table,
-                column.name.upper(),
+                fold(column.name, dictionary.dialect),
                 target_name,
                 "",
                 Transform.IDENTITY,
@@ -1784,10 +1785,10 @@ def _relation_for(
     tables: dict[str, str] = {}
     for table in statement.find_all(exp.Table):
         resolved = dictionary.resolve(table.name)
-        real = resolved.name or table.name.upper()
-        tables[(table.alias or table.name).upper()] = real
+        real = resolved.name or fold(table.name, dictionary.dialect)
+        tables[fold(table.alias or table.name, dictionary.dialect)] = real
 
-    qualifier = (column.table or "").upper()
+    qualifier = fold(column.table or "", dictionary.dialect)
     if qualifier:
         if qualifier in tables:
             return tables[qualifier]
@@ -1800,7 +1801,7 @@ def _relation_for(
         )
         return None
 
-    name = column.name.upper()
+    name = fold(column.name, dictionary.dialect)
     owners = []
     for real in dict.fromkeys(tables.values()):
         try:
@@ -1836,7 +1837,7 @@ def _analyse_merge(
     a column in which case, which is the whole difficulty of the construct.
     """
     target = statement.this
-    target_name = dictionary.resolve(target.name).name or target.name.upper()
+    target_name = dictionary.resolve(target.name).name or fold(target.name, dictionary.dialect)
 
     using = statement.args.get("using")
     if using is None:
@@ -1857,7 +1858,7 @@ def _analyse_merge(
     # side and came out as `unresolved_identifier`. That accumulator pattern is how a MERGE
     # adds to a running total, and the self-edge it produces is a real one - `trg_recent_audit`
     # has the same shape and `b2_05` has labelled it since it was written.
-    target_alias = (target.alias or target.name or "").upper()
+    target_alias = fold(target.alias or target.name or "", dictionary.dialect)
 
     def _trace_in_merge(column: exp.Column) -> list[tuple[str, str, Transform]]:
         """Trace against the USING source, or against the MERGE target itself.
@@ -1866,9 +1867,9 @@ def _analyse_merge(
         whatever it is called, and preferring the target would silently redirect a real
         source reference at the table being written.
         """
-        qualifier = (column.table or "").upper()
+        qualifier = fold(column.table or "", dictionary.dialect)
         if qualifier and qualifier not in scope.sources and qualifier == target_alias:
-            name = column.name.upper()
+            name = fold(column.name, dictionary.dialect)
             try:
                 known = dictionary.columns_of(target_name)
             except UnknownObjectError:
@@ -1959,7 +1960,7 @@ def _analyse_merge(
             for setter in action.args.get("expressions") or []:
                 if not isinstance(setter, exp.EQ):
                     continue
-                target_column = setter.this.name.upper()
+                target_column = fold(setter.this.name, dictionary.dialect)
                 own = _transform_of(setter.expression)
                 edges.extend(_influence_edges(setter.expression, target_column))
                 for column in setter.expression.find_all(exp.Column):
@@ -1978,7 +1979,10 @@ def _analyse_merge(
         elif isinstance(action, exp.Insert):
             # In a MERGE the insert arm carries a Tuple of columns and a Tuple of values,
             # not the Schema/Values pair a standalone INSERT uses.
-            target_columns = [c.name.upper() for c in getattr(action.this, "expressions", []) or []]
+            target_columns = [
+                fold(c.name, dictionary.dialect)
+                for c in getattr(action.this, "expressions", []) or []
+            ]
             values = action.expression
             if isinstance(values, exp.Values):
                 items = list(values.expressions[0].expressions)

@@ -31,6 +31,7 @@ from __future__ import annotations
 import sqlglot
 from sqlglot import exp
 
+from lineage.dialects import fold
 from lineage.ir.model import IREdge, Node, NodeKind
 from lineage.resolution.dictionary import Dictionary
 
@@ -79,7 +80,7 @@ def base_tables_of(relation: str, dictionary: Dictionary) -> list[str]:
         return []
     seen: list[str] = []
     for table in select.find_all(exp.Table):
-        name = table.name.upper()
+        name = fold(table.name, dictionary.dialect)
         if name and name not in seen:
             seen.append(name)
     return seen
@@ -97,7 +98,7 @@ def base_column(relation: str, column: str, dictionary: Dictionary) -> str | Non
         return None
 
     sources = {
-        (alias or table.name).upper(): table.name.upper()
+        fold(alias or table.name, dictionary.dialect): fold(table.name, dictionary.dialect)
         for table in select.find_all(exp.Table)
         for alias in [table.alias]
     }
@@ -106,11 +107,11 @@ def base_column(relation: str, column: str, dictionary: Dictionary) -> str | Non
         if (projection.alias_or_name or "").upper() != column.upper():
             continue
         for reference in projection.find_all(exp.Column):
-            qualifier = (reference.table or "").upper()
+            qualifier = fold(reference.table or "", dictionary.dialect)
             base = sources.get(qualifier) or next(iter(sources.values()), None)
             if base is None:
                 continue
-            return f"{base}.{reference.name.upper()}"
+            return f"{base}.{fold(reference.name, dictionary.dialect)}"
     return None
 
 
@@ -142,7 +143,7 @@ def resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IRE
                 )
                 continue
             update[side] = Node(kind=NodeKind.COLUMN, name=base)
-            resolved_to[relation.upper()] = base.rpartition(".")[0]
+            resolved_to[fold(relation, dictionary.dialect)] = base.rpartition(".")[0]
 
         # The relation end follows the column end. Doing this the other way round - or not
         # at all - leaves an edge asserting that a column of `dim_customer` filters
@@ -151,7 +152,7 @@ def resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IRE
             node = getattr(edge, side)
             if node.kind is not NodeKind.RELATION or not is_view(node.name, dictionary):
                 continue
-            followed = resolved_to.get(node.name.upper())
+            followed = resolved_to.get(fold(node.name, dictionary.dialect))
             if followed is None:
                 bases = base_tables_of(node.name, dictionary)
                 if len(bases) != 1:

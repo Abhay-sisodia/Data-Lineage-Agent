@@ -21,10 +21,14 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle at runtime, type-only here
 __all__ = [
     "SUPPORTED",
     "Dialect",
+    "DialectContractError",
     "DialectMismatchError",
     "UnsupportedDialectError",
+    "fold",
     "for_name",
+    "register",
     "resolve_dialect",
+    "validate",
 ]
 
 
@@ -37,6 +41,56 @@ SUPPORTED: dict[str, Dialect] = {
 }
 
 
+class DialectContractError(ValueError):
+    """A registered dialect breaks one of the two invariants `validate` checks."""
+
+
+def validate(key: str, dialect: Dialect) -> None:
+    """The two things a dialect cannot get wrong without failing silently.
+
+    **1. The registry key IS the SQLGlot dialect name.** A1 stored the key on `Dictionary`
+    and handed it straight to `sqlglot.parse_one(..., dialect=...)`. For Oracle the two
+    coincide, so nothing distinguished them and the conflation went unnoticed until a test
+    registered a dialect under a different key and every statement refused with *"Unknown
+    dialect"*. One name, used everywhere, is simpler than two names that are equal by
+    accident.
+
+    **2. `fold` must agree with SQLGlot's own normalisation for that name.** These are not
+    independent settings. `qualify` applies `normalize_identifiers`, which is keyed on the
+    dialect name, so a dialect that folds one way while SQLGlot folds the other produces a
+    dictionary keyed in one casing and a parse tree in the other. NOTHING BINDS, and the
+    failure is total rather than partial: zero edges, no error, every relation reported as a
+    dangling reference. Found exactly that way - by an instrument built with `name="oracle"`
+    and `fold=lower`, which is not a dialect that can exist.
+
+    Checked at registration rather than per call: it is a property of the implementation,
+    and a wrong pairing should be impossible to install rather than merely detectable.
+    """
+    if key != dialect.name:
+        raise DialectContractError(
+            f"registry key {key!r} must equal the dialect's SQLGlot name {dialect.name!r} - "
+            f"the key is what reaches sqlglot"
+        )
+
+    from sqlglot import exp
+    from sqlglot.optimizer.normalize_identifiers import normalize_identifiers
+
+    for sample in ("Cust_Id", "ORDER_DATE", "net_amount"):
+        normalised = normalize_identifiers(exp.to_identifier(sample), dialect=key).name
+        if dialect.fold(sample) != normalised:
+            raise DialectContractError(
+                f"{key}: fold({sample!r}) is {dialect.fold(sample)!r} but SQLGlot normalises "
+                f"it to {normalised!r} - the dictionary and the parse tree would disagree "
+                f"about every name"
+            )
+
+
+def register(dialect: Dialect) -> None:
+    """Install a dialect, refusing one that breaks the contract."""
+    validate(dialect.name, dialect)
+    SUPPORTED[dialect.name] = dialect
+
+
 def for_name(name: str) -> Dialect:
     """The dialect implementation for a name from config or from a captured dictionary."""
     key = (name or "").strip().lower()
@@ -45,6 +99,35 @@ def for_name(name: str) -> Dialect:
         known = ", ".join(sorted(SUPPORTED)) or "none"
         raise UnsupportedDialectError(f"no implementation for dialect {name!r} (have: {known})")
     return dialect
+
+
+def fold(identifier: str, dialect: str) -> str:
+    """One unquoted identifier, as the named dialect's catalogue stores it.
+
+    The call-site form of `Dialect.fold`, taking the dialect's NAME because that is what
+    travels on a `Dictionary` and through the resolvers. A registry lookup per identifier is
+    a dict get and a method call; the alternative is threading a resolved object through
+    forty functions to save it.
+
+    **WHY THIS REPLACES `.upper()` RATHER THAN SITTING BESIDE IT.** SQLGlot's
+    `normalize_identifiers` — which `qualify` applies — already folds per dialect: a column
+    read off a qualified Oracle tree is `CUST_ID` and off a PostgreSQL one is `cust_id`. So
+    the 147 `.upper()` calls in this codebase are, at the post-qualify sites, a NO-OP on
+    Oracle and would silently re-fold PostgreSQL names upward into something the catalogue
+    does not contain.
+
+    `fold` is used at the un-normalised sites too — ANTLR `getText()`, an unqualified
+    `parse_one`, a regex scan over source text — because those really do arrive as written,
+    and because `qualify` has fallback paths where it raised and the tree was never
+    normalised at all. Folding is idempotent, so one rule covers both cases and no call site
+    has to know which it is in.
+
+    **Only identifiers.** A keyword, a flow name, a transform, a refusal code or a guard
+    string is not a database identifier and must keep whatever normalisation it already has;
+    routing those through a dialect would make the dialect responsible for things that do
+    not vary by dialect.
+    """
+    return for_name(dialect).fold(identifier)
 
 
 class DialectMismatchError(ValueError):

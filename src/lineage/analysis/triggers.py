@@ -41,6 +41,7 @@ from lineage.analysis.defuse import (
     analyse_statement,
     collect_scopes,
 )
+from lineage.dialects import fold
 from lineage.ir.model import (
     Flow,
     IREdge,
@@ -130,7 +131,10 @@ def _assignment_edges(
 
     edges: list[IREdge] = []
     for reference in parsed.find_all(exp.Column):
-        name = reference.name.upper()
+        name = fold(reference.name, dialect)
+        # NOT folded: compared against NEW_ALIAS, a synthetic internal constant. The
+        # :NEW/:OLD rewrite is Oracle-specific and PostgreSQL's trigger model needs its
+        # own treatment - see the A2 residue note in `lineage.dialects.base`.
         qualifier = (reference.table or "").upper()
         # A bare or :NEW-qualified name inside a trigger body is a column of the
         # triggering row either way.
@@ -176,7 +180,7 @@ def _insert_values_edges(
     target_table = schema.this
     if not isinstance(target_table, exp.Table):
         return []
-    columns = [c.name.upper() for c in schema.expressions]
+    columns = [fold(c.name, dialect) for c in schema.expressions]
 
     values = parsed.expression
     if not isinstance(values, exp.Values) or not values.expressions:
@@ -194,10 +198,13 @@ def _insert_values_edges(
                 continue
             edges.append(
                 IREdge(
-                    source=Node(kind=IRNodeKind.COLUMN, name=f"{table}.{reference.name.upper()}"),
+                    source=Node(
+                        kind=IRNodeKind.COLUMN,
+                        name=f"{table}.{fold(reference.name, dialect)}",
+                    ),
                     target=Node(
                         kind=IRNodeKind.COLUMN,
-                        name=f"{target_table.name.upper()}.{column}",
+                        name=f"{fold(target_table.name, dialect)}.{column}",
                     ),
                     flow=Flow.VALUE,
                     transform=(
@@ -237,7 +244,7 @@ def analyse_trigger(trigger: TriggerInfo, dictionary: Dictionary) -> TriggerAnal
         )
         return analysis
 
-    scopes = collect_scopes(program)
+    scopes = collect_scopes(program, dictionary.dialect)
     graphs = build_all(program)
 
     for unit, cfg in graphs.items():
