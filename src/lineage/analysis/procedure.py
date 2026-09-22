@@ -39,8 +39,7 @@ from lineage.config import AnalysisConfig
 from lineage.dialects import resolve_dialect
 from lineage.evidence.witness import ExecutionWitness
 from lineage.ir.model import Boundary, BoundaryKind, IREdge, Node, NodeKind
-from lineage.parsing.generated.PlSqlParser import PlSqlParser
-from lineage.parsing.plsql import Program, iter_contexts, parse_program, source_slice
+from lineage.parsing.plsql import Program, parse_program, source_slice
 from lineage.resolution.dictionary import Dictionary
 from lineage.resolution.views import resolve_views
 
@@ -328,12 +327,8 @@ def _suppressed_errors(program: Program) -> list[Boundary]:
     Detected structurally rather than by matching source text, because `WHEN OTHERS THEN
     NULL;` and a handler whose body is a bare NULL across three lines are the same fact.
     """
-    handler_ctx = getattr(PlSqlParser, "Exception_handlerContext", None)
-    if handler_ctx is None:  # pragma: no cover - grammar always has it
-        return []
-
     found: list[Boundary] = []
-    for ctx in iter_contexts(program.tree, handler_ctx):
+    for ctx in program.frontend.exception_handlers(program.tree):
         body = " ".join(source_slice(ctx).split()).upper()
         if "OTHERS" not in body.split("THEN")[0]:
             continue

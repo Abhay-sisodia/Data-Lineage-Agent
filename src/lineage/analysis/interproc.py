@@ -25,8 +25,7 @@ from typing import Any
 from lineage.analysis.cfg import build_all
 from lineage.analysis.defuse import UnitScope, analyse_unit, collect_scopes
 from lineage.ir.model import Flow, NodeKind, Transform
-from lineage.parsing.generated.PlSqlParser import PlSqlParser
-from lineage.parsing.plsql import Program, iter_contexts, source_slice
+from lineage.parsing.plsql import Program
 from lineage.resolution.dictionary import Dictionary
 
 TRANSFORM_RANK = {
@@ -89,39 +88,19 @@ class Summary:
         )
 
 
-def _return_expressions(unit_ctx: Any) -> list[str]:
+def _return_expressions(program: Program, unit_ctx: Any) -> list[str]:
     """Source text of every RETURN expression in a unit."""
-    return_ctx = getattr(PlSqlParser, "Return_statementContext", None)
-    if return_ctx is None:
-        return []
-    texts = []
-    for node in iter_contexts(unit_ctx, return_ctx):
-        expression = node.expression() if hasattr(node, "expression") else None
-        if expression is not None:
-            texts.append(source_slice(expression))
-    return texts
+    return list(program.frontend.returns(unit_ctx))
 
 
 def _unit_contexts(program: Program) -> dict[str, Any]:
-    """Every callable unit in the source, by name."""
-    units: dict[str, Any] = {}
-    for context_name, accessor in [
-        ("Create_function_bodyContext", "function_name"),
-        ("Create_procedure_bodyContext", "procedure_name"),
-        ("Function_bodyContext", "identifier"),
-        ("Procedure_bodyContext", "identifier"),
-    ]:
-        context_class = getattr(PlSqlParser, context_name, None)
-        if context_class is None:
-            continue
-        for ctx in iter_contexts(program.tree, context_class):
-            name_node = getattr(ctx, accessor, lambda: None)()
-            if isinstance(name_node, list):
-                name_node = name_node[0] if name_node else None
-            if name_node is None:
-                continue
-            units[str(name_node.getText()).upper()] = ctx
-    return units
+    """Every callable unit in the source, by name.
+
+    Unit names are upper-cased rather than dialect-folded, deliberately: they are the keys
+    the call-site matcher looks up by `.upper()` too, and neither side is a dictionary
+    lookup. Recorded as A2 residue in `lineage.dialects.base`.
+    """
+    return {unit.name.upper(): unit.ctx for unit in program.frontend.units(program.tree)}
 
 
 class SummaryBuilder:
@@ -182,11 +161,11 @@ class SummaryBuilder:
             if edge.flow is Flow.FILTER and edge.target.kind is NodeKind.RELATION:
                 summary.reads.add(edge.target.name)
 
-        for text in _return_expressions(self._units[name]):
+        for text in _return_expressions(self._program, self._units[name]):
             summary.returns_from.extend(self._resolve_return(text, feeds, scope, stack))
 
         # Nested calls inside the return expression contribute their own reads.
-        for text in _return_expressions(self._units[name]):
+        for text in _return_expressions(self._program, self._units[name]):
             for callee in self._calls_in(text):
                 nested = self.summary_of(callee, stack)
                 summary.reads |= nested.reads

@@ -69,7 +69,10 @@ beside it because an empty edge list would satisfy that assertion perfectly.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+if TYPE_CHECKING:  # pragma: no cover
+    from lineage.parsing.frontend import Frontend
 
 
 @runtime_checkable
@@ -90,6 +93,13 @@ class Dialect(Protocol):
         the property is named for the dialect rather than for SQLGlot so that a future
         dialect SQLGlot spells differently has somewhere to diverge.
         """
+        ...
+
+    @property
+    def frontend(self) -> Frontend:
+        """The procedural front end: what parses a program and answers questions about
+        its structure. See `lineage.parsing.frontend` for exactly which questions - it was
+        written by enumerating the analysis modules' calls, not by imagining a parser."""
         ...
 
     def fold(self, identifier: str) -> str:

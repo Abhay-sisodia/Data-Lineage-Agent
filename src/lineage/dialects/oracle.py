@@ -8,6 +8,11 @@ file that matters.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover
+    from lineage.parsing.frontend import Frontend
+
 
 class OracleDialect:
     """Oracle Database, 21c and compatible.
@@ -19,6 +24,15 @@ class OracleDialect:
     @property
     def name(self) -> str:
         return "oracle"
+
+    @property
+    def frontend(self) -> Frontend:
+        # Imported here rather than at module level: `parsing.plsql` loads the generated
+        # ANTLR parser, which is heavy and which `dialects` must not require just to be
+        # imported - the registry is consulted by code that never parses anything.
+        from lineage.parsing.plsql import ORACLE_FRONTEND
+
+        return ORACLE_FRONTEND
 
     def fold(self, identifier: str) -> str:
         return identifier.upper()

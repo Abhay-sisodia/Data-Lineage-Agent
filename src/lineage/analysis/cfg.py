@@ -28,7 +28,6 @@ from typing import Any
 from lineage.parsing.generated.PlSqlParser import PlSqlParser
 from lineage.parsing.plsql import (
     Program,
-    iter_contexts,
     most_specific,
     rule_name,
     source_slice,
@@ -342,25 +341,11 @@ def build_cfg(program: Program, unit_ctx: Any, unit_name: str) -> Cfg:
 def build_all(program: Program) -> dict[str, Cfg]:
     """A CFG per program unit in the source."""
     graphs: dict[str, Cfg] = {}
-    unit_types = [
-        ("Create_procedure_bodyContext", "procedure_name"),
-        ("Create_function_bodyContext", "function_name"),
-        ("Procedure_bodyContext", "identifier"),
-        ("Function_bodyContext", "identifier"),
-    ]
-
-    for context_name, accessor in unit_types:
-        context_class = getattr(PlSqlParser, context_name, None)
-        if context_class is None:
-            continue
-        for ctx in iter_contexts(program.tree, context_class):
-            name_node = getattr(ctx, accessor, lambda: None)()
-            if isinstance(name_node, list):
-                name_node = name_node[0] if name_node else None
-            if name_node is None:
-                continue
-            name = str(name_node.getText()).upper()
-            graphs[name] = build_cfg(program, ctx, name)
+    for unit in program.frontend.units(program.tree):
+        # Upper-cased rather than dialect-folded: a unit name is a graph key and an Origin
+        # label, never a dictionary lookup. A2 residue, recorded in `lineage.dialects.base`.
+        name = unit.name.upper()
+        graphs[name] = build_cfg(program, unit.ctx, name)
 
     return graphs
 

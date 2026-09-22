@@ -28,7 +28,7 @@ from lineage.analysis.band0 import resolve_projection, resolve_query_influence
 from lineage.analysis.cfg import Cfg, CfgNode, NodeKind
 from lineage.analysis.dynamic import Resolution
 from lineage.analysis.predicates import predicate_columns
-from lineage.dialects import fold
+from lineage.dialects import fold, for_name
 from lineage.analysis.transforms import (
     AGGREGATE_FUNCTIONS,
     CONDITIONAL_EXPRESSIONS,
@@ -54,8 +54,8 @@ from lineage.ir.model import (
 from lineage.ir.model import (
     NodeKind as IRNodeKind,
 )
-from lineage.parsing.generated.PlSqlParser import PlSqlParser
-from lineage.parsing.plsql import Program, iter_contexts, source_slice
+from lineage.parsing.frontend import Frontend
+from lineage.parsing.plsql import Program, source_slice
 from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
@@ -126,51 +126,30 @@ class UnitScope:
 
 
 # --- declarations --------------------------------------------------------------------
+#
+# Everything in this section used to reach into the generated Oracle grammar by class
+# name - fourteen context classes across five modules, with "what counts as a unit" copied
+# into four of them. It now asks `program.frontend`, which answers the same questions for
+# whichever dialect parsed the program (A3). No behaviour changed; the measurement says so.
 
 
-def _nested_unit_contexts() -> list[type]:
-    kinds = ["Procedure_bodyContext", "Function_bodyContext"]
-    return [c for c in (getattr(PlSqlParser, k, None) for k in kinds) if c is not None]
-
-
-def _is_inside_nested_unit(ctx: Any, root: Any) -> bool:
-    """True if ctx sits inside a procedure/function declared within root."""
-    nested = tuple(_nested_unit_contexts())
-    parent = ctx.parentCtx
-    while parent is not None and parent is not root:
-        if isinstance(parent, nested):
-            return True
-        parent = parent.parentCtx
-    return False
-
-
-def _declarations_of(ctx: Any, package: str | None, dialect: str) -> dict[str, VariableDecl]:
+def _declarations_of(
+    frontend: Frontend, ctx: Any, package: str | None, dialect: str
+) -> dict[str, VariableDecl]:
     """Variables declared directly in this unit — not in units nested inside it."""
     found: dict[str, VariableDecl] = {}
 
-    parameter_ctx = getattr(PlSqlParser, "Parameter_nameContext", None)
-    if parameter_ctx is not None:
-        for node in iter_contexts(ctx, parameter_ctx):
-            if _is_inside_nested_unit(node, ctx):
-                continue
-            name = fold(str(node.getText()), dialect)
-            found[name] = VariableDecl(name, name, "parameter", node.start.line)
+    for parameter in frontend.parameters(ctx):
+        name = fold(parameter.name, dialect)
+        found[name] = VariableDecl(name, name, "parameter", parameter.line)
 
-    declaration_ctx = getattr(PlSqlParser, "Variable_declarationContext", None)
-    if declaration_ctx is not None:
-        for node in iter_contexts(ctx, declaration_ctx):
-            if _is_inside_nested_unit(node, ctx):
-                continue
-            identifier = node.identifier()
-            if identifier is None:
-                continue
-            name = fold(str(identifier.getText()), dialect)
-            scope = "package" if package else "local"
-            qualified = f"{package}.{name}" if package else name
-            default = getattr(node, "default_value_part", lambda: None)()
-            found[name] = VariableDecl(
-                name, qualified, scope, node.start.line, has_default=default is not None
-            )
+    for variable in frontend.variables(ctx):
+        name = fold(variable.name, dialect)
+        scope = "package" if package else "local"
+        qualified = f"{package}.{name}" if package else name
+        found[name] = VariableDecl(
+            name, qualified, scope, variable.line, has_default=variable.has_default
+        )
 
     return found
 
@@ -182,68 +161,52 @@ def collect_scopes(program: Program, dialect: str = "oracle") -> dict[str, UnitS
     makes `b1_07` hard: a value written by one call is read by another with no parameter
     passing and nothing in either statement connecting them.
     """
+    frontend = _frontend_of(program, dialect)
     scopes: dict[str, UnitScope] = {}
 
     # Package state first, so procedures inside the body inherit it.
     package_state: dict[str, dict[str, VariableDecl]] = {}
-    package_ctx = getattr(PlSqlParser, "Create_package_bodyContext", None)
-    if package_ctx is not None:
-        for body in iter_contexts(program.tree, package_ctx):
-            name_node = body.package_name()
-            if isinstance(name_node, list):
-                name_node = name_node[0] if name_node else None
-            if name_node is None:
-                continue
-            package = fold(str(name_node.getText()), dialect)
-            package_state[package] = _declarations_of(body, package, dialect)
+    for package_name, body in frontend.package_bodies(program.tree):
+        package = fold(package_name, dialect)
+        package_state[package] = _declarations_of(frontend, body, package, dialect)
 
-    unit_specs = [
-        ("Create_procedure_bodyContext", "procedure_name"),
-        ("Create_function_bodyContext", "function_name"),
-        ("Procedure_bodyContext", "identifier"),
-        ("Function_bodyContext", "identifier"),
-    ]
+    for unit_ref in frontend.units(program.tree):
+        unit = fold(unit_ref.name, dialect)
+        ctx = unit_ref.ctx
 
-    for context_name, accessor in unit_specs:
-        context_class = getattr(PlSqlParser, context_name, None)
-        if context_class is None:
-            continue
-        for ctx in iter_contexts(program.tree, context_class):
-            name_node = getattr(ctx, accessor, lambda: None)()
-            if isinstance(name_node, list):
-                name_node = name_node[0] if name_node else None
-            if name_node is None:
-                continue
-            unit = fold(str(name_node.getText()), dialect)
-
-            scope = UnitScope(unit=unit, dialect=dialect)
-            # Enclosing package state, if this unit lives in a package body.
-            for package, state in package_state.items():
-                if _within_package(ctx, package, dialect):
-                    scope.variables.update(state)
-            scope.variables.update(_declarations_of(ctx, None, dialect))
-            # CURSORS FIRST (stress finding S4-02). `_collect_row_sources` has to resolve
-            # `FOR rec IN c` through the cursor `c` was declared with, so the cursor map
-            # must already exist when it runs. These two lines were the other way round.
-            _collect_cursors(ctx, scope)
-            _collect_row_sources(ctx, scope)
-            scopes[unit] = scope
+        scope = UnitScope(unit=unit, dialect=dialect)
+        # Enclosing package state, if this unit lives in a package body.
+        enclosing = frontend.enclosing_package(ctx)
+        if enclosing is not None:
+            state = package_state.get(fold(enclosing, dialect))
+            if state:
+                scope.variables.update(state)
+        scope.variables.update(_declarations_of(frontend, ctx, None, dialect))
+        # CURSORS FIRST (stress finding S4-02). `_collect_row_sources` has to resolve
+        # `FOR rec IN c` through the cursor `c` was declared with, so the cursor map
+        # must already exist when it runs. These two lines were the other way round.
+        _collect_cursors(frontend, ctx, scope)
+        _collect_row_sources(frontend, ctx, scope)
+        scopes[unit] = scope
 
     return scopes
 
 
-def _collect_row_sources(ctx: Any, scope: UnitScope) -> None:
-    """Cursor FOR loop records, and plain FOR loop indices."""
-    loop_param = getattr(PlSqlParser, "Cursor_loop_paramContext", None)
-    if loop_param is None:
-        return
+def _frontend_of(program: Program, dialect: str) -> Frontend:
+    """The front end that parsed this program - or, for a `Program` built before the field
+    existed, the one the dialect names."""
+    frontend = getattr(program, "frontend", None)
+    if frontend is not None:
+        return frontend  # type: ignore[no-any-return]
+    return for_name(dialect).frontend
 
-    for param in iter_contexts(ctx, loop_param):
-        record = param.record_name() if hasattr(param, "record_name") else None
-        select = param.select_statement() if hasattr(param, "select_statement") else None
-        if record is not None and select is not None:
-            name = fold(str(record.getText()), scope.dialect)
-            scope.row_sources[name] = RowSource(name, source_slice(select), param.start.line)
+
+def _collect_row_sources(frontend: Frontend, ctx: Any, scope: UnitScope) -> None:
+    """Cursor FOR loop records, and plain FOR loop indices."""
+    for param in frontend.loop_params(ctx):
+        if param.record is not None and param.query is not None:
+            name = fold(param.record, scope.dialect)
+            scope.row_sources[name] = RowSource(name, param.query, param.line)
             continue
 
         # `FOR rec IN c` - A DECLARED CURSOR RATHER THAN AN INLINE QUERY (stress finding
@@ -259,48 +222,24 @@ def _collect_row_sources(ctx: Any, scope: UnitScope) -> None:
         # Both forms are ordinary Oracle and the declared one is the more common in real
         # code, because a named cursor is what you write when the query is long enough to
         # deserve a name - which is exactly when it is also deep enough to matter.
-        cursor = param.cursor_name() if hasattr(param, "cursor_name") else None
-        if record is not None and cursor is not None:
-            query = scope.cursors.get(fold(str(cursor.getText()), scope.dialect))
+        if param.record is not None and param.cursor is not None:
+            query = scope.cursors.get(fold(param.cursor, scope.dialect))
             if query is not None:
-                name = fold(str(record.getText()), scope.dialect)
-                scope.row_sources[name] = RowSource(name, query, param.start.line)
+                name = fold(param.record, scope.dialect)
+                scope.row_sources[name] = RowSource(name, query, param.line)
             continue
 
-        index = param.index_name() if hasattr(param, "index_name") else None
-        if index is not None:
+        if param.index is not None:
             # A plain FOR index is an ordinary local: it can appear in predicates and
             # decide which rows a statement reads.
-            name = fold(str(index.getText()), scope.dialect)
-            scope.variables.setdefault(name, VariableDecl(name, name, "local", param.start.line))
+            name = fold(param.index, scope.dialect)
+            scope.variables.setdefault(name, VariableDecl(name, name, "local", param.line))
 
 
-def _collect_cursors(ctx: Any, scope: UnitScope) -> None:
+def _collect_cursors(frontend: Frontend, ctx: Any, scope: UnitScope) -> None:
     """Declared cursors, so FETCH targets can be bound to their select lists."""
-    declaration = getattr(PlSqlParser, "Cursor_declarationContext", None)
-    if declaration is None:
-        return
-    for node in iter_contexts(ctx, declaration):
-        identifier = node.identifier()
-        select = node.select_statement()
-        if identifier is None or select is None:
-            continue
-        scope.cursors[fold(str(identifier.getText()), scope.dialect)] = source_slice(select)
-
-
-def _within_package(ctx: Any, package: str, dialect: str) -> bool:
-    package_ctx = getattr(PlSqlParser, "Create_package_bodyContext", None)
-    if package_ctx is None:
-        return False
-    parent = ctx.parentCtx
-    while parent is not None:
-        if isinstance(parent, package_ctx):
-            name_node = parent.package_name()
-            if isinstance(name_node, list):
-                name_node = name_node[0] if name_node else None
-            return name_node is not None and fold(str(name_node.getText()), dialect) == package
-        parent = parent.parentCtx
-    return False
+    for cursor in frontend.cursors(ctx):
+        scope.cursors[fold(cursor.name, scope.dialect)] = cursor.query
 
 
 # --- statement analysis --------------------------------------------------------------
@@ -803,19 +742,12 @@ def _analyse_assignment(
     emitting it claims a column name determines the column's data.
     """
     result = DefUseResult()
-    ctx = node.ctx
 
-    inner = None
-    for candidate in iter_contexts(ctx, PlSqlParser.Assignment_statementContext):
-        inner = candidate
-        break
-    if inner is None:
+    assignment = for_name(dictionary.dialect).frontend.assignment(node.ctx)
+    if assignment is None:
         return result
 
-    target_ctx = inner.general_element()
-    if target_ctx is None:
-        return result
-    target_name = fold(str(target_ctx.getText()), dictionary.dialect)
+    target_name = fold(assignment.target, dictionary.dialect)
     if target_name in carriers:
         return result
     target_decl = scope.lookup(target_name)
@@ -823,7 +755,7 @@ def _analyse_assignment(
         result.unresolved.append(f"line {node.line}: assignment to undeclared {target_name}")
         return result
 
-    expression_text = source_slice(inner.expression()) if inner.expression() else ""
+    expression_text = assignment.expression
     transform = _assignment_transform(expression_text)
 
     subscripts = _subscript_only_names(expression_text, scope, dictionary.dialect)
@@ -882,24 +814,16 @@ def _analyse_fetch(
     correct division of labour rather than a workaround.
     """
     result = DefUseResult()
-    ctx = node.ctx
 
-    fetch_ctx = getattr(PlSqlParser, "Fetch_statementContext", None)
-    if fetch_ctx is None:
+    fetch = for_name(dictionary.dialect).frontend.fetch(node.ctx)
+    if fetch is None:
         return result
-    inner = next(iter(iter_contexts(ctx, fetch_ctx)), None)
-    if inner is None:
-        return result
-
-    cursor = inner.cursor_name()
-    if cursor is None:
-        return result
-    query = scope.cursors.get(fold(str(cursor.getText()), dictionary.dialect))
+    query = scope.cursors.get(fold(fetch.cursor, dictionary.dialect))
     if query is None:
         result.unresolved.append(f"line {node.line}: FETCH from an undeclared cursor")
         return result
 
-    targets = [fold(str(v.getText()), dictionary.dialect) for v in inner.variable_or_collection()]
+    targets = [fold(target, dictionary.dialect) for target in fetch.targets]
     projection, relations = _projection_of(query, dictionary)
     if projection is None:
         result.unresolved.append(f"line {node.line}: cursor query did not parse")
@@ -1549,24 +1473,24 @@ def definitions_and_uses(
 
     text = source_slice(node.ctx)
 
+    frontend = for_name(dialect).frontend
+
     if node.statement_kind == "assignment_statement":
-        inner = next(iter(iter_contexts(node.ctx, PlSqlParser.Assignment_statementContext)), None)
-        if inner is not None:
-            target = inner.general_element()
-            if target is not None and scope.lookup(str(target.getText())) is not None:
-                defined.add(fold(str(target.getText()), dialect))
-            expression = inner.expression()
-            if expression is not None:
-                for name in _identifiers_in(source_slice(expression), dialect):
+        assignment = frontend.assignment(node.ctx)
+        if assignment is not None:
+            if scope.lookup(assignment.target) is not None:
+                defined.add(fold(assignment.target, dialect))
+            if assignment.expression:
+                for name in _identifiers_in(assignment.expression, dialect):
                     if scope.lookup(name) is not None:
                         used.add(name)
         return defined, used
 
     if node.statement_kind == "fetch_statement":
-        inner = next(iter(iter_contexts(node.ctx, PlSqlParser.Fetch_statementContext)), None)
-        if inner is not None:
-            for target in inner.variable_or_collection():
-                name = fold(str(target.getText()), dialect)
+        fetch = frontend.fetch(node.ctx)
+        if fetch is not None:
+            for target in fetch.targets:
+                name = fold(target, dialect)
                 if scope.lookup(name) is not None:
                     defined.add(name)
         return defined, used
