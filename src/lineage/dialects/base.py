@@ -73,6 +73,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
     from lineage.parsing.frontend import Frontend
+    from lineage.resolution.catalogue import Catalogue
 
 
 @runtime_checkable
@@ -100,6 +101,13 @@ class Dialect(Protocol):
         """The procedural front end: what parses a program and answers questions about
         its structure. See `lineage.parsing.frontend` for exactly which questions - it was
         written by enumerating the analysis modules' calls, not by imagining a parser."""
+        ...
+
+    @property
+    def catalogue(self) -> Catalogue:
+        """Where a `Dictionary` is read from, for this dialect. Oracle reads the ALL_*
+        views; PostgreSQL reads `information_schema` and `pg_catalog`. The assembly is
+        shared - see `lineage.resolution.catalogue`."""
         ...
 
     def fold(self, identifier: str) -> str:

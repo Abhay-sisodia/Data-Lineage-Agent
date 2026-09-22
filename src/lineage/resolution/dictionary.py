@@ -308,118 +308,14 @@ class Dictionary(BaseModel):
         ]
 
 
-def capture(connection: Any, schema: str, captured_at: str) -> Dictionary:
-    """Read the dictionary out of a live Oracle connection.
+def capture(connection: Any, schema: str, captured_at: str, dialect: str = "oracle") -> Dictionary:
+    """Read the dictionary out of a live database.
 
-    Reads the ALL_* views rather than USER_*: a real deployment resolves names across
-    schemas, and binding everything to one owner is the schema-context silent failure.
+    Kept here as the name every caller already imports; the queries moved to
+    `resolution.oracle_catalogue` and the assembly to `resolution.catalogue` when the
+    catalogue went behind the dialect seam (A4). Importing lazily avoids a cycle: the
+    catalogue needs this module's models.
     """
-    objects: dict[str, ObjectInfo] = {}
-    synonyms: dict[str, str] = {}
-    columns: dict[str, list[str]] = {}
-    view_text: dict[str, str] = {}
-    owner = schema.upper()
+    from lineage.resolution.catalogue import capture as _capture
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT owner, object_name, object_type
-              FROM all_objects
-             WHERE owner = :owner
-               AND object_type IN ('TABLE','VIEW','SYNONYM','PROCEDURE','FUNCTION',
-                                   'PACKAGE','TRIGGER','SEQUENCE')
-            """,
-            owner=owner,
-        )
-        for object_owner, name, object_type in cursor.fetchall():
-            objects[f"{object_owner}.{name}"] = ObjectInfo(
-                owner=object_owner, name=name, object_type=object_type
-            )
-
-        cursor.execute(
-            """
-            SELECT owner, synonym_name, NVL(table_owner, :owner), table_name
-              FROM all_synonyms
-             WHERE owner = :owner
-            """,
-            owner=owner,
-        )
-        for synonym_owner, synonym_name, target_owner, target_name in cursor.fetchall():
-            synonyms[f"{synonym_owner}.{synonym_name}"] = f"{target_owner}.{target_name}"
-
-        cursor.execute(
-            """
-            SELECT owner, table_name, column_name
-              FROM all_tab_columns
-             WHERE owner = :owner
-             ORDER BY owner, table_name, column_id
-            """,
-            owner=owner,
-        )
-        for column_owner, table_name, column_name in cursor.fetchall():
-            columns.setdefault(f"{column_owner}.{table_name}", []).append(column_name)
-
-        cursor.execute(
-            "SELECT owner, view_name, text FROM all_views WHERE owner = :owner",
-            owner=owner,
-        )
-        for view_owner, view_name, text in cursor.fetchall():
-            view_text[f"{view_owner}.{view_name}"] = str(text) if text is not None else ""
-
-        # Temporary-ness is a property of the object, not of its name.
-        cursor.execute(
-            "SELECT owner, table_name, temporary FROM all_tables WHERE owner = :owner",
-            owner=owner,
-        )
-        temporary = {
-            f"{table_owner}.{table_name}": flag == "Y"
-            for table_owner, table_name, flag in cursor.fetchall()
-        }
-
-        # Triggers, with the object each fires on. Captured here rather than read from
-        # source files because a trigger belongs to its TABLE, and the procedure that
-        # writes that table is usually in a different file with no mention of it.
-        cursor.execute(
-            """
-            SELECT owner, trigger_name, table_owner, table_name, trigger_type,
-                   triggering_event, base_object_type, trigger_body
-              FROM all_triggers
-             WHERE owner = :owner
-               AND status = 'ENABLED'
-            """,
-            owner=owner,
-        )
-        triggers: dict[str, TriggerInfo] = {}
-        for row in cursor.fetchall():
-            (
-                trigger_owner,
-                trigger_name,
-                table_owner,
-                table_name,
-                trigger_type,
-                event,
-                base_object_type,
-                body,
-            ) = row
-            triggers[f"{trigger_owner}.{trigger_name}"] = TriggerInfo(
-                owner=trigger_owner,
-                name=trigger_name,
-                table=f"{table_owner or owner}.{table_name}",
-                # ALL_TRIGGERS reports e.g. "AFTER EACH ROW"; the timing word is enough
-                # for evidence, and INSTEAD OF is the one that changes the analysis.
-                timing=str(trigger_type),
-                event=str(event),
-                body=str(body) if body is not None else "",
-                base_object_type=str(base_object_type or "TABLE"),
-            )
-
-    return Dictionary(
-        captured_at=captured_at,
-        default_schema=owner,
-        objects=objects,
-        synonyms=synonyms,
-        columns=columns,
-        view_text=view_text,
-        temporary=temporary,
-        triggers=triggers,
-    )
+    return _capture(connection, schema=schema, captured_at=captured_at, dialect=dialect)

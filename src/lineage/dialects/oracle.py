@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from lineage.parsing.frontend import Frontend
+    from lineage.resolution.catalogue import Catalogue
 
 
 class OracleDialect:
@@ -33,6 +34,12 @@ class OracleDialect:
         from lineage.parsing.plsql import ORACLE_FRONTEND
 
         return ORACLE_FRONTEND
+
+    @property
+    def catalogue(self) -> Catalogue:
+        from lineage.resolution.oracle_catalogue import ORACLE_CATALOGUE
+
+        return ORACLE_CATALOGUE
 
     def fold(self, identifier: str) -> str:
         return identifier.upper()
