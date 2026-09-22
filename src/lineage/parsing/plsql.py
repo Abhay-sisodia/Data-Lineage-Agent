@@ -26,7 +26,18 @@ from typing import Any
 from antlr4 import CommonTokenStream, InputStream, ParserRuleContext
 from antlr4.error.ErrorListener import ErrorListener
 
-from lineage.parsing.frontend import Assignment, CursorDecl, Declared, Fetch, LoopParam, UnitRef
+from lineage.parsing.frontend import (
+    Assignment,
+    BodyShape,
+    CursorDecl,
+    Declared,
+    Fetch,
+    HandlerShape,
+    IfShape,
+    LoopParam,
+    LoopShape,
+    UnitRef,
+)
 
 try:
     from lineage.parsing.generated.PlSqlLexer import PlSqlLexer
@@ -495,6 +506,100 @@ class OracleFrontend:
         if handler_ctx is None:  # pragma: no cover - grammar always has it
             return []
         return _iter_contexts(tree, handler_ctx)
+
+
+    # ---- control flow (A3b) --------------------------------------------------------
+
+    def body(self, unit_ctx: Any) -> BodyShape | None:
+        body = unit_ctx.body() if hasattr(unit_ctx, "body") else None
+        if body is None:
+            return None
+        handlers = tuple(
+            HandlerShape(
+                names=" OR ".join(_source_slice(n) for n in handler.exception_name()),
+                line=handler.start.line,
+                sequence=handler.seq_of_statements(),
+                ctx=handler,
+            )
+            for handler in body.exception_handler() or []
+        )
+        return BodyShape(
+            sequence=body.seq_of_statements(), end_line=body.stop.line, handlers=handlers
+        )
+
+    def statements_of(self, sequence_ctx: Any) -> list[Any]:
+        if sequence_ctx is None:
+            return []
+        found = []
+        for index in range(sequence_ctx.getChildCount()):
+            child = sequence_ctx.getChild(index)
+            if isinstance(child, PlSqlParser.StatementContext):
+                found.append(child)
+        return found
+
+    def statement_kind(self, statement_ctx: Any) -> str:
+        return _rule_name(_most_specific(statement_ctx))
+
+    def shape(self, statement_ctx: Any) -> IfShape | LoopShape | None:
+        inner = _most_specific(statement_ctx)
+        if isinstance(inner, PlSqlParser.If_statementContext):
+            return IfShape(
+                condition=_one_line(_source_slice(inner.condition())),
+                then_sequence=inner.seq_of_statements(),
+                elsifs=tuple(
+                    (_one_line(_source_slice(part.condition())), part.seq_of_statements())
+                    for part in inner.elsif_part() or []
+                ),
+                else_sequence=(
+                    inner.else_part().seq_of_statements()
+                    if inner.else_part() is not None
+                    else None
+                ),
+            )
+        if isinstance(inner, PlSqlParser.Loop_statementContext):
+            if inner.condition() is not None:  # WHILE
+                condition = _one_line(_source_slice(inner.condition()))
+                return LoopShape(
+                    body_sequence=inner.seq_of_statements(), condition=condition, label=condition
+                )
+            label = ""
+            if inner.cursor_loop_param() is not None:  # FOR
+                label = _one_line(_source_slice(inner.cursor_loop_param()))
+            return LoopShape(body_sequence=inner.seq_of_statements(), label=label)
+        return None
+
+    def line(self, ctx: Any) -> int:
+        return int(ctx.start.line)
+
+    def text(self, ctx: Any) -> str:
+        return _source_slice(ctx)
+
+    def is_conditional(self, ctx: Any) -> bool:
+        parent = ctx.parentCtx
+        while parent is not None:
+            if isinstance(
+                parent, PlSqlParser.If_statementContext | PlSqlParser.Loop_statementContext
+            ):
+                return True
+            parent = parent.parentCtx
+        return False
+
+    def assignments(self, tree: Any) -> list[Any]:
+        return _iter_contexts(tree, PlSqlParser.Assignment_statementContext)
+
+    def execute_immediates(self, tree: Any) -> list[tuple[Any, str | None]]:
+        found: list[tuple[Any, str | None]] = []
+        for ctx in _iter_contexts(tree, PlSqlParser.Execute_immediateContext):
+            expression = ctx.expression()
+            found.append((ctx, _source_slice(expression) if expression is not None else None))
+        return found
+
+    def statements(self, tree: Any) -> list[Any]:
+        return _iter_contexts(tree, PlSqlParser.StatementContext)
+
+
+def _one_line(text: str) -> str:
+    return " ".join(text.split())
 
 
 ORACLE_FRONTEND = OracleFrontend()

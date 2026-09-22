@@ -41,15 +41,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from lineage.ir.model import Boundary, BoundaryKind
-from lineage.parsing.generated.PlSqlParser import PlSqlParser
-from lineage.parsing.plsql import (
-    ParsedStatement,
-    Program,
-    iter_contexts,
-    most_specific,
-    rule_name,
-    source_slice,
-)
+from lineage.parsing.frontend import Frontend
+from lineage.parsing.plsql import ParsedStatement, Program
 
 __all__ = [
     "DynamicSite",
@@ -210,39 +203,25 @@ def _unit_of(program: Program, line: int) -> str:
     return candidates[-1].name.upper() if candidates else "<anonymous>"
 
 
-def _is_conditional(ctx: Any) -> bool:
-    """Is this context inside a branch or a loop?
+def _assignment_parts(frontend: Frontend, ctx: Any) -> tuple[str, str, bool] | None:
+    """(target, expression text, is conditional) for one assignment.
 
-    A definition that only sometimes runs cannot establish a constant. Reaching-definition
-    analysis could be more precise; refusing is the conservative direction and this is the
-    place to be conservative.
+    Conditional means inside a branch or a loop, at any depth. A definition that only
+    sometimes runs cannot establish a constant; reaching-definition analysis could be more
+    precise, and refusing is the conservative direction, which is the right one here.
+
+    The target is upper-cased rather than dialect-folded: it is matched against carrier
+    names and environment keys that are upper-cased the same way, and never against the
+    dictionary. A2 residue, recorded in `lineage.dialects.base`.
     """
-    parent = ctx.parentCtx
-    while parent is not None:
-        if isinstance(parent, PlSqlParser.If_statementContext | PlSqlParser.Loop_statementContext):
-            return True
-        parent = parent.parentCtx
-    return False
-
-
-def _assignment_parts(ctx: Any) -> tuple[str, str, bool] | None:
-    """(target, expression text, is conditional) for one assignment."""
-    target_ctx = ctx.general_element()
-    expression_ctx = ctx.expression()
-    if target_ctx is None or expression_ctx is None:
+    assignment = frontend.assignment(ctx)
+    if assignment is None or not assignment.expression:
         return None
     return (
-        str(target_ctx.getText()).upper(),
-        source_slice(expression_ctx),
-        _is_conditional(ctx),
+        assignment.target.upper(),
+        assignment.expression,
+        frontend.is_conditional(ctx),
     )
-
-
-def _execute_immediate_argument(ctx: Any) -> str | None:
-    expression = ctx.expression()
-    if expression is None:
-        return None
-    return source_slice(expression)
 
 
 def _dbms_sql_argument(text: str) -> str | None:
@@ -303,19 +282,21 @@ def resolve_dynamic_sql(program: Program) -> Resolution:
 
     # Source order matters, so assignments and execution sites are collected together and
     # replayed in line order — an environment entry is never read before it is written.
+    frontend: Frontend = program.frontend
     events: list[tuple[int, str, Any]] = []
-    for ctx in iter_contexts(program.tree, PlSqlParser.Assignment_statementContext):
-        events.append((ctx.start.line, "assign", ctx))
-    for ctx in iter_contexts(program.tree, PlSqlParser.Execute_immediateContext):
-        events.append((ctx.start.line, "execute", ctx))
-    for ctx in iter_contexts(program.tree, PlSqlParser.StatementContext):
-        inner = most_specific(ctx)
-        if rule_name(inner) == "call_statement":
-            events.append((ctx.start.line, "call", ctx))
+    for ctx in frontend.assignments(program.tree):
+        events.append((frontend.line(ctx), "assign", ctx))
+    execute_arguments: dict[int, str | None] = {}
+    for ctx, argument in frontend.execute_immediates(program.tree):
+        events.append((frontend.line(ctx), "execute", ctx))
+        execute_arguments[id(ctx)] = argument
+    for ctx in frontend.statements(program.tree):
+        if frontend.statement_kind(ctx) == "call_statement":
+            events.append((frontend.line(ctx), "call", ctx))
 
     for line, kind, ctx in sorted(events, key=lambda item: (item[0], item[1])):
         if kind == "assign":
-            parts = _assignment_parts(ctx)
+            parts = _assignment_parts(frontend, ctx)
             if parts is None:
                 continue
             target, expression, conditional = parts
@@ -334,10 +315,10 @@ def resolve_dynamic_sql(program: Program) -> Resolution:
             continue
 
         if kind == "execute":
-            argument = _execute_immediate_argument(ctx)
+            argument = execute_arguments.get(id(ctx))
             site_kind = "EXECUTE IMMEDIATE"
         else:
-            call_text = source_slice(ctx)
+            call_text = frontend.text(ctx)
             handle = _dbms_sql_handle(call_text)
             if handle is not None:
                 resolution.carriers.add(handle)

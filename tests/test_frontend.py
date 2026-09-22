@@ -12,7 +12,7 @@ satisfies the Protocol rather than merely resembling it.
 
 from __future__ import annotations
 
-from lineage.parsing.frontend import Frontend, LoopParam
+from lineage.parsing.frontend import Frontend, IfShape, LoopParam, LoopShape
 from lineage.parsing.plsql import ORACLE_FRONTEND, parse_program
 
 SOURCE = """CREATE OR REPLACE PACKAGE BODY pkg_x IS
@@ -188,6 +188,101 @@ def test_exception_handlers_are_found() -> None:
     handlers = ORACLE_FRONTEND.exception_handlers(program.tree)
     assert len(handlers) == 1
     assert "OTHERS" in _text(handlers[0])
+
+
+# --- control flow (A3b) --------------------------------------------------------------
+
+CONTROL_FLOW = """CREATE OR REPLACE PROCEDURE p_flow(p_n NUMBER) IS
+  v NUMBER := p_n;
+BEGIN
+  IF v > 10 THEN
+    v := 10;
+  ELSIF v > 5 THEN
+    v := 5;
+  ELSE
+    v := 0;
+  END IF;
+  WHILE v > 0 LOOP
+    v := v - 1;
+  END LOOP;
+  FOR i IN 1 .. 3 LOOP
+    v := v + i;
+  END LOOP;
+  EXECUTE IMMEDIATE 'TRUNCATE TABLE gtt_stage';
+EXCEPTION
+  WHEN NO_DATA_FOUND OR TOO_MANY_ROWS THEN v := -1;
+END p_flow;
+/
+"""
+
+
+def test_a_branch_comes_back_as_a_shape_with_every_arm() -> None:
+    """The CFG builder never learns how the grammar spelled IF/ELSIF/ELSE - only what the
+    conditions are and which sequence each arm holds. That is what lets PL/pgSQL, which has
+    the same shapes with different spellings, reuse the builder unchanged."""
+    program = parse_program(CONTROL_FLOW)
+    unit = ORACLE_FRONTEND.units(program.tree)[0]
+    body = ORACLE_FRONTEND.body(unit.ctx)
+    assert body is not None
+
+    shapes = [ORACLE_FRONTEND.shape(s) for s in ORACLE_FRONTEND.statements_of(body.sequence)]
+    branch = next(s for s in shapes if isinstance(s, IfShape))
+    assert branch.condition == "v > 10"
+    assert [c for c, _ in branch.elsifs] == ["v > 5"]
+    assert branch.else_sequence is not None
+    then_kinds = [
+        ORACLE_FRONTEND.statement_kind(s)
+        for s in ORACLE_FRONTEND.statements_of(branch.then_sequence)
+    ]
+    assert then_kinds == ["assignment_statement"]
+
+
+def test_while_carries_a_condition_and_for_carries_only_a_label() -> None:
+    """A guard is a condition under which an edge fires. A FOR body always runs once per
+    iteration, so its iteration spec is a label and not a guard - treating it as one would
+    say the write inside is conditional when it is not."""
+    program = parse_program(CONTROL_FLOW)
+    unit = ORACLE_FRONTEND.units(program.tree)[0]
+    body = ORACLE_FRONTEND.body(unit.ctx)
+    assert body is not None
+
+    loops = [
+        s
+        for s in (ORACLE_FRONTEND.shape(x) for x in ORACLE_FRONTEND.statements_of(body.sequence))
+        if isinstance(s, LoopShape)
+    ]
+    assert [(loop.condition, loop.label) for loop in loops] == [
+        ("v > 0", "v > 0"),
+        (None, "i IN 1 .. 3"),
+    ]
+
+
+def test_handlers_and_body_end_are_on_the_body_shape() -> None:
+    program = parse_program(CONTROL_FLOW)
+    unit = ORACLE_FRONTEND.units(program.tree)[0]
+    body = ORACLE_FRONTEND.body(unit.ctx)
+    assert body is not None
+    assert [h.names for h in body.handlers] == ["NO_DATA_FOUND OR TOO_MANY_ROWS"]
+    assert body.end_line > ORACLE_FRONTEND.line(unit.ctx)
+
+
+def test_conditionality_and_dynamic_sites() -> None:
+    """`dynamic.py` refuses to fold a constant from an assignment inside a branch or loop,
+    so the front end has to say which ones those are; and it needs every EXECUTE IMMEDIATE
+    with its argument text."""
+    program = parse_program(CONTROL_FLOW)
+    assignments = ORACLE_FRONTEND.assignments(program.tree)
+    flags = [ORACLE_FRONTEND.is_conditional(a) for a in assignments]
+
+    # Six statement-level assignments: three IF arms, the WHILE body, the FOR body - all
+    # conditional - and one in the exception handler, which is NOT. A handler is reached
+    # by an exception edge, not by a branch, and the original `_is_conditional` only ever
+    # looked for IF and LOOP ancestors; this pins that reading rather than widening it.
+    assert flags.count(True) == 5
+    assert flags.count(False) == 1
+
+    sites = ORACLE_FRONTEND.execute_immediates(program.tree)
+    assert [arg for _, arg in sites] == ["'TRUNCATE TABLE gtt_stage'"]
 
 
 # --- helpers: reach statements the way cfg.py does, without naming a grammar class here --

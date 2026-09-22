@@ -19,9 +19,12 @@ the front end that produced it. That is what lets the Oracle implementation be t
 ANTLR code wrapped, rather than moved, and it is what makes A3 a refactor that can be checked
 against the signed measurement rather than a rewrite that has to be trusted.
 
-WHAT IS DELIBERATELY NOT HERE YET. The control-flow shape - `statements_of`, if/elsif/else,
-while/for - that `cfg.py` and `dynamic.py` walk. That is A3b, separated so that the
-declaration half can be measured on its own first.
+THE CONTROL-FLOW HALF (A3b). `cfg.py` builds a control-flow graph by walking the grammar's
+shape - statement sequences, IF/ELSIF/ELSE, WHILE and FOR loops, exception handlers - and
+`dynamic.py` asks whether an assignment sits inside a branch. Those questions are here too,
+as SHAPES rather than contexts: an `IfShape` says what the condition is and which sequences
+each arm holds, and the CFG builder never learns how the grammar spelled it. PL/pgSQL has the
+same shapes with different spellings, which is the whole point.
 """
 
 from __future__ import annotations
@@ -105,6 +108,55 @@ class Fetch:
     targets: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class IfShape:
+    """`IF c THEN ... ELSIF c2 THEN ... ELSE ... END IF`, as sequences.
+
+    Each sequence is an opaque context the builder hands back to `statements_of`. The ELSE
+    arm's condition appears nowhere in the source; the builder reconstructs it as the
+    negation of everything before, which is why the arms are ordered.
+    """
+
+    condition: str
+    then_sequence: Any
+    elsifs: tuple[tuple[str, Any], ...] = ()
+    else_sequence: Any = None
+
+
+@dataclass(frozen=True)
+class LoopShape:
+    """A loop's header and body.
+
+    `condition` is set for a WHILE only: a guard is a condition under which an edge fires,
+    and a FOR loop's body always runs once per iteration, so its iteration spec is a label
+    rather than a guard (see `cfg._build_loop` for why treating it as one says a write is
+    conditional when it is not).
+    """
+
+    body_sequence: Any
+    condition: str | None = None
+    label: str = ""
+
+
+@dataclass(frozen=True)
+class HandlerShape:
+    """One `WHEN <names> THEN <statements>` exception handler."""
+
+    names: str
+    line: int
+    sequence: Any
+    ctx: Any
+
+
+@dataclass(frozen=True)
+class BodyShape:
+    """The executable part of a unit: its statements, its end, and its handlers."""
+
+    sequence: Any
+    end_line: int
+    handlers: tuple[HandlerShape, ...]
+
+
 @runtime_checkable
 class Frontend(Protocol):
     """Everything the declaration and def-use analyses ask of a parsed program.
@@ -167,4 +219,47 @@ class Frontend(Protocol):
 
     def exception_handlers(self, tree: Any) -> list[Any]:
         """Every exception handler context, for the WHEN OTHERS THEN NULL check."""
+        ...
+
+    # ---- control flow (A3b) --------------------------------------------------------
+
+    def body(self, unit_ctx: Any) -> BodyShape | None:
+        """The unit's executable body, or None for a declaration with no body."""
+        ...
+
+    def statements_of(self, sequence_ctx: Any) -> list[Any]:
+        """Direct child statements of a sequence, in source order - nested statements
+        belong to their own construct and are reached through its shape."""
+        ...
+
+    def statement_kind(self, statement_ctx: Any) -> str:
+        """The most specific rule that matched - `insert_statement`, not `sql_statement`."""
+        ...
+
+    def shape(self, statement_ctx: Any) -> IfShape | LoopShape | None:
+        """If this statement is a branch or a loop, its shape; otherwise None."""
+        ...
+
+    def line(self, ctx: Any) -> int:
+        """First source line of a context."""
+        ...
+
+    def text(self, ctx: Any) -> str:
+        """The original source text a context spans, whitespace and casing intact."""
+        ...
+
+    def is_conditional(self, ctx: Any) -> bool:
+        """Does this context sit inside a branch or a loop, at any depth?"""
+        ...
+
+    def assignments(self, tree: Any) -> list[Any]:
+        """Every assignment statement context in the program."""
+        ...
+
+    def execute_immediates(self, tree: Any) -> list[tuple[Any, str | None]]:
+        """Every dynamic-execution site with its argument's source text."""
+        ...
+
+    def statements(self, tree: Any) -> list[Any]:
+        """Every statement context in the program, depth first."""
         ...
