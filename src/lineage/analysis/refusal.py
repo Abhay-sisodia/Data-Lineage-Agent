@@ -36,6 +36,7 @@ import re
 from dataclasses import dataclass
 from enum import StrEnum
 
+from lineage.dialects import fold
 from lineage.parsing.plsql import ParsedStatement, Program
 
 __all__ = [
@@ -160,6 +161,14 @@ def _rx(pattern: str) -> re.Pattern[str]:
 # where two patterns can match the same text: the first match wins, so the more specific
 # construct is listed first.
 CONSTRUCTS: tuple[Construct, ...] = (
+    Construct(
+        name="DOLLAR_QUOTED_ROUTINE_BODY",
+        pattern=_rx(r"CREATE(?:\s+OR\s+REPLACE)?\s+(?:FUNCTION|PROCEDURE)\s[\s\S]{0,2000}?\bAS\s*\$[A-Za-z_0-9]*\$"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="PL/pgSQL routine body - the body after `AS $$` is a dollar-quoted string "
+        "literal rather than part of the SQL parse tree, and no grammar has been chosen "
+        "for it yet (ADR-0002 section 5). Refused by name so the cost is counted, never silent",
+    ),
     Construct(
         name="MODEL",
         pattern=_rx(r"\bMODEL\b\s+(?:\w+\s+)*?(?:PARTITION\s+BY|DIMENSION\s+BY|MEASURES)\b"),
@@ -322,7 +331,7 @@ def classify_statement(text: str) -> Construct | None:
 
 def _enclosing_unit(program: Program, statement: ParsedStatement) -> str:
     candidates = [unit for unit in program.units if unit.line <= statement.line]
-    return candidates[-1].name.upper() if candidates else "<anonymous>"
+    return fold(candidates[-1].name, program.dialect) if candidates else "<anonymous>"
 
 
 def _innermost(flagged: list[tuple[ParsedStatement, Construct]]) -> list[int]:
@@ -471,7 +480,7 @@ def _deduplicate(refusals: list[Refusal]) -> list[Refusal]:
 def enclosing_unit_at(program: Program, line: int) -> str:
     """The program unit a line falls inside. Public: procedure.py needs it too."""
     candidates = [unit for unit in program.units if unit.line <= line]
-    return candidates[-1].name.upper() if candidates else "<anonymous>"
+    return fold(candidates[-1].name, program.dialect) if candidates else "<anonymous>"
 
 
 def violations(refusals: list[Refusal], edges: list) -> list[tuple[Refusal, list]]:  # type: ignore[type-arg]

@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from lineage.dialects import fold
 from lineage.parsing.frontend import Frontend, IfShape, LoopShape
 from lineage.parsing.plsql import Program
 
@@ -320,13 +321,17 @@ def build_cfg(program: Program, unit_ctx: Any, unit_name: str) -> Cfg:
     return cfg
 
 
-def build_all(program: Program) -> dict[str, Cfg]:
+def build_all(program: Program, dialect: str = "oracle") -> dict[str, Cfg]:
     """A CFG per program unit in the source."""
     graphs: dict[str, Cfg] = {}
+    # Unit names are FOLDED with the dialect's rule, not upper-cased. A2 recorded this
+    # as residue on the grounds that a unit name is only an Origin label and a
+    # comparison key - true for Oracle, where fold IS upper. PostgreSQL proved it
+    # false: `collect_scopes` folded to `<script>` while this keyed `<SCRIPT>`, so
+    # `scopes.get(unit)` missed and BAND 1 SILENTLY DID NOTHING. Producers fold; the
+    # sites that compare two produced names normalise both sides and are unaffected.
     for unit in program.frontend.units(program.tree):
-        # Upper-cased rather than dialect-folded: a unit name is a graph key and an Origin
-        # label, never a dictionary lookup. A2 residue, recorded in `lineage.dialects.base`.
-        name = unit.name.upper()
+        name = fold(unit.name, dialect)
         graphs[name] = build_cfg(program, unit.ctx, name)
 
     return graphs

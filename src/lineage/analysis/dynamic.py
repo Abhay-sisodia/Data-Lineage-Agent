@@ -40,6 +40,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from lineage.dialects import fold
 from lineage.ir.model import Boundary, BoundaryKind
 from lineage.parsing.frontend import Frontend
 from lineage.parsing.plsql import ParsedStatement, Program
@@ -200,7 +201,7 @@ def fold_constant(expression: str, environment: dict[str, str]) -> str | None:
 
 def _unit_of(program: Program, line: int) -> str:
     candidates = [unit for unit in program.units if unit.line <= line]
-    return candidates[-1].name.upper() if candidates else "<anonymous>"
+    return fold(candidates[-1].name, program.dialect) if candidates else "<anonymous>"
 
 
 def _assignment_parts(frontend: Frontend, ctx: Any) -> tuple[str, str, bool] | None:

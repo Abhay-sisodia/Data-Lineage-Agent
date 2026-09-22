@@ -104,6 +104,10 @@ class Program:
     # a second dialect's program answers them with its own parser (A3). Optional and
     # last for backward compatibility with every existing constructor call.
     frontend: Any = field(default=None, repr=False)
+    # The dialect that parsed this program. Carried so the four copies of
+    # `_enclosing_unit` can fold a unit name without a parameter threaded through eight
+    # call sites - they have the program and nothing else.
+    dialect: str = "oracle"
 
     @property
     def error_count(self) -> int:
@@ -292,6 +296,7 @@ def parse_program(source: str) -> Program:
         units=units,
         statements=statements,
         frontend=ORACLE_FRONTEND,
+        dialect="oracle",
     )
 
 

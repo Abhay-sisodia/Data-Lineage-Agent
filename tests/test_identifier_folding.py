@@ -27,7 +27,7 @@ from lineage.dialects import SUPPORTED, register
 from lineage.ir.model import NodeKind
 from lineage.resolution.dictionary import Dictionary
 
-DIALECT = "postgres"
+DIALECT = "redshift"
 
 
 class _LowerFolding:
@@ -41,13 +41,28 @@ class _LowerFolding:
     produced zero edges. The "nothing escaped folding" assertion passed perfectly over a
     total loss, which is why that test has a control pinned beside it.
 
-    So the pair has to be coherent: `postgres` both normalises down in SQLGlot and folds down
-    here. The invariant is recorded in `lineage.dialects.base`.
+    So the pair has to be coherent. `redshift` is used rather than `postgres` because
+    PostgreSQL is now a REAL registered dialect with its own front end, and registering an
+    instrument over it would both collide with it and tear it out of the registry on
+    teardown. Redshift normalises down in SQLGlot exactly as PostgreSQL does, and is not
+    otherwise implemented - so this stays a test of FOLDING rather than of any dialect.
     """
 
     @property
     def name(self) -> str:
-        return "postgres"
+        return "redshift"
+
+    @property
+    def frontend(self):  # type: ignore[no-untyped-def]
+        """Oracle's front end, on purpose.
+
+        The source below is PL/SQL, and holding the parser fixed is what isolates folding
+        from every other difference between dialects - which is the whole point of the
+        instrument.
+        """
+        from lineage.parsing.plsql import ORACLE_FRONTEND
+
+        return ORACLE_FRONTEND
 
     def fold(self, identifier: str) -> str:
         return identifier.lower()

@@ -58,9 +58,9 @@ def analyse_source(
     ``unexercised=None`` - nothing was observed, so nothing is claimed either way.
     """
     settings = config or AnalysisConfig()
-    resolve_dialect(settings, dictionary)
+    dialect = resolve_dialect(settings, dictionary)
 
-    program = parse_program(source)
+    program = dialect.frontend.parse(source)
 
     # Callees are summarised before the call sites are analysed, so a scalar UDF inside a
     # SELECT contributes the columns its return value depends on rather than the columns
@@ -96,7 +96,7 @@ def analyse_source(
             result.boundaries.append(refused)
 
     scopes = collect_scopes(program, dictionary.dialect)
-    graphs = build_all(program)
+    graphs = build_all(program, dictionary.dialect)
 
     # Resolved once for the whole source, not per unit: a carrier variable is a carrier
     # everywhere, and the constant environment is built in source order.

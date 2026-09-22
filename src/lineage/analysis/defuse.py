@@ -55,7 +55,7 @@ from lineage.ir.model import (
     NodeKind as IRNodeKind,
 )
 from lineage.parsing.frontend import Frontend
-from lineage.parsing.plsql import Program, source_slice
+from lineage.parsing.plsql import Program
 from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 
@@ -617,7 +617,11 @@ def analyse_statement(
 
     # A recovered dynamic statement is analysed exactly like a written one - same parser,
     # same dispatch below. What changes is the TEXT, not the treatment.
-    text = source_slice(node.ctx)
+    #
+    # Asked of the FRONT END rather than of ANTLR's `source_slice`: a statement context is
+    # whatever the dialect's parser produced, and only that parser knows how to read it
+    # back. This was the last place the analysis assumed an ANTLR context.
+    text = for_name(dictionary.dialect).frontend.text(node.ctx)
     recovered = dynamic is not None and node.line in dynamic.recovered
     if dynamic is not None and recovered:
         text = dynamic.recovered[node.line]
@@ -1471,7 +1475,7 @@ def definitions_and_uses(
     if node.ctx is None:
         return defined, used
 
-    text = source_slice(node.ctx)
+    text = for_name(dialect).frontend.text(node.ctx)
 
     frontend = for_name(dialect).frontend
 

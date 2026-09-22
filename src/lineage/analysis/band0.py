@@ -55,7 +55,7 @@ from lineage.analysis.refusal import (
     violations,
 )
 from lineage.config import AnalysisConfig
-from lineage.dialects import fold
+from lineage.dialects import fold, for_name
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
 from lineage.ir.model import Boundary, BoundaryKind, FilterPhase
@@ -2023,7 +2023,12 @@ def analyse_source(
     known_calls = summaries or {}
     result = AnalysisResult()
 
-    program = parse_program(source)
+    # Parsed by the DIALECT's front end, not by Oracle's. `Dialect.frontend` existed from
+    # A3 and nothing called it: every entry point still reached for `parse_program`, which
+    # is the Oracle ANTLR parser. A PostgreSQL script went through it, produced no units
+    # and no statements, and analysed to zero edges in silence - the failure this seam was
+    # built to make impossible, one call site short of being impossible.
+    program = for_name(dictionary.dialect).frontend.parse(source)
 
     # Dynamic SQL that is decidable is analysed exactly like static SQL, at mechanism AST.
     # A recovered statement stays BAND 2 though (ADR-0001 §6): the path runs through
@@ -2162,7 +2167,7 @@ def _enclosing_unit(program: Program, statement: ParsedStatement) -> str:
     statement is its parent.
     """
     candidates = [unit for unit in program.units if unit.line <= statement.line]
-    return candidates[-1].name.upper() if candidates else "<anonymous>"
+    return fold(candidates[-1].name, program.dialect) if candidates else "<anonymous>"
 
 
 def _analyse_statement(

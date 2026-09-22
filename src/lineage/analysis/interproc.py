@@ -25,6 +25,7 @@ from typing import Any
 from lineage.analysis.cfg import build_all
 from lineage.analysis.defuse import UnitScope, analyse_unit, collect_scopes
 from lineage.ir.model import Flow, NodeKind, Transform
+from lineage.dialects import fold
 from lineage.parsing.plsql import Program
 from lineage.resolution.dictionary import Dictionary
 
@@ -93,14 +94,11 @@ def _return_expressions(program: Program, unit_ctx: Any) -> list[str]:
     return list(program.frontend.returns(unit_ctx))
 
 
-def _unit_contexts(program: Program) -> dict[str, Any]:
-    """Every callable unit in the source, by name.
-
-    Unit names are upper-cased rather than dialect-folded, deliberately: they are the keys
-    the call-site matcher looks up by `.upper()` too, and neither side is a dictionary
-    lookup. Recorded as A2 residue in `lineage.dialects.base`.
-    """
-    return {unit.name.upper(): unit.ctx for unit in program.frontend.units(program.tree)}
+def _unit_contexts(program: Program, dialect: str) -> dict[str, Any]:
+    """Every callable unit in the source, by name, folded with the dialect's rule."""
+    return {
+        fold(unit.name, dialect): unit.ctx for unit in program.frontend.units(program.tree)
+    }
 
 
 class SummaryBuilder:
@@ -110,9 +108,9 @@ class SummaryBuilder:
         self._program = program
         self._dictionary = dictionary
         self._depth_cap = depth_cap
-        self._units = _unit_contexts(program)
+        self._units = _unit_contexts(program, dictionary.dialect)
         self._scopes: dict[str, UnitScope] = collect_scopes(program, dictionary.dialect)
-        self._graphs = build_all(program)
+        self._graphs = build_all(program, dictionary.dialect)
         self._cache: dict[str, Summary] = {}
 
     @property
@@ -121,7 +119,7 @@ class SummaryBuilder:
 
     def summary_of(self, unit: str, stack: frozenset[str] | None = None) -> Summary:
         """Summarise one callable, following nested calls up to the depth cap."""
-        name = unit.upper()
+        name = fold(unit, self._dictionary.dialect)
         active = stack or frozenset()
 
         if name in self._cache and not active:

@@ -79,10 +79,14 @@ def test_an_unknown_dialect_raises_rather_than_defaulting() -> None:
 def test_the_registry_holds_only_what_has_been_measured() -> None:
     """Pinned so a dialect cannot be added without this file being read.
 
-    A name in `SUPPORTED` is a claim that the analyser has been measured against it. Adding
-    PostgreSQL is a change to this assertion AND to a corpus, in that order.
+    A name in `SUPPORTED` is a claim that the analyser has been measured against it.
+
+    PostgreSQL was added on 2026-09-23 with band 0 only: the set-based analyser needs
+    nothing from a dialect but its name (ADR-0002 section 1), while bands 1 and 2 need a
+    PL/pgSQL grammar that has not been chosen. Its routine bodies are refused by name, so
+    the gap is counted rather than silent.
     """
-    assert set(SUPPORTED) == {"oracle"}
+    assert set(SUPPORTED) == {"oracle", "postgres"}
 
 
 def test_config_and_dictionary_must_agree() -> None:

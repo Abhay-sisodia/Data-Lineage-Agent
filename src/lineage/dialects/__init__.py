@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from lineage.dialects.base import Dialect
 from lineage.dialects.oracle import ORACLE
+from lineage.dialects.postgres import POSTGRES
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle at runtime, type-only here
     from lineage.config import AnalysisConfig
@@ -38,6 +39,7 @@ class UnsupportedDialectError(ValueError):
 
 SUPPORTED: dict[str, Dialect] = {
     ORACLE.name: ORACLE,
+    POSTGRES.name: POSTGRES,
 }
 
 

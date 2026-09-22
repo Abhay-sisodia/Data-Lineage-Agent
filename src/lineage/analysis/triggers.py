@@ -245,7 +245,7 @@ def analyse_trigger(trigger: TriggerInfo, dictionary: Dictionary) -> TriggerAnal
         return analysis
 
     scopes = collect_scopes(program, dictionary.dialect)
-    graphs = build_all(program)
+    graphs = build_all(program, dictionary.dialect)
 
     for unit, cfg in graphs.items():
         scope = scopes.get(unit)
@@ -259,7 +259,7 @@ def analyse_trigger(trigger: TriggerInfo, dictionary: Dictionary) -> TriggerAnal
         for node in cfg.nodes.values():
             if node.kind is not NodeKind.STATEMENT or node.ctx is None:
                 continue
-            origin = Origin(unit=trigger.name.upper(), line=node.line)
+            origin = Origin(unit=fold(trigger.name, dictionary.dialect), line=node.line)
             guard = _guard_of(cfg, node.id)
 
             if node.statement_kind == "assignment_statement":
@@ -277,7 +277,8 @@ def analyse_trigger(trigger: TriggerInfo, dictionary: Dictionary) -> TriggerAnal
                     )
                 )
 
-            result = analyse_statement(node, cfg, scope, dictionary, trigger.name.upper())
+            unit_name = fold(trigger.name, dictionary.dialect)
+            result = analyse_statement(node, cfg, scope, dictionary, unit_name)
             analysis.edges.extend(_as_band_2(result))
             analysis.boundaries.extend(f"{trigger.qualified}: {item}" for item in result.unresolved)
 
