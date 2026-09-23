@@ -35,37 +35,79 @@ sys.path.insert(0, str(ROOT / "src"))
 from lineage.analysis.procedure import analyse_source  # noqa: E402
 from lineage.config import AnalysisConfig  # noqa: E402
 from lineage.resolution.dictionary import Dictionary  # noqa: E402
+from lineage.resolution.infer import infer_dictionary, is_inferred  # noqa: E402
 
 CORPUS = ROOT / "corpus"
 DICTIONARY = CORPUS / "dictionary.json"
+STRESS = ROOT / "stress"
 
-EXAMPLE = """CREATE OR REPLACE PROCEDURE demo_load IS
+# One dictionary per dialect, and the pair must agree or `resolve_dialect` raises. That
+# check is not pedantry: analysing Oracle source against a PostgreSQL catalogue resolves
+# nothing and reports a large, plausible, entirely artificial set of dangling references -
+# a configuration error wearing the costume of a coverage gap.
+#
+# The Oracle one is a CAPTURE from a live XE. The PostgreSQL one is SYNTHETIC and says so
+# in `stress/dictionary_postgres.md`, which is a difference in authority worth knowing
+# while reading anything on this screen.
+DICTIONARIES = {
+    "oracle": DICTIONARY,
+    "postgres": STRESS / "dictionary_postgres.json",
+}
+
+EXAMPLES = {
+    "oracle": """CREATE OR REPLACE PROCEDURE demo_load IS
 BEGIN
     INSERT INTO tmp_recent (cust_id, last_login)
     SELECT cust_id, last_login
       FROM stg_customer
      WHERE last_login IS NOT NULL;
 END demo_load;
-/"""
+/""",
+    "postgres": """INSERT INTO fct_revenue (cust_id, period_month, net_amount, order_count)
+WITH agg AS (
+    SELECT o.cust_id                          AS cust_id,
+           date_trunc('month', o.order_date)  AS period_month,
+           SUM(o.gross_amount)                AS total,
+           COUNT(DISTINCT o.order_id)         AS buyers
+      FROM stg_orders o
+     WHERE o.currency = 'GBP'
+     GROUP BY o.cust_id, date_trunc('month', o.order_date)
+)
+SELECT a.cust_id,
+       a.period_month,
+       a.total,
+       RANK() OVER w
+  FROM agg a
+ WHERE a.buyers >= 3
+WINDOW w AS (PARTITION BY a.cust_id ORDER BY a.total DESC);""",
+}
 
 
 @st.cache_resource
-def _dictionary() -> Dictionary:
-    return Dictionary.load(DICTIONARY)
+def _dictionary(dialect: str) -> Dictionary:
+    return Dictionary.load(DICTIONARIES[dialect])
 
 
 @st.cache_resource
-def _config() -> AnalysisConfig:
-    return AnalysisConfig.load()
+def _config(dialect: str) -> AnalysisConfig:
+    return AnalysisConfig.load().model_copy(update={"dialect": dialect})
 
 
-def _corpus_files() -> dict[str, Path]:
-    """Every corpus package, so known-good input is one click away.
+def _corpus_files(dialect: str) -> dict[str, Path]:
+    """Known-good input, one click away, for the dialect in force.
 
     Pasting is the point of this tool, but the first question anyone asks is "what does it
     do on something I already have an answer for" - and hunting for file paths is friction
     between a question and its answer.
+
+    PostgreSQL has no corpus, so the five keyed stress packages stand in. They are the only
+    PostgreSQL source in the project with a hand-written answer key, which makes them the
+    only PostgreSQL input where "is this right?" has an answer that is not an opinion.
     """
+    if dialect == "postgres":
+        return {
+            path.name: path for path in sorted(STRESS.glob("stress_pg_*.sql"))
+        }
     return {
         str(path.relative_to(CORPUS)).replace("\\", "/"): path
         for path in sorted(CORPUS.rglob("*.sql"))
@@ -99,27 +141,105 @@ st.caption(
 )
 
 with st.sidebar:
-    st.subheader("Load a corpus package")
-    files = _corpus_files()
+    st.subheader("Dialect")
+    dialect = st.radio(
+        "Source dialect",
+        list(DICTIONARIES),
+        index=0,
+        help=(
+            "Selects BOTH the parser and the dictionary. The two are checked against each "
+            "other - analysing one dialect's source against the other's catalogue would "
+            "resolve nothing and report it as a coverage gap."
+        ),
+    )
+    st.caption(
+        "Oracle: ANTLR frontend, full bands 0-2.\n\n"
+        "PostgreSQL: SQL script frontend, **band 0 only** - a PL/pgSQL body is refused, so "
+        "there are no variables, no cursors and no trigger inheritance (ADR-0002 §5)."
+    )
+
+    st.subheader("Schema")
+    schema_mode = st.radio(
+        "Where do table and column names come from?",
+        ["bundled dictionary", "infer from the SQL"],
+        index=0,
+        help=(
+            "The bundled dictionary was CAPTURED (Oracle) or hand-written (PostgreSQL). "
+            "Inference reads your own SQL instead - useful when the tables are not in "
+            "either, and provisional by construction."
+        ),
+    )
+    inferred_schema = st.text_input(
+        "Default schema for inference",
+        value="public",
+        help="Where an unqualified table name binds. Ignored unless inferring.",
+        disabled=schema_mode == "bundled dictionary",
+    )
+
+    st.subheader("Target")
+    result_target = st.text_input(
+        "Target table for a query with no INSERT (optional)",
+        value="",
+        placeholder="e.g. gold_common.dim_organization_hierarchy",
+        help=(
+            "A standalone SELECT has no target table, so its own projections are the "
+            "target. Left blank they land on `<result>`; named, they land on that "
+            "relation - which is what lets one model's output be the next model's input."
+        ),
+    )
+
+    st.subheader("Load a package")
+    files = _corpus_files(dialect)
     choice = st.selectbox("File", ["(paste your own)", *files], index=0)
     st.caption(
-        f"Names resolve against the captured dictionary "
-        f"(`{DICTIONARY.relative_to(ROOT)}`). Tables it does not hold are reported as "
-        "dangling references rather than guessed at - so pasted SQL against your own "
-        "schema will show boundaries, and that is the analyser working."
+        f"Names resolve against `{DICTIONARIES[dialect].relative_to(ROOT)}`. Tables it "
+        "does not hold are reported as dangling references rather than guessed at - so "
+        "pasted SQL against your own schema will show boundaries, and that is the "
+        "analyser working."
+        + (
+            "\n\n**The PostgreSQL dictionary is synthetic**, not a capture - see "
+            "`stress/dictionary_postgres.md`."
+            if dialect == "postgres"
+            else ""
+        )
     )
 
 if choice != "(paste your own)":
     default_sql = files[choice].read_text(encoding="utf-8")
 else:
-    default_sql = EXAMPLE
+    default_sql = EXAMPLES[dialect]
 
-sql = st.text_area("PL/SQL", value=default_sql, height=320, key=choice)
+sql = st.text_area(
+    "PL/SQL" if dialect == "oracle" else "SQL",
+    value=default_sql,
+    height=320,
+    key=f"{dialect}:{choice}",
+)
 submitted = st.button("Analyse", type="primary")
 
 if submitted:
+    warnings: list[str] = []
+    if schema_mode == "infer from the SQL":
+        book, warnings = infer_dictionary(
+            sql, dialect=dialect, default_schema=inferred_schema or "public"
+        )
+    else:
+        book = _dictionary(dialect)
+
+    if is_inferred(book):
+        st.warning(
+            "**This schema was INFERRED from the SQL, not captured from a database.** It "
+            "holds only the columns the text mentions, so it under-reports and cannot "
+            "expand `SELECT *`. Every number below inherits that provenance.",
+            icon="⚠",
+        )
+        for line in warnings:
+            st.caption(f"- {line}")
+
     try:
-        result = analyse_source(sql, _dictionary(), _config(), None)
+        result = analyse_source(
+            sql, book, _config(dialect), None, result_target=result_target.strip() or None
+        )
     except Exception:
         st.error("The analyser raised. Full traceback below - this is a defect, not a refusal.")
         st.code(traceback.format_exc(), language="text")

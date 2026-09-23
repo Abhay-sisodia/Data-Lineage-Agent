@@ -83,7 +83,7 @@ def test_the_scope_has_not_quietly_shrunk(book) -> None:
         verdict, _detail = bucket(sql.strip(), book)
         counts[verdict] = counts.get(verdict, 0) + 1
 
-    assert counts == {"EDGES": 34, "NO-SOURCE": 2, "REFUSED": 7, "DECLARED": 1}
+    assert counts == {"EDGES": 35, "NO-SOURCE": 2, "REFUSED": 6, "DECLARED": 1}
 
 
 def test_out_of_scope_refusals_are_postgresql_only(book) -> None:

@@ -14,9 +14,9 @@ It exits non-zero if anything is SILENT or CRASHes, so a regression cannot pass 
 
 | bucket | count | meaning |
 |---|---|---|
-| EDGES | 34 | in scope, lineage produced |
+| EDGES | 35 | in scope, lineage produced |
 | NO-SOURCE | 2 | in scope, counted, and correctly has nothing to trace |
-| REFUSED | 7 | out of scope, refused by name with a stated reason |
+| REFUSED | 6 | out of scope, refused by name with a stated reason |
 | DECLARED | 1 | out of scope, a boundary names what stopped it |
 | SILENT | **0** | never acceptable, in scope or out |
 | CRASH | **0** | |
@@ -47,6 +47,13 @@ being counted is invisible in parse coverage, so a table can acquire its entire 
 be reported as having no writer — which reads as a finding rather than as a gap.
 
 ## In scope
+
+**A query with no target at all** — a standalone `SELECT`, which is the shape of every dbt
+and Databricks model, of a view body, and of most BI SQL. Its own projections are the
+target: edges land on `<result>.<column>` by default, or on a relation you name
+(`analyse_source(..., result_target=...)`) so that a directory of model files chains
+together. **Silent until 2026-09-24**, then briefly refused while the target was an open
+model decision (PG-09).
 
 **Core DML** — `INSERT … SELECT`, `INSERT … VALUES`, `INSERT` with a leading CTE,
 `UPDATE … SET`, `UPDATE … FROM` (the PostgreSQL join-update), `DELETE … WHERE`,
@@ -98,7 +105,6 @@ exists and `unnest` is slipping past it.
 | `DO $$ … $$` anonymous block | `UNSUPPORTED_CONSTRUCT` | same body, no name |
 | `CREATE TRIGGER` | `UNSUPPORTED_CONSTRUCT` | a PostgreSQL trigger names a FUNCTION that holds the body — so the lineage is in a routine we cannot parse. **Oracle triggers are handled and deliberately not refused**, which is why this refusal is scoped to one dialect |
 | `COPY … FROM/TO` | `SOURCE_UNAVAILABLE` | moves rows between a relation and something outside the database; the contents depend on data no static analysis can see |
-| a standalone `SELECT` | `UNSUPPORTED_CONSTRUCT` | it parses and every relation and predicate in it is readable, but there is **no target** — the result leaves the database rather than landing in a column, so an edge has no far end. Naming a target for a projection is a model decision, not parser work (PG-09). **Refused rather than skipped: until 2026-09-24 it was silent**, so a file of nothing but `SELECT`s returned a clean 100%-coverage run with no output |
 | `TRUNCATE` | `UNSUPPORTED_CONSTRUCT` | empties a relation unconditionally — no column has a source to name, but the statement decides what the table contains afterwards, so it is recorded rather than skipped |
 | data-modifying CTE (`WITH x AS (DELETE … RETURNING) …`) | declared `dangling_reference` | the CTE's rows come from a statement, not a relation |
 

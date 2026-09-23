@@ -51,11 +51,16 @@ def analyse_source(
     dictionary: Dictionary,
     config: AnalysisConfig | None = None,
     witness: ExecutionWitness | None = None,
+    result_target: str | None = None,
 ) -> AnalysisResult:
     """Analyse one PL/SQL source unit for band-0 and band-1 lineage.
 
     ``witness`` supplies execution evidence (T3.5). Omit it and every edge carries
     ``unexercised=None`` - nothing was observed, so nothing is claimed either way.
+
+    ``result_target`` names the relation a TARGETLESS query writes into (PG-09) - a dbt or
+    Databricks model's own table. Omit it and such a query's projections land on
+    ``<result>``.
     """
     settings = config or AnalysisConfig()
     dialect = resolve_dialect(settings, dictionary)
@@ -67,7 +72,9 @@ def analyse_source(
     # in its arguments.
     summaries = build_summaries(program, dictionary, settings.budgets.interprocedural_depth_cap)
 
-    result = band0.analyse_source(source, dictionary, settings, summaries=summaries)
+    result = band0.analyse_source(
+        source, dictionary, settings, summaries=summaries, result_target=result_target
+    )
 
     # The unanalysable-construct classifier (T3.1), run over the whole program rather than
     # over one module's statement list. A `MODEL` clause is refused whether it appears in a

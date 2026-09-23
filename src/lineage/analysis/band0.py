@@ -1918,6 +1918,93 @@ def _analyse_create_table_as(
     return _analyse_insert(equivalent, dictionary, band, unresolved, origin, summaries)
 
 
+RESULT_RELATION = "<result>"
+"""Target relation for a query that writes nowhere (PG-09).
+
+Angle-bracketed like `<script>`, and for the same reason: it is a name the analyser made
+up, and it must not be mistakable for a name someone's schema might contain.
+"""
+
+
+def _analyse_standalone_query(
+    select: Any,
+    dictionary: Dictionary,
+    band: int,
+    unresolved: list[Boundary],
+    origin: Origin,
+    summaries: dict[str, Any],
+    result_target: str | None,
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
+    """A query that writes nowhere - the shape of every dbt/Databricks model (PG-09).
+
+    **Until 2026-09-24 this was silent, and then briefly refused.** Refusing was the honest
+    interim: an edge needs a target, and a bare `SELECT` has projections rather than columns
+    of a relation, so naming that far end is a model decision rather than parser work. The
+    decision has now been taken, and it is that a query's OUTPUT is a real place for lineage
+    to land.
+
+    **Two ways to name it, because the two uses differ:**
+
+    * Nothing supplied - the projections land on `<result>`, so any pasted query produces
+      lineage with no configuration at all. Enough to read one query; NOT enough to tell two
+      apart, since every file would write into the same relation.
+    * A `result_target` supplied - the projections land on that relation instead, exactly as
+      an `INSERT` into it would. This is what makes a directory of model files chain: model
+      A's output columns are named the same way model B's `FROM` clause names them, so the
+      lineage crosses the file boundary.
+
+    **Delegated to the INSERT path rather than reimplemented.** Building the equivalent
+    `INSERT` gets CTEs, set operations, windows, the transform ladder and the filter phase
+    for free, and keeps one implementation of each. The same reasoning as
+    `_analyse_create_table_as`, and the reason S2-08 is on the register.
+
+    Unnamed projections are named by POSITION and declared. That is the one place this
+    differs from CTAS, which refuses them: a created table's column name is decided by the
+    server and guessing it would be inventing schema, whereas a result set's third column
+    IS the third column - position is its identity, not a guess about one.
+    """
+    projections = list(getattr(select, "selects", []) or [])
+    if not projections:
+        return [], (
+            RefusalCode.UNSUPPORTED_CONSTRUCT,
+            "a query with no select list has no output columns to attribute lineage to",
+        )
+
+    columns: list[exp.Expression] = []
+    unnamed = 0
+    for position, item in enumerate(projections, start=1):
+        name = item.alias_or_name
+        if not name:
+            unnamed += 1
+            name = f"column_{position}"
+        columns.append(exp.to_identifier(name))
+
+    if result_target:
+        target = exp.to_table(result_target, dialect=dictionary.dialect)
+    else:
+        # Quoted so the angle brackets survive the round trip into `exp.Table.name`.
+        target = exp.Table(this=exp.to_identifier(RESULT_RELATION, quoted=True))
+
+    if unnamed:
+        unresolved.append(
+            Boundary(
+                kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                subject=target.name.upper(),
+                detail=(
+                    f"{origin.unit}: {unnamed} projection(s) of this query have no name, so "
+                    f"their lineage is reported against a POSITIONAL one (column_N). The "
+                    f"edges are real; the column names are this analyser's, not the query's"
+                ),
+            )
+        )
+
+    equivalent = exp.Insert(
+        this=exp.Schema(this=target, expressions=columns),
+        expression=select,
+    )
+    return _analyse_insert(equivalent, dictionary, band, unresolved, origin, summaries)
+
+
 def _analyse_delete(
     statement: exp.Delete,
     dictionary: Dictionary,
@@ -2238,8 +2325,19 @@ def analyse_source(
     config: AnalysisConfig | None = None,
     band: int = 0,
     summaries: dict[str, Any] | None = None,
+    result_target: str | None = None,
 ) -> AnalysisResult:
-    """Analyse one PL/SQL source unit for band-0 lineage."""
+    """Analyse one PL/SQL source unit for band-0 lineage.
+
+    `result_target` names the relation a TARGETLESS query writes into (PG-09). Left unset,
+    such a query's projections land on `<result>`, which is enough to read one query and
+    not enough to tell two apart. Supplied - as a dbt or Databricks model's own table name
+    - the projections land there instead, and lineage crosses the file boundary.
+
+    Deliberately a parameter rather than an `AnalysisConfig` field: config is fingerprinted
+    into every signed measurement, and this is a property of ONE invocation rather than a
+    declared limit of the run.
+    """
     settings = config or AnalysisConfig()
     known_calls = summaries or {}
     result = AnalysisResult()
@@ -2289,30 +2387,12 @@ def analyse_source(
                     result.boundaries.append(note)
             continue
 
-        if statement.kind not in SUPPORTED:
-            # PG-09. Counted and refused rather than skipped: a statement that falls
-            # through here leaves no trace in any number, which is the one outcome
-            # `docs/postgres_scope.md` says is never acceptable.
-            if _is_standalone_query(program, statement):
-                result.statements_seen += 1
-                result.refusals.append(
-                    Refusal(
-                        kind=statement.kind,
-                        line=statement.line,
-                        reason=(
-                            "a standalone SELECT has no target relation to attribute "
-                            "lineage to - its result leaves the database rather than "
-                            "landing in a column, so there is no far end for an edge. "
-                            "The reads and predicates are real and are not claimed here; "
-                            "naming a target for a projection is a model decision "
-                            "(PG-09), not parser work"
-                        ),
-                        excerpt=" ".join(statement.text.split())[:80],
-                        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
-                        unit=_enclosing_unit(program, statement),
-                        end_line=last_line(statement),
-                    )
-                )
+        # PG-09. A query standing alone at script level is ANALYSED, with its own
+        # projections as the target columns - the shape of every dbt/Databricks model.
+        # It was silent until 2026-09-24 and refused for part of that day; the refusal
+        # was the honest interim while the target was a model decision, and the decision
+        # has been taken.
+        if statement.kind not in SUPPORTED and not _is_standalone_query(program, statement):
             continue
         result.statements_seen += 1
         unit = _enclosing_unit(program, statement)
@@ -2359,7 +2439,13 @@ def analyse_source(
             continue
 
         edges, refusal, unresolved = _analyse_statement(
-            statement, dictionary, settings, statement_band, origin, known_calls
+            statement,
+            dictionary,
+            settings,
+            statement_band,
+            origin,
+            known_calls,
+            result_target,
         )
         # Declared, counted, and never silent. An identifier the analyser could not
         # resolve is a stated boundary - which is what makes the coverage number
@@ -2421,6 +2507,7 @@ def _analyse_statement(
     band: int,
     origin: Origin,
     summaries: dict[str, Any],
+    result_target: str | None = None,
 ) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None, list[Boundary]]:
     unresolved: list[Boundary] = []
     try:
@@ -2469,6 +2556,13 @@ def _analyse_statement(
     elif isinstance(parsed, exp.Create):
         edges, refusal = _analyse_create_table_as(
             parsed, dictionary, band, unresolved, origin, summaries
+        )
+    elif isinstance(parsed, exp.Select | exp.SetOperation):
+        # PG-09. Only reachable when the statement loop let a query through, which it does
+        # only for one standing alone at script level - so an Oracle `SELECT ... INTO`,
+        # which shares the kind `query_block`, never arrives here.
+        edges, refusal = _analyse_standalone_query(
+            parsed, dictionary, band, unresolved, origin, summaries, result_target
         )
     else:
         return (

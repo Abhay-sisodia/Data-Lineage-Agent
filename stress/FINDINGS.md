@@ -92,7 +92,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-06 | `measurement-error` | open | **the scope contract is stated per STATEMENT and the losses are per COLUMN.** `probe_postgres` asks "did this statement produce edges?"; PG-03/04/05 all answer yes while losing a column. Three of 34 in-scope constructs are partial and the probe cannot tell |
 | PG-07 | `key-error` | **fixed** | `stress_pg_03`'s five refusal subjects predicted with the wrong line convention — the codes and the set were right, the numbering was the splitter's and not the SQL's |
 | PG-08 | `refusal-taxonomy` | open | `CREATE_TRIGGER_PG`'s reason never reaches the reader: band 0 declines every non-CTAS `CREATE` first and the `(unit, line)` dedup discards the classifier's better message |
-| PG-09 | `silent-loss` | **fixed** | **a bare `SELECT` produces nothing at all and is not counted** — 0 edges, 0 refusals, 0 boundaries, `statements_seen = 0`. Read-only analytical SQL is a large share of what a lineage tool is pointed at, and it currently returns a clean run with no output |
+| PG-09 | `silent-loss` | **fixed (D-8)** | **a bare `SELECT` produces nothing at all and is not counted** — 0 edges, 0 refusals, 0 boundaries, `statements_seen = 0`. Read-only analytical SQL is a large share of what a lineage tool is pointed at, and it currently returns a clean run with no output |
 | PG-10 | `flow-classification` | **fixed (D-6)** | the phase of a `WHERE` over an already-aggregated CTE — key says post-aggregation by what it does, analyser says pre-aggregation by the keyword. Both defensible; D-2's own argument favours the key |
 | PG-11 | `transform-classification` | **fixed (D-7)** | the transform of a NON-aggregated operand in an aggregated expression — "hardest on the PATH" (key) against "hardest in the EXPRESSION" (analyser). They agree everywhere except when one operand is aggregated and another is not |
 | PG-12 | `key-error` | **fixed** | `stress_pg_05` omitted a CTE predicate eleven levels from its target — the identical construct is labelled a filter in `stress_pg_02`'s key |
@@ -3578,3 +3578,76 @@ file:
 * `test_a_select_inside_an_insert_is_not_refused` — `INSERT … SELECT` contains a query block
   and is the commonest statement in both corpora. A rule matching on the query rather than
   its position would refuse every load in the project.
+
+## D-8 · PG-09 completed, 2026-09-24 — a query's own output is a place lineage can land
+
+Taken by Abhay after pasting a **real 500-line Databricks model** into the inspection UI
+and getting a refusal. That is the best evidence this decision could have had, and it
+arrived the same day the interim shipped.
+
+### What the evidence showed
+
+The query parsed cleanly in all four dialects — 52 column references, six CTEs, `EXISTS`
+subqueries, nested `CASE`/`CAST`/`NULLIF`/`TRIM`, a `GROUP BY` with `MAX(CASE …)`, a
+`UNION ALL` and a `ROW_NUMBER()` window. **Changing one thing — wrapping it in an `INSERT`
+— produced 19 edges at 100% parse coverage with zero refusals.** The parser was never the
+problem; the missing target was.
+
+### The decision
+
+**A targetless query's own projections are the target**, with two ways to name the relation:
+
+* **nothing supplied** → `<result>.<column>`. Any pasted query yields lineage with no
+  configuration. Enough to read ONE query; not enough to tell two apart, since every file
+  would write into the same relation.
+* **`result_target` supplied** → that relation instead, exactly as an `INSERT` into it
+  would. This is what makes a directory of dbt/Databricks models **chain**: model A's
+  output columns are named the way model B's `FROM` clause will name them.
+
+`result_target` is a PARAMETER, not an `AnalysisConfig` field — config is fingerprinted into
+every signed measurement, and this is a property of one invocation rather than a declared
+limit of the run.
+
+Implemented as `band0._analyse_standalone_query`, which builds the equivalent `INSERT` and
+delegates — the same move `_analyse_create_table_as` makes, so CTEs, set operations,
+windows, the transform ladder and the filter phase all come for free rather than being
+written a second time (S2-08).
+
+**One place it deliberately differs from CTAS**: an unnamed projection is named by POSITION
+and declared, where CTAS refuses. A created table's column name is decided by the server, so
+guessing it invents schema; a result set's third column IS the third column, so position is
+its identity rather than a guess about one.
+
+### Scope contract
+
+The standalone `SELECT` moves from REFUSED to **in scope**: `EDGES 34 → 35`,
+`REFUSED 7 → 6`, still 44/44 with zero silent.
+
+### Measurement
+
+```
+phase 0   unchanged, every cell   gate 96.2%/96.2%, coverage 81.6%, 9 refusals
+stress    all nine grids identical
+suite     812 passed, 1 xfailed
+```
+
+## New: `resolution/infer.py` — a provisional dictionary from SQL text
+
+Real schemas are rarely in a captured dictionary, and without one every table is a dangling
+reference — so the fix above is only half of what a user needs. `infer_dictionary` reads
+the relations and columns out of the SQL itself.
+
+**It is guessed, not captured, and the code refuses to let that be forgotten.**
+`captured_at` is set to the literal `inferred-from-sql`, a value no real capture can
+produce, and `is_inferred()` lets any caller ask. The UI shows a warning banner whenever it
+is in use.
+
+What it cannot do, each stated in the module docstring because the failures are quiet: it
+holds only the columns the text mentions, so it under-reports and **cannot expand
+`SELECT *`**; unqualified column references are dropped rather than attributed, because
+guessing which relation owns `cust_id` would invent a fact; and it has no views, synonyms,
+triggers or temporariness, none of which are in the text.
+
+Measured on the pasted model: 5 relations, 19 columns, **the same 19 edges** as the
+hand-built dictionary, plus two honest warnings (13 unattributable column references, and a
+`SELECT *` it cannot expand).
