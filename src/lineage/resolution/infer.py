@@ -95,22 +95,40 @@ def infer_dictionary(
                 aliases[fold(table.alias, dialect)] = key
             aliases[fold(name, dialect)] = key
 
-    # Pass 2: attribute columns. Only a QUALIFIED reference whose qualifier resolves to a
-    # real relation is used - `o.cust_id` where `o` is `silver.orders`. An unqualified
-    # `cust_id` could belong to any relation in scope and assigning it to one would be an
-    # invention, so it is counted and dropped.
+    # Pass 2: attribute columns, by two rules and no more.
+    #
+    # 1. A QUALIFIED reference whose qualifier resolves to a real relation - `o.cust_id`
+    #    where `o` is `silver.orders`. Unambiguous.
+    #
+    # 2. An UNQUALIFIED reference in a select whose FROM names exactly ONE stored relation
+    #    and nothing else. `SELECT legal_entity_identifier FROM silver.legal_entity_profiles`
+    #    has one candidate, so the attribution is DETERMINED rather than guessed - there is
+    #    nowhere else the column could come from. This is the single-table CTE, which is
+    #    most of what a warehouse model is made of, and without it those relations end up
+    #    in the dictionary with no columns at all and nothing selected from them resolves.
+    #
+    # Anything else is counted and DROPPED. `SELECT cust_id FROM a JOIN b` has two
+    # candidates and picking one would invent a fact; an inferred dictionary is allowed to
+    # under-report and is never allowed to invent.
     unattributed = 0
     for statement in statements:
         for column in statement.find_all(exp.Column):
-            qualifier = column.table
-            if not qualifier:
-                unattributed += 1
-                continue
-            key = aliases.get(fold(qualifier, dialect))
-            if key is None:
-                continue  # an alias of a CTE or derived table, not of a stored relation
             name = column.name
-            if name and name != "*" and name not in columns[key]:
+            if not name or name == "*":
+                continue
+
+            qualifier = column.table
+            if qualifier:
+                key = aliases.get(fold(qualifier, dialect))
+                if key is None:
+                    continue  # an alias of a CTE or derived table, not a stored relation
+            else:
+                key = _sole_relation(column.parent_select, aliases, dialect)
+                if key is None:
+                    unattributed += 1
+                    continue
+
+            if name not in columns[key]:
                 columns[key].append(name)
 
     if unattributed:
@@ -150,6 +168,44 @@ def infer_dictionary(
         temporary=dict.fromkeys(columns, False),
     )
     return book, warnings
+
+
+def _sole_relation(
+    select: Any, aliases: dict[str, str], dialect: str
+) -> str | None:
+    """The one stored relation this select reads, or None if that is not certain.
+
+    Returns a key only when the select's own `FROM` names exactly one thing, that thing is
+    a table (not a derived table or a CTE reference), it resolves to a stored relation, and
+    there are no joins. Every one of those conditions is doing work:
+
+    * more than one source and an unqualified column has more than one candidate;
+    * a derived table or CTE supplies COMPUTED columns, which belong to no base relation and
+      would pollute the dictionary with names the real table does not have;
+    * a join is the commonest way for two candidates to appear.
+
+    Deliberately does NOT look outwards to an enclosing select. A correlated reference in a
+    subquery may resolve to an outer relation, and following that would turn a determined
+    attribution back into a guess.
+    """
+    if select is None:
+        return None
+    if select.args.get("joins"):
+        return None
+
+    # SQLGlot spells this arg `from_` in the pinned version and `from` in others, and
+    # `.get("from")` against the wrong one returns None rather than raising - so a single
+    # hardcoded key fails SILENTLY and attributes nothing. That is exactly how the first
+    # draft of this function came to do nothing at all while looking correct.
+    from_clause = select.args.get("from_") or select.args.get("from")
+    if from_clause is None:
+        return None
+
+    source = from_clause.this
+    if not isinstance(source, exp.Table):
+        return None
+
+    return aliases.get(fold(source.alias or source.name, dialect))
 
 
 def _qualified(table: Any, default_schema: str, dialect: str) -> str:
