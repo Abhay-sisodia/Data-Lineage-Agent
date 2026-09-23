@@ -148,9 +148,29 @@ def _schema_for(dictionary: Dictionary) -> dict[str, Any]:
     Unqualified table names are used as keys because the corpus lives in one schema;
     cross-schema binding is a band-1 concern (silent failure s2) handled by the
     dictionary itself rather than by SQLGlot.
+
+    **A relation with NO columns is omitted, and the omission is load-bearing.** SQLGlot's
+    `qualify` raises `Table <name> must have at least one column` on an empty entry, and it
+    raises for the STATEMENT - so one column-less relation anywhere in the dictionary
+    refuses every statement in the run, including statements that never reference it.
+    Measured 2026-09-24: a two-relation dictionary with one empty entry refused
+    `SELECT o.cust_id FROM s.orders o`, which does not mention the empty table at all.
+
+    Neither shipped dictionary has an empty entry, which is why this was never seen here.
+    A CAPTURE easily can: a table whose columns the capturing user lacks privileges to read
+    comes back with an empty list, and a permission gap on one unrelated table would then
+    take the whole run to zero edges.
+
+    Omitting it is the honest behaviour rather than a workaround. An entry with no columns
+    tells SQLGlot nothing it can use; leaving it out means references to that table resolve
+    as DANGLING - visible, counted, local to the statement that touches it - which is what
+    the taxonomy says an unknown object should be. The alternative is a catastrophic
+    refusal whose stated reason names a table the reader never asked about.
     """
     schema: dict[str, dict[str, str]] = {}
     for qualified, columns in dictionary.columns.items():
+        if not columns:
+            continue
         _, _, table = qualified.partition(".")
         schema[table] = dict.fromkeys(columns, "UNKNOWN")
     return schema

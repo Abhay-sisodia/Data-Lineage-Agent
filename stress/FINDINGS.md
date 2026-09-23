@@ -99,6 +99,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-13 | `key-error` | **fixed** | `stress_pg_05` composed influence through a window `ORDER BY` for the depth-2 grouping keys and forgot it for the depth-5 one. **Same category as S2-13** — "a uniform rule applied to the first instance only", now third across two dialects, which makes it a fault in how keys are written rather than three slips |
 | PG-14 | `silent-loss` | **fixed** | **a named `WINDOW` clause lost its PARTITION BY and ORDER BY, silently.** With two functions sharing the window, `RANK() OVER w` produces NO EDGE AT ALL and the target column vanishes from the lineage. No refusal, no boundary, 100% parse coverage. The construct a large reporting query actually uses |
 | PG-15 | `convention` | open, needs a decision | `SUM(x) FILTER (WHERE c)` and `SUM(CASE WHEN c THEN x END)` compute the same number and produce DIFFERENT lineage — a relation-targeted filter against a column-targeted value edge |
+| PG-16 | `construct-coverage` | **fixed** | **one column-less relation in the dictionary refused EVERY statement in the run**, including statements that never mention it. SQLGlot's `qualify` raises per STATEMENT on an empty schema entry. Neither shipped dictionary has one, which is why nothing had ever reached it; a capture lacking column privileges on one unrelated table would have taken a whole run to zero edges |
 
 **`PG-` is the PostgreSQL stress series**, kept apart from `S1-`..`S4-` for the same reason
 those are kept apart from `P-`: provenance is part of a finding's identity. A `PG-` finding
@@ -3651,3 +3652,52 @@ triggers or temporariness, none of which are in the text.
 Measured on the pasted model: 5 relations, 19 columns, **the same 19 edges** as the
 hand-built dictionary, plus two honest warnings (13 unattributable column references, and a
 `SELECT *` it cannot expand).
+
+## PG-16 · `construct-coverage` · FIXED, 2026-09-24 — a column-less relation refused everything
+
+**Found by a user pasting a production Databricks model into the inspection UI**, which is
+a provenance no instrument in this project has: not a stress package, not a probe, not a
+metamorphic pair. A real file, from a real warehouse, pasted by someone who wanted an
+answer rather than a measurement.
+
+```
+dictionary: {"s.orders": ["cust_id", "amount"], "s.lonely": []}
+query:      SELECT o.cust_id, o.amount FROM s.orders o;     <- never mentions s.lonely
+
+before:  0 edges, refused NAME_NOT_RESOLVED - "Table  must have at least one column"
+after:   2 edges, no refusal
+```
+
+SQLGlot's `qualify` raises on an empty schema entry, and it raises **for the statement**.
+So one column-less relation anywhere in the dictionary refused every statement in the run,
+with a reason naming a table the reader never asked about — and the empty table name in
+that message is why it reads as gibberish rather than as a diagnosis.
+
+### Why nothing had ever reached it
+
+Neither shipped dictionary has an empty column list: `corpus/dictionary.json` has 23 entries
+and 0 empty, `stress/dictionary_postgres.json` 16 and 0. Every test, probe and stress package
+in the project binds against one of those two, so the condition was unreachable from inside.
+
+**A capture can produce one easily.** `columns()` reads what the capturing user is permitted
+to see; a table with column privileges withheld comes back empty, and a permission gap on
+one unrelated table would then take a whole production run to zero edges. That is the
+failure this would have caused in the field, and it is worse than what the user actually
+hit, because on a large estate nobody would connect the two.
+
+### The fix, and why omitting is the honest answer
+
+`_schema_for` skips relations with no columns. An entry with no columns tells SQLGlot
+nothing it can use; leaving it out means references to that table resolve as **dangling** —
+visible, counted, and local to the statement that touches it, which is exactly what the
+taxonomy says an unknown object should be. The alternative is a catastrophic refusal whose
+blast radius has nothing to do with its cause.
+
+### Closing condition met
+
+`tests/test_columnless_relation.py` — three tests, all three verified to fail with the fix
+reverted. The third is the control, and is the point: without it a fix that returned an
+EMPTY schema for everything would satisfy the first two assertions and destroy all name
+resolution.
+
+Phase 0 unchanged, every cell. 824 passed, 1 xfailed.
