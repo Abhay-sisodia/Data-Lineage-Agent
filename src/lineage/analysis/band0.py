@@ -81,7 +81,14 @@ from lineage.resolution.dictionary import Dictionary, UnknownObjectError
 # `update_statement` is deliberately NOT here. An UPDATE's SET clause assigns from
 # variables as often as from columns, and `defuse._analyse_update` already owns it with
 # the unit scope needed to tell those apart - see the note there.
-SUPPORTED = {"insert_statement", "merge_statement", "delete_statement"}
+SUPPORTED = {
+    "insert_statement",
+    "merge_statement",
+    "delete_statement",
+    # CREATE TABLE AS SELECT. Added 2026-09-23 after `probe_postgres.py` found it silent;
+    # `_analyse_create_table_as` declines every other kind of CREATE by name.
+    "create_statement",
+}
 
 
 
@@ -1697,6 +1704,76 @@ def _reference_name_of(item: Any) -> str | None:
     return columns[0].name if len(columns) == 1 else None
 
 
+def _analyse_create_table_as(
+    statement: exp.Create,
+    dictionary: Dictionary,
+    band: int,
+    unresolved: list[Boundary],
+    origin: Origin,
+    summaries: dict[str, Any],
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
+    """`CREATE TABLE x AS SELECT ...` - a write, and one of the commonest in an ETL estate.
+
+    Found SILENT by `scripts/probe_postgres.py`: `create_statement` was not in `SUPPORTED`,
+    so a CTAS was skipped before `statements_seen` was incremented - not counted, not
+    refused, invisible in parse coverage. A table acquiring its entire contents and being
+    reported as having no writer is the worst-shaped failure this analyser has, because it
+    reads as a finding rather than as a gap.
+
+    **Delegated to the INSERT path rather than reimplemented**, by building the statement
+    CTAS is equivalent to: create the relation, then insert the select into it. That gets
+    CTEs, joins, set operations, windows, the transform ladder and filter phase for free and
+    keeps one implementation of each. Writing a second traversal here is how S2-08 happened.
+
+    The target's columns are the SELECT'S OUTPUT NAMES - which is what CTAS does - unless
+    the statement names them itself, as `CREATE TABLE x (a, b) AS SELECT ...` may.
+    """
+    target = statement.this
+    columns: list[exp.Expression] = []
+    if isinstance(target, exp.Schema):
+        columns = list(target.expressions)
+        target = target.this
+    if not isinstance(target, exp.Table):
+        # `CREATE INDEX`, `CREATE VIEW`, `CREATE FUNCTION` and friends reach here. None of
+        # them is a row-level write, and inventing one would be worse than declining.
+        return [], (
+            RefusalCode.UNSUPPORTED_CONSTRUCT,
+            f"CREATE of {statement.args.get('kind') or type(target).__name__}, "
+            f"which does not write rows from a query",
+        )
+
+    select = statement.expression
+    if not isinstance(select, exp.Select | exp.Union | exp.Except | exp.Intersect):
+        return [], (
+            RefusalCode.UNSUPPORTED_CONSTRUCT,
+            "CREATE TABLE without AS SELECT - it declares a shape and writes no rows",
+        )
+
+    if not columns:
+        named = [item.alias_or_name for item in getattr(select, "selects", []) or []]
+        if not all(named):
+            # An unnamed projection - `SELECT a + b FROM t` - has no column name for the
+            # created table, so positional binding would be inventing one.
+            unresolved.append(
+                Boundary(
+                    kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+                    subject=target.name,
+                    detail=(
+                        f"{target.name}: CREATE TABLE AS SELECT with an unnamed projection - "
+                        f"the created column's name is decided by the server, not by the text"
+                    ),
+                )
+            )
+            return [], None
+        columns = [exp.to_identifier(name) for name in named]
+
+    equivalent = exp.Insert(
+        this=exp.Schema(this=target, expressions=columns),
+        expression=select,
+    )
+    return _analyse_insert(equivalent, dictionary, band, unresolved, origin, summaries)
+
+
 def _analyse_delete(
     statement: exp.Delete,
     dictionary: Dictionary,
@@ -2219,6 +2296,10 @@ def _analyse_statement(
     elif isinstance(parsed, exp.MultitableInserts):
         edges, refusal = _analyse_multitable_insert(
             parsed, dictionary, band, unresolved, origin
+        )
+    elif isinstance(parsed, exp.Create):
+        edges, refusal = _analyse_create_table_as(
+            parsed, dictionary, band, unresolved, origin, summaries
         )
     else:
         return (

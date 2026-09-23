@@ -140,12 +140,25 @@ class Refusal:
 
 @dataclass(frozen=True)
 class Construct:
-    """One named construct the analyser refuses on sight."""
+    """One named construct the analyser refuses on sight.
+
+    `dialects` scopes a refusal to the dialects it is true for, and None means all of them.
+    Most constructs here are refused because they are undecidable in principle - a MODEL
+    clause computes by inter-row reference whoever wrote it - and those apply everywhere.
+    Some are refused only because a particular front end cannot read them yet: `CREATE
+    TRIGGER` is fully HANDLED in Oracle, through the dictionary, and unhandled in
+    PostgreSQL, where the trigger's body lives in a function this project cannot parse.
+    Refusing it for both would be false about Oracle and would move a signed measurement.
+    """
 
     name: str
     pattern: re.Pattern[str]
     code: RefusalCode
     reason: str
+    dialects: frozenset[str] | None = None
+
+    def applies_to(self, dialect: str) -> bool:
+        return self.dialects is None or dialect in self.dialects
 
 
 def last_line(statement: ParsedStatement) -> int:
@@ -161,6 +174,48 @@ def _rx(pattern: str) -> re.Pattern[str]:
 # where two patterns can match the same text: the first match wins, so the more specific
 # construct is listed first.
 CONSTRUCTS: tuple[Construct, ...] = (
+    # --- PostgreSQL only. Each of these was SILENT until 2026-09-23 - not counted,
+    # not refused, not visible in parse coverage. Silence is the one outcome that is
+    # never acceptable, in scope or out, so each became a refusal with its own reason.
+    Construct(
+        name="DO_BLOCK",
+        pattern=_rx(r"\bDO\s*\$[A-Za-z_0-9]*\$"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="DO block - an anonymous PL/pgSQL body, dollar-quoted like a routine's and just as "
+        "unreadable until a grammar is chosen (ADR-0002 section 5)",
+        dialects=frozenset({"postgres"}),
+    ),
+    Construct(
+        name="COPY",
+        pattern=_rx(r"\bCOPY\s+[A-Za-z_0-9.$\"]+\s*(?:\([^)]*\)\s*)?(?:FROM|TO)\s"),
+        code=RefusalCode.SOURCE_UNAVAILABLE,
+        reason="COPY moves rows between a relation and something OUTSIDE the database - a file, a "
+        "program, or the client. The relation's contents depend on data this analysis can never "
+        "see, so the honest answer is to name the boundary rather than report the table as having "
+        "no writer",
+        dialects=frozenset({"postgres"}),
+    ),
+    Construct(
+        name="CREATE_TRIGGER_PG",
+        pattern=_rx(r"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?TRIGGER\b"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="CREATE TRIGGER - PostgreSQL triggers name a FUNCTION that holds the body, "
+        "so the lineage "
+        "is in a routine this project cannot yet parse. Oracle triggers are handled through the "
+        "dictionary and are deliberately NOT refused, which is why this construct is scoped to "
+        "one dialect",
+        dialects=frozenset({"postgres"}),
+    ),
+    Construct(
+        name="TRUNCATE_PG",
+        pattern=_rx(r"\bTRUNCATE\s+(?:TABLE\s+)?[A-Za-z_0-9.$\"]+"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="TRUNCATE empties a relation unconditionally. No column has a source to "
+        "name - the same "
+        "shape as a DELETE with no predicate - but the statement decides what the table contains "
+        "afterwards, so it is recorded rather than skipped",
+        dialects=frozenset({"postgres"}),
+    ),
     Construct(
         name="DOLLAR_QUOTED_ROUTINE_BODY",
         pattern=_rx(r"CREATE(?:\s+OR\s+REPLACE)?\s+(?:FUNCTION|PROCEDURE)\s[\s\S]{0,2000}?\bAS\s*\$[A-Za-z_0-9]*\$"),
@@ -315,7 +370,7 @@ def _strip_noise(text: str) -> str:
     return "".join(out)
 
 
-def classify_statement(text: str) -> Construct | None:
+def classify_statement(text: str, dialect: str = "oracle") -> Construct | None:
     """The first construct this text contains that the analyser cannot resolve.
 
     Returns the construct rather than a bare bool so the caller gets the code and the
@@ -324,7 +379,7 @@ def classify_statement(text: str) -> Construct | None:
     """
     clean = _strip_noise(text)
     for construct in CONSTRUCTS:
-        if construct.pattern.search(clean):
+        if construct.applies_to(dialect) and construct.pattern.search(clean):
             return construct
     return None
 
@@ -401,7 +456,7 @@ def classify_program(program: Program) -> list[Refusal]:
     """
     flagged: list[tuple[ParsedStatement, Construct]] = []
     for statement in program.statements:
-        construct = classify_statement(statement.text)
+        construct = classify_statement(statement.text, program.dialect)
         if construct is not None:
             flagged.append((statement, construct))
 
@@ -441,6 +496,8 @@ def classify_program(program: Program) -> list[Refusal]:
     covered = {(refusal.line, refusal.code) for refusal in refusals}
     clean_source = _strip_noise(program.source)
     for construct in CONSTRUCTS:
+        if not construct.applies_to(program.dialect):
+            continue
         for match in construct.pattern.finditer(clean_source):
             line = _line_of(clean_source, match.start())
             if any(
