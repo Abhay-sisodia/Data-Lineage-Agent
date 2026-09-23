@@ -60,6 +60,7 @@ from lineage.dialects import fold, for_name
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
 from lineage.ir.model import Boundary, BoundaryKind, FilterPhase
+from lineage.parsing.sqlscript import SCRIPT_UNIT
 from lineage.parsing.plsql import ParsedStatement, Program, parse_program
 from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
@@ -1588,6 +1589,36 @@ def _filter_phase(clause_phase: FilterPhase, transform: Transform) -> FilterPhas
     return clause_phase
 
 
+def _is_standalone_query(program: Any, statement: Any) -> bool:
+    """A query block that stands alone at the top level of a script (PG-09).
+
+    **This was SILENT** - not refused, not declared, and NOT COUNTED, so a file of nothing
+    but `SELECT`s returned a clean run at 100% parse coverage with no output and nothing
+    anywhere recording that anything had been seen. Read-only analytical SQL is a large
+    share of what a lineage tool gets pointed at: view bodies, BI queries, report
+    definitions, dbt models.
+
+    **Why the test is POSITION and not statement kind.** Both frontends call a query
+    `query_block`, so the kind alone cannot tell PostgreSQL's bare `SELECT` from Oracle's
+    `SELECT ... INTO` - and refusing the latter would refuse a construct def-use handles
+    and that the signed phase-0 measurement depends on. What actually separates them is
+    where the statement sits: a query block inside a routine has an `INTO` or is a cursor's
+    body, and one at the top level of a SCRIPT has neither. Only the script frontend
+    produces the synthetic unit, so an Oracle program can never satisfy this by
+    construction rather than by a name coincidence.
+
+    Refused rather than analysed because the missing piece is a MODEL DECISION, not parser
+    work: an edge needs a target, and a bare `SELECT` has projections rather than columns
+    of a relation. Naming that target - a synthetic node, the projection's own name - is a
+    decision that interacts with S1-05's identity work and is not one to make as a side
+    effect. **A refusal costs one statement of parse coverage and converts a silence into a
+    statement**, which is the whole difference between a gap and a hole.
+    """
+    if statement.kind != "query_block":
+        return False
+    return _enclosing_unit(program, statement).strip().lower() == SCRIPT_UNIT
+
+
 def _condition_text(expression: Any, dialect: str) -> str:
     """A condition rendered the way the source wrote it, for use as a guard.
 
@@ -2259,6 +2290,29 @@ def analyse_source(
             continue
 
         if statement.kind not in SUPPORTED:
+            # PG-09. Counted and refused rather than skipped: a statement that falls
+            # through here leaves no trace in any number, which is the one outcome
+            # `docs/postgres_scope.md` says is never acceptable.
+            if _is_standalone_query(program, statement):
+                result.statements_seen += 1
+                result.refusals.append(
+                    Refusal(
+                        kind=statement.kind,
+                        line=statement.line,
+                        reason=(
+                            "a standalone SELECT has no target relation to attribute "
+                            "lineage to - its result leaves the database rather than "
+                            "landing in a column, so there is no far end for an edge. "
+                            "The reads and predicates are real and are not claimed here; "
+                            "naming a target for a projection is a model decision "
+                            "(PG-09), not parser work"
+                        ),
+                        excerpt=" ".join(statement.text.split())[:80],
+                        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+                        unit=_enclosing_unit(program, statement),
+                        end_line=last_line(statement),
+                    )
+                )
             continue
         result.statements_seen += 1
         unit = _enclosing_unit(program, statement)

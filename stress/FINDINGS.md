@@ -92,7 +92,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-06 | `measurement-error` | open | **the scope contract is stated per STATEMENT and the losses are per COLUMN.** `probe_postgres` asks "did this statement produce edges?"; PG-03/04/05 all answer yes while losing a column. Three of 34 in-scope constructs are partial and the probe cannot tell |
 | PG-07 | `key-error` | **fixed** | `stress_pg_03`'s five refusal subjects predicted with the wrong line convention — the codes and the set were right, the numbering was the splitter's and not the SQL's |
 | PG-08 | `refusal-taxonomy` | open | `CREATE_TRIGGER_PG`'s reason never reaches the reader: band 0 declines every non-CTAS `CREATE` first and the `(unit, line)` dedup discards the classifier's better message |
-| PG-09 | `silent-loss` | open | **a bare `SELECT` produces nothing at all and is not counted** — 0 edges, 0 refusals, 0 boundaries, `statements_seen = 0`. Read-only analytical SQL is a large share of what a lineage tool is pointed at, and it currently returns a clean run with no output |
+| PG-09 | `silent-loss` | **fixed** | **a bare `SELECT` produces nothing at all and is not counted** — 0 edges, 0 refusals, 0 boundaries, `statements_seen = 0`. Read-only analytical SQL is a large share of what a lineage tool is pointed at, and it currently returns a clean run with no output |
 | PG-10 | `flow-classification` | **fixed (D-6)** | the phase of a `WHERE` over an already-aggregated CTE — key says post-aggregation by what it does, analyser says pre-aggregation by the keyword. Both defensible; D-2's own argument favours the key |
 | PG-11 | `transform-classification` | **fixed (D-7)** | the transform of a NON-aggregated operand in an aggregated expression — "hardest on the PATH" (key) against "hardest in the EXPRESSION" (analyser). They agree everywhere except when one operand is aggregated and another is not |
 | PG-12 | `key-error` | **fixed** | `stress_pg_05` omitted a CTE predicate eleven levels from its target — the identical construct is labelled a filter in `stress_pg_02`'s key |
@@ -3525,3 +3525,56 @@ assertion and be just as wrong as what it replaced:
 `tests/test_postgres_stress.py` no longer exempts any package from
 `test_nothing_is_ever_guessed`. All five PostgreSQL packages emit nothing their key does not
 claim, and four of the five are 100% on every flow.
+
+## PG-09 · FIXED, 2026-09-24 — a standalone SELECT is counted and refused
+
+`band0._is_standalone_query`. A query block at the top level of a script is counted and
+refused with `UNSUPPORTED_CONSTRUCT`; the silence becomes a statement.
+
+### The test is POSITION, not statement kind, and that is the whole difficulty
+
+**Both frontends call a query `query_block`.** Oracle's ANTLR frontend never emits
+`select_statement` — its corpus kinds are `insert_statement`, `update_statement`,
+`query_block`, and so on — and `query_block` is exactly what a `SELECT … INTO` is. Refusing
+by kind would have refused a construct def-use handles and that the signed band-1 gate is
+computed from.
+
+What actually separates them is where the statement sits: a query block inside a routine has
+an `INTO` or is a cursor's body; one at the top level of a SCRIPT has neither. Only the
+script frontend produces the synthetic `<script>` unit, so **an Oracle program cannot satisfy
+the test by construction** rather than by a name coincidence.
+
+### Refused, not analysed — and that is the honest answer, not a shortcut
+
+The missing piece is a MODEL DECISION, not parser work. An edge needs a target, and a bare
+`SELECT` has projections rather than columns of a relation. Naming that target — a synthetic
+node, the projection's own name — interacts with S1-05's identity work and is not a decision
+to make as a side effect of closing a silence.
+
+A refusal is never free: this statement now costs one statement of parse coverage, and a
+file of nothing but `SELECT`s reports **0%** where it used to report 100%. **0% is a true
+statement about a file the analyser cannot do anything with; 100% was a false one.**
+
+### Measurement
+
+```
+phase 0   unchanged, every cell   gate 96.2%/96.2%, coverage 81.6%, 9 refusals, same codes
+stress    all nine grids identical, statements seen identical
+scope     probe 43 -> 44 constructs, REFUSED 6 -> 7, still 44/44 and 0 silent
+```
+
+`docs/postgres_scope.md` now carries the construct with its reason, so the boundary is
+stated in advance rather than discovered.
+
+### Closing condition met
+
+`tests/test_standalone_select.py` — five tests, three verified to fail with the fix
+reverted. The two that pass either way are the over-reach guards and are the point of the
+file:
+
+* **`test_oracle_select_into_is_untouched`** — the load-bearing one. Oracle's
+  `SELECT … INTO` shares the kind, carries band-1 edges the gate depends on, and must not be
+  refused. The scoping claim is only worth something because this checks it.
+* `test_a_select_inside_an_insert_is_not_refused` — `INSERT … SELECT` contains a query block
+  and is the commonest statement in both corpora. A rule matching on the query rather than
+  its position would refuse every load in the project.

@@ -246,6 +246,14 @@ CONSTRUCTS: list[tuple[str, str, str]] = [
         CREATE TRIGGER trg_audit AFTER INSERT ON fct_revenue
         FOR EACH ROW EXECUTE FUNCTION audit_fn();"""),
     (OUT_OF_SCOPE, "TRUNCATE", "TRUNCATE TABLE gtt_stage;"),
+    # PG-09. It parses, every relation and predicate in it is readable, and there is no
+    # TARGET - a standalone SELECT's result leaves the database rather than landing in a
+    # column. Out of scope because naming a target for a projection is a model decision,
+    # not parser work; refused rather than skipped because until 2026-09-24 it was SILENT,
+    # and read-only analytical SQL is a large share of what a lineage tool is pointed at.
+    (OUT_OF_SCOPE, "standalone SELECT", """
+        SELECT o.cust_id, SUM(o.gross_amount) FROM stg_orders o
+         WHERE o.currency = 'GBP' GROUP BY o.cust_id;"""),
     (OUT_OF_SCOPE, "COPY from file", """
         COPY gtt_stage (cust_id, amount) FROM '/tmp/data.csv' WITH (FORMAT csv);"""),
     (OUT_OF_SCOPE, "data-modifying CTE", """

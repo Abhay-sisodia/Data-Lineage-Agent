@@ -1,7 +1,7 @@
 # PostgreSQL — what is in scope, and what is refused
 
 **Measured, not asserted.** Every row below comes from `scripts/probe_postgres.py`, which
-runs 43 production-shaped constructs through `analyse_source` and buckets each one. Re-run it
+runs 44 production-shaped constructs through `analyse_source` and buckets each one. Re-run it
 after any change:
 
 ```
@@ -10,13 +10,13 @@ after any change:
 
 It exits non-zero if anything is SILENT or CRASHes, so a regression cannot pass unnoticed.
 
-**Current result: 43 / 43 agree with expectation. 0 silent, 0 crashes.**
+**Current result: 44 / 44 agree with expectation. 0 silent, 0 crashes.**
 
 | bucket | count | meaning |
 |---|---|---|
 | EDGES | 34 | in scope, lineage produced |
 | NO-SOURCE | 2 | in scope, counted, and correctly has nothing to trace |
-| REFUSED | 6 | out of scope, refused by name with a stated reason |
+| REFUSED | 7 | out of scope, refused by name with a stated reason |
 | DECLARED | 1 | out of scope, a boundary names what stopped it |
 | SILENT | **0** | never acceptable, in scope or out |
 | CRASH | **0** | |
@@ -32,7 +32,7 @@ STATEMENT produced edges, and three constructs answer yes while losing a COLUMN.
 
 | level | question | measured by | status |
 |---|---|---|---|
-| statement | did anything fall through unowned? | `probe_postgres.py` | **holds** — 43/43, 0 silent |
+| statement | did anything fall through unowned? | `probe_postgres.py` | **holds** — 44/44, 0 silent |
 | column | did every column with an upstream get an edge? | a ground-truth key | **three constructs partial** |
 
 1. **Inside the scope, nothing fails and nothing is refused.** Every construct listed as in
@@ -98,6 +98,7 @@ exists and `unnest` is slipping past it.
 | `DO $$ … $$` anonymous block | `UNSUPPORTED_CONSTRUCT` | same body, no name |
 | `CREATE TRIGGER` | `UNSUPPORTED_CONSTRUCT` | a PostgreSQL trigger names a FUNCTION that holds the body — so the lineage is in a routine we cannot parse. **Oracle triggers are handled and deliberately not refused**, which is why this refusal is scoped to one dialect |
 | `COPY … FROM/TO` | `SOURCE_UNAVAILABLE` | moves rows between a relation and something outside the database; the contents depend on data no static analysis can see |
+| a standalone `SELECT` | `UNSUPPORTED_CONSTRUCT` | it parses and every relation and predicate in it is readable, but there is **no target** — the result leaves the database rather than landing in a column, so an edge has no far end. Naming a target for a projection is a model decision, not parser work (PG-09). **Refused rather than skipped: until 2026-09-24 it was silent**, so a file of nothing but `SELECT`s returned a clean 100%-coverage run with no output |
 | `TRUNCATE` | `UNSUPPORTED_CONSTRUCT` | empties a relation unconditionally — no column has a source to name, but the statement decides what the table contains afterwards, so it is recorded rather than skipped |
 | data-modifying CTE (`WITH x AS (DELETE … RETURNING) …`) | declared `dangling_reference` | the CTE's rows come from a statement, not a relation |
 
