@@ -486,8 +486,8 @@ def resolve_query_influence(
             if predicate is None:
                 continue
             for column in predicate_columns(predicate):
-                for table, name, _ in _trace(column, current, dictionary, discarded):
-                    filters.append((table, name, phase))
+                for table, name, reached_by in _trace(column, current, dictionary, discarded):
+                    filters.append((table, name, _filter_phase(phase, reached_by)))
 
     influence: list[tuple[str, str, str]] = []
     for item in getattr(scope.expression, "selects", []) or []:
@@ -1500,7 +1500,7 @@ def _filter_edges(
         where = current.expression.args.get("where")
         if where is not None:
             for column in predicate_columns(where):
-                for source_table, source_column, _ in _trace(
+                for source_table, source_column, reached_by in _trace(
                     column, current, dictionary, unresolved
                 ):
                     edges.append(
@@ -1513,6 +1513,9 @@ def _filter_edges(
                             band,
                             origin,
                             flow=Flow.FILTER,
+                            # D-6: a WHERE over a value an inner query already aggregated
+                            # acts post-aggregation, whatever the keyword says.
+                            phase=_filter_phase(FilterPhase.PRE_AGGREGATION, reached_by),
                         )
                     )
 
@@ -1545,6 +1548,40 @@ def _filter_edges(
                         )
                     )
     return edges
+
+
+def _filter_phase(clause_phase: FilterPhase, transform: Transform) -> FilterPhase:
+    """When a filter acts, by what it DOES rather than by which keyword introduced it (D-6).
+
+    **The rule: a predicate acts post-aggregation when the column it constrains reaches it
+    THROUGH an aggregate.** A `HAVING` always does. A `WHERE` usually does not - and does
+    when it constrains a value an inner query already aggregated, which is the ordinary
+    shape of a filter over a CTE:
+
+        WITH agg AS (SELECT cust_id, COUNT(DISTINCT x) AS buyers ... GROUP BY cust_id)
+        SELECT ... FROM agg a WHERE a.buyers >= 3
+
+    Why the keyword is the wrong test. D-2 created `FilterPhase` to express WHEN a filter
+    acts, and its argument is about consequences: `WHERE quantity > 0` discards line items
+    before they are summed, `HAVING SUM(quantity) > 0` discards products whose total came to
+    zero. Same column, same flow, different results. The `WHERE` above has the SECOND
+    behaviour and the FIRST keyword, so classifying by keyword puts two filters with
+    identical consequences on opposite sides of the distinction D-2 exists to draw.
+
+    **Decided per COLUMN, which is finer than D-6's wording and agrees with it everywhere
+    the question has been asked.** D-6 speaks of the predicate; an edge is per column, and
+    a column's own path is what this can actually see. The two readings differ only for a
+    conjunct mixing an aggregated operand with a non-aggregated one - `WHERE buyers >
+    cust_id` - which no package contains. That case is left deliberately undecided rather
+    than settled here by implementation accident; the conservative answer this gives is
+    `pre-aggregation` for the non-aggregated operand.
+
+    One home, applied at both filter-emitting sites. S2-08 is on the register for a rule
+    that acquired two copies and drifted.
+    """
+    if transform == Transform.AGGREGATED:
+        return FilterPhase.POST_AGGREGATION
+    return clause_phase
 
 
 def _condition_text(expression: Any, dialect: str) -> str:

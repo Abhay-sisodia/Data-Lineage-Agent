@@ -1709,23 +1709,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: FCT_REVENUE.NET_AMOUNT
-  target:
-    kind: relation
-    name: FCT_REVENUE
-  flow: filter
-  transform: identity
-  band: 1
-  origin:
-    unit: S4_BULK_PIPELINE
-    line: 624
-  evidence: source_read
-  note: 'WHERE g.revenue_total > 0. The statement writes VARIABLES, so the filter edge targets the relation
-    READ - this key''s convention, carried from stress 1.
-
-    '
-- source:
-    kind: column
     name: FCT_REVENUE.CUST_ID
   target:
     kind: variable
@@ -1979,22 +1962,17 @@ edges:
     unit: S4_VIEW_RESOLUTION
     line: 699
   evidence: source_read
-- source:
-    kind: column
-    name: FCT_REVENUE.NET_AMOUNT
-  target:
-    kind: relation
-    name: DW_DIM_CUSTOMER_V2
-  flow: filter
-  transform: identity
-  band: 0
-  origin:
-    unit: S4_VIEW_RESOLUTION
-    line: 699
-  evidence: source_read
-  note: 'The outer WHERE j.revenue_total > 100 - a pre-aggregation-phase filter over a value that was
-    aggregated in a CTE. Distinct from the HAVING above by phase alone, which is what putting phase in
-    the match key buys.
+  note: 'TWO CLAUSES OF ONE STATEMENT NOW COLLAPSE ONTO THIS LABEL, under decision D-6.
+
+    `HAVING SUM(r.net_amount) > 0` in the revenue_grain CTE and `WHERE j.revenue_total > 100`
+    in the outer query. Until D-6 they were two labels separated by phase, and the deleted one
+    carried the note: "Distinct from the HAVING above by phase alone, which is what putting
+    phase in the match key buys."
+
+    D-6 makes both post-aggregation, so phase no longer separates them and the two facts share
+    a match key. That is a REAL COST of the decision and it is S1-05''s collision again: the
+    schema cannot state that two different clauses produced this edge. Recorded here rather
+    than left to be rediscovered.
 
     '
 - source:
@@ -2383,12 +2361,21 @@ edges:
     kind: relation
     name: FCT_PRODUCT_SALES
   flow: filter
+  phase: post-aggregation
   transform: identity
   band: 0
   origin:
     unit: S4_RETURN_RATE
     line: 1007
   evidence: source_read
+  note: 'PHASE CHANGED pre -> post 2026-09-23 under decision D-6. `WHERE NULLIF(k.sold_total,
+    0) IS NOT NULL` in the outer query, where sold_total is SUM(l.line_amount) computed in the
+    `sold_grain` CTE. D-6 classifies a filter by what it DOES: every column it constrains
+    reaches it through an aggregate, so it acts after aggregation whatever keyword introduced
+    it. This key predates the decision and held the keyword convention - S2-11''s shape, a
+    decided convention having to reach every key.
+
+    '
 - source:
     kind: column
     name: STG_RETURNS.PRODUCT_ID
@@ -2599,6 +2586,20 @@ edges:
     unit: S4_BATCH_WRITER
     line: 1115
   evidence: source_read
+  note: 'TWO SEPARATE PROCEDURES NOW COLLAPSE ONTO THIS LABEL, under decision D-6 - and this
+    one is worse than the DW_DIM_CUSTOMER_V2 collision beside it, because the two facts are not
+    even in the same unit.
+
+    S4_BATCH_WRITER:1115 has `HAVING SUM(r.net_amount) > 0`; S4_BULK_PIPELINE:624 has `WHERE
+    g.revenue_total > 0` over a derived table that aggregates the same column. Under the
+    keyword convention they were two labels; under D-6 both are post-aggregation and they share
+    a match key, so the deleted label''s fact is now unstatable.
+
+    Only ORIGIN distinguishes them, and origin was measured out of the match key (ADR-0001
+    amendment 1b). S1-05 EXACTLY, and this is the first time a DECISION rather than package
+    size has produced the collision.
+
+    '
 # --- KEY ERROR, CORRECTED 2026-09-13 (finding S4-11) ---------------------------------
 #
 # The derived table at line 1115 carries a WHERE and a HAVING. The claim above labels the

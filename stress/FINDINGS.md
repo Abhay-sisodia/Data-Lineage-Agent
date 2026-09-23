@@ -93,7 +93,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-07 | `key-error` | **fixed** | `stress_pg_03`'s five refusal subjects predicted with the wrong line convention — the codes and the set were right, the numbering was the splitter's and not the SQL's |
 | PG-08 | `refusal-taxonomy` | open | `CREATE_TRIGGER_PG`'s reason never reaches the reader: band 0 declines every non-CTAS `CREATE` first and the `(unit, line)` dedup discards the classifier's better message |
 | PG-09 | `silent-loss` | open | **a bare `SELECT` produces nothing at all and is not counted** — 0 edges, 0 refusals, 0 boundaries, `statements_seen = 0`. Read-only analytical SQL is a large share of what a lineage tool is pointed at, and it currently returns a clean run with no output |
-| PG-10 | `flow-classification` | open, **decided (D-6)** | the phase of a `WHERE` over an already-aggregated CTE — key says post-aggregation by what it does, analyser says pre-aggregation by the keyword. Both defensible; D-2's own argument favours the key |
+| PG-10 | `flow-classification` | **fixed (D-6)** | the phase of a `WHERE` over an already-aggregated CTE — key says post-aggregation by what it does, analyser says pre-aggregation by the keyword. Both defensible; D-2's own argument favours the key |
 | PG-11 | `transform-classification` | open, **decided (D-7)** | the transform of a NON-aggregated operand in an aggregated expression — "hardest on the PATH" (key) against "hardest in the EXPRESSION" (analyser). They agree everywhere except when one operand is aggregated and another is not |
 | PG-12 | `key-error` | **fixed** | `stress_pg_05` omitted a CTE predicate eleven levels from its target — the identical construct is labelled a filter in `stress_pg_02`'s key |
 | PG-13 | `key-error` | **fixed** | `stress_pg_05` composed influence through a window `ORDER BY` for the depth-2 grouping keys and forgot it for the depth-5 one. **Same category as S2-13** — "a uniform rule applied to the first instance only", now third across two dialects, which makes it a fault in how keys are written rather than three slips |
@@ -3395,3 +3395,77 @@ which is a much lower bar and a much wider net.
 
 Worth acting on: the same technique should be pointed at Oracle, where the corpus is larger
 and the keys are older.
+
+## PG-10 · FIXED, 2026-09-23 — `band0._filter_phase`, implementing D-6
+
+One helper, applied at both filter-emitting sites: `_filter_edges`'s `WHERE` branch and
+`resolve_query_influence`'s clause loop. Both already had the answer and were throwing it
+away — `_trace` returns the transform by which a column reached the predicate, and both
+sites discarded it into `_`. A filter is post-aggregation when that transform is
+`AGGREGATED`.
+
+One home, not two. **S2-08 is on this register for a rule that acquired two copies and
+drifted**, and this rule now has exactly one.
+
+Decided per COLUMN, which is finer than D-6's wording and agrees with it everywhere the
+question has been asked. The two readings differ only for a conjunct mixing an aggregated
+operand with a non-aggregated one (`WHERE buyers > cust_id`), which no package contains;
+that case is left deliberately undecided rather than settled by implementation accident.
+
+### Effect
+
+```
+stress_pg_04   filter  21/1/1  ->  22/0/0     100% / 100%
+stress_pg_05   filter  14/3/2  ->  16/0/0     100% ON ALL THREE FLOWS
+```
+
+`stress_pg_05` — one 461-line statement, sixteen CTEs, seven relations, 85 labels — is now
+perfect. Its key priced this in advance: *"this edge and the two around it are the price."*
+
+### It moved three Oracle edges, and that was the interesting part
+
+**Phase 0 did not move** (gate 96.2%/96.2%, guard 100% of 27, parse coverage 81.6%, all
+seven kill criteria PASS) — no corpus package has the construct. `stress_04_depth_at_scale`
+has three, and its band-0 filter dropped to 98.2% / 96.6% until its key was brought forward.
+
+Each was verified against the source before anything was edited:
+
+| unit | predicate | aggregated by |
+|---|---|---|
+| `S4_RETURN_RATE:1007` | `WHERE NULLIF(k.sold_total, 0) IS NOT NULL` | `SUM(l.line_amount)` in a CTE |
+| `S4_VIEW_RESOLUTION:699` | `WHERE j.revenue_total > 100` | `SUM(r.net_amount)` in a CTE |
+| `S4_BULK_PIPELINE:624` | `WHERE g.revenue_total > 0` | `SUM(r.net_amount)` in a derived table |
+
+All three are D-6 cases. The analyser is right and stress 4's key predated the decision —
+**S2-11 exactly: a decided convention has to reach every key.**
+
+### D-6 HAS A COST, AND IT IS S1-05
+
+Only one of the three was a phase change. **The other two were deletions**, because under
+D-6 they collapse onto post-aggregation labels the key already carried:
+
+* `FCT_REVENUE.NET_AMOUNT -> DW_DIM_CUSTOMER_V2` — the `HAVING` and the outer `WHERE` of
+  **one statement** now share a match key. The deleted label's own note read: *"Distinct
+  from the HAVING above by phase alone, which is what putting phase in the match key
+  buys."* D-6 spends exactly that.
+* `FCT_REVENUE.NET_AMOUNT -> FCT_REVENUE` — worse: `S4_BATCH_WRITER:1115` and
+  `S4_BULK_PIPELINE:624` are **two different procedures**, and their two facts are now one
+  unstatable label. Only ORIGIN separates them, and origin was measured out of the match
+  key (ADR-0001 amendment 1b).
+
+**This is the first time a DECISION rather than package size has produced an S1-05
+collision**, which is new evidence for that entry and is recorded on both surviving labels
+rather than left to be rediscovered.
+
+### Closing condition met
+
+`tests/test_filter_phase.py` — five tests, three verified to fail with D-6 reverted. It
+asserts both directions, because a fix that marked every filter post-aggregation would pass
+the first assertion and destroy the distinction D-2 built:
+
+* a `WHERE` over an aggregated CTE is post-aggregation
+* a `WHERE` on a raw column is **still** pre-aggregation
+* both phases appear in one statement, keyed per column
+* `HAVING` is unchanged — D-6 widens D-2's rule, it does not replace it
+* the same construct in **Oracle**, because a phase rule firing in one dialect only would
+  make the two benchmarks answer differently about the same SQL

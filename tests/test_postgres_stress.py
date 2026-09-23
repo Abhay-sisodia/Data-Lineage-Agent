@@ -82,19 +82,22 @@ EXPECTED = {
     ("stress_pg_03_boundary", Flow.VALUE): (9, 0, 0),
     ("stress_pg_03_boundary", Flow.FILTER): (5, 0, 0),
     ("stress_pg_03_boundary", Flow.INFLUENCE): (6, 0, 0),
-    # The one filter and two value disagreements are PG-10 and PG-11, both of them
-    # DECISIONS rather than defects, and both flagged in the key before the run. Each costs
-    # a false positive AND a false negative because transform and phase are in the match
-    # key (ADR-0001 §4). When either is settled this line moves - deliberately, with the
-    # decision recorded, which is the only way it should ever move.
+    # FILTER moved 21/1/1 -> 22/0/0 on 2026-09-23 when D-6 was implemented: the phase
+    # disagreement this line recorded was PG-10, and the decision went to the key. The pin
+    # doing its job - a fix looks like a regression until the line is deliberately edited.
+    #
+    # VALUE still carries PG-11 (D-7), which is decided and NOT YET IMPLEMENTED. Each
+    # disagreement costs a false positive AND a false negative because transform is in the
+    # match key (ADR-0001 §4).
     ("stress_pg_04_query_complexity", Flow.VALUE): (21, 2, 2),
-    ("stress_pg_04_query_complexity", Flow.FILTER): (21, 1, 1),
+    ("stress_pg_04_query_complexity", Flow.FILTER): (22, 0, 0),
     ("stress_pg_04_query_complexity", Flow.INFLUENCE): (34, 0, 0),
-    # 25/25 value and 44/44 influence through sixteen CTEs. The three filter
-    # disagreements are ALL PG-10, and the key priced them before the run: settle that
-    # decision the key's way and this package is 100% on all three flows.
+    # 100% ON ALL THREE FLOWS as of 2026-09-23. The three filter disagreements were all
+    # PG-10, and this key priced them before the run - "this edge and the two around it are
+    # the price". D-6 settled it the key's way and the price was paid: 14/3/2 -> 16/0/0.
+    # One 461-line statement, sixteen CTEs, seven relations, 85 labels, nothing wrong.
     ("stress_pg_05_single_query", Flow.VALUE): (25, 0, 0),
-    ("stress_pg_05_single_query", Flow.FILTER): (14, 3, 2),
+    ("stress_pg_05_single_query", Flow.FILTER): (16, 0, 0),
     ("stress_pg_05_single_query", Flow.INFLUENCE): (44, 0, 0),
 }
 
@@ -110,18 +113,21 @@ def test_band0_grid_has_not_moved(name: str, flow: Flow, book: Dictionary) -> No
     ], f"{name} band 0 {flow.value} moved"
 
 
-_GUESS_EXEMPT = {"stress_pg_04_query_complexity", "stress_pg_05_single_query"}
+# stress_pg_05 rejoined this test on 2026-09-23 when D-6 took it to zero false positives.
+# Only stress_pg_04 is still exempt, and only for PG-11.
+_GUESS_EXEMPT = {"stress_pg_04_query_complexity"}
 
 
 @pytest.mark.parametrize("name", [p for p in PACKAGES if p not in _GUESS_EXEMPT])
 def test_nothing_is_ever_guessed(name: str, book: Dictionary) -> None:
     """Zero false positives in every package and every flow, and this one is not negotiable.
 
-    stress_pg_04 and stress_pg_05 are excluded and the exclusion is narrow: every false
-    positive in both is PG-10 or PG-11, where the analyser emits the RIGHT ENDPOINTS with a
-    phase or transform the key disputes. That is a disagreement about classification, not
-    an invented edge - the endpoints are in the key either way.
-    `test_no_forbidden_edge_appears` still covers them, and so do their pinned grids above.
+    stress_pg_04 is excluded and the exclusion is narrow: its two false positives are
+    PG-11, where the analyser emits the RIGHT ENDPOINTS with a transform the key disputes.
+    That is a disagreement about classification, not an invented edge - the endpoints are
+    in the key either way. `test_no_forbidden_edge_appears` still covers it, and so does
+    its pinned grid above. The exemption shrinks as decisions land: stress_pg_05 rejoined
+    this test when D-6 was implemented, and stress_pg_04 rejoins it when D-7 is.
 
     A miss is a gap and is survivable; an invented edge is a wrong answer delivered with the
     same confidence as a right one. All three packages score zero here, including the deep
