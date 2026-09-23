@@ -130,3 +130,50 @@ def test_inference_folds_identifiers_for_its_dialect(dialect: str) -> None:
     )
     expected = "SALES.ORDERS" if dialect == "oracle" else "sales.orders"
     assert expected in book.objects, list(book.objects)
+
+
+def test_a_select_star_passthrough_cte_lends_its_relation_the_columns() -> None:
+    """The rule that makes an ETL script built on deduplicating views resolvable at all.
+
+    `pod AS (SELECT * FROM silver.purchase_order_distribution ...)` followed by
+    `pod.some_column` tells us with certainty that the column belongs to that table: the
+    STAR is what makes it so, and ONE relation is what makes it unambiguous.
+
+    Measured on a real 1,914-line consolidated Spark job built on twenty such views:
+    without this rule the inferred dictionary held 84 columns, `qualify` refused the whole
+    statement with "Unknown column: distribution_intended_use", and the run produced ZERO
+    edges. With it, 288 columns and 810 edges at 100% parse coverage.
+    """
+    book, _ = infer_dictionary(
+        """
+        WITH pod AS (
+            SELECT * FROM (
+                SELECT p.*, ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY p.d DESC) AS _rn
+                  FROM silver.purchase_order_distribution p
+            ) q WHERE _rn = 1
+        )
+        SELECT pod.distribution_intended_use, pod.quantity_ordered FROM pod
+        """,
+        default_schema="silver",
+    )
+    cols = book.columns["silver.purchase_order_distribution"]
+    assert "distribution_intended_use" in cols
+    assert "quantity_ordered" in cols
+
+
+def test_a_passthrough_over_two_relations_lends_nothing() -> None:
+    """The negative half. Two candidates is a guess, and this inference never guesses.
+
+    A CTE that stars over a JOIN could take the column from either side. Dropping it costs
+    a dangling reference, which is visible; attributing it would put a column on a table
+    that may not have one.
+    """
+    book, _ = infer_dictionary(
+        """
+        WITH j AS (SELECT * FROM silver.a a JOIN silver.b b ON a.k = b.k)
+        SELECT j.mystery FROM j
+        """,
+        default_schema="silver",
+    )
+    assert "mystery" not in book.columns.get("silver.a", [])
+    assert "mystery" not in book.columns.get("silver.b", [])

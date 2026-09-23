@@ -95,6 +95,30 @@ def infer_dictionary(
                 aliases[fold(table.alias, dialect)] = key
             aliases[fold(name, dialect)] = key
 
+    # A CTE that is a `SELECT *` passthrough over exactly ONE stored relation lends that
+    # relation its columns. `pod AS (SELECT * FROM silver.purchase_order_distribution ...)`
+    # followed by `pod.distribution_intended_use` tells us, with certainty, that the column
+    # belongs to that table - the star is what makes it so, and one relation is what makes
+    # it unambiguous.
+    #
+    # Without this an ETL script built on deduplicating passthrough views resolves almost
+    # nothing: measured on a 1,914-line consolidated Spark job, `qualify` refused the whole
+    # statement with "Unknown column: distribution_intended_use" and the run produced ZERO
+    # edges. A CTE joining two relations is skipped - two candidates is a guess.
+    passthrough: dict[str, str] = {}
+    for statement in statements:
+        for cte in statement.find_all(exp.CTE):
+            body = cte.this
+            if not any(isinstance(s, exp.Star) for s in body.find_all(exp.Star)):
+                continue
+            relations = {
+                _qualified(table, default_schema, dialect)
+                for table in body.find_all(exp.Table)
+                if table.name and fold(table.name, dialect) not in cte_names
+            }
+            if len(relations) == 1:
+                passthrough[fold(cte.alias_or_name, dialect)] = next(iter(relations))
+
     # Pass 2: attribute columns, by two rules and no more.
     #
     # 1. A QUALIFIED reference whose qualifier resolves to a real relation - `o.cust_id`
@@ -121,7 +145,12 @@ def infer_dictionary(
             if qualifier:
                 key = aliases.get(fold(qualifier, dialect))
                 if key is None:
-                    continue  # an alias of a CTE or derived table, not a stored relation
+                    # A `SELECT *` passthrough CTE over one relation: the column is that
+                    # relation's, determined by the star rather than guessed.
+                    key = passthrough.get(fold(qualifier, dialect))
+                    if key is None:
+                        continue  # a CTE or derived table that is not a passthrough
+                    columns.setdefault(key, [])
             else:
                 key = _sole_relation(column.parent_select, aliases, dialect)
                 if key is None:
