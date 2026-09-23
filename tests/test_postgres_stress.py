@@ -82,14 +82,12 @@ EXPECTED = {
     ("stress_pg_03_boundary", Flow.VALUE): (9, 0, 0),
     ("stress_pg_03_boundary", Flow.FILTER): (5, 0, 0),
     ("stress_pg_03_boundary", Flow.INFLUENCE): (6, 0, 0),
-    # FILTER moved 21/1/1 -> 22/0/0 on 2026-09-23 when D-6 was implemented: the phase
-    # disagreement this line recorded was PG-10, and the decision went to the key. The pin
-    # doing its job - a fix looks like a regression until the line is deliberately edited.
-    #
-    # VALUE still carries PG-11 (D-7), which is decided and NOT YET IMPLEMENTED. Each
-    # disagreement costs a false positive AND a false negative because transform is in the
-    # match key (ADR-0001 §4).
-    ("stress_pg_04_query_complexity", Flow.VALUE): (21, 2, 2),
+    # 100% ON ALL THREE FLOWS as of 2026-09-24. Both of this package's disagreements were
+    # decisions its key FLAGGED BEFORE THE RUN - PG-10 (filter phase, D-6, 21/1/1 ->
+    # 22/0/0) and PG-11 (transform ladder, D-7, 21/2/2 -> 23/0/0). Both went to the key,
+    # and each line was edited deliberately when its decision was implemented. A fix looks
+    # like a regression until someone does that, which is the point of pinning.
+    ("stress_pg_04_query_complexity", Flow.VALUE): (23, 0, 0),
     ("stress_pg_04_query_complexity", Flow.FILTER): (22, 0, 0),
     ("stress_pg_04_query_complexity", Flow.INFLUENCE): (34, 0, 0),
     # 100% ON ALL THREE FLOWS as of 2026-09-23. The three filter disagreements were all
@@ -113,21 +111,15 @@ def test_band0_grid_has_not_moved(name: str, flow: Flow, book: Dictionary) -> No
     ], f"{name} band 0 {flow.value} moved"
 
 
-# stress_pg_05 rejoined this test on 2026-09-23 when D-6 took it to zero false positives.
-# Only stress_pg_04 is still exempt, and only for PG-11.
-_GUESS_EXEMPT = {"stress_pg_04_query_complexity"}
-
-
-@pytest.mark.parametrize("name", [p for p in PACKAGES if p not in _GUESS_EXEMPT])
+@pytest.mark.parametrize("name", PACKAGES)
 def test_nothing_is_ever_guessed(name: str, book: Dictionary) -> None:
     """Zero false positives in every package and every flow, and this one is not negotiable.
 
-    stress_pg_04 is excluded and the exclusion is narrow: its two false positives are
-    PG-11, where the analyser emits the RIGHT ENDPOINTS with a transform the key disputes.
-    That is a disagreement about classification, not an invented edge - the endpoints are
-    in the key either way. `test_no_forbidden_edge_appears` still covers it, and so does
-    its pinned grid above. The exemption shrinks as decisions land: stress_pg_05 rejoined
-    this test when D-6 was implemented, and stress_pg_04 rejoins it when D-7 is.
+    NO PACKAGE IS EXEMPT ANY MORE. Two were, for as long as D-6 and D-7 were decided and
+    unimplemented - their false positives were the analyser emitting the RIGHT ENDPOINTS
+    with a phase or transform the key disputed, which is a disagreement about
+    classification rather than an invented edge. stress_pg_05 rejoined when D-6 landed and
+    stress_pg_04 when D-7 did. All five packages now emit nothing their key does not claim.
 
     A miss is a gap and is survivable; an invented edge is a wrong answer delivered with the
     same confidence as a right one. All three packages score zero here, including the deep

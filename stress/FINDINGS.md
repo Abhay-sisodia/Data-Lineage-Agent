@@ -94,7 +94,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-08 | `refusal-taxonomy` | open | `CREATE_TRIGGER_PG`'s reason never reaches the reader: band 0 declines every non-CTAS `CREATE` first and the `(unit, line)` dedup discards the classifier's better message |
 | PG-09 | `silent-loss` | open | **a bare `SELECT` produces nothing at all and is not counted** — 0 edges, 0 refusals, 0 boundaries, `statements_seen = 0`. Read-only analytical SQL is a large share of what a lineage tool is pointed at, and it currently returns a clean run with no output |
 | PG-10 | `flow-classification` | **fixed (D-6)** | the phase of a `WHERE` over an already-aggregated CTE — key says post-aggregation by what it does, analyser says pre-aggregation by the keyword. Both defensible; D-2's own argument favours the key |
-| PG-11 | `transform-classification` | open, **decided (D-7)** | the transform of a NON-aggregated operand in an aggregated expression — "hardest on the PATH" (key) against "hardest in the EXPRESSION" (analyser). They agree everywhere except when one operand is aggregated and another is not |
+| PG-11 | `transform-classification` | **fixed (D-7)** | the transform of a NON-aggregated operand in an aggregated expression — "hardest on the PATH" (key) against "hardest in the EXPRESSION" (analyser). They agree everywhere except when one operand is aggregated and another is not |
 | PG-12 | `key-error` | **fixed** | `stress_pg_05` omitted a CTE predicate eleven levels from its target — the identical construct is labelled a filter in `stress_pg_02`'s key |
 | PG-13 | `key-error` | **fixed** | `stress_pg_05` composed influence through a window `ORDER BY` for the depth-2 grouping keys and forgot it for the depth-5 one. **Same category as S2-13** — "a uniform rule applied to the first instance only", now third across two dialects, which makes it a fault in how keys are written rather than three slips |
 | PG-14 | `silent-loss` | **fixed** | **a named `WINDOW` clause lost its PARTITION BY and ORDER BY, silently.** With two functions sharing the window, `RANK() OVER w` produces NO EDGE AT ALL and the target column vanishes from the lineage. No refusal, no boundary, 100% parse coverage. The construct a large reporting query actually uses |
@@ -3469,3 +3469,59 @@ the first assertion and destroy the distinction D-2 built:
 * `HAVING` is unchanged — D-6 widens D-2's rule, it does not replace it
 * the same construct in **Oracle**, because a phase rule firing in one dialect only would
   make the two benchmarks answer differently about the same SQL
+
+## PG-11 · FIXED, 2026-09-24 — `transforms.transform_of_path`, implementing D-7
+
+`transform_of` answers a question about an EXPRESSION - is there an aggregate anywhere in
+it? That is the right question when every column enters the same way and the wrong one as
+soon as they do not. `transform_of_path(expression, column)` walks from the COLUMN upwards
+to the projection root, so only the nodes actually between them count.
+
+Added beside `transform_of` in the one module both bands import, for the reason that module
+exists at all: **S2-08, a rule with two homes has no home.** All seven call sites in
+`band0` moved from one transform per projection to one per column.
+
+### Effect
+
+```
+stress_pg_04   value  21/2/2  ->  23/0/0     100% ON ALL THREE FLOWS
+stress_pg_05   unchanged                      as D-7 required
+phase 0        unchanged, every cell          gate 96.2%/96.2%, coverage 81.6%
+all four Oracle stress grids unchanged
+```
+
+`stress_pg_04` was the package that asked the question, and it is now clean. **Both of its
+disagreements were decisions its key flagged before the run** — PG-10 and PG-11 — and both
+went to the key.
+
+### Why so little moved
+
+D-7 narrows the answer ONLY where the two readings differ: when one operand of an
+expression is aggregated and another is not. Everywhere else they agree, and in particular
+they agree whenever the mixed expression is itself wrapped in an aggregate one level up —
+`SUM(gross - discount - refund)` — which is the ordinary shape in both corpora. That is why
+`stress_pg_05` reaches the identical construct and does not move, exactly as the decision
+predicted when it was recorded.
+
+**This is a case where a fix moving almost nothing is the evidence, not a disappointment.**
+A change to the transform of every edge in both dialects that moved two labels is a change
+that did what it claimed and no more.
+
+### Closing condition met
+
+Four tests appended to `tests/test_transforms.py`, two verified to fail with D-7 reverted.
+The two that pass either way are there on purpose — they pin the behaviour that must NOT
+change, and without them a fix reporting `derived` for everything would satisfy the headline
+assertion and be just as wrong as what it replaced:
+
+* a mixed expression gives each operand its own transform — all three asserted together
+* an aggregate one level up still makes every operand `aggregated`
+* a `CASE` reaches only the columns inside it, not the ones beside it (the middle rung, which
+  no package exercises)
+* a bare column is still `identity`
+
+### Both decisions are now implemented
+
+`tests/test_postgres_stress.py` no longer exempts any package from
+`test_nothing_is_ever_guessed`. All five PostgreSQL packages emit nothing their key does not
+claim, and four of the five are 100% on every flow.

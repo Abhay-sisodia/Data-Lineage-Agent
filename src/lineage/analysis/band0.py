@@ -44,6 +44,7 @@ from lineage.analysis.transforms import (
     is_aggregate as _is_aggregate,
     is_conditional as _is_conditional,
     transform_of as _transform_of,
+    transform_of_path as _transform_of_path,
 )
 from lineage.analysis.refusal import (
     Refusal,
@@ -389,13 +390,12 @@ def resolve_projection(
     for item in getattr(scope.expression, "selects", []) or []:
         if (item.alias_or_name or "").upper() != wanted:
             continue
-        own = _transform_of(item)
         # Discarded rather than surfaced: a boundary raised here would be attributed to the
         # cursor's query rather than to the statement that read the record, and the caller
         # already declares an unresolved field in its own terms.
         for column in _value_columns(item):
             for table, name, traced in _trace(column, scope, dictionary, []):
-                return (table, name, _combine(own, traced))
+                return (table, name, _combine(_transform_of_path(item, column), traced))
     return None
 
 
@@ -687,7 +687,6 @@ def _trace(
                 )
             )
             return []
-        own = _transform_of(projection)
         traced: list[tuple[str, str, Transform]] = []
         # `_value_columns`, NOT `find_all` (stress finding S3-02). A window's PARTITION BY
         # and ORDER BY columns supply no value, and the caller already excludes them - but
@@ -702,7 +701,9 @@ def _trace(
             for table, name, transform in _trace(
                 inner, source, dictionary, unresolved, depth + 1, constraining
             ):
-                traced.append((table, name, _combine(own, transform)))
+                traced.append(
+                    (table, name, _combine(_transform_of_path(projection, inner), transform))
+                )
         return traced
 
     unresolved.append(
@@ -922,7 +923,6 @@ def _trace_through_set_operation(
             )
             continue
         projection = projections[position]
-        own = _transform_of(projection)
         # An INTERSECT / MINUS arm decides WHICH ROWS survive and supplies none of the
         # value (convention (a), stress 2). Its columns are collected separately so the
         # caller can state them as filter influence on the written relation; tracing them
@@ -934,7 +934,13 @@ def _trace_through_set_operation(
             for table, source_column, transform in _trace(
                 inner, arm, dictionary, unresolved, depth + 1
             ):
-                sink.append((table, source_column, _combine(own, transform)))
+                sink.append(
+                    (
+                        table,
+                        source_column,
+                        _combine(_transform_of_path(projection, inner), transform),
+                    )
+                )
     return traced
 
 
@@ -1245,8 +1251,6 @@ def _analyse_select_into(
                         )
             continue
 
-        own = _transform_of(projection)
-
         # A scalar UDF looks like a column expression and contains a query. Its ARGUMENTS
         # select which row the callee reads; they do not supply the value. Treating them
         # as value sources produces `order_id -> net_amount`, which type-checks, reads
@@ -1281,7 +1285,7 @@ def _analyse_select_into(
                         source_column,
                         target_name,
                         target_column,
-                        _combine(own, traced),
+                        _combine(_transform_of_path(projection, column), traced),
                         band,
                         origin,
                     )
@@ -1734,7 +1738,6 @@ def _analyse_multitable_insert(
             if index >= len(items):
                 break
             item = items[index]
-            own = _transform_of(item)
             for reference in _value_columns(item):
                 resolved = resolve_projection(source_sql, reference.name, dictionary)
                 if resolved is None:
@@ -1756,7 +1759,7 @@ def _analyse_multitable_insert(
                         base_column,
                         target_name,
                         column_name,
-                        _combine(inner, own),
+                        _combine(inner, _transform_of_path(item, reference)),
                         band,
                         origin,
                         guard=guard,
@@ -2148,7 +2151,6 @@ def _analyse_merge(
                 if not isinstance(setter, exp.EQ):
                     continue
                 target_column = fold(setter.this.name, dictionary.dialect)
-                own = _transform_of(setter.expression)
                 edges.extend(_influence_edges(setter.expression, target_column))
                 for column in setter.expression.find_all(exp.Column):
                     for src_table, src_column, traced in _trace_in_merge(column):
@@ -2158,7 +2160,9 @@ def _analyse_merge(
                                 src_column,
                                 target_name,
                                 target_column,
-                                _combine(own, traced),
+                                _combine(
+                                    _transform_of_path(setter.expression, column), traced
+                                ),
                                 band,
                                 origin,
                             )
@@ -2178,7 +2182,6 @@ def _analyse_merge(
             if not target_columns or len(target_columns) != len(items):
                 continue
             for target_column, item in zip(target_columns, items, strict=True):
-                own = _transform_of(item)
                 edges.extend(_influence_edges(item, target_column))
                 for column in item.find_all(exp.Column):
                     for src_table, src_column, traced in _trace(
@@ -2190,7 +2193,7 @@ def _analyse_merge(
                                 src_column,
                                 target_name,
                                 target_column,
-                                _combine(own, traced),
+                                _combine(_transform_of_path(item, column), traced),
                                 band,
                                 origin,
                             )

@@ -145,6 +145,73 @@ def transform_of(expression: Any) -> Transform:
     return Transform.DERIVED
 
 
+def transform_of_path(expression: Any, column: Any) -> Transform:
+    """What this expression does to THIS column, rather than to its value in general (D-7).
+
+    `transform_of` above answers a question about an EXPRESSION: is there an aggregate
+    anywhere in it? That is the right question when every column enters the same way, and
+    the wrong one as soon as they do not:
+
+        gross_amount - COALESCE(discount_amt, 0) - COALESCE((SELECT SUM(refund)), 0)
+
+    One operand passes through an aggregate and two do not. `transform_of` reports
+    `aggregated` for all three, which tells a reader that `net_amount` is a sum of
+    `gross_amount` - and it is not, it is a single row's value with two things subtracted
+    from it.
+
+    **D-7: the ladder ranks the hardest construct ON THE PATH FROM THIS SOURCE TO THIS
+    TARGET**, which is what ADR-0001 §4 says and what the expression reading quietly
+    widened. So the walk goes from the column UPWARDS to the projection root, and only the
+    nodes actually between them count.
+
+    The two readings agree everywhere except when one operand of an expression is
+    aggregated and another is not, which is why no package before `stress_pg_04` asked. In
+    particular they agree whenever the mixed expression is itself wrapped in an aggregate
+    one level up - `SUM(gross - discount - refund)` - which is the ordinary shape and the
+    reason `stress_pg_05` is unaffected.
+
+    Returns `IDENTITY` only when the column IS the expression: anything between them did
+    something, even if only arithmetic.
+    """
+    if isinstance(expression, exp.Alias):
+        expression = expression.this
+    if expression is column:
+        return Transform.IDENTITY
+
+    saw_aggregate = False
+    saw_conditional = False
+
+    # Upwards from the column, stopping at the projection root. `parent` is a plain
+    # attribute walk, so the bound is the tree's own depth; the guard is there because a
+    # column that is NOT inside `expression` would otherwise walk to the statement root
+    # and classify against nodes that have nothing to do with it.
+    node = getattr(column, "parent", None)
+    inside = False
+    for _ in range(200):
+        if node is None:
+            break
+        if is_aggregate(node):
+            saw_aggregate = True
+        elif is_conditional(node):
+            saw_conditional = True
+        if node is expression:
+            inside = True
+            break
+        node = getattr(node, "parent", None)
+
+    if not inside:
+        # Not reachable from this expression - fall back to the expression-wide reading
+        # rather than guessing. Preserves the old answer for any caller that passes a
+        # column the expression does not contain.
+        return transform_of(expression)
+
+    if saw_aggregate:
+        return Transform.AGGREGATED
+    if saw_conditional:
+        return Transform.CONDITIONAL
+    return Transform.DERIVED
+
+
 def combine(first: Transform, second: Transform) -> Transform:
     """The stronger of two transforms on one path (ADR-0001 §4's ladder)."""
     return first if TRANSFORM_RANK[first] >= TRANSFORM_RANK[second] else second

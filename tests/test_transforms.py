@@ -174,3 +174,106 @@ def test_lag_and_lead_select_a_value_rather_than_computing_one(
     """
     parsed = sqlglot.parse_one(f"SELECT {expression} FROM t", dialect="oracle").selects[0]
     assert transform_of(parsed) is expected
+
+
+# ======================================================================================
+# Decision D-7: the ladder ranks the PATH, not the expression.
+# ======================================================================================
+
+
+def _paths(sql: str, book: Dictionary) -> dict[tuple[str, str], str]:
+    config = AnalysisConfig.load().model_copy(update={"dialect": book.dialect})
+    result = band0.analyse_source(sql, book, config)
+    return {
+        (str(e.source), str(e.target)): e.transform.value
+        for e in result.edges
+        if e.flow.value == "value"
+    }
+
+
+@pytest.fixture(scope="module")
+def postgres() -> Dictionary:
+    return Dictionary.load(Path("stress") / "dictionary_postgres.json")
+
+
+def test_a_mixed_expression_gives_each_operand_its_own_transform(
+    postgres: Dictionary,
+) -> None:
+    """The case D-7 was decided on, from `stress_pg_04_query_complexity`.
+
+    Only the third operand passes through an aggregate. Before D-7 all three were reported
+    `aggregated`, which told a reader that `net_amount` is a sum of `gross_amount` - and it
+    is not, it is one row's value with two things subtracted from it.
+
+    All three are asserted together: a fix that reported `derived` for everything would
+    satisfy the first two and be just as wrong as what it replaced.
+    """
+    sql = """
+        INSERT INTO fct_revenue (cust_id, net_amount)
+        SELECT o.cust_id,
+               o.gross_amount
+                 - COALESCE(o.discount_amt, 0)
+                 - COALESCE((SELECT SUM(r.refund_amount)
+                               FROM stg_returns r
+                              WHERE r.order_id = o.order_id), 0)
+          FROM stg_orders o;
+    """
+    seen = _paths(sql, postgres)
+    target = "column:fct_revenue.net_amount"
+    assert seen[("column:stg_orders.gross_amount", target)] == Transform.DERIVED.value
+    assert seen[("column:stg_orders.discount_amt", target)] == Transform.DERIVED.value
+    assert seen[("column:stg_returns.refund_amount", target)] == Transform.AGGREGATED.value
+
+
+def test_an_aggregate_one_level_up_still_makes_every_operand_aggregated(
+    postgres: Dictionary,
+) -> None:
+    """The shape that must NOT change - and the reason `stress_pg_05` was unaffected.
+
+    `SUM(gross - discount)` wraps the mixed expression, so both operands genuinely reach
+    the target through an aggregate and the two readings of the ladder agree. D-7 narrows
+    the answer only where the readings differ; an implementation that narrowed it here as
+    well would break the commonest shape in the corpus.
+    """
+    sql = """
+        INSERT INTO fct_revenue (cust_id, net_amount)
+        SELECT o.cust_id, SUM(o.gross_amount - COALESCE(o.discount_amt, 0))
+          FROM stg_orders o GROUP BY o.cust_id;
+    """
+    seen = _paths(sql, postgres)
+    target = "column:fct_revenue.net_amount"
+    assert seen[("column:stg_orders.gross_amount", target)] == Transform.AGGREGATED.value
+    assert seen[("column:stg_orders.discount_amt", target)] == Transform.AGGREGATED.value
+
+
+def test_a_conditional_branch_reaches_only_the_columns_inside_it(
+    postgres: Dictionary,
+) -> None:
+    """The same rule for the middle rung of the ladder, which no package exercises.
+
+    `CASE WHEN ... THEN x END + y`: only `x` is inside the branch. Before D-7 both operands
+    were `conditional`, which says there is business logic on `y`'s path when there is
+    arithmetic and nothing else.
+    """
+    sql = """
+        INSERT INTO fct_revenue (cust_id, net_amount)
+        SELECT o.cust_id,
+               CASE WHEN o.currency = 'GBP' THEN o.gross_amount ELSE 0 END + o.discount_amt
+          FROM stg_orders o;
+    """
+    seen = _paths(sql, postgres)
+    target = "column:fct_revenue.net_amount"
+    assert seen[("column:stg_orders.gross_amount", target)] == Transform.CONDITIONAL.value
+    assert seen[("column:stg_orders.discount_amt", target)] == Transform.DERIVED.value
+
+
+def test_identity_survives_d7(postgres: Dictionary) -> None:
+    """A bare column is still `identity`. The bottom rung has to keep working."""
+    sql = """
+        INSERT INTO fct_revenue (cust_id, net_amount)
+        SELECT o.cust_id, o.gross_amount FROM stg_orders o;
+    """
+    seen = _paths(sql, postgres)
+    assert seen[("column:stg_orders.cust_id", "column:fct_revenue.cust_id")] == (
+        Transform.IDENTITY.value
+    )
