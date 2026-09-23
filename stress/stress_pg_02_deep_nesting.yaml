@@ -1,0 +1,727 @@
+# Ground truth for stress/stress_pg_02_deep_nesting.sql
+#
+# WRITTEN FROM SOURCE, BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# THIS KEY IS LESS CERTAIN THAN stress_pg_01's, AND THE UNCERTAINTY IS NAMED. Three
+# constructs here have no precedent anywhere in this project, and each is flagged at the
+# statement it appears in rather than being settled quietly in my favour:
+#
+#   * a RECURSIVE CTE's self-reference       (statement B, `depth`)
+#   * an inner ORDER BY ... LIMIT that selects rows (statement C, the LATERAL)
+#   * an aggregate's FILTER (WHERE ...) clause      (statement C, `amount`)
+#
+# Where the analyser disagrees with a flagged label, the finding is a CONVENTION gap and
+# belongs in the register as one. Where it disagrees with an UNflagged label, one of us has
+# a defect. Separating those two before the run is the entire value of writing the key
+# first - afterwards, every disagreement looks like a convention question.
+#
+# Conventions are stress_pg_01's, unchanged. Band 0 throughout: PostgreSQL has no band 1.
+# Lower case throughout: `dialects.fold` folds PostgreSQL identifiers down.
+
+package: stress_pg_02_deep_nesting.sql
+dialect: postgres
+source_sha256: 17b96959346dfeabd5de5b80ba34635ed0b2e7c42b9e206f031b93269bc82093
+labelled_by: claude (source_read; parse-only, synthetic dictionary, nothing executed)
+labelled_at: "2026-09-23"
+
+note: >
+  Depth rather than breadth. Five statements, each nested deeply enough that a value has to
+  survive several rewrites to arrive with the right transform class and the right flow.
+  Almost every flow-classification finding in this project was a rule that held at the top
+  level and broke one level down, so a package that is wide and shallow cannot find the
+  next one.
+
+edges:
+
+  # ================================================================================
+  # A (line 36) - five-level CTE chain, two changes of grain, two window functions
+  # ================================================================================
+  #
+  # base -> spend -> joined -> rolled -> ranked -> INSERT. gross_amount passes through a
+  # SUM in `spend`, a second SUM in `rolled`, and a window SUM in `ranked`, and must still
+  # arrive as `aggregated` rather than decaying to derived at some level.
+
+  - source: {kind: column, name: stg_customer.signup_date}
+    target: {kind: column, name: fct_cohort.cohort_month}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_customer.region}
+    target: {kind: column, name: fct_cohort.region}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+    note: Copied unchanged through all five levels. Identity has to survive depth too.
+
+  - source: {kind: column, name: stg_customer.cust_id}
+    target: {kind: column, name: fct_cohort.customers}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+    note: >
+      COUNT(j.cust_id) - a COUNT with a COLUMN argument, unlike COUNT(*), so there IS an
+      upstream to name. The two are different facts and the distinction matters: one
+      column is being counted, and which column decides what NULLs do to the answer.
+
+  - source: {kind: column, name: stg_orders.gross_amount}
+    target: {kind: column, name: fct_cohort.revenue}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.discount_amt}
+    target: {kind: column, name: fct_cohort.revenue}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.gross_amount}
+    target: {kind: column, name: fct_cohort.running_revenue}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+    note: >
+      SUM(r.revenue) OVER (... ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW). The
+      window function's ARGUMENT is r.revenue, which is SUM(j.net), which is
+      gross_amount - COALESCE(discount_amt, 0). Three aggregations deep and still a value
+      source. rank_in_region gets no value edge at all: RANK() takes no argument.
+
+  - source: {kind: column, name: stg_orders.discount_amt}
+    target: {kind: column, name: fct_cohort.running_revenue}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+
+  # ---- filters -------------------------------------------------------------------
+
+  - source: {kind: column, name: stg_customer.status_code}
+    target: {kind: relation, name: fct_cohort}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.currency}
+    target: {kind: relation, name: fct_cohort}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.gross_amount}
+    target: {kind: relation, name: fct_cohort}
+    flow: filter
+    phase: post-aggregation
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+    note: >
+      `HAVING SUM(j.net) > 100`, in `rolled` - which is three CTEs away from the columns
+      j.net is made of. The Oracle key's HAVING sits directly over its own source; this one
+      has to be traced back through two levels first.
+
+  - source: {kind: column, name: stg_orders.discount_amt}
+    target: {kind: relation, name: fct_cohort}
+    flow: filter
+    phase: post-aggregation
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+
+  # ---- influence -----------------------------------------------------------------
+  #
+  # Two GROUP BYs contribute, at different grains, and the window clauses in `ranked` add
+  # nothing the grouping keys do not already give:
+  #
+  #   `rolled` groups by cohort_month and region - which trace to stg_customer.signup_date
+  #   and stg_customer.region - and its aggregated outputs are customers and revenue, which
+  #   reach all four aggregated target columns.
+  #
+  #   `spend` groups by o.cust_id, and its aggregated output `net` reaches revenue,
+  #   running_revenue and (through RANK's ORDER BY r.revenue) rank_in_region - but NOT
+  #   customers, which is COUNT(j.cust_id) out of `base` and never touches `spend`. That
+  #   asymmetry is the point of the statement: a grouping key influences the columns its
+  #   aggregate actually feeds, not every aggregate in the query.
+
+  - source: {kind: column, name: stg_customer.signup_date}
+    target: {kind: column, name: fct_cohort.customers}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+  - source: {kind: column, name: stg_customer.signup_date}
+    target: {kind: column, name: fct_cohort.revenue}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+  - source: {kind: column, name: stg_customer.signup_date}
+    target: {kind: column, name: fct_cohort.running_revenue}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+    note: Both as a grouping key of `rolled` and as the window's ORDER BY r.cohort_month.
+  - source: {kind: column, name: stg_customer.signup_date}
+    target: {kind: column, name: fct_cohort.rank_in_region}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+  - source: {kind: column, name: stg_customer.region}
+    target: {kind: column, name: fct_cohort.customers}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+  - source: {kind: column, name: stg_customer.region}
+    target: {kind: column, name: fct_cohort.revenue}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+  - source: {kind: column, name: stg_customer.region}
+    target: {kind: column, name: fct_cohort.running_revenue}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+  - source: {kind: column, name: stg_customer.region}
+    target: {kind: column, name: fct_cohort.rank_in_region}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+    note: Both as a grouping key and as both windows' PARTITION BY r.region.
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_cohort.revenue}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+    note: >
+      `spend`'s own GROUP BY, two levels below the one that produces `revenue`. Notice
+      there is NO stg_orders.cust_id -> customers edge: customers counts base rows.
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_cohort.running_revenue}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_cohort.rank_in_region}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+  - source: {kind: column, name: stg_orders.gross_amount}
+    target: {kind: column, name: fct_cohort.rank_in_region}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+    note: RANK's ORDER BY r.revenue DESC, traced back to what revenue is made of.
+  - source: {kind: column, name: stg_orders.discount_amt}
+    target: {kind: column, name: fct_cohort.rank_in_region}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 36}
+    evidence: source_read
+
+  # ================================================================================
+  # B (line 94) - WITH RECURSIVE
+  # ================================================================================
+  #
+  # FLAGGED, NO PRECEDENT. The recursive arm reads the CTE ITSELF, which is a fixpoint and
+  # not a relation the IR can name. Two of the four target columns are unaffected by that -
+  # category_id and parent_category_id are projected from stg_categories in BOTH arms - and
+  # root_name is carried through unchanged from the anchor, so it is traceable too.
+  #
+  # `depth` IS NOT LABELLED, and the omission is the claim. It starts at the literal 1 and
+  # is thereafter only ever `t.depth + 1`, its own previous value. No base-table column
+  # supplies it. An analyser that names one has invented a fact, which is why the forbidden
+  # list carries the most plausible invention.
+
+  - source: {kind: column, name: stg_categories.category_id}
+    target: {kind: column, name: dim_customer_hier.cust_id}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 94}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_categories.parent_category_id}
+    target: {kind: column, name: dim_customer_hier.parent_cust_id}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 94}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_categories.category_name}
+    target: {kind: column, name: dim_customer_hier.root_name}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 94}
+    evidence: source_read
+    note: >
+      Set by the ANCHOR arm only; the recursive arm copies t.root_name forward. So every
+      row in the result - at any depth - carries a value that came from one particular
+      stg_categories row, and identity is the right transform for all of them.
+
+  - source: {kind: column, name: stg_categories.parent_category_id}
+    target: {kind: relation, name: dim_customer_hier}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 94}
+    evidence: source_read
+    note: >
+      `WHERE c.parent_category_id IS NULL` selects the roots. The join in the recursive arm
+      is an ON clause and is structural, so it contributes nothing.
+
+  # ================================================================================
+  # C (line 122) - LATERAL, aggregate FILTER, string_agg with its own ORDER BY
+  # ================================================================================
+
+  - source: {kind: column, name: stg_customer.cust_id}
+    target: {kind: column, name: gtt_stage.cust_id}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_customer.signup_date}
+    target: {kind: column, name: gtt_stage.period_month}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.gross_amount}
+    target: {kind: column, name: gtt_stage.amount}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+    note: >
+      Through the LATERAL subquery, which is an ordinary derived table as far as the value
+      is concerned - being correlated changes which ROWS it sees, not where the value came
+      from.
+
+  - source: {kind: column, name: stg_orders.status_code}
+    target: {kind: column, name: gtt_stage.note}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+    note: >
+      string_agg is an aggregate like any other - it collapses many rows into one - so the
+      transform is `aggregated` even though nothing arithmetic happened.
+
+  - source: {kind: column, name: stg_orders.currency}
+    target: {kind: relation, name: gtt_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+    note: >
+      FLAGGED, NO PRECEDENT. `SUM(o.gross_amount) FILTER (WHERE o.currency = 'GBP')`.
+
+      A FILTER clause removes rows from ONE aggregate rather than from the query, so it is
+      not obviously the same thing as a WHERE, and it is definitely not a HAVING - it acts
+      BEFORE the aggregation it qualifies, not after. Labelled `filter` at the default
+      pre-aggregation phase on those grounds: what it does to the rows reaching SUM is
+      exactly what a WHERE does to the rows reaching the query.
+
+      What this label cannot express is that the restriction applies to `amount` and not to
+      `note`, which is aggregated over the unfiltered rows in the same select list. A
+      relation-targeted filter edge says "something about gtt_stage depends on currency",
+      which is true and weaker than the fact. Recorded here as the limit it is.
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: relation, name: gtt_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+    note: The LATERAL correlation `o2.cust_id = c.cust_id`, in a WHERE - so both operands.
+
+  - source: {kind: column, name: stg_customer.cust_id}
+    target: {kind: relation, name: gtt_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_customer.cust_id}
+    target: {kind: column, name: gtt_stage.amount}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+  - source: {kind: column, name: stg_customer.cust_id}
+    target: {kind: column, name: gtt_stage.note}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+  - source: {kind: column, name: stg_customer.signup_date}
+    target: {kind: column, name: gtt_stage.amount}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+  - source: {kind: column, name: stg_customer.signup_date}
+    target: {kind: column, name: gtt_stage.note}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: gtt_stage.note}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+    note: >
+      `string_agg(o.status_code, ',' ORDER BY o.order_date)`. The ORDER BY decides the
+      order of the pieces, so it decides the value of the string - and no part of
+      order_date is IN the string. That is the definition of `influence` (D-4), arrived at
+      for window functions and applying unchanged to an ordered aggregate.
+
+  # ---- NOT LABELLED, AND FLAGGED: the LATERAL's own ORDER BY ... LIMIT 5 ----------
+  #
+  # `ORDER BY o2.order_date DESC LIMIT 5` decides WHICH five orders each customer
+  # contributes, so order_date genuinely changes what `amount` comes to. That is a real
+  # dependency and this key does not state it.
+  #
+  # Deliberately, and this is a CONVENTION QUESTION rather than a labelling decision. No
+  # convention in this project covers row-selecting ORDER BY + LIMIT. The candidates are
+  # `filter` (it removes rows - but it removes them by rank, not by a predicate, so no
+  # value of order_date tells you whether a row survives) and `influence` (it decides an
+  # aggregate's value - but so would a WHERE, and that is a filter). Choosing one here
+  # would settle a convention inside a key, which is how the two Oracle keys came to hold
+  # OPPOSITE conventions for a window's ORDER BY and neither side noticed for two runs.
+  #
+  # If the analyser emits an edge here it will score as a false positive. That number is
+  # wrong and the note is right: file it as a convention finding, do not silently add the
+  # label the analyser happens to produce.
+
+  # ================================================================================
+  # D (line 150) - JSON, arrays, casts, interval arithmetic
+  # ================================================================================
+
+  - source: {kind: column, name: stg_orders.payload}
+    target: {kind: column, name: audit_log.cust_id}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 150}
+    evidence: source_read
+    note: >
+      `(o.payload ->> 'cust_id')::int`. The lineage lands on the COLUMN payload; which KEY
+      inside the document it came from is not expressible in this IR, and inventing a node
+      for it would be a schema claim no catalogue supports.
+
+  - source: {kind: column, name: stg_customer.tags}
+    target: {kind: column, name: audit_log.changed_by}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 150}
+    evidence: source_read
+    note: >
+      `unnest(c.tags) AS t(tag)` - one array column becomes many rows, and t.tag is an
+      ELEMENT of it. Derived rather than identity: the value written is not the column,
+      it is one of the things inside it. The same reading S3-06 settled for a collection
+      subscript in PL/SQL.
+
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: audit_log.changed_at}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 150}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: audit_log.detail}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 150}
+    evidence: source_read
+    note: EXTRACT(MONTH FROM o.order_date), inside jsonb_build_object.
+
+  - source: {kind: column, name: stg_orders.currency}
+    target: {kind: column, name: audit_log.detail}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 150}
+    evidence: source_read
+    note: >
+      Two unrelated columns reach ONE target through a function that builds a document out
+      of them. Both are real, and a reading that kept only the first argument would lose
+      half of what detail depends on.
+
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: relation, name: audit_log}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 150}
+    evidence: source_read
+    note: >
+      `o.order_date >= CURRENT_DATE - INTERVAL '30 days'`. The right operand is entirely
+      literal, so order_date is the only column in the predicate.
+
+  # ================================================================================
+  # E (line 169) - three subquery predicate shapes over a ROLLUP
+  # ================================================================================
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_revenue_stage.cust_id}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: fct_revenue_stage.period_month}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.gross_amount}
+    target: {kind: column, name: fct_revenue_stage.net_amount}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_returns.cust_id}
+    target: {kind: relation, name: fct_revenue_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+    note: The IN subquery's projected column - it decides which outer rows survive.
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: relation, name: fct_revenue_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+    note: >
+      The outer operand of the IN, and also the outer operand of the NOT EXISTS
+      correlation. One fact by two routes is one edge.
+
+  - source: {kind: column, name: stg_returns.status_code}
+    target: {kind: relation, name: fct_revenue_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+    note: A predicate INSIDE the IN subquery - it changes which values the IN list holds.
+
+  - source: {kind: column, name: stg_customer.cust_id}
+    target: {kind: relation, name: fct_revenue_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+    note: >
+      The NOT EXISTS correlation. Negation does not change the flow: it decides WHICH rows
+      survive either way, and an analyser that handled EXISTS and missed NOT EXISTS would
+      lose the predicate that excludes a whole region.
+
+  - source: {kind: column, name: stg_customer.region}
+    target: {kind: relation, name: fct_revenue_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.currency}
+    target: {kind: relation, name: fct_revenue_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+    note: >
+      `o.currency IN (SELECT v.cur FROM (VALUES ('GBP'), ('EUR')) AS v(cur))`. The outer
+      operand is a real column and gets an edge; the VALUES list is literals all the way
+      down and contributes NOTHING. Exactly ONE edge from this predicate, and the key says
+      which side it is on.
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_revenue_stage.net_amount}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+    note: >
+      GROUP BY ROLLUP (...). A ROLLUP is a GROUP BY that also produces subtotal rows, so
+      the grouping keys influence the aggregates exactly as an ordinary GROUP BY does -
+      and more strongly, since the same target column now holds values at several grains.
+      S3-01 found these emitted as nothing at all in Oracle, because SQLGlot files ROLLUP
+      outside `group.expressions`.
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_revenue_stage.order_count}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: fct_revenue_stage.net_amount}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: fct_revenue_stage.order_count}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 169}
+    evidence: source_read
+
+# ====================================================================================
+# THE WRONG ANSWERS THIS FILE INVITES
+# ====================================================================================
+
+forbidden:
+  - source: {kind: column, name: stg_categories.category_name}
+    target: {kind: column, name: dim_customer_hier.depth}
+    flow: value
+    reason: >
+      A recursive CTE's self-reference resolved to the anchor's relation. `depth` is the
+      literal 1, then t.depth + 1 - its own previous value and nothing else. Any base-table
+      source for it is invented, and category_name is the nearest plausible one because it
+      is the other column the anchor projects.
+
+  - source: {kind: column, name: stg_categories.parent_category_id}
+    target: {kind: column, name: dim_customer_hier.depth}
+    flow: value
+    reason: >
+      The same invention by the other route - depth "comes from" the hierarchy, so the
+      column that defines the hierarchy looks like its source. It is not: parent_category_id
+      decides which rows join, not what number lands in depth.
+
+  - source: {kind: column, name: fct_cohort.region}
+    target: {kind: column, name: fct_cohort.rank_in_region}
+    flow: value
+    reason: >
+      A window's PARTITION BY read as a value source, five CTEs deep. RANK() takes no
+      argument, so rank_in_region has no value upstream at all. S3-02 is the record of this
+      exact rule holding at the top level and breaking one level down; here it is four
+      levels down.
+
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: gtt_stage.note}
+    flow: value
+    reason: >
+      string_agg's ORDER BY read as a value source. It decides the ORDER of the pieces, and
+      no part of order_date appears in the resulting string. The key states this dependency
+      as `influence`, which is the whole reason D-4 created a third flow.
+
+  - source: {kind: column, name: stg_customer.cust_id}
+    target: {kind: column, name: audit_log.changed_by}
+    flow: value
+    reason: >
+      The join key read as the source of the unnested element. changed_by is t.tag, an
+      element of c.tags; cust_id only decides which customer's array is unnested.
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_revenue_stage.order_count}
+    flow: value
+    reason: >
+      COUNT(*) given a value source. There is no column in it. The grouping key does decide
+      what the count comes to, which is real and is labelled above as `influence` - and the
+      difference between the two claims is the difference between "this number is made of
+      cust_id" and "this number depends on how the rows were grouped".
+
+  - source: {kind: column, name: stg_returns.cust_id}
+    target: {kind: column, name: fct_revenue_stage.cust_id}
+    flow: value
+    reason: >
+      An IN subquery's projected column read as value lineage into the identically-named
+      target. It is not: the INSERT projects o.cust_id, and the subquery only decides which
+      of those rows survive. The matching names are what make this one plausible.
+
+# ====================================================================================
+# WHAT THIS FILE DECLARES IT CANNOT SEE
+#
+# No refusals - every construct is in the EDGES rows of docs/postgres_scope.md. One
+# boundary, for the same reason as stress_pg_01: every name is unqualified, so every
+# resolution is conditional on search_path.
+# ====================================================================================
+
+expected_boundaries:
+  - kind: context_dependent_binding
+    subject: "<script>:1"
+    reason: >
+      Unqualified names resolve through whichever schema executes this script. The lineage
+      is valid for `public`, which the dictionary declares, and is a different answer under
+      another search_path.

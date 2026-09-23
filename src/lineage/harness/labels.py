@@ -281,6 +281,18 @@ class GroundTruth(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     package: str = Field(description="Path relative to corpus/")
+    dialect: str = Field(
+        default="oracle",
+        description=(
+            "The dialect this package is written in. A key describes ONE source file, and "
+            "that file is written in one dialect, so the dialect belongs here rather than "
+            "being inferred from a filename - a convention nothing checks. It selects the "
+            "dictionary to bind against and the `AnalysisConfig.dialect` to declare, which "
+            "`resolve_dialect` then requires to agree. "
+            "Defaulted for backward compatibility: every key written before this field "
+            "existed is an Oracle one, so no phase-0 number moves."
+        ),
+    )
     source_sha256: str = Field(
         min_length=64,
         max_length=64,

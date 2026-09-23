@@ -83,6 +83,28 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S2-09 | `key-error` | **fixed** | `p_depth → DIM_CUSTOMER_HIER.DEPTH` never labelled — two of three bindings |
 | S2-10 | `measurement-error` | **fixed** | trigger edges carry body-relative lines, so the refusal cross-checks could not match them |
 | S2-11 | `key-error` | **fixed** | stress 1's key predated convention (c); a decided convention has to reach every key |
+| PG-01 | `measurement-error` | open | **an `UPDATE` is analysed and never counted.** `update_statement` is not in `band0.SUPPORTED` — def-use owns it — and def-use does not touch `statements_seen`. So every `UPDATE` in the project is missing from the parse-coverage denominator, in BOTH dialects, and an `UPDATE` that also produced no edge would be fully SILENT |
+
+| PG-02 | `key-error` | **fixed** | `stress_pg_01`'s key claimed `expected_boundaries: []` and called the empty list the point of the package; a real schema-context boundary was declared and the key was wrong |
+| PG-03 | `construct-coverage` | open | every column PROJECTED through a `LATERAL` alias is unresolved — the correlation's filter edges are correct, the projection is lost. Declared, not silent |
+| PG-04 | `construct-coverage` | open | `jsonb_build_object` is opaque to its own arguments — declared `source_unavailable`, so the refusal is honest and the classification is wrong |
+| PG-05 | `silent-loss` | open | **`unnest(...)` in `FROM` drops the unnested element with NO boundary at all.** `generate_series` in the same position declares `dangling_reference`, so the machinery exists and `unnest` slips past it. The only known column-level silence in the PostgreSQL path |
+| PG-06 | `measurement-error` | open | **the scope contract is stated per STATEMENT and the losses are per COLUMN.** `probe_postgres` asks "did this statement produce edges?"; PG-03/04/05 all answer yes while losing a column. Three of 34 in-scope constructs are partial and the probe cannot tell |
+| PG-07 | `key-error` | **fixed** | `stress_pg_03`'s five refusal subjects predicted with the wrong line convention — the codes and the set were right, the numbering was the splitter's and not the SQL's |
+| PG-08 | `refusal-taxonomy` | open | `CREATE_TRIGGER_PG`'s reason never reaches the reader: band 0 declines every non-CTAS `CREATE` first and the `(unit, line)` dedup discards the classifier's better message |
+| PG-09 | `silent-loss` | open | **a bare `SELECT` produces nothing at all and is not counted** — 0 edges, 0 refusals, 0 boundaries, `statements_seen = 0`. Read-only analytical SQL is a large share of what a lineage tool is pointed at, and it currently returns a clean run with no output |
+| PG-10 | `flow-classification` | open, **decided (D-6)** | the phase of a `WHERE` over an already-aggregated CTE — key says post-aggregation by what it does, analyser says pre-aggregation by the keyword. Both defensible; D-2's own argument favours the key |
+| PG-11 | `transform-classification` | open, **decided (D-7)** | the transform of a NON-aggregated operand in an aggregated expression — "hardest on the PATH" (key) against "hardest in the EXPRESSION" (analyser). They agree everywhere except when one operand is aggregated and another is not |
+| PG-12 | `key-error` | **fixed** | `stress_pg_05` omitted a CTE predicate eleven levels from its target — the identical construct is labelled a filter in `stress_pg_02`'s key |
+| PG-13 | `key-error` | **fixed** | `stress_pg_05` composed influence through a window `ORDER BY` for the depth-2 grouping keys and forgot it for the depth-5 one. **Same category as S2-13** — "a uniform rule applied to the first instance only", now third across two dialects, which makes it a fault in how keys are written rather than three slips |
+| PG-14 | `silent-loss` | **fixed** | **a named `WINDOW` clause lost its PARTITION BY and ORDER BY, silently.** With two functions sharing the window, `RANK() OVER w` produces NO EDGE AT ALL and the target column vanishes from the lineage. No refusal, no boundary, 100% parse coverage. The construct a large reporting query actually uses |
+| PG-15 | `convention` | open, needs a decision | `SUM(x) FILTER (WHERE c)` and `SUM(CASE WHEN c THEN x END)` compute the same number and produce DIFFERENT lineage — a relation-targeted filter against a column-targeted value edge |
+
+**`PG-` is the PostgreSQL stress series**, kept apart from `S1-`..`S4-` for the same reason
+those are kept apart from `P-`: provenance is part of a finding's identity. A `PG-` finding
+was produced by a package written against `docs/postgres_scope.md`, whose whole claim is that
+the scope is known in advance — so "a PG finding appeared" and "a stress finding appeared"
+are statements about two different promises.
 
 ## Decisions taken — 2026-09-10
 
@@ -2655,3 +2677,721 @@ interprocedural depth cap.
 **And write the key with `tests/test_stress_keys.py` in front of you.** Both key-error
 findings in this register were the same mistake — a unit written into the SQL and never
 labelled — and both were invisible until something counted the units.
+
+---
+
+# PostgreSQL stress — the `PG-` series
+
+Written against `docs/postgres_scope.md`, which makes a stronger promise than the Oracle
+packages do: **inside the scope nothing is refused and nothing fails; outside it everything
+is refused by name.** A `PG-` finding is therefore always one of two things — a defect, or a
+place where the scope claims more than it can do.
+
+## Stress PG 1 · `stress_pg_01_wide_coverage.sql` · first run, 2026-09-23
+
+Seven statements. Breadth inside the measured scope: a CTE chain into windows into an
+aggregate INSERT, a positional `UNION ALL`, `UPDATE … FROM`, `DELETE … USING`,
+`ON CONFLICT DO UPDATE`, `CREATE TABLE AS SELECT`, and one all-literal INSERT.
+
+### Score
+
+```
+  band  flow       TP  FP  FN   precision    recall
+  0     filter     16   0   0      100.0%    100.0%
+  0     influence  19   0   0      100.0%    100.0%
+  0     value      23   0   0      100.0%    100.0%
+```
+
+**58 of 58, zero false positives, zero misses, zero refusals.** Which is the contract the
+package was written to test, and it holds — *for the edges*. Two things in the same output
+contradict the key, and neither is visible in that grid.
+
+Worth stating why 100% is credible here rather than suspicious: statements 1 and 2 are close
+ports of Oracle's `stress_cte_window` and `stress_set_ops`, whose originals already score
+100% against keys written months earlier under the same conventions. What is being measured
+for those two is **dialect parity**, and parity is the outcome the dialect seam was built
+for. Statements 3 to 6 have no Oracle equivalent and are the genuinely new evidence.
+
+## PG-01 · `measurement-error` · OPEN — an `UPDATE` is analysed and never counted
+
+The package prints `statements seen 6` and the file contains **seven** statements.
+
+The SQL comment above statement 7 predicted "stress_pg_01 has SEVEN statements". That
+prediction was written before the run and it failed, which is the only reason this was
+caught: in a PL/SQL package with thirty statements nobody counts by hand.
+
+### What it is
+
+`band0.SUPPORTED` holds four kinds — `insert_statement`, `merge_statement`,
+`delete_statement`, `create_statement`. **`update_statement` is not one of them**, by design:
+an `UPDATE` is analysed by def-use, which runs per unit. But `statements_seen` is incremented
+only on the band-0 path, and def-use never touches it. So:
+
+```
+line   89 seen=0 edges=5    UPDATE dim_customer d ... FROM stg_orders s
+```
+
+Five correct edges, counted as zero statements.
+
+### It is not a PostgreSQL defect
+
+Confirmed on Oracle against the captured corpus dictionary — one `UPDATE` and one `INSERT`
+in a procedure report `seen 1`, with the UPDATE's filter edge present in the output:
+
+```
+seen 1  analysed 1  edges 6
+   column:DIM_CUSTOMER.CUST_ID -> relation:DIM_CUSTOMER filter     <- from the UPDATE
+```
+
+**Every `UPDATE` in the project is missing from the parse-coverage denominator, and has been
+since coverage existed.** PostgreSQL did not cause it; a seven-statement script made it
+countable where a package body hid it.
+
+### Why it is filed as `measurement-error` and not as cosmetic
+
+Two consequences, and the second is the serious one.
+
+1. **Parse coverage is overstated.** The phase-0 figure is 81.6%. Analysed UPDATEs would
+   join both numerator and denominator, which *raises* a ratio below 1 — so the signed
+   number is not merely imprecise, it is imprecise in the flattering direction.
+
+2. **An `UPDATE` that def-use also fails on is fully SILENT.** No edge, no refusal, no
+   count, nothing in coverage. That is the exact outcome `docs/postgres_scope.md` says is
+   never acceptable, and it is reachable today: **P-02 in this register is precisely such a
+   case for `DELETE`** — a predicate that never sees variables. The two findings are the
+   same shape, and one of them has no instrument that can see it.
+
+### Why the probe missed it
+
+`probe_postgres.bucket()` returns `EDGES` as soon as `result.edges` is non-empty and only
+consults `statements_seen` when there are none. Both UPDATE constructs in the probe produce
+edges, so both passed. **The instrument checks that a statement was counted only in the case
+where it produced nothing** — which is exactly the case where being uncounted is easiest to
+notice by other means, and not the case where it hides.
+
+That is the same class of instrument flaw as the NO-SOURCE bucket this probe already gained,
+and it wants the same treatment: a bucket cannot certify "nothing falls through unowned"
+while its own happy path never asks.
+
+### Not fixed here, deliberately
+
+One fix per measurement. This one moves `parse_coverage` in the **signed phase-0
+measurement**, so it is a deliberate re-measurement with a recorded before and after, not a
+side effect of writing a stress package. What is needed:
+
+* count an `UPDATE` where it is analysed, without double-counting one that band 0 also sees;
+* widen the probe so an uncounted statement is a finding even when it produced edges;
+* re-run phase 0 and record the movement.
+
+## PG-02 · `key-error` · FIXED — the key claimed no boundaries and one was declared
+
+`stress_pg_01_wide_coverage.yaml` shipped with `expected_boundaries: []` and a note calling
+the empty list "the point of this package". The run declared one:
+
+```
+context_dependent_binding | <SCRIPT>:1 | unqualified names from line 1 resolve through
+whichever schema executes this unit ...
+```
+
+**The analyser is right and the key was wrong.** Every name in the package is unqualified,
+and in PostgreSQL what they resolve to depends on `search_path` — the s2 schema-context
+failure that `Dictionary.default_schema` exists to make visible, and which
+`docs/postgres_scope.md` already lists under what the scope does not cover.
+
+Corrected in the key rather than argued with: a declared boundary is a *deliverable*, and a
+key that expects none is asserting the analyser should have been silent about a real
+known-unknown. Tagged `key-error` and kept, per the rule at the top of this file.
+
+## Stress PG 2 · `stress_pg_02_deep_nesting.sql` · first run, 2026-09-23
+
+Five statements, each nested deeply enough that a value must survive several rewrites.
+
+### Score
+
+```
+  band  flow       TP  FP  FN   precision    recall
+  0     filter     14   0   1      100.0%     93.3%
+  0     influence  21   0   1      100.0%     95.5%
+  0     value      17   0   5      100.0%     77.3%
+```
+
+**Zero false positives in every flow.** Nothing was guessed — which is the property this
+project is organised around, and it held under five-level CTE chains, a recursive CTE, a
+ROLLUP, three subquery predicate shapes and two window functions with an explicit frame.
+
+Statement A — the five-level chain — scored **complete**. `gross_amount` passed through two
+SUMs and a window SUM and arrived as `aggregated`; the asymmetry the statement was built to
+test (a grouping key influences the columns its aggregate actually feeds, not every
+aggregate in the query) came out exactly as labelled. So did the recursive CTE, including
+the deliberate absence of any source for `depth`.
+
+**Seven misses, all in statements C and D, and every one DECLARED.** No silent statement, no
+crash. They resolve into three findings, each isolated against a control below.
+
+## PG-03 · `construct-coverage` · OPEN — a `LATERAL` subquery's columns do not resolve
+
+Everything projected from inside a `LATERAL` is lost. Four of the seven misses.
+
+Isolated, with the control that makes it specifically LATERAL and not derived tables:
+
+```
+CONTROL  plain derived table       3 edges
+         stg_orders.gross_amount -> gtt_stage.amount  value/aggregated     <- present
+
+LATERAL  same query, correlated    4 edges
+         BOUNDARY unresolved_identifier GROSS_AMOUNT                        <- lost
+```
+
+The correlation's own filter edges are produced correctly (`stg_orders.cust_id` and
+`stg_customer.cust_id` both reach the relation). It is the **projection** that fails: the
+LATERAL alias is not registered as a row source, so every column selected through it is an
+unresolved identifier.
+
+Declared, not silent — the analyser says `unresolved_identifier` by name. That is the
+difference between a gap and a defect in the taxonomy, and it is why this is
+`construct-coverage` rather than `silent-loss`.
+
+## PG-04 · `construct-coverage` · OPEN — `jsonb_build_object` is opaque to its own arguments
+
+```
+CONTROL  COALESCE(o.currency, 'x')            stg_orders.currency -> ... value/derived
+         jsonb_build_object('c', o.currency)  BOUNDARY source_unavailable JSONB_BUILD_OBJECT
+```
+
+A function that builds a document out of its arguments is treated as a source of unknown
+data rather than as an expression over the columns passed to it. Both of statement D's
+`detail` edges are lost this way.
+
+`source_unavailable` is a reasonable default for an unrecognised function — **the refusal is
+honest, and the classification is what is wrong.** Its arguments are right there in the
+tree, and two columns that demonstrably reach `detail` are reported as unreachable.
+
+## PG-05 · `silent-loss` · OPEN — a set-returning function in `FROM` drops its column with NO boundary
+
+The one finding here whose failure mode is silence, and it is the worst-shaped of the three.
+
+```
+unnest in FROM           1 edge, NO boundary declared       <- t.tag lost, nothing says so
+generate_series in FROM  1 edge, BOUNDARY dangling_reference GENERATE_SERIES(1, 5) AS ...
+```
+
+`unnest(c.tags) AS t(tag)` loses `stg_customer.tags -> audit_log.changed_by` and declares
+**nothing at all**. `generate_series` in the same position declares `dangling_reference`, so
+the machinery exists and `unnest` is slipping past it.
+
+### Why this one matters more than PG-03 and PG-04
+
+They are visible and it is not. A reader of the output sees `unresolved_identifier
+GROSS_AMOUNT` and knows something was not traced; for `unnest` there is nothing to see.
+`audit_log.changed_by` reads as a column with no upstream — which is a FINDING about the
+data, not a gap in the analysis, and is exactly the confusion this product exists to
+prevent.
+
+## PG-06 · `measurement-error` · OPEN — the scope contract is stated per STATEMENT and the losses are per COLUMN
+
+The finding underneath the other three, and the one that changes what
+`docs/postgres_scope.md` is entitled to claim.
+
+`probe_postgres.bucket()` asks *"did this statement produce any edges?"* All three of
+`LATERAL`, `unnest` and `jsonb_build_object` answer yes — they are in the probe's EDGES
+bucket, and the scope document lists all three as in scope. **Every one of them loses a
+column.** A statement can be counted, analysed, produce edges, and still drop half of what
+it depends on.
+
+The probe's own docstring already says EDGES is "NOT a claim the edges are CORRECT - only a
+ground-truth key proves that." It was right, and this is the first measurement that shows
+what the gap is worth: **three of the 34 in-scope constructs are partial, and the probe
+cannot tell.**
+
+So the contract needs two statements where it has one:
+
+* **statement level** — measured by the probe. Nothing falls through unowned. *Holds:
+  43/43, and both PG packages counted every statement they should have (modulo PG-01).*
+* **column level** — measurable only by a key. Every column that has an upstream gets an
+  edge. *Does not hold for three constructs, now named in `docs/postgres_scope.md`.*
+
+Filed as `measurement-error` rather than `construct-coverage` because nothing in the
+analyser is wrong here. The INSTRUMENT claimed more than it measured, and the scope document
+repeated the claim.
+
+## Stress PG 3 · `stress_pg_03_boundary.sql` · first run, 2026-09-23
+
+Nine statements, alternating: five out of scope, four in scope. The question is not whether
+the refusals happen — the probe already measured that — but whether a refusal stays **local**.
+
+### Score
+
+```
+  band  flow       TP  FP  FN   precision    recall
+  0     filter      5   0   0      100.0%    100.0%
+  0     influence   6   0   0      100.0%    100.0%
+  0     value       9   0   0      100.0%    100.0%
+
+  statements seen 8   analysed 3   parse coverage 37.5%
+  refusals 5: 4x UNSUPPORTED_CONSTRUCT, 1x SOURCE_UNAVAILABLE
+```
+
+**Containment holds completely.** All four in-scope statements produced exactly their
+labelled edges while surrounded by out-of-scope ones — including statement 2, which sits
+directly after a dollar-quoted routine body, and statement 9, which follows four consecutive
+refusals. None of the four forbidden edges appeared: nothing was recovered from inside a
+refused body, and no Oracle-style trigger inheritance was invented for the refused
+`CREATE TRIGGER`.
+
+The negative controls held too: a literal `'truncate_log'` next to a real `TRUNCATE` ten
+lines below did not trip either pattern.
+
+37.5% parse coverage is the correct reading of this file and not a failure — five of nine
+statements are deliberately out of scope, and **`analysed 3` rather than 4 is PG-01 again**,
+predicted in this key before the run: statement 9 is an `UPDATE`, analysed and uncounted.
+
+## PG-07 · `key-error` · FIXED — refusal subjects predicted with the wrong line convention
+
+The key predicted five refusal subjects by hand-reading the line of each SQL keyword: 36,
+59, 84, 104, 116. The splitter anchors a statement at the start of its **block**, comment
+header included: 1, 55, 79, 97, 109. All five read `NOT DECLARED`.
+
+Corrected, and the correction is narrow. **Predicted correctly: which five statements are
+refused and the code each carries** — four `UNSUPPORTED_CONSTRUCT`, one
+`SOURCE_UNAVAILABLE`, matched one for one. That is the package's substantive claim.
+**Wrong: a numbering convention the key had no way to know**, which is a fact about the
+splitter rather than about the SQL.
+
+Kept as a finding because "it was only a convention" is precisely what someone laundering a
+real disagreement would also say. The rule the key's own header set — a mismatch is a
+key-error, recorded — is the rule that was followed.
+
+## PG-08 · `refusal-taxonomy` · OPEN — `CREATE_TRIGGER_PG`'s reason never reaches the reader
+
+The refusal fires and the code is right. The **reason** is the wrong one.
+
+```
+what the reader gets   "CREATE of TRIGGER, which does not write rows from a query"
+what the classifier has "CREATE TRIGGER - PostgreSQL triggers name a FUNCTION that holds
+                         the body, so the lineage is in a routine this project cannot yet
+                         parse ..."
+```
+
+Confirmed by calling the classifier directly: `classify_statement(sql, "postgres")` returns
+`CREATE_TRIGGER_PG` with the full reason, and `"oracle"` returns `None`, so the dialect
+scoping works. But `band0` declines every non-CTAS `CREATE` first, and
+`procedure.analyse_source` dedupes refusals on `(unit, line)` — so the band-0 message wins
+and the classifier's is discarded.
+
+### Why it is worth a finding rather than a shrug
+
+A refusal's whole value is its reason. "Does not write rows from a query" is true of a
+`CREATE INDEX` and tells a reader nothing to act on; the classifier's reason names the
+parked grammar decision and points at ADR-0002 §5, which is what someone deciding whether
+to fund a PL/pgSQL grammar actually needs. Two refusal messages for one statement, and the
+less useful one wins by ordering.
+
+Low severity — the statement is refused, counted, and carries the right code, so no number
+moves and nothing is silent. It also raises the question of whether `CREATE_TRIGGER_PG` is
+reachable at all through the normal entry point, which the register should settle before
+anyone trusts the construct list as a description of behaviour.
+
+## Stress PG 4 · `stress_pg_04_query_complexity.sql` · first run, 2026-09-23
+
+Three statements, 79 labels, **no routines and no DDL** — all of the difficulty inside the
+SELECT. Q1 joins four relations in a CTE, re-aggregates, and joins that to a second CTE at a
+different grain, with two window functions, a HAVING and an outer filter over an aggregate.
+Q2 puts an `EXCEPT` between two CTEs that read the same relation, then `GROUPING SETS` and a
+window function over an aggregate. Q3 puts two correlated scalar subqueries in the select
+list of a `FULL OUTER JOIN`, under `DISTINCT ON`.
+
+### Score
+
+```
+  band  flow       TP  FP  FN   precision    recall
+  0     filter     21   1   1       95.5%     95.5%
+  0     influence  34   0   0      100.0%    100.0%
+  0     value      21   2   2       91.3%     91.3%
+```
+
+**The three disagreements are the three the key flagged in advance, and there are no
+others.** That is the result worth recording. A key that flags its uncertainty and then
+disagrees somewhere else has learned nothing; this one predicted exactly where it was on
+new ground.
+
+Each disagreement costs a false positive AND a false negative, because transform and phase
+are in the match key — ADR-0001 §4, a wrong transform is a miss on both sides.
+
+What came out clean, first time: `GROUPING SETS` influence (34/34 — S3-01's Oracle defect
+has no PostgreSQL counterpart), convention (a) across an `EXCEPT` between two CTEs reading
+one relation, a window function over an aggregate (`SUM(SUM(...)) OVER`), `RANK`'s
+`ORDER BY` given an aggregate EXPRESSION rather than a column, both correlated scalar
+subqueries, a predicate wrapped in `COALESCE`, and every forbidden edge absent — including
+the unreferenced CTE projection (`line_facts.region`) that an over-eager tracer would emit.
+
+`DISTINCT ON` produced no edge, so the convention question it raises is not forced yet.
+
+## PG-09 · `silent-loss` · OPEN — a bare `SELECT` produces nothing at all, and is not counted
+
+```
+SELECT o.cust_id, SUM(o.gross_amount) FROM stg_orders o
+  JOIN stg_customer c ON c.cust_id = o.cust_id
+ WHERE o.currency = 'GBP' GROUP BY o.cust_id;
+
+-> 0 edges, 0 refusals, 0 boundaries, statements_seen = 0
+```
+
+Not refused, not declared, **not counted**. Fully SILENT, and the reason is structural:
+`band0.SUPPORTED` holds INSERT, MERGE, DELETE and CREATE, and an edge needs a TARGET to
+name at its far end.
+
+### Why this is more than a modelling nicety
+
+Read-only analytical SQL is a large share of what a lineage tool gets pointed at — view
+bodies, BI queries, report definitions, the contents of `dbt` models. A user who hands the
+analyser a file of them gets a clean run, 100% parse coverage, and **no output**, with
+nothing anywhere recording that the file was skipped.
+
+It is the same shape as PG-01 and worse in degree: PG-01 loses an `UPDATE` from the
+denominator while still emitting its edges; this loses the entire statement.
+
+### What a fix has to decide
+
+Not merely "support SELECT" — the model question is what the far end of the edge is. A bare
+SELECT has projections, not columns of a relation, so the target is either a synthetic node
+(`<query>:3.cust_id`) or the projection's name. That is a decision, and it interacts with
+S1-05's identity work. **The minimum honest interim behaviour is a refusal**, which costs
+one line and converts a silence into a statement.
+
+Worked around in `stress_pg_04` by wrapping each query in the smallest possible
+`INSERT INTO ... SELECT`. Recorded in that file's header so the wrapper is not mistaken for
+a design preference.
+
+## PG-10 · `convention` · OPEN, needs a decision — the phase of a `WHERE` over an aggregated CTE
+
+```
+key       stg_orders.cust_id -> fct_product_sales  filter  POST-aggregation
+analyser  stg_orders.cust_id -> fct_product_sales  filter  PRE-aggregation
+```
+
+`WHERE a.buyers >= 3` in Q1's outer query, where `buyers` is `COUNT(DISTINCT f.cust_id)`
+computed inside the `agg` CTE.
+
+**Both readings are defensible and neither is a bug.** Syntactically it is a `WHERE`, and
+`FilterPhase` defaults a WHERE to pre-aggregation. Semantically it removes rows after the
+aggregate that decides them has been computed — which is precisely what D-2 created
+post-aggregation to express, and D-2's own argument is about WHEN a filter acts rather than
+which keyword introduced it.
+
+The distinction is not cosmetic: `WHERE quantity > 0` discards order lines before they are
+counted; this discards products whose distinct-buyer count came to two. Same relation, same
+flow, different results — which is the test D-2 states for when the phase is on the edge.
+
+**A decision for Abhay, as D-2 itself was.** Whichever way it goes, it must reach every key
+at once: two keys holding opposite conventions for one construct is exactly how S2-12
+happened, and neither side noticed for two runs.
+
+## PG-11 · `transform-classification` · OPEN, needs a decision — the transform of a
+## non-aggregated operand in an aggregated expression
+
+```
+net_amount = gross_amount - COALESCE(discount_amt, 0) - COALESCE((SELECT SUM(...)), 0)
+
+key       stg_orders.gross_amount -> fct_revenue.net_amount  value  DERIVED
+analyser  stg_orders.gross_amount -> fct_revenue.net_amount  value  AGGREGATED
+```
+
+Only the THIRD operand passes through an aggregate. `gross_amount` and `discount_amt`
+contribute per-row values and nothing else.
+
+**The two readings are "hardest transform on the PATH" and "hardest transform in the
+EXPRESSION",** and they agree everywhere except here — which is why no package before this
+one has asked. Every earlier case had all operands inside the aggregate
+(`SUM(gross - NVL(discount,0))`) or all of them outside it.
+
+* The key's reading is per-path: the ladder ranks how THIS SOURCE reached THIS TARGET, and
+  gross_amount reached it by subtraction.
+* The analyser's reading is per-expression: the value written is an aggregate, so everything
+  feeding it is marked as such.
+
+Per-path carries more information — it distinguishes the column contributing a row value
+from the column contributing a sum — and per-expression is easier to defend as a statement
+about the target. ADR-0001 §4's wording ("the hardest construct on the path") favours the
+key; the implementation favours itself, which is not an argument.
+
+**Filed as a decision, not as a defect, and the key is NOT being edited to agree.** A
+benchmark that adopts the implementation's reading whenever they differ has stopped
+measuring anything. Both readings are written down above so whoever settles it is choosing
+between two stated positions rather than ratifying whichever one shipped.
+
+## Stress PG 5 · `stress_pg_05_single_query.sql` · first run, 2026-09-23
+
+**One statement. 461 lines. Sixteen CTEs, seven base relations, five changes of grain, four
+window functions, a recursive CTE, an `EXCEPT` and a `UNION ALL`. 85 labels.**
+
+The other four packages ask whether a CONSTRUCT is handled. This one asks whether a
+PIPELINE is, which is the question production warehouse SQL actually poses: a value enters
+at `stg_order_lines.quantity` and arrives sixteen derivations later in a column nobody can
+trace by hand.
+
+### Score, after two key corrections
+
+```
+  band  flow       TP  FP  FN   precision    recall
+  0     filter     14   3   2       82.4%     87.5%
+  0     influence  44   0   0      100.0%    100.0%
+  0     value      25   0   0      100.0%    100.0%
+```
+
+**Value: 25 of 25, no false positives, no misses.** Every value edge survived the full
+depth — including the four-level path
+`unit_price/quantity → line_value → line_total → … → net_amount → net_revenue → a window SUM`,
+`MIN(order_date)` reaching a different target than `date_trunc(order_date)` from the same
+column, `COUNT(DISTINCT category_id)` as stg_products' only contribution to the whole query,
+and `category_name` carried out of a recursive CTE's anchor arm.
+
+**Influence: 44 of 44.** Six GROUP BYs and four window clauses, including two windows whose
+`PARTITION BY` comes from a different CTE than their argument.
+
+**Every forbidden edge stayed absent** — most importantly the unreferenced-projection trap:
+`order_facts.line_total` is computed and never used, so `stg_order_lines.unit_price` reaches
+no target at all despite its relation being genuinely read, joined, and a real value source
+through a *different* column. Nothing was invented from it.
+
+**All three remaining discrepancies are PG-10**, the open phase decision — and the key
+priced them in advance: *"this edge and the two around it are the price."* Settle PG-10 the
+key's way and this package is 100% on all three flows.
+
+### What actually failed here was the key, twice
+
+Both corrections were verified against **my own earlier keys**, not against the analyser's
+output — which is the only thing that makes correcting them legitimate rather than
+laundering.
+
+## PG-12 · `key-error` · FIXED — a CTE predicate eleven levels from the target, omitted
+
+`WHERE c.parent_category_id IS NULL` in `cat_tree`'s anchor arm selects the roots of the
+hierarchy, and `cat_tree` decides which `category_name` can reach `top_category_name`. A
+real filter, and this key did not label it.
+
+Confirmed wrong by `stress_pg_02_deep_nesting.yaml`, which labels the **identical**
+construct as a filter. My own convention, applied inconsistently — not a convention learned
+from the output.
+
+## PG-13 · `key-error` · FIXED — influence composition applied at depth 2 and forgotten at depth 5
+
+`returns_by_order` groups by `order_id`; that influences `refund_total` → `net_amount` →
+`net_revenue`, which is the `ORDER BY` of **both** windows in `enriched`. So it influences
+`region_rank` and `cohort_rank` too. The key stopped at six targets and should have had
+eight.
+
+The rule is not new, and that is the whole problem: **this key already composes it** for
+`monthly_customer`'s grouping keys — `stg_orders.cust_id` and `order_date` both list
+`region_rank` and `cohort_rank` among their twelve targets — and for `gross_amount` reaching
+`region_rank` through the same window `ORDER BY`. It was applied at the shallower grouping
+and dropped at the deeper one.
+
+**S2-13 is the same mistake in the Oracle keys**: *"a uniform rule applied to the first
+instance only."* Third occurrence of that category across two dialects, which by this
+register's own standard makes it a design fault in how keys get written rather than three
+separate slips.
+
+### The finding under the finding
+
+A 461-line package was built to find where the ANALYSER breaks down at depth. What it found
+is that **the key breaks down at depth first** — twice, both times by forgetting at level
+eleven a rule it applied correctly at level two, while the analyser applied it uniformly at
+every level.
+
+That is worth more than the score. It says the hand-labelling method this project rests on
+has a length limit of its own, and that at this size a key needs a mechanical cross-check —
+derive influence closure from the stated rule and diff it against the hand list — rather
+than a second careful reading. The next package this size should have that check written
+before the key, not after.
+
+## Decisions taken — 2026-09-23
+
+Two findings were blocked on a decision rather than on code. Abhay settled both on
+2026-09-23. **Recorded here before either is implemented**, so that what was decided is
+separable from what was built — the same discipline D-1 to D-5 were recorded under.
+
+Both went to the KEY's reading, which means both are now **analyser defects with a decided
+correct answer**, not open questions. Their register rows change category accordingly.
+
+### D-6 · PG-10 — a filter's phase is decided by what it DOES, not by its keyword
+
+`WHERE a.buyers >= 3`, where `buyers` is `COUNT(DISTINCT ...)` computed in an inner CTE, is
+a **post-aggregation** filter.
+
+The rule, stated generally: **a predicate acts post-aggregation when every column it
+constrains reaches it through an aggregate.** A `WHERE` over an already-aggregated CTE
+value qualifies; a `WHERE` on a raw column does not; a `HAVING` always does.
+
+Why this way. D-2 created `FilterPhase` to express WHEN a filter acts, and its own argument
+is about consequences: `WHERE quantity > 0` discards line items before they are summed,
+`HAVING SUM(quantity) > 0` discards products whose total came to zero. Same column, same
+flow, different results. A `WHERE` over an aggregated CTE has the second behaviour and the
+first keyword — so classifying by keyword would put two filters with identical consequences
+on opposite sides of the distinction D-2 exists to draw.
+
+Affects 5 labels across `stress_pg_04` and `stress_pg_05`, which already hold this reading
+and currently score them as 3 false positives and 2 misses. **The keys do not move; the
+analyser does.**
+
+### D-7 · PG-11 — the transform ladder ranks the PATH, not the expression
+
+In `gross_amount - COALESCE(discount_amt, 0) - COALESCE((SELECT SUM(...)), 0)`, the
+transform for `gross_amount` is **`derived`**, and for the subquery's column
+**`aggregated`**. Three sources reach one target and they do not all carry the same class.
+
+The rule, stated generally: **the transform is the hardest construct on the path from THIS
+SOURCE to THIS TARGET** — not the hardest construct anywhere in the expression that
+produced the target.
+
+Why this way. It is what ADR-0001 §4 already says, and it carries strictly more
+information: it distinguishes the column contributing a per-row value from the column
+contributing a sum. Under the expression reading those two facts are indistinguishable, and
+a reader asking "is this number an aggregate of that column?" gets yes for a column that was
+only ever subtracted once.
+
+The two readings agree everywhere except when one operand of an expression is aggregated and
+another is not — which is why no package before `stress_pg_04` asked the question.
+
+Affects 2 labels in `stress_pg_04`. `stress_pg_05` reaches the same construct and is
+unaffected, because there the mixed expression is itself wrapped in a `SUM` one CTE up, so
+every operand is aggregated by the time it reaches a target under either reading. That
+asymmetry is worth keeping in mind when implementing: **the fix must not change
+`stress_pg_05`.**
+
+## Metamorphic testing — the `PG-14`/`PG-15` instrument, 2026-09-23
+
+**A new instrument, and the cheapest one this project has.** Write the same logic several
+ways and assert the lineage is identical. No ground-truth key, no hand-labelling, no author
+judgement — a difference between two spellings of one query is a defect BY CONSTRUCTION.
+
+It was built in response to PG-13, where a 461-line package found that the KEY degrades
+before the analyser does. Metamorphic pairs have no key to degrade. They cannot say whether
+an answer is RIGHT — only a key does that — but they say, with no room for argument, that
+two answers which must agree do not.
+
+It found a silent defect in the first eighteen pairs.
+
+### Sixteen invariants that hold
+
+alias renaming · join reordering · schema qualification · `SELECT *` expansion ·
+`BETWEEN` against two comparisons · `NOT BETWEEN` against a negated pair · `IN` list against
+an `OR` chain · CTE chain against a flattened query · CTE against an inline derived table ·
+`GROUP BY` ordinal against the expression · `GROUP BY` on an output alias · unqualified
+column references · quoted identifiers · `CAST` against `::` · `UNION` against `UNION ALL` ·
+redundant subquery nesting · `HAVING` on an output alias.
+
+Several of those were expected to fail. `GROUP BY 1` and `GROUP BY <alias>` both resolve
+correctly, and so does `SELECT *` expanded from the dictionary.
+
+## PG-14 · `silent-loss` · OPEN — a named `WINDOW` clause loses its PARTITION BY and ORDER BY
+
+```
+RANK() OVER (PARTITION BY c.region ORDER BY c.signup_date)   -> 2 influence edges
+RANK() OVER w ... WINDOW w AS (PARTITION BY ... ORDER BY ...) -> 0 influence edges
+```
+
+No refusal. No boundary. The statement is counted and `parse_coverage` is 100%.
+
+Worse in the form people actually write it. A named window exists to be **shared**, and with
+two functions on one window:
+
+```
+SELECT c.region, RANK() OVER w, SUM(c.cust_id) OVER w
+  FROM stg_customer c WINDOW w AS (PARTITION BY c.region ORDER BY c.signup_date);
+
+-> 2 edges. `rank_in_region` HAS NO EDGE AT ALL - no value (RANK takes no argument,
+   correctly) and no influence (wrong). The target column vanishes from the lineage
+   entirely, and nothing anywhere records it.
+```
+
+The window's ARGUMENT still resolves, so `SUM(c.cust_id) OVER w` keeps its value edge. That
+is what makes it dangerous: the output looks populated and plausible, and only the
+dependency that explains WHY a row ranks where it does is missing.
+
+### Why this one is worth prioritising
+
+It is exactly the construct a large reporting query uses. `stress_pg_05` has four window
+functions with repeated `PARTITION BY` clauses — **a production author would have written
+one `WINDOW` clause and reused it**, and this analyser would have returned a clean 100%
+parse coverage with the window influence silently absent.
+
+Third entry in the `silent-loss` category for PostgreSQL, after PG-05 and PG-09.
+
+## PG-15 · `convention` · OPEN — `FILTER (WHERE ...)` and `SUM(CASE WHEN ...)` disagree
+
+Two spellings of the same number, two different lineage claims:
+
+```
+SUM(x) FILTER (WHERE o.currency = 'GBP')
+  -> currency -> RELATION fct_revenue          [filter]
+
+SUM(CASE WHEN o.currency = 'GBP' THEN x END)
+  -> currency -> COLUMN fct_revenue.net_amount [value/aggregated]
+```
+
+**Neither is obviously wrong, and that is the finding.** Each is defensible on its own: the
+FILTER clause removes rows, so `filter`; the CASE sits inside the expression, so the
+predicate is part of how the value is computed.
+
+But they compute the identical result, and a model that answers differently depending on
+which spelling the author chose is answering a question about syntax rather than about data.
+
+**The CASE form's answer is the more useful one**, and `stress_pg_02`'s key said so before
+this pair was written — its note on the FILTER edge records that a relation-targeted filter
+cannot express that the restriction applies to `amount` and not to `note` in the same select
+list. The column-targeted edge can.
+
+Needs a decision, like D-6 and D-7. The candidate resolution is that a predicate confined to
+ONE aggregate is a dependency of that aggregate's COLUMN rather than of the relation —
+whichever way it is written.
+
+## PG-14 · FIXED, 2026-09-23 — `band0._resolve_named_windows`
+
+Closed with a rewrite: each `WINDOW w AS (...)` definition is copied into the `OVER w` sites
+that name it, immediately after view inlining and before `qualify`.
+
+**A rewrite rather than a lookup**, for two reasons. It is what the SQL already means — a
+named window is defined as textual substitution — and every downstream consumer (value
+columns, the transform ladder, the influence walk) then works unchanged instead of each
+needing its own upward lookup. **S2-08 is on this register for one rule that acquired two
+homes and drifted**, and adding a second window-resolution path would have set that up
+again.
+
+Resolution walks outwards from the use site's own select and stops at the first definition
+of the name, so an inner `WINDOW w` shadows an outer one exactly as a column alias does.
+
+### Closing condition met
+
+Three tests, each verified to FAIL with the fix disabled and pass with it:
+
+* `test_a_named_window_keeps_its_partition_and_order` — the metamorphic pair itself
+* `test_a_shared_named_window_reaches_every_function_that_uses_it` — the form the construct
+  exists for, asserted **per target column** so a regression names which function lost its
+  window, plus the check that `RANK()` still gets influence and **no** value, which an
+  over-eager fix would collapse
+* `test_a_named_window_is_resolved_through_a_derived_table` — the definition in an inner
+  select. This one exists because a fix that simply scanned the whole statement for any
+  `WINDOW` clause would pass the other two **vacuously**
+
+### Measurement after the fix
+
+**Nothing else moved.** The rewrite is a no-op for any statement without a `WINDOW` clause,
+which is every Oracle corpus package and all four Oracle stress files.
+
+```
+phase 0      gate 96.2% / 96.2%   guard 100% of 27   parse coverage 81.6%
+             all seven kill criteria PASS, 0 edges from refused statements
+stress       all nine grids byte-identical (4 Oracle, 5 PostgreSQL), run_stress exit 0
+suite        794 passed, 1 xfailed (PG-15), 0 skipped
+```
+
+### What this says about the instrument
+
+PG-14 was found by a metamorphic pair in the first eighteen written, and **no ground-truth
+key would have found it** — not one of the five PostgreSQL packages uses a named window,
+because I did not think to write one. A key can only contain constructs its author thought
+of. A rewrite pair only needs the author to know that two spellings mean the same thing,
+which is a much lower bar and a much wider net.
+
+Worth acting on: the same technique should be pointed at Oracle, where the corpus is larger
+and the keys are older.

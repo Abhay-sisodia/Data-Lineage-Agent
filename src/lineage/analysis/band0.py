@@ -204,6 +204,77 @@ def _inline_views(
     return expression, notes
 
 
+def _named_window_definitions(select: Any) -> dict[str, Any]:
+    """`WINDOW w AS (...)` clauses of ONE select, keyed by name.
+
+    The key is upper-cased on both sides of the comparison, which is a same-normalisation
+    test rather than a folding decision: both names come from the same source text, and a
+    window name is local to its select - it never reaches the dictionary, an IR node or a
+    match key. This is one of the residue sites `dialects/base.py` enumerates.
+    """
+    found: dict[str, Any] = {}
+    for definition in select.args.get("windows") or []:
+        name = definition.this
+        if isinstance(name, exp.Identifier):
+            found[name.name.upper()] = definition
+    return found
+
+
+def _resolve_named_windows(expression: Any) -> Any:
+    """Copy each `WINDOW w AS (...)` definition into the `OVER w` sites that name it.
+
+    **Stress finding PG-14, and it was SILENT.** SQLGlot parses `RANK() OVER w` as a
+    `Window` carrying an `alias` and NOTHING ELSE - the `PARTITION BY` and `ORDER BY` live
+    in the select's `windows` argument, outside every projection. `_window_influence_columns`
+    reads a window's own `partition_by` and `order`, finds both empty, and emits no
+    influence at all. No refusal, no boundary, 100% parse coverage.
+
+    Worse in the form the construct exists for. A named window is written to be SHARED, and
+    with two functions on one window `RANK() OVER w` produces no edge of any kind - the
+    target column leaves the lineage entirely, and the value edge from `SUM(x) OVER w`
+    survives beside it so the output still looks populated.
+
+    Found by a metamorphic pair, not by a key: `OVER (PARTITION BY ...)` and
+    `OVER w ... WINDOW w AS (PARTITION BY ...)` are two spellings of one query, and the
+    lineage differed. No ground truth was needed to know one of them was wrong.
+
+    Done as a REWRITE rather than by teaching `_window_influence_columns` to look upwards,
+    because the rewrite is what the SQL already means - a named window is defined as
+    textual substitution - and because every other consumer (value columns, the transform
+    ladder, the influence walk) then works unchanged rather than each needing its own
+    lookup. S2-08 is on the register for one rule that acquired two homes and drifted.
+
+    **A no-op for any statement without a `WINDOW` clause**, which is every Oracle package
+    in the corpus and every statement in the four Oracle stress files.
+    """
+    for window in list(expression.find_all(exp.Window)):
+        alias = window.args.get("alias")
+        if alias is None:
+            continue  # an inline OVER (...), or the definition node itself
+        if window.args.get("partition_by") or window.args.get("order") is not None:
+            continue  # already resolved, or an inline window that also carries a name
+
+        name = (alias.name if isinstance(alias, exp.Identifier) else str(alias)).upper()
+
+        # A window name is visible in its own select, so resolution walks outwards. It
+        # stops at the first select that defines the name - an inner definition shadows an
+        # outer one, exactly as a column alias does.
+        scope = window.parent_select
+        while scope is not None:
+            definition = _named_window_definitions(scope).get(name)
+            if definition is not None:
+                partition = definition.args.get("partition_by")
+                if partition:
+                    window.set("partition_by", [part.copy() for part in partition])
+                order = definition.args.get("order")
+                if order is not None:
+                    window.set("order", order.copy())
+                break
+            scope = scope.parent_select
+
+    return expression
+
+
 def _correlated_filter_columns(expression: Any) -> list[Any]:
     """Columns in a nested `WHERE` — a correlated scalar subquery's predicate.
 
@@ -298,6 +369,7 @@ def resolve_projection(
         return None
 
     parsed, _ = _inline_views(parsed, dictionary, settings.budgets.view_expansion_depth_cap)
+    parsed = _resolve_named_windows(parsed)
     try:
         parsed = qualify(
             parsed,
@@ -383,6 +455,7 @@ def resolve_query_influence(
         return QueryInfluence((), ())
 
     parsed, _ = _inline_views(parsed, dictionary, settings.budgets.view_expansion_depth_cap)
+    parsed = _resolve_named_windows(parsed)
     try:
         parsed = qualify(
             parsed,
@@ -2268,6 +2341,8 @@ def _analyse_statement(
         )
 
     parsed, notes = _inline_views(parsed, dictionary, config.budgets.view_expansion_depth_cap)
+    # After view inlining, so a named window inside an expanded view is resolved too.
+    parsed = _resolve_named_windows(parsed)
 
     try:
         parsed = qualify(

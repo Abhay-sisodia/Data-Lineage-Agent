@@ -28,14 +28,34 @@ from lineage.resolution.dictionary import Dictionary  # noqa: E402
 STRESS = ROOT / "stress"
 
 
+# One dictionary per dialect. The Oracle one is a CAPTURE, read out of a live XE; the
+# PostgreSQL one is synthetic and says so in stress/dictionary_postgres.md. That difference
+# is a difference in authority, not in mechanism, and it is recorded where a reader of a
+# PostgreSQL score will find it.
+DICTIONARIES = {
+    "oracle": ROOT / "corpus" / "dictionary.json",
+    "postgres": STRESS / "dictionary_postgres.json",
+}
+
+
 def main() -> int:
-    dictionary = Dictionary.load(ROOT / "corpus" / "dictionary.json")
-    config = AnalysisConfig.load()
+    base = AnalysisConfig.load()
+    books: dict[str, Dictionary] = {}
 
     worst = 0
     for key_path in sorted(STRESS.glob("*.yaml")):
         truth = GroundTruth.load(key_path)
         source = (STRESS / truth.package).read_text(encoding="utf-8")
+
+        if truth.dialect not in DICTIONARIES:
+            raise SystemExit(f"{key_path.name}: no dictionary for dialect {truth.dialect!r}")
+        dictionary = books.setdefault(
+            truth.dialect, Dictionary.load(DICTIONARIES[truth.dialect])
+        )
+        # Declared and captured must agree or `resolve_dialect` raises. Deliberately not
+        # defaulted: analysing one dialect's source against another's catalogue resolves
+        # nothing and reports it as a coverage gap, which is the worst outcome available.
+        config = base.model_copy(update={"dialect": truth.dialect})
 
         # Hash check, exactly as the corpus keys get: a key that has drifted from the code
         # it describes is worse than no key.
@@ -45,7 +65,7 @@ def main() -> int:
         report = score(truth, result.edges, result.boundaries)
 
         print("=" * 78)
-        print(f"STRESS PACKAGE: {truth.package}")
+        print(f"STRESS PACKAGE: {truth.package}  [{truth.dialect}]")
         print("=" * 78)
         print(render(report))
 

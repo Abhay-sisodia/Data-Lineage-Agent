@@ -25,6 +25,16 @@ It exits non-zero if anything is SILENT or CRASHes, so a regression cannot pass 
 
 ## The contract
 
+**It has two levels, and only the first is measured by the probe.** That distinction was not
+here when this file was written, and adding it is finding PG-06: the probe asks whether a
+STATEMENT produced edges, and three constructs answer yes while losing a COLUMN. See
+"Partial: in scope, and incomplete" below — that section is the honest part of this page.
+
+| level | question | measured by | status |
+|---|---|---|---|
+| statement | did anything fall through unowned? | `probe_postgres.py` | **holds** — 43/43, 0 silent |
+| column | did every column with an upstream get an edge? | a ground-truth key | **three constructs partial** |
+
 1. **Inside the scope, nothing fails and nothing is refused.** Every construct listed as in
    scope produces lineage, or is counted and correctly found to have no upstream.
 2. **Outside the scope, everything is refused or declared — never silent.** A refusal is a
@@ -43,16 +53,42 @@ be reported as having no writer — which reads as a finding rather than as a ga
 `DELETE … USING`, `INSERT … ON CONFLICT DO UPDATE` (upsert), `ON CONFLICT DO NOTHING`,
 `INSERT … RETURNING`, `MERGE` (PostgreSQL 15+), `CREATE TABLE AS SELECT`.
 
-**Query shape** — CTEs chained to any depth, `WITH RECURSIVE`, `LATERAL`, `FULL OUTER JOIN`,
+**Query shape** — CTEs chained to any depth, `WITH RECURSIVE`, `LATERAL`†, `FULL OUTER JOIN`,
 `UNION ALL` / `EXCEPT`, scalar subqueries in the select list, `EXISTS` / `NOT EXISTS` / `IN`,
 schema-qualified names, `VALUES` used as a table source, `LIMIT` / `OFFSET`.
 
 **Aggregation and windows** — `GROUP BY`, `HAVING`, `ROLLUP` / `GROUPING SETS`, window
 functions with `ROWS`/`RANGE` frames, `LAG` / `LEAD`, `DISTINCT ON`, aggregate
-`FILTER (WHERE …)`, `string_agg` with an inner `ORDER BY`.
+`FILTER (WHERE …)`, `string_agg` with an inner `ORDER BY`, and a named `WINDOW w AS (…)`
+clause shared by several functions (added under PG-14, where it was silently losing every
+`PARTITION BY` and `ORDER BY`).
 
 **Expressions and types** — `CASE`, `COALESCE`, `::` casts, `date_trunc`, `EXTRACT`,
-`INTERVAL`, JSON `->` and `->>`, `jsonb_build_object`, `unnest` / arrays, `generate_series`.
+`INTERVAL`, JSON `->` and `->>`, `jsonb_build_object`†, `unnest` / arrays†,
+`generate_series`†.
+
+† and `LATERAL` above: **partial**. The statement is analysed and a column inside it is
+lost. See "Partial: in scope, and incomplete" below — do not read these three as covered.
+
+## Partial: in scope, and incomplete
+
+**Measured 2026-09-23 by `stress/stress_pg_02_deep_nesting.sql`, whose key is the first
+thing in this project able to see these.** All three are in the probe's EDGES bucket and
+were listed above without qualification until that run. The statement is analysed; a column
+inside it is not.
+
+| construct | what is produced | what is lost | finding |
+|---|---|---|---|
+| `LATERAL` subquery | the correlation's filter edges, correctly | every column PROJECTED through the LATERAL alias — declared `unresolved_identifier` | PG-03 |
+| `jsonb_build_object` | nothing from it | its arguments — declared `source_unavailable`, so the refusal is honest and the classification is wrong | PG-04 |
+| `unnest(...)` in `FROM` | nothing from it | the unnested element, **with no boundary declared at all** | PG-05 |
+
+**PG-05 is the one to know about.** The other two announce themselves; `unnest` does not, so
+the target column reads as having no upstream — a finding about the data rather than a gap
+in the analysis. It is the only known column-level silence in the PostgreSQL path.
+
+`generate_series` in the same position *does* declare `dangling_reference`, so the machinery
+exists and `unnest` is slipping past it.
 
 ## Out of scope, and refused by name
 

@@ -1,0 +1,357 @@
+# Ground truth for stress/stress_pg_03_boundary.sql
+#
+# WRITTEN FROM SOURCE, BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# THIS KEY MEASURES CONTAINMENT, which is a different question from the other two packages.
+# Five statements are out of scope and four are in scope, and they ALTERNATE. Every in-scope
+# statement here is the kind that passes cleanly in stress_pg_01, so a miss on one of them
+# is not a construct-coverage gap - it is a refusal that failed to stay where it was put.
+#
+# THE REFUSAL SUBJECTS WERE A PREDICTION AND THEIR LINE COMPONENT WAS WRONG. Filed as PG-07.
+#
+# The first draft hand-read each line from the SQL itself - 36, 59, 84, 104, 116. The
+# splitter anchors a statement at the start of its BLOCK, comment header included, so the
+# analyser says 1, 55, 79, 97, 109. All five subjects read NOT DECLARED.
+#
+# Corrected above, and the correction is narrow enough to state exactly. WHAT WAS PREDICTED
+# CORRECTLY: which five statements are refused, and the code each one carries - four
+# UNSUPPORTED_CONSTRUCT and one SOURCE_UNAVAILABLE, matched one for one. That is the
+# substantive claim of this package and it held. WHAT WAS WRONG: a numbering convention this
+# key had no way to know, which is a fact about the splitter and not about the SQL.
+#
+# That distinction is the reason this edit is not the thing the rules forbid. Copying an
+# ANSWER out of the output would make the key agree with the code by construction; adopting
+# the analyser's own statement NUMBERING is adopting a coordinate system. Tagged and left
+# visible either way, because "it was only a convention" is exactly what someone laundering
+# a real disagreement would also say.
+#
+# WHAT A REFUSAL IS WORTH, stated because the numbers below look like failure and are not.
+# A refusal is a DELIVERABLE: it is counted against parse coverage, it carries a code and a
+# reason, and it tells a reader precisely which facts are missing and why. Four of the five
+# here carry UNSUPPORTED_CONSTRUCT and one carries SOURCE_UNAVAILABLE, and the difference is
+# load-bearing: a grammar decision would recover the first four and would never recover the
+# COPY, whose rows come from outside the database entirely.
+
+# NO LABELS: REFRESH_REVENUE
+#
+# The one program unit in this file, and it contributes no labels BECAUSE IT IS REFUSED -
+# which is the package's whole subject rather than an omission. Its body holds a perfectly
+# ordinary `INSERT INTO fct_revenue ... SELECT`, and that INSERT is the most tempting wrong
+# answer in this file: the `forbidden` list names two of its edges by hand.
+#
+# Declared explicitly because `tests/test_stress_keys.py` requires every unit to be labelled
+# or to have its emptiness stated - the rule that exists because finding S2-06 had ten
+# unlabelled units whose CORRECT edges scored as false positives against the key's own
+# silence, and read in the report as an analyser defect. Here the distinction is sharper
+# still: an edge from this unit would mean the refusal was a lie.
+
+package: stress_pg_03_boundary.sql
+dialect: postgres
+source_sha256: e6cdd7cba48c241123feb7dc596f80cdf460f4ee4179cd8ea565abe927d8cf75
+labelled_by: claude (source_read; parse-only, synthetic dictionary, nothing executed)
+labelled_at: "2026-09-23"
+
+note: >
+  Nine statements: five out of scope, four in scope, alternating. The in-scope ones are
+  ordinary and are expected to score exactly as they would alone. The out-of-scope ones are
+  each expected to be refused with the code docs/postgres_scope.md already gives them - and
+  being refused for a DIFFERENT reason than predicted is a finding even when the count
+  comes out right.
+
+edges:
+
+  # ================================================================================
+  # 2 (line 49) - IN SCOPE, immediately after a dollar-quoted routine body
+  # ================================================================================
+  #
+  # This is the containment test that has already failed once. During the port the
+  # routine-body pattern was found OVER-BROAD, spanning 2561 characters to reach a
+  # `$IF $PLSQL_UNIT`, and it took Oracle's parse coverage from 81.6% to 80.0% before being
+  # anchored on `AS $tag`. A pattern that over-reaches swallows exactly this statement.
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: gtt_stage.cust_id}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 49}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: gtt_stage.period_month}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 49}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.gross_amount}
+    target: {kind: column, name: gtt_stage.amount}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 49}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.currency}
+    target: {kind: relation, name: gtt_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 49}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: gtt_stage.amount}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 49}
+    evidence: source_read
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: gtt_stage.amount}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 49}
+    evidence: source_read
+
+  # ================================================================================
+  # 4 (line 74) - IN SCOPE, and carrying the names the refusal patterns match on
+  # ================================================================================
+  #
+  # `'truncate_log'` is a string literal and `copy_flag` appears nowhere as an object. The
+  # TRUNCATE and COPY refusals are PATTERNS, and a pattern that fires on a name rather than
+  # on a statement would refuse this INSERT. Both refusals carry negative controls in
+  # tests/test_refusals.py; this is the same control in a package, where it also has to
+  # survive being next to a real TRUNCATE ten lines below.
+
+  - source: {kind: column, name: stg_customer.cust_id}
+    target: {kind: column, name: audit_log.cust_id}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 74}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_customer.email}
+    target: {kind: column, name: audit_log.detail}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 74}
+    evidence: source_read
+    note: >
+      `changed_by` receives the literal 'truncate_log' and gets NO edge. A literal has no
+      upstream, and this particular literal is the one an over-eager pattern match would
+      trip on.
+
+  - source: {kind: column, name: stg_customer.status_code}
+    target: {kind: relation, name: audit_log}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 74}
+    evidence: source_read
+
+  # ================================================================================
+  # 6 (line 91) - IN SCOPE, reading the table the refused COPY writes
+  # ================================================================================
+  #
+  # Both facts about stg_orders are then visible side by side: one write refused with a
+  # stated reason, one read traced in full. That pairing is what a refusal is FOR - the
+  # reader can see that stg_orders has an unreadable writer, rather than seeing a table
+  # with no writer at all.
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_revenue_stage.cust_id}
+    flow: value
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 91}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: fct_revenue_stage.period_month}
+    flow: value
+    transform: derived
+    band: 0
+    origin: {unit: "<script>", line: 91}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.gross_amount}
+    target: {kind: column, name: fct_revenue_stage.net_amount}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: "<script>", line: 91}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.status_code}
+    target: {kind: relation, name: fct_revenue_stage}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 91}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_revenue_stage.net_amount}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 91}
+    evidence: source_read
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_revenue_stage.order_count}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 91}
+    evidence: source_read
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: fct_revenue_stage.net_amount}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 91}
+    evidence: source_read
+  - source: {kind: column, name: stg_orders.order_date}
+    target: {kind: column, name: fct_revenue_stage.order_count}
+    flow: influence
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 91}
+    evidence: source_read
+
+  # ================================================================================
+  # 9 (line 122) - IN SCOPE, last, after FOUR consecutive out-of-scope statements
+  # ================================================================================
+  #
+  # If containment fails anywhere it fails here. Also an UPDATE, so under PG-01 this
+  # statement will be analysed and NOT COUNTED - the package should report 8 statements
+  # seen where the file holds 9.
+
+  - source: {kind: column, name: stg_customer.status_code}
+    target: {kind: column, name: dim_customer.is_active}
+    flow: value
+    transform: conditional
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+
+  - source: {kind: column, name: stg_customer.cust_id}
+    target: {kind: relation, name: dim_customer}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+
+  - source: {kind: column, name: dim_customer.cust_id}
+    target: {kind: relation, name: dim_customer}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: "<script>", line: 122}
+    evidence: source_read
+
+# ====================================================================================
+# THE WRONG ANSWERS THIS FILE INVITES - all of them the same wrong answer, in four
+# costumes: an edge claimed from text the analyser has DECLARED IT CANNOT READ.
+#
+# This is the worst failure available here, and worse than a miss. A refusal followed by an
+# edge from the refused text is a contradiction stated as fact: the output says both "I
+# cannot read this" and "here is what it does". Whichever a reader believes, the analyser
+# has told them something false.
+# ====================================================================================
+
+forbidden:
+  - source: {kind: column, name: stg_orders.gross_amount}
+    target: {kind: column, name: fct_revenue.net_amount}
+    flow: value
+    reason: >
+      The INSERT inside the PL/pgSQL body at statement 1. It is ordinary SQL and it is
+      genuinely there - which is exactly why this is the tempting edge. The body is a
+      dollar-quoted string literal that the analyser has refused, and recovering SQL out of
+      a literal it declared unreadable would make the refusal a lie. `fct_revenue` is
+      written NOWHERE ELSE in this file, so this edge cannot arrive by any legitimate route.
+
+  - source: {kind: column, name: stg_orders.cust_id}
+    target: {kind: column, name: fct_revenue.cust_id}
+    flow: value
+    reason: >
+      The same body, by its simplest projection. Listed separately because an analyser that
+      recovered only the identity bindings and not the aggregate would produce this one
+      alone, and a single edge is easier to miss than a cluster.
+
+  - source: {kind: column, name: dim_customer.region}
+    target: {kind: column, name: dim_customer.is_active}
+    flow: value
+    reason: >
+      Trigger inheritance invented for the CREATE TRIGGER at statement 7. In ORACLE this
+      exact edge is real and is inherited from the dictionary - which is what makes it the
+      plausible wrong answer here. In PostgreSQL the body lives in log_customer_change(),
+      the trigger is refused, and the dictionary holds no trigger at all. There is nothing
+      to inherit, and inheriting it anyway would be Oracle's answer given to a PostgreSQL
+      question.
+
+  - source: {kind: column, name: stg_orders.order_id}
+    target: {kind: relation, name: stg_orders}
+    flow: filter
+    reason: >
+      The COPY's column list read as lineage. `COPY stg_orders (order_id, cust_id,
+      gross_amount) FROM ...` names three columns, and they are the columns the file
+      populates - so a reading that treats the list as structure rather than as an
+      unreadable boundary produces something almost right. The rows come from a CSV no
+      static analysis can see; naming the columns without their source is the shape of an
+      answer without the substance of one.
+
+# ====================================================================================
+# WHAT THIS FILE DECLARES IT CANNOT SEE - the point of the package.
+#
+# Five refusals, each named in advance with the code docs/postgres_scope.md gives it. The
+# LINE component of each subject is a prediction; see the header.
+# ====================================================================================
+
+expected_boundaries:
+  - kind: refusal
+    subject: "<script>:1"
+    reason: >
+      The PL/pgSQL routine body of refresh_revenue(). UNSUPPORTED_CONSTRUCT - the body is a
+      dollar-quoted string literal, not part of the SQL parse tree, and no PL/pgSQL grammar
+      has been chosen (ADR-0002 section 5). The INSERT inside it is ordinary SQL and is
+      invisible for exactly that reason: this refusal IS the cost of the parked decision.
+
+  - kind: refusal
+    subject: "<script>:55"
+    reason: >
+      The anonymous DO block. UNSUPPORTED_CONSTRUCT, for the same reason as the routine
+      body and without even a name to attribute the lost edges to.
+
+  - kind: refusal
+    subject: "<script>:79"
+    reason: >
+      COPY. SOURCE_UNAVAILABLE, and deliberately a DIFFERENT code from the other four: the
+      rows come from outside the database entirely. A PL/pgSQL grammar would recover every
+      other refusal in this file and would never recover this one, so filing them under one
+      code would misstate what is fixable.
+
+  - kind: refusal
+    subject: "<script>:97"
+    reason: >
+      CREATE TRIGGER. UNSUPPORTED_CONSTRUCT - a PostgreSQL trigger names a FUNCTION that
+      holds the body. Oracle triggers are handled and deliberately NOT refused, which is
+      why this construct is scoped to one dialect.
+
+  - kind: refusal
+    subject: "<script>:109"
+    reason: >
+      TRUNCATE. UNSUPPORTED_CONSTRUCT - no column has a source to name, but the statement
+      decides what gtt_stage contains afterwards, so it is recorded rather than skipped.
+      Skipping it is how a table acquires its contents with no writer.
+
+  - kind: context_dependent_binding
+    subject: "<script>:1"
+    reason: >
+      Unqualified names resolve through whichever schema executes this script.

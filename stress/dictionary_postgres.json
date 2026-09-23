@@ -1,0 +1,87 @@
+{
+  "captured_at": "2026-09-23T00:00:00Z",
+  "default_schema": "public",
+  "dialect": "postgres",
+
+  "synonyms": {},
+  "view_text": {},
+  "triggers": {},
+
+  "objects": {
+    "public.stg_orders":        {"owner": "public", "name": "stg_orders",        "object_type": "TABLE"},
+    "public.stg_order_lines":   {"owner": "public", "name": "stg_order_lines",   "object_type": "TABLE"},
+    "public.stg_returns":       {"owner": "public", "name": "stg_returns",       "object_type": "TABLE"},
+    "public.stg_customer":      {"owner": "public", "name": "stg_customer",      "object_type": "TABLE"},
+    "public.stg_products":      {"owner": "public", "name": "stg_products",      "object_type": "TABLE"},
+    "public.stg_categories":    {"owner": "public", "name": "stg_categories",    "object_type": "TABLE"},
+    "public.dim_customer":      {"owner": "public", "name": "dim_customer",      "object_type": "TABLE"},
+    "public.dim_customer_hier": {"owner": "public", "name": "dim_customer_hier", "object_type": "TABLE"},
+    "public.fct_product_sales": {"owner": "public", "name": "fct_product_sales", "object_type": "TABLE"},
+    "public.fct_revenue":       {"owner": "public", "name": "fct_revenue",       "object_type": "TABLE"},
+    "public.fct_revenue_stage": {"owner": "public", "name": "fct_revenue_stage", "object_type": "TABLE"},
+    "public.fct_cohort":        {"owner": "public", "name": "fct_cohort",        "object_type": "TABLE"},
+    "public.fct_customer_360":  {"owner": "public", "name": "fct_customer_360",  "object_type": "TABLE"},
+    "public.gtt_stage":         {"owner": "public", "name": "gtt_stage",         "object_type": "TABLE"},
+    "public.audit_log":         {"owner": "public", "name": "audit_log",         "object_type": "TABLE"},
+    "public.ref_policy":        {"owner": "public", "name": "ref_policy",        "object_type": "TABLE"}
+  },
+
+  "columns": {
+    "public.stg_orders": [
+      "order_id", "cust_id", "order_date", "gross_amount", "discount_amt",
+      "currency", "status_code", "payload"
+    ],
+    "public.stg_order_lines": [
+      "line_id", "order_id", "product_id", "quantity", "unit_price", "line_amount"
+    ],
+    "public.stg_returns": [
+      "return_id", "order_id", "product_id", "cust_id", "refund_amount",
+      "status_code", "returned_at"
+    ],
+    "public.stg_customer": [
+      "cust_id", "region", "email", "signup_date", "last_login", "status_code", "tags"
+    ],
+    "public.stg_products": ["product_id", "product_name", "category_id", "list_price"],
+    "public.stg_categories": ["category_id", "category_name", "parent_category_id"],
+    "public.dim_customer": ["cust_id", "region", "email", "is_active", "lifetime_value"],
+    "public.dim_customer_hier": ["cust_id", "parent_cust_id", "depth", "root_name"],
+    "public.fct_product_sales": [
+      "period_month", "product_id", "category_name", "gross_sales", "net_sales",
+      "refund_total", "units_sold", "rank_in_month", "prior_month"
+    ],
+    "public.fct_revenue": ["cust_id", "period_month", "net_amount", "order_count"],
+    "public.fct_revenue_stage": ["cust_id", "period_month", "net_amount", "order_count"],
+    "public.fct_cohort": [
+      "cohort_month", "region", "customers", "revenue", "rank_in_region", "running_revenue"
+    ],
+    "public.fct_customer_360": [
+      "cust_id", "region", "cohort_month", "period_month", "first_order_date",
+      "orders_placed", "gross_revenue", "net_revenue", "refund_total", "units_bought",
+      "distinct_categories", "top_category_name", "avg_order_value", "region_rank",
+      "cohort_rank", "running_net_revenue", "prev_month_net", "revenue_share_of_region",
+      "category_depth", "segment"
+    ],
+    "public.gtt_stage": ["cust_id", "period_month", "amount", "note"],
+    "public.audit_log": ["cust_id", "changed_by", "changed_at", "detail"],
+    "public.ref_policy": ["region", "window_days"]
+  },
+
+  "temporary": {
+    "public.stg_orders": false,
+    "public.stg_order_lines": false,
+    "public.stg_returns": false,
+    "public.stg_customer": false,
+    "public.stg_products": false,
+    "public.stg_categories": false,
+    "public.dim_customer": false,
+    "public.dim_customer_hier": false,
+    "public.fct_product_sales": false,
+    "public.fct_revenue": false,
+    "public.fct_revenue_stage": false,
+    "public.fct_cohort": false,
+    "public.fct_customer_360": false,
+    "public.gtt_stage": false,
+    "public.audit_log": false,
+    "public.ref_policy": false
+  }
+}
