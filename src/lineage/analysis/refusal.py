@@ -270,6 +270,25 @@ CONSTRUCTS: tuple[Construct, ...] = (
         reason="XMLTABLE/JSON_TABLE - columns are projected out of a document by path "
         "expression, and the document's structure is not in the dictionary",
     ),
+    # Scoped to Oracle, and the scoping is the whole of finding PG-17. Conditional
+    # compilation is an Oracle PL/SQL preprocessor feature; PostgreSQL has no equivalent,
+    # so nothing in a PostgreSQL file can be one. Unscoped, BOTH alternatives collide with
+    # ordinary PostgreSQL syntax, because `$` is a quoting character there rather than a
+    # directive sigil:
+    #
+    #   `$$[A-Za-z_]\w*`  intends Oracle's `$$PLSQL_UNIT` inquiry directive, and also
+    #                     matches the dollar-quoted string literal `$$it's a value$$`
+    #   `\$IF\b`          intends the `$IF` directive, and also matches `$IF$`, which is a
+    #                     legal dollar-quote TAG (`DO $IF$ ... $IF$`)
+    #
+    # Measured cost before the scoping, on two spellings PostgreSQL treats as identical:
+    # `'manual review'` gave 3 edges at 100% coverage and `$$manual review$$` gave 0 edges,
+    # 1 refusal, 0% coverage - a false abstention (T3.1d) on a completely readable INSERT,
+    # and the lost edges included a filter edge with no connection to the literal.
+    #
+    # Narrowing the regex was the wrong repair and was considered: it would have left the
+    # seam - an Oracle-only construct live against every dialect - intact, and the next
+    # collision undiscovered.
     Construct(
         name="CONDITIONAL_COMPILATION",
         pattern=_rx(r"\$IF\b|\$\$[A-Za-z_]\w*"),
@@ -277,6 +296,7 @@ CONSTRUCTS: tuple[Construct, ...] = (
         reason="conditional compilation - which branch exists in the compiled unit depends "
         "on PLSQL_CCFLAGS at compile time, so the source alone describes several different "
         "programs",
+        dialects=frozenset({"oracle"}),
     ),
     Construct(
         name="WRAPPED",
@@ -376,6 +396,14 @@ def classify_statement(text: str, dialect: str = "oracle") -> Construct | None:
     Returns the construct rather than a bare bool so the caller gets the code and the
     reason from one place - a reason written at the call site is a reason that will
     diverge from the code beside it.
+
+    **`dialect` defaults to Oracle, and that default is a hazard worth naming.** It is what
+    hid finding PG-17: `band0.analyse_source` called this without a dialect, so every
+    PostgreSQL statement was classified against the Oracle register no matter what the
+    config said, and scoping the `Construct` alone did not fix anything. The default is kept
+    only because the Oracle call sites predate the parameter. **A new caller should pass
+    `program.dialect` explicitly** - omitting it is silently wrong rather than loudly wrong,
+    which is the shape this project treats as the worst kind of defect.
     """
     clean = _strip_noise(text)
     for construct in CONSTRUCTS:
@@ -417,8 +445,8 @@ def _line_of(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
 
 
-def conditional_compilation_spans(source: str) -> list[tuple[int, int]]:
-    """Line ranges governed by a `$IF ... $END` block.
+def conditional_compilation_spans(source: str, dialect: str = "oracle") -> list[tuple[int, int]]:
+    """Line ranges governed by a `$IF ... $END` block. Oracle only.
 
     Conditional compilation is the one construct here that poisons *neighbouring*
     statements rather than itself. The `$IF` carries no lineage; the INSERTs inside its
@@ -426,7 +454,15 @@ def conditional_compilation_spans(source: str) -> list[tuple[int, int]]:
     `PLSQL_CCFLAGS` and is not in the file. Measured, not assumed: the first version
     flagged only the directive line and cheerfully emitted edges for **both** arms of
     `u1_conditional_compilation` - two contradictory answers, each stated as fact.
+
+    **The dialect gate lives here rather than at the call sites** (finding PG-17). There are
+    two callers - this module's own pass 2 and `band0.analyse_source` - and a gate written
+    twice is a gate the third caller forgets. `$IF\\b` matches `$IF$`, which in PostgreSQL is
+    a legal dollar-quote tag rather than a directive, so an unscoped span would refuse every
+    statement inside `DO $IF$ ... $IF$` for a reason that cannot be true of PostgreSQL.
     """
+    if dialect != "oracle":
+        return []
     clean = _strip_noise(source)
     spans: list[tuple[int, int]] = []
     for opening in re.finditer(r"\$IF\b", clean, re.IGNORECASE):
@@ -475,7 +511,7 @@ def classify_program(program: Program) -> list[Refusal]:
             )
         )
 
-    for first, last in conditional_compilation_spans(program.source):
+    for first, last in conditional_compilation_spans(program.source, program.dialect):
         for statement in program.statements:
             if not first <= statement.line <= last:
                 continue

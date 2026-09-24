@@ -2386,7 +2386,10 @@ def analyse_source(
     # this the analyser emitted edges for BOTH arms of `u1_conditional_compilation` - two
     # contradictory answers, each stated as fact, and only one of them is in the compiled
     # unit.
-    ccflag_spans = conditional_compilation_spans(source)
+    # Oracle only, and the gate is inside the function rather than written here - `$IF$` is
+    # a legal PostgreSQL dollar-quote tag, so an unscoped span refuses readable statements
+    # for an Oracle reason (finding PG-17).
+    ccflag_spans = conditional_compilation_spans(source, program.dialect)
 
     for statement, statement_band in static + recovered:
         # DDL that moves data (T3.4b). Checked before the SUPPORTED gate because an
@@ -2443,7 +2446,7 @@ def analyse_source(
             )
             continue
 
-        construct = classify_statement(statement.text)
+        construct = classify_statement(statement.text, program.dialect)
         if construct is not None:
             result.refusals.append(
                 Refusal(

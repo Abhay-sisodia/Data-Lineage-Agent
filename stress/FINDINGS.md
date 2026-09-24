@@ -100,6 +100,9 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-14 | `silent-loss` | **fixed** | **a named `WINDOW` clause lost its PARTITION BY and ORDER BY, silently.** With two functions sharing the window, `RANK() OVER w` produces NO EDGE AT ALL and the target column vanishes from the lineage. No refusal, no boundary, 100% parse coverage. The construct a large reporting query actually uses |
 | PG-15 | `convention` | open, needs a decision | `SUM(x) FILTER (WHERE c)` and `SUM(CASE WHEN c THEN x END)` compute the same number and produce DIFFERENT lineage — a relation-targeted filter against a column-targeted value edge |
 | PG-16 | `construct-coverage` | **fixed** | **one column-less relation in the dictionary refused EVERY statement in the run**, including statements that never mention it. SQLGlot's `qualify` raises per STATEMENT on an empty schema entry. Neither shipped dictionary has one, which is why nothing had ever reached it; a capture lacking column privileges on one unrelated table would have taken a whole run to zero edges |
+| PG-17 | `dialect-leak` | **fixed** | **PostgreSQL dollar-quoting `$$word$$` is classified as Oracle's `$$PLSQL_UNIT` inquiry directive and the statement is refused.** Measured cost: 3 of 3 edges on a fully readable `INSERT ... SELECT`, 0% parse coverage. A false abstention (T3.1d) with no ambiguity to justify it — the refusal register was not dialect-aware, and **four** detection sites had to be scoped, not one |
+| PG-19 | `measurement-error` | open | **a whole-file parse failure reports `statements_seen = 0` and `parse_coverage = None`, not `seen 1 / coverage 0.0`.** The boundary IS declared, so nothing is silent — but the file drops out of the coverage denominator entirely, so a batch in which a file failed to parse scores the same as one where that file did not exist. Found only because PG-17's spurious refusal had been padding the count |
+| PG-18 | `construct-coverage` | open | **a recursive CTE's `CYCLE ... SET ... USING` clause fails the parse outright, taking the whole file with it.** Unlike `SEARCH`, which parses. Cannot go in `rewrite.py`: `CYCLE` DEFINES a column (`org_is_cycle`) that the query then filters on, so stripping it would silently narrow lineage — it belongs in the refusal register |
 
 **`PG-` is the PostgreSQL stress series**, kept apart from `S1-`..`S4-` for the same reason
 those are kept apart from `P-`: provenance is part of a finding's identity. A `PG-` finding
@@ -2879,6 +2882,210 @@ generate_series in FROM  1 edge, BOUNDARY dangling_reference GENERATE_SERIES(1, 
 `unnest(c.tags) AS t(tag)` loses `stg_customer.tags -> audit_log.changed_by` and declares
 **nothing at all**. `generate_series` in the same position declares `dangling_reference`, so
 the machinery exists and `unnest` is slipping past it.
+
+## PG-17 · `dialect-leak` · OPEN — PostgreSQL dollar-quoting refused as Oracle conditional compilation
+
+Found by `pg_parser_torture_fact_shipment_margin.sql` (2,963 lines, 70 CTEs, synthetic,
+no DDL). The file was refused for an unrelated parse failure (PG-18), and the refusal
+arrived carrying **the wrong reason**:
+
+```
+REFUSAL [CONTEXT_DEPENDENT] conditional compilation - which branch exists in the
+compiled unit depends on PLSQL_CCFLAGS at compile time ...
+```
+
+There is no conditional compilation in the file. `PLSQL_CCFLAGS` is an Oracle compiler
+setting and the file is PostgreSQL. `refusal.py`'s `CONDITIONAL_COMPILATION` pattern is
+`\$IF\b|\$\$[A-Za-z_]\w*`, whose second alternative is Oracle's `$$PLSQL_UNIT` inquiry
+directive — and which also matches PostgreSQL's ordinary dollar-quoted string literal
+`$$it's a 'quoted' $ value$$` at line 29.
+
+**The collision is narrower than it first looks, and the narrowness is the tell.** Only the
+untagged form whose body opens with a letter or underscore matches:
+
+```
+$$it's a 'quoted' $ value$$   -> CONDITIONAL_COMPILATION    <- false positive
+$tag$ nested $$ dollars $tag$ -> -
+$q$O'Reilly$q$                -> -
+$$$$                          -> -
+$$PLSQL_UNIT                  -> CONDITIONAL_COMPILATION    <- the intended match
+```
+
+So the bug does not fire on dollar-quoting as a category; it fires on the subset that
+happens to look like an Oracle identifier. That makes it exactly the kind of defect that
+survives casual testing.
+
+**The cost, measured rather than argued** — two spellings of one statement that PostgreSQL
+treats as identical, which is the metamorphic shape `tests/test_postgres_equivalence.py`
+already uses:
+
+```
+SELECT o.cust_id, 'manual review'  , o.amount  ->  3 edges, 0 refusals, coverage 1.0
+SELECT o.cust_id, $$manual review$$, o.amount  ->  0 edges, 1 refusal,  coverage 0.0
+```
+
+All three edges lost, including the `filter` edge from a `WHERE` clause that has nothing to
+do with the literal. A **false abstention** (T3.1d): the statement is completely readable
+and nothing about it is context-dependent.
+
+The shape of the defect matters more than this instance. The refusal register is a flat
+list of constructs with no notion of which dialect each belongs to, so every Oracle-only
+pattern is live against PostgreSQL input and vice versa. `CONDITIONAL_COMPILATION` is the
+one a stress file happened to reach; it is not evidence that it is the only one. The fix is
+a `dialects` field on `Construct` — not a narrower regex, which would leave the seam intact
+and the next collision undiscovered.
+
+## PG-17 · FIXED, 2026-09-24 — scope the register by dialect, at all four sites
+
+`Construct` already had a `dialects` field and `applies_to()`; `CONDITIONAL_COMPILATION`
+had simply never been scoped. The repair looked like one line and was not.
+
+**Four sites detect Oracle conditional compilation, and scoping the `Construct` fixed
+one of them.** The first attempt added `dialects=frozenset({"oracle"})`, and the
+regression test still failed with the identical refusal — because `band0.analyse_source`
+calls `classify_statement(statement.text)` **without a dialect**, and the parameter
+defaults to `"oracle"`. Every PostgreSQL statement was being classified against the Oracle
+register regardless of what the config said, so the scoping could not take effect.
+
+| site | fix |
+|---|---|
+| the `Construct` itself | `dialects=frozenset({"oracle"})` |
+| `classify_program` pass 1 | already passed `program.dialect` |
+| `classify_program` pass 2 — the `$IF` span | gate moved INSIDE `conditional_compilation_spans` |
+| `band0.analyse_source` — the ccflag span, and the per-statement classify | both now pass `program.dialect` |
+
+The span gate went inside the function rather than at its two call sites, because a gate
+written twice is a gate the third caller forgets — which is precisely how this defect
+existed. `$IF\b` matches `$IF$`, a legal PostgreSQL dollar-quote tag, so an unscoped span
+would refuse every statement inside `DO $IF$ ... $IF$` for a reason that cannot be true of
+PostgreSQL.
+
+**`classify_statement`'s `dialect="oracle"` default is left in place and is now documented
+as a hazard.** Six Oracle call sites in `tests/test_refusals.py` predate the parameter, and
+removing the default to fix a PostgreSQL defect would be a wider change than the
+measurement justifies. It is the thing that hid this finding, so the docstring says so.
+
+**Both halves were verified to be load-bearing** rather than assumed — each was reverted
+in-process and the metamorphic pair re-run:
+
+```
+with the fix as committed              PASSES   single=3 edges/0 refusals  dollar=3 edges/0 refusals
+half 1 reverted (Construct unscoped)   FAILS    single=3 edges/0 refusals  dollar=0 edges/1 refusal
+half 2 reverted (band0 omits dialect)  FAILS    single=3 edges/0 refusals  dollar=0 edges/1 refusal
+```
+
+A fix where one half does nothing is a fix half of which is untested.
+
+`tests/test_dialect_scoped_refusals.py` — 10 tests. The load-bearing one is metamorphic and
+needs no key. The last is a STRUCTURAL guard rather than a case: it asserts that **no**
+construct with `dialects=None` matches an ordinary PostgreSQL dollar-quoted literal, so the
+next Oracle-only entry added without a scope fails there rather than in someone's run.
+Narrowing the regex was considered and rejected for exactly this reason — it would have
+closed the instance and left the seam open.
+
+Oracle detection is unchanged and was checked directly, not inferred: `probe_analyser.py`
+still reports `conditional-compilation-flow ... CONTEXT_DEPENDENT`, the Oracle probe holds
+at 63 / DECLARED 4 / EDGES 50 / REFUSED 6 / SILENT 3, and the PostgreSQL probe at 44/44 with
+EDGES 35 / REFUSED 6. Suite 836 passed, 1 xfailed (PG-15).
+
+## PG-19 · `measurement-error` · OPEN — a whole-file parse failure leaves no trace in coverage
+
+Uncovered by fixing PG-17, and worth separating from it: the spurious refusal had been
+**padding the statement count**, so removing it exposed what the numbers do when a file
+does not parse.
+
+```
+before PG-17's fix   statements seen 1   analysed 0   coverage 0.0    refusals 1 (wrong reason)
+after                statements seen 0   analysed 0   coverage None   refusals 0
+```
+
+**This is not a regression, and that was checked rather than argued.** A control with no
+dollar-quoting anywhere — so the PG-17 pattern could never have fired on it, before or
+after — behaves identically:
+
+```
+unparseable, NO dollar quoting    seen=0 analysed=0 coverage=None boundaries=['parse_failure']
+unparseable, WITH dollar quoting  seen=0 analysed=0 coverage=None boundaries=['parse_failure']
+parseable (control)               seen=1 analysed=1 coverage=1.0   boundaries=[]
+```
+
+The behaviour predates both findings. PG-17 was masking it.
+
+**The `parse_failure` boundary IS declared, so this is not silence** — the failure taxonomy
+is satisfied and a reader of one file's report can see that nothing was claimed. The problem
+is the aggregate. A file that fails to parse contributes nothing to the coverage
+*denominator*, so a batch of ten files in which one is unreadable reports the same coverage
+as a batch of nine that never contained it. Parse coverage is supposed to be the number that
+falls when the analyser cannot read something; here it is the number that looks away.
+
+`coverage = None` rather than `0.0` is the honest answer to "what fraction of 0 statements
+were analysed", so the repair is not simply to divide differently — it is to decide whether
+an unparseable file counts as one unanalysed statement or needs a separate declared figure.
+That is a decision about what the measurement MEANS, so it is recorded here and not taken
+in passing. It also touches the signed phase-0 numbers, which makes it its own measurement.
+
+## PG-18 · `construct-coverage` · OPEN — `CYCLE ... SET ... USING` fails the parse outright
+
+The first blocker in the torture file, at line 59:
+
+```sql
+) SEARCH DEPTH FIRST BY org_id SET org_dfs_order
+  CYCLE org_id SET org_is_cycle TO 'Y' DEFAULT 'N' USING org_cycle_path,
+```
+
+```
+ParseError: alias does not support CTE. Line 59, Col: 18.
+```
+
+One statement, so one parse failure takes **the entire 2,963-line file**: 0 edges,
+coverage 0.0. `SEARCH DEPTH FIRST` and `SEARCH BREADTH FIRST` both parse; only `CYCLE`
+does not.
+
+**The failure is loud, which is the part that is working.** A `parse_failure` boundary is
+declared and `statements_analysed` is 0 against `statements_seen` 1, so nothing is claimed
+and a reader can see that nothing was claimed. Refusal, not silent loss.
+
+**`CYCLE` cannot go in `rewrite.py`, and the reason is worth recording.** That module's
+admission test has two parts, and `CYCLE` passes the first (SQLGlot cannot parse the
+statement at all) while failing the second decisively: the clause **defines** the column
+`org_is_cycle`, and the query then reads it —
+
+```sql
+WHERE  org_is_cycle = 'Y'          -- orphan_checks, line 1314
+       ot.org_is_cycle             -- wh_org projection, line 294
+```
+
+Stripping the clause would make the file parse and would quietly delete a column that two
+places select. That is precisely the "rewrite that drops a real predicate silently narrows
+lineage" case the module's docstring rules out, so `CYCLE` belongs in the refusal register
+with a reason of its own — an honest refusal over a readable-looking wrong answer.
+
+### What the torture file measured beyond the two findings
+
+A single blocker means the file-level result (0 edges) says nothing about how many
+constructs are actually unsupported, so 138 constructs drawn from the file were probed in
+isolation, and the 40 highest-risk of those that parse were then checked for whether they
+KEEP the identifiers the SQL names.
+
+```
+SQLGlot postgres parse       107 / 138  (78%)
+identifier fidelity           40 /  40  (100%) - zero silent loss
+```
+
+The 31 parse failures cluster, and the clustering is informative: **SQL/JSON (PG 16/17)**
+— `JSON_VALUE`/`JSON_QUERY` with `RETURNING`/`PASSING`/`ON EMPTY`/`ON ERROR`, `JSON()`,
+`JSON_SCALAR`, `JSON_SERIALIZE`, `JSON_ARRAYAGG ... ORDER BY`; **XML** — `XMLPI`,
+`XMLROOT`, `XMLSERIALIZE ... INDENT`, `XMLEXISTS`, `XMLTABLE` with `XMLNAMESPACES`;
+**`USING` in three unrelated roles** — `ORDER BY x USING <`, `array_agg(... ORDER BY x USING >)`,
+`JOIN ... USING (c) AS alias`; **prefix operators** — `|/`, `||/`, `@`, `?-`, `?|`, `@-@`, `#`;
+and **type syntax** — `int4 '5'`, `CAST(... AS text ARRAY[4])`, `national character`.
+
+These are upstream in SQLGlot, not in this codebase, and every one of them fails loudly.
+The result that matters for the analyser is the second line: of the constructs that do
+parse — `JSON_TABLE` with `NESTED PATH`, `XMLTABLE`, `ROWS FROM`, `TABLESAMPLE`,
+`GROUPING SETS`, `GROUP BY DISTINCT`, inheriting named windows, `DISTINCT ON`, whole-row
+references, 2-D array subscripts, `WITH RECURSIVE` inside a scalar subquery — **not one
+lost an identifier.** No construct in this file parses and is then modelled wrong.
 
 ### Why this one matters more than PG-03 and PG-04
 
