@@ -73,12 +73,27 @@ EXPECTED = {
     ("stress_pg_01_wide_coverage", Flow.VALUE): (23, 0, 0),
     ("stress_pg_01_wide_coverage", Flow.FILTER): (16, 0, 0),
     ("stress_pg_01_wide_coverage", Flow.INFLUENCE): (19, 0, 0),
-    # The five value misses are PG-03 (LATERAL x1), PG-04 (jsonb_build_object x2) and
-    # PG-05 (unnest x1), plus PG-03's second LATERAL column. The filter miss and the
-    # influence miss are both PG-03.
-    ("stress_pg_02_deep_nesting", Flow.VALUE): (17, 0, 5),
-    ("stress_pg_02_deep_nesting", Flow.FILTER): (14, 0, 1),
-    ("stress_pg_02_deep_nesting", Flow.INFLUENCE): (21, 0, 1),
+    # MOVED 2026-09-25 when PG-03 was fixed, and the move is the point of pinning.
+    #
+    #     value      17/0/5 -> 19/0/3
+    #     filter     14/0/1 -> 15/0/0
+    #     influence  21/0/1 -> 22/0/0
+    #
+    # False positives stay at ZERO on all three flows: the fix resolved names it had been
+    # declaring, and invented none. Misses fall from seven to three, and the three that
+    # remain are PG-04 (`jsonb_build_object` x2) and PG-05 (`unnest` x1) - both still open,
+    # neither a LATERAL.
+    #
+    # This package also caught the fix OVER-REACHING before the move was accepted. With
+    # laterals resolving, `string_agg(o.status_code, ',' ORDER BY o.order_date)` emitted
+    # `order_date -> note` as a VALUE edge, which this key's forbidden list rejects by
+    # name: the ORDER BY decides the order of the pieces and no part of order_date is in
+    # the string. The key had said so all along and the column had simply never resolved,
+    # so the gap could not show. D-4's rule now covers ordered aggregates as well as
+    # windows, which is what turned that miss into the influence hit above.
+    ("stress_pg_02_deep_nesting", Flow.VALUE): (19, 0, 3),
+    ("stress_pg_02_deep_nesting", Flow.FILTER): (15, 0, 0),
+    ("stress_pg_02_deep_nesting", Flow.INFLUENCE): (22, 0, 0),
     ("stress_pg_03_boundary", Flow.VALUE): (9, 0, 0),
     ("stress_pg_03_boundary", Flow.FILTER): (5, 0, 0),
     ("stress_pg_03_boundary", Flow.INFLUENCE): (6, 0, 0),

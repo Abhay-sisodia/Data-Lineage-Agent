@@ -312,17 +312,35 @@ def _correlated_filter_columns(expression: Any) -> list[Any]:
 
 
 def _window_influence_columns(expression: Any) -> list[Any]:
-    """A window's `PARTITION BY` and `ORDER BY` columns (stress finding S2-12, D-4).
+    """Columns that ORDER or PARTITION a computation without supplying its value (D-4).
+
+    Two constructs, one rule:
+
+    * a **window's** `PARTITION BY` / `ORDER BY` (stress finding S2-12);
+    * an **ordered aggregate's** own `ORDER BY` - `string_agg(code, ',' ORDER BY d)`.
 
     These used to be returned alongside the correlated-predicate columns above and emitted
     as `filter`, which was half right. They are certainly not value sources -
     `ROW_NUMBER() OVER (ORDER BY total DESC)` does not take its value from `total` - but
-    **a window function removes no rows**, so an edge claiming they decided which rows
+    **neither construct removes a row**, so an edge claiming they decided which rows
     landed in the target is false.
 
     They get `Flow.INFLUENCE` and point at the OUTPUT COLUMN, because what actually
     depends on them is that column's value: change the partition or the ordering and
     `rank_in_month` changes, while nothing is copied into it.
+
+    **The ordered-aggregate half was added after PG-03 unmasked it**, and the two halves
+    live in ONE function deliberately. `stress_pg_02`'s key had always labelled
+    `order_date -> note` as influence and said why - "that is the definition of influence
+    (D-4), arrived at for window functions and applying unchanged to an ordered aggregate" -
+    but the column sat behind a LATERAL alias, so it never resolved and the gap could not
+    show. The moment laterals resolved, it came out as a VALUE edge and the key's forbidden
+    list caught it. S2-08 is on the register for a rule that lived in two places and
+    drifted; this is the same rule, so it gets one home.
+
+    SQLGlot models `string_agg(a, ',' ORDER BY b)` as `GroupConcat(this=Order(...))`, so the
+    ordering keys are the `Order` node's `expressions` and the aggregated value is its
+    `this` - taking the whole `Order` would exclude the value itself.
     """
     found: list[Any] = []
     for window in expression.find_all(exp.Window):
@@ -331,6 +349,12 @@ def _window_influence_columns(expression: Any) -> list[Any]:
         order = window.args.get("order")
         if order is not None:
             found.extend(order.find_all(exp.Column))
+
+    for order in expression.find_all(exp.Order):
+        if not isinstance(order.parent, exp.AggFunc):
+            continue
+        for ordered in order.expressions or []:
+            found.extend(ordered.find_all(exp.Column))
     return found
 
 
@@ -343,8 +367,31 @@ def _value_columns(expression: Any) -> list[Any]:
     return [c for c in expression.find_all(exp.Column) if id(c) not in excluded]
 
 
+def _query_of_scope(expression: Any) -> Any:
+    """The SELECT a scope's expression ultimately holds, past LATERAL and subquery wrappers.
+
+    A LATERAL source's `scope.expression` is an `exp.Lateral`, NOT the query inside it, and
+    `Lateral.selects` is an empty list rather than an error. That made every column
+    projected through a LATERAL alias look like a name the subquery does not have (finding
+    PG-03): `_projection_named` returned None and the reference was declared
+    `unresolved_identifier` while the analyser had the projection two nodes away.
+
+    The loop is bounded because `Lateral(Subquery(Select))` is two unwraps and anything
+    needing five is a shape this has not seen; stopping is better than spinning.
+    """
+    node = expression
+    for _ in range(5):
+        if isinstance(node, exp.Lateral):
+            node = node.this
+        elif isinstance(node, exp.Subquery):
+            node = node.this
+        else:
+            break
+    return node
+
+
 def _projection_named(scope: Scope, name: str) -> Any:
-    projections: list[Any] = getattr(scope.expression, "selects", []) or []
+    projections: list[Any] = getattr(_query_of_scope(scope.expression), "selects", []) or []
     for projection in projections:
         if (projection.alias_or_name or "").upper() == name.upper():
             return projection

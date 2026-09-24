@@ -86,7 +86,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-01 | `measurement-error` | open | **an `UPDATE` is analysed and never counted.** `update_statement` is not in `band0.SUPPORTED` — def-use owns it — and def-use does not touch `statements_seen`. So every `UPDATE` in the project is missing from the parse-coverage denominator, in BOTH dialects, and an `UPDATE` that also produced no edge would be fully SILENT |
 
 | PG-02 | `key-error` | **fixed** | `stress_pg_01`'s key claimed `expected_boundaries: []` and called the empty list the point of the package; a real schema-context boundary was declared and the key was wrong |
-| PG-03 | `construct-coverage` | open | every column PROJECTED through a `LATERAL` alias is unresolved — the correlation's filter edges are correct, the projection is lost. Declared, not silent |
+| PG-03 | `construct-coverage` | **fixed** | every column PROJECTED through a `LATERAL` alias is unresolved — the correlation's filter edges are correct, the projection is lost. Declared, not silent. Cause was one node type: a LATERAL scope's `expression` is the `exp.Lateral`, whose `selects` is an empty list rather than an error, so `_projection_named` read "no such column" from "I don't know" |
 | PG-04 | `construct-coverage` | open | `jsonb_build_object` is opaque to its own arguments — declared `source_unavailable`, so the refusal is honest and the classification is wrong |
 | PG-05 | `silent-loss` | open | **`unnest(...)` in `FROM` drops the unnested element with NO boundary at all.** `generate_series` in the same position declares `dangling_reference`, so the machinery exists and `unnest` slips past it. The only known column-level silence in the PostgreSQL path |
 | PG-06 | `measurement-error` | open | **the scope contract is stated per STATEMENT and the losses are per COLUMN.** `probe_postgres` asks "did this statement produce edges?"; PG-03/04/05 all answer yes while losing a column. Three of 34 in-scope constructs are partial and the probe cannot tell |
@@ -3075,6 +3075,72 @@ A related extension was drafted and **deliberately dropped**: lending columns fr
 `Unknown column: scrap_pct` refusal, but subquery aliases (`b2`, `q`, `z`, `t`) are reused
 far more often than CTE names, so adding it before the scoping fix would spread this defect
 rather than contain it. Scope first, then extend.
+
+## PG-03 · FIXED, 2026-09-25 — unwrap the LATERAL, and the D-4 rule it unmasked
+
+Two changes, and the second one is the interesting one.
+
+**1. `_projection_named` unwraps the wrapper.** SQLGlot sets a LATERAL source's
+`scope.expression` to the `exp.Lateral`, not to the query inside it, and `Lateral.selects`
+is an **empty list rather than an error**. So the lookup read a definite "no such column"
+out of "I don't know", and declared `unresolved_identifier` while the projection sat two
+nodes away under `Lateral -> Subquery -> Select`. `_query_of_scope` now unwraps both.
+
+An empty list is the dangerous spelling of unknown, and this is the third time that shape
+has appeared: `_sole_relation` reading the wrong `from_` key returned None rather than
+raising (PG-21's neighbour), and `infer.py`'s passthrough test read a star from anywhere in
+the subtree. All three looked correct and were silently doing nothing.
+
+**2. D-4 now covers ORDERED AGGREGATES, not just windows** - and `stress_pg_02`'s key is
+what forced it. With laterals resolving, `string_agg(o.status_code, ',' ORDER BY
+o.order_date)` emitted `order_date -> note` as a **value** edge, which the key's forbidden
+list rejects by name: the ORDER BY decides the order of the pieces and no part of
+`order_date` is in the string.
+
+**The key had been right about this since it was written**, and said so explicitly - "that
+is the definition of `influence` (D-4), arrived at for window functions and applying
+unchanged to an ordered aggregate". The column simply sat behind a LATERAL alias and never
+resolved, so the gap could not show. Fixing PG-03 did not create this defect; it revealed
+one that the key had already priced.
+
+`_window_influence_columns` now returns an `exp.Order` whose parent is an `exp.AggFunc`,
+taking the ORDER node's `expressions` and NOT its `this` - the `this` is the aggregated
+value itself. Both halves live in one function on purpose: S2-08 is on the register for a
+rule that lived in two places and drifted, and this is one rule.
+
+**The grid moved, deliberately, and every flow improved with NO false positives:**
+
+```
+                   before      after
+value            17 / 0 / 5   19 / 0 / 3
+filter           14 / 0 / 1   15 / 0 / 0
+influence        21 / 0 / 1   22 / 0 / 0
+```
+
+Misses fall from seven to three, and the three left are PG-04 (`jsonb_build_object` x2) and
+PG-05 (`unnest` x1) - both still open, neither a LATERAL. Zero false positives throughout
+is the number that matters: the fix resolved names it had been declaring and invented none.
+
+**Measured on `another_stress_test.sql`** (3,737 lines, 134 CTEs, which builds this exact
+shape 111 times):
+
+```
+before   29 edges, 18 boundaries (16 unresolved_identifier), 0 value edges
+after    32 edges,  3 boundaries ( 1 unresolved_identifier), 2 value edges
+```
+
+The fourteen `PAYLOAD_SCORE_n` boundaries - stages 3, 11, 19 … 107, exactly 3 + 8k - all
+resolve. What remains is PG-04 and a function row source.
+
+`tests/test_lateral_projection.py`, 5 tests, 4 of which fail without the fix. The
+load-bearing one is metamorphic and needs no key: a LATERAL that only names an expression
+must produce the same lineage as the expression written inline. The fifth is a guard that
+an unresolvable name inside a lateral is still declared rather than confidently bound -
+resolving more must never mean resolving names that do not exist.
+
+Suite 845 passed, 1 xfailed. Oracle probe unchanged at 63 / DECLARED 4 / EDGES 50 /
+REFUSED 6 / SILENT 3 (its `LISTAGG ... WITHIN GROUP` is a different node type and is
+untouched); PostgreSQL probe 44/44.
 
 ## PG-21 · FIXED, 2026-09-24 — resolve a qualifier in the scope that contains it
 
