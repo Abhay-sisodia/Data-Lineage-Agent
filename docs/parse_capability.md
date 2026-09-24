@@ -161,7 +161,7 @@ different questions and the first is the one currently in focus.
 |---|---|---|
 | **PG-05** | `unnest(...)` in `FROM` drops its column with NO boundary | `silent-loss` — the only known column-level silence in the PostgreSQL path |
 | **P-02** | A `DELETE`'s predicate never sees variables | `silent-loss` — the identical `UPDATE` keeps them |
-| **PG-03** | Columns projected through a `LATERAL` alias are unresolved | Declared, not silent |
+| ~~PG-03~~ | ~~Columns projected through a `LATERAL` alias are unresolved~~ | **FIXED 2026-09-25.** A LATERAL scope's `expression` is the `exp.Lateral`, whose `selects` is an empty list rather than an error. Fixing it also extended D-4 to ordered aggregates, which `stress_pg_02`'s key had already priced |
 | **PG-04** | `jsonb_build_object` is opaque to its own arguments | Refusal is honest, classification is wrong |
 | **S4-13** | A cursor `FOR` loop carries none of the cursor query's predicates | Oracle side |
 | **PG-15** | `FILTER (WHERE c)` and `SUM(CASE WHEN c ...)` give different lineage for the same number | **Needs a decision**, not a fix. Currently `xfail` |
