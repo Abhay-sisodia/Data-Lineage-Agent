@@ -102,7 +102,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-16 | `construct-coverage` | **fixed** | **one column-less relation in the dictionary refused EVERY statement in the run**, including statements that never mention it. SQLGlot's `qualify` raises per STATEMENT on an empty schema entry. Neither shipped dictionary has one, which is why nothing had ever reached it; a capture lacking column privileges on one unrelated table would have taken a whole run to zero edges |
 | PG-17 | `dialect-leak` | **fixed** | **PostgreSQL dollar-quoting `$$word$$` is classified as Oracle's `$$PLSQL_UNIT` inquiry directive and the statement is refused.** Measured cost: 3 of 3 edges on a fully readable `INSERT ... SELECT`, 0% parse coverage. A false abstention (T3.1d) with no ambiguity to justify it — the refusal register was not dialect-aware, and **four** detection sites had to be scoped, not one |
 | PG-19 | `measurement-error` | open | **a whole-file parse failure reports `statements_seen = 0` and `parse_coverage = None`, not `seen 1 / coverage 0.0`.** The boundary IS declared, so nothing is silent — but the file drops out of the coverage denominator entirely, so a batch in which a file failed to parse scores the same as one where that file did not exist. Found only because PG-17's spurious refusal had been padding the count |
-| PG-18 | `construct-coverage` | open | **a recursive CTE's `CYCLE ... SET ... USING` clause fails the parse outright, taking the whole file with it.** Unlike `SEARCH`, which parses. Cannot go in `rewrite.py`: `CYCLE` DEFINES a column (`org_is_cycle`) that the query then filters on, so stripping it would silently narrow lineage — it belongs in the refusal register |
+| PG-18 | `construct-coverage` | open | **a recursive CTE's `SEARCH`/`CYCLE` decorations fail the parse outright, taking the whole file with them.** Narrowed by decomposition: the breaking token is `CYCLE ... TO <v>` — `CYCLE id SET c` and `CYCLE id SET c USING p` both parse, and adding `TO 'Y'` is what fails. `SEARCH` fails too, but only in the position the file uses it (followed by `, next_cte`, or with a multi-column `BY`). Cannot go in `rewrite.py`: these DEFINE columns (`org_is_cycle`, `org_dfs_order`) the query then filters on and projects, so stripping them would silently narrow lineage — they belong in the refusal register |
 
 **`PG-` is the PostgreSQL stress series**, kept apart from `S1-`..`S4-` for the same reason
 those are kept apart from `P-`: provenance is part of a finding's identity. A `PG-` finding
@@ -3037,9 +3037,44 @@ The first blocker in the torture file, at line 59:
 ParseError: alias does not support CTE. Line 59, Col: 18.
 ```
 
-One statement, so one parse failure takes **the entire 2,963-line file**: 0 edges,
-coverage 0.0. `SEARCH DEPTH FIRST` and `SEARCH BREADTH FIRST` both parse; only `CYCLE`
-does not.
+One statement, so one parse failure takes **the entire 2,963-line file**: 0 edges.
+
+**Decomposed rather than described, because the first write-up of this finding was wrong.**
+It said "`CYCLE ... SET ... USING` fails, unlike `SEARCH`, which parses" - and both halves
+of that are false. Holding the recursive CTE fixed and varying only the decoration:
+
+```
+CYCLE id SET c                              OK
+CYCLE id SET c USING p                      OK
+CYCLE id SET c TO 'Y'                       FAIL   column does not support CTE
+CYCLE id SET c TO 'Y' DEFAULT 'N'           FAIL
+CYCLE id SET c TO 'Y' DEFAULT 'N' USING p   FAIL
+
+SEARCH DEPTH FIRST BY id SET ord  then SELECT        OK
+SEARCH DEPTH FIRST BY id SET ord  then , next_cte    FAIL
+SEARCH BREADTH FIRST BY id, pid SET ord              FAIL
+```
+
+So the breaking token is **`TO <value>`**, the cycle-mark clause - not `CYCLE`, and not
+`USING`, which was named in the first draft purely because it was the last thing on the
+line. And `SEARCH` is not innocent: it parses when it is the LAST thing before the final
+`SELECT`, and fails both in the position this file uses it (followed by `, next_cte`) and
+with a multi-column `BY`. An earlier probe recorded `SEARCH DEPTH FIRST` as OK, which was
+true of the probe's own input and not of the file's.
+
+**The file's problem is not one blocker.** Peeling them off in order moves the error rather
+than clearing it:
+
+```
+line   59   CYCLE ... TO 'Y' DEFAULT 'N'
+line   59   SEARCH ... followed by a comma
+line  168   ORDER BY h.version_no USING >
+line  764   JSON_VALUE(... RETURNING timestamp with time zone ...)
+            ... and more behind those
+```
+
+which agrees with the isolated probe: **31 of 138 constructs drawn from this file do not
+parse.** Supporting `CYCLE` would move the failure to line 168, not produce lineage.
 
 **The failure is loud, which is the part that is working.** A `parse_failure` boundary is
 declared and `statements_analysed` is 0 against `statements_seen` 1, so nothing is claimed
