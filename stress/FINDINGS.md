@@ -101,7 +101,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-15 | `convention` | open, needs a decision | `SUM(x) FILTER (WHERE c)` and `SUM(CASE WHEN c THEN x END)` compute the same number and produce DIFFERENT lineage — a relation-targeted filter against a column-targeted value edge |
 | PG-16 | `construct-coverage` | **fixed** | **one column-less relation in the dictionary refused EVERY statement in the run**, including statements that never mention it. SQLGlot's `qualify` raises per STATEMENT on an empty schema entry. Neither shipped dictionary has one, which is why nothing had ever reached it; a capture lacking column privileges on one unrelated table would have taken a whole run to zero edges |
 | PG-17 | `dialect-leak` | **fixed** | **PostgreSQL dollar-quoting `$$word$$` is classified as Oracle's `$$PLSQL_UNIT` inquiry directive and the statement is refused.** Measured cost: 3 of 3 edges on a fully readable `INSERT ... SELECT`, 0% parse coverage. A false abstention (T3.1d) with no ambiguity to justify it — the refusal register was not dialect-aware, and **four** detection sites had to be scoped, not one |
-| PG-21 | `silent-loss` | open, **worst-shaped finding in the PG series** | **`infer.py` keys aliases GLOBALLY, so one alias reused in two scopes mixes two tables' columns — and last write wins, so one real table is left EMPTY.** Four lines of SQL reproduce it: `sales.orders` gets `[]` and `sales.customers` gets all four columns, two of which it does not have. This is the inference INVENTING columns, the one thing its docstring forbids, and an empty relation then triggers PG-16's whole-run refusal |
+| PG-21 | `silent-loss` | **fixed** | **`infer.py` keys aliases GLOBALLY, so one alias reused in two scopes mixes two tables' columns — and last write wins, so one real table is left EMPTY.** Four lines of SQL reproduce it: `sales.orders` gets `[]` and `sales.customers` gets all four columns, two of which it does not have. This is the inference INVENTING columns, the one thing its docstring forbids, and an empty relation then triggers PG-16's whole-run refusal |
 | PG-20 | `refusal-granularity` | open | **one `JSON_TABLE` in one CTE out of 85 refuses a 2,948-line query in its entirety.** The refusal is correct per construct and catastrophic per file, because the refusal unit is the STATEMENT and a modern analytical query is one statement. Same shape as PG-16, and the general case of PG-06 |
 | PG-19 | `measurement-error` | open | **a whole-file parse failure reports `statements_seen = 0` and `parse_coverage = None`, not `seen 1 / coverage 0.0`.** The boundary IS declared, so nothing is silent — but the file drops out of the coverage denominator entirely, so a batch in which a file failed to parse scores the same as one where that file did not exist. Found only because PG-17's spurious refusal had been padding the count |
 | PG-18 | `construct-coverage` | open | **a recursive CTE's `SEARCH`/`CYCLE` decorations fail the parse outright, taking the whole file with them.** Narrowed by decomposition: the breaking token is `CYCLE ... TO <v>` — `CYCLE id SET c` and `CYCLE id SET c USING p` both parse, and adding `TO 'Y'` is what fails. `SEARCH` fails too, but only in the position the file uses it (followed by `, next_cte`, or with a multi-column `BY`). Cannot go in `rewrite.py`: these DEFINE columns (`org_is_cycle`, `org_dfs_order`) the query then filters on and projects, so stripping them would silently narrow lineage — they belong in the refusal register |
@@ -3075,6 +3075,55 @@ A related extension was drafted and **deliberately dropped**: lending columns fr
 `Unknown column: scrap_pct` refusal, but subquery aliases (`b2`, `q`, `z`, `t`) are reused
 far more often than CTE names, so adding it before the scoping fix would spread this defect
 rather than contain it. Scope first, then extend.
+
+## PG-21 · FIXED, 2026-09-24 — resolve a qualifier in the scope that contains it
+
+Three changes, because the finding had two mechanisms and the fix unblocked a third.
+
+**1. Scope-aware resolution.** The file-wide `aliases` map is gone. `_scope_map(select)`
+returns only the aliases introduced by THAT select's own `FROM` and `JOIN`s, and `_resolve`
+walks outward through enclosing selects so a correlated reference still finds its outer
+relation. `_owning_select` draws the boundary: a table inside a subquery in the `FROM`
+belongs to the subquery's scope, and what the outer scope sees is the subquery's ALIAS.
+
+`_sole_relation` carried the same defect on the unqualified path - it looked its answer up
+in the same global map - and now computes the key from the table in its own `FROM`.
+
+**2. The star must be in the CTE's OWN projection.** `find_all(exp.Star)` searches the whole
+subtree, so a CTE whose select list RENAMES satisfied the passthrough test on a star buried
+in a `LATERAL`, and lent its source table the CTE's output alias:
+
+```
+mfg.bom = ['component_item_id', 'parent_item_id', 'qty_per', 'top_item_id']
+                                                              ^^^^^^^^^^^ not its column
+```
+
+`_projects_star` now looks at the projection list, counting both `*` and `alias.*`, and
+descending into set-operation arms.
+
+**3. The deferred extension, now safe.** A derived table that projects a star over exactly
+one stored relation lends its columns, as a `SELECT *` CTE does - so
+`CROSS JOIN LATERAL (SELECT * FROM mfg_eng.bill_of_material x) AS b2` followed by
+`b2.scrap_pct` resolves. This was drafted BEFORE the scoping fix and deliberately held back,
+because `b2`, `q` and `z` are reused far more often than CTE names and a global map would
+have spread the defect. Note that SQLGlot puts the alias on the `Lateral` and leaves the
+`Subquery` beneath it unnamed, so `_query_of` unwraps both.
+
+**Effect on the torture variant** (2,920 lines, 85 CTEs, 30 base tables):
+
+```
+before   245 columns   2 relations EMPTY   REFUSED: Unknown column: scrap_pct   0 edges
+after    169 columns   0 relations empty   coverage 1.0                       301 edges
+```
+
+The 76 columns that disappeared were invented ones. `mfg_eng.bill_of_material` had held
+`yr`, `revenue`, `row_hash`, `segment`, `_dup_cnt` and `bucket_start`; it now holds nine
+plausible columns and nothing else.
+
+Four tests in `tests/test_infer_dictionary.py`; three of them fail without the fix. The
+fourth - the correlated reference - passes either way, and is kept as a guard that the scope
+walk is not too NARROW, which is the obvious way to break this while fixing it. Suite 840
+passed, 1 xfailed; postgres probe 44/44, Oracle probe unchanged.
 
 ## PG-20 · `refusal-granularity` · OPEN — one CTE's construct refuses 2,948 lines
 

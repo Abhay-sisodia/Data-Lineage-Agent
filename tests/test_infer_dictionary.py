@@ -161,6 +161,85 @@ def test_a_select_star_passthrough_cte_lends_its_relation_the_columns() -> None:
     assert "quantity_ordered" in cols
 
 
+def test_a_reused_alias_does_not_mix_two_relations_columns() -> None:
+    """Finding PG-21, and the sharpest case in this file.
+
+    An alias belongs to ONE select. The first implementation kept a file-wide map and wrote
+    `aliases[alias] = key` for every table it saw, so the same letter used in two scopes -
+    which is ordinary SQL, not a trick - merged two tables. Last write won, which made it
+    worse than a merge: one real relation was left with NO columns at all.
+
+    Both halves are the failure this module is supposed to be incapable of. Invented columns
+    let a name bind to a table that does not have it, and an emptied relation is exactly
+    PG-16's trigger for refusing an entire run.
+    """
+    book, _ = infer_dictionary(
+        """
+        WITH a AS (SELECT b.amount, b.order_no FROM sales.orders    b),
+             c AS (SELECT b.region, b.tier     FROM sales.customers b)
+        SELECT a.amount, c.region FROM a CROSS JOIN c
+        """,
+        default_schema="sales",
+    )
+    assert set(book.columns["sales.orders"]) == {"amount", "order_no"}
+    assert set(book.columns["sales.customers"]) == {"region", "tier"}
+
+
+def test_an_inner_alias_shadows_an_outer_one() -> None:
+    """The innermost binding wins, as in SQL - the scope walk must stop at the first hit."""
+    book, _ = infer_dictionary(
+        """
+        SELECT t.outer_col
+        FROM   sales.orders t
+        WHERE  EXISTS (SELECT 1 FROM sales.audit t WHERE t.inner_col > 0)
+        """,
+        default_schema="sales",
+    )
+    assert book.columns["sales.orders"] == ["outer_col"]
+    assert book.columns["sales.audit"] == ["inner_col"]
+
+
+def test_a_correlated_reference_resolves_to_the_outer_relation() -> None:
+    """The scope walk goes OUTWARD, which is the whole reason it is a walk and not a lookup.
+
+    `o.id` inside the subquery is bound by the enclosing select. Stopping at the innermost
+    scope would drop it, and an inferred dictionary that drops a correlation key resolves
+    nothing that depends on it.
+    """
+    book, _ = infer_dictionary(
+        """
+        SELECT o.id,
+               (SELECT max(l.amount) FROM sales.lines l WHERE l.order_id = o.id) AS biggest
+        FROM   sales.orders o
+        """,
+        default_schema="sales",
+    )
+    assert "id" in book.columns["sales.orders"]
+    assert set(book.columns["sales.lines"]) == {"amount", "order_id"}
+
+
+def test_a_cte_that_merely_contains_a_star_is_not_a_passthrough() -> None:
+    """Second half of PG-21: the PROJECTION decides, not the presence of a star anywhere.
+
+    `find_all(exp.Star)` searches the whole subtree, so a CTE whose own select list RENAMES
+    satisfied it on a star nested in a LATERAL - and lent its source table the CTE's output
+    ALIAS, a name that table does not have.
+    """
+    book, _ = infer_dictionary(
+        """
+        WITH e AS (
+            SELECT b.parent_item_id AS top_item_id, b.qty_per
+            FROM   mfg.bom b
+            CROSS  JOIN LATERAL (SELECT * FROM mfg.bom x WHERE x.parent_item_id = b.id) y
+        )
+        SELECT e.top_item_id FROM e
+        """,
+        default_schema="mfg",
+    )
+    assert "top_item_id" not in book.columns["mfg.bom"]
+    assert "parent_item_id" in book.columns["mfg.bom"]
+
+
 def test_a_passthrough_over_two_relations_lends_nothing() -> None:
     """The negative half. Two candidates is a guess, and this inference never guesses.
 

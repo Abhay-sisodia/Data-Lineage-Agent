@@ -64,7 +64,6 @@ def infer_dictionary(
     """
     warnings: list[str] = []
     columns: dict[str, list[str]] = {}
-    aliases: dict[str, str] = {}
 
     try:
         statements = [s for s in sqlglot.parse(sql, dialect=dialect) if s is not None]
@@ -91,9 +90,6 @@ def infer_dictionary(
             if fold(name, dialect) in cte_names:
                 continue
             columns.setdefault(key, [])
-            if table.alias:
-                aliases[fold(table.alias, dialect)] = key
-            aliases[fold(name, dialect)] = key
 
     # A CTE that is a `SELECT *` passthrough over exactly ONE stored relation lends that
     # relation its columns. `pod AS (SELECT * FROM silver.purchase_order_distribution ...)`
@@ -105,11 +101,17 @@ def infer_dictionary(
     # nothing: measured on a 1,914-line consolidated Spark job, `qualify` refused the whole
     # statement with "Unknown column: distribution_intended_use" and the run produced ZERO
     # edges. A CTE joining two relations is skipped - two candidates is a guess.
+    # The star must be in the CTE's OWN projection list, not merely somewhere beneath it
+    # (second half of PG-21). `find_all(exp.Star)` searches the whole subtree, so a CTE
+    # whose projection RENAMES - `SELECT b.parent_item_id AS top_item_id FROM mfg.bom b
+    # CROSS JOIN LATERAL (SELECT * FROM mfg.bom x ...)` - satisfied it on the nested star
+    # and lent `mfg.bom` the alias `top_item_id`, a name that table does not have. The
+    # projection is what decides whether a CTE passes its source's columns through.
     passthrough: dict[str, str] = {}
     for statement in statements:
         for cte in statement.find_all(exp.CTE):
             body = cte.this
-            if not any(isinstance(s, exp.Star) for s in body.find_all(exp.Star)):
+            if not _projects_star(body):
                 continue
             relations = {
                 _qualified(table, default_schema, dialect)
@@ -134,6 +136,92 @@ def infer_dictionary(
     # Anything else is counted and DROPPED. `SELECT cust_id FROM a JOIN b` has two
     # candidates and picking one would invent a fact; an inferred dictionary is allowed to
     # under-report and is never allowed to invent.
+    # A qualifier is resolved in the SCOPE THAT CONTAINS IT, never against a file-wide map
+    # (finding PG-21). An alias belongs to one SELECT; the same letter routinely names
+    # different relations elsewhere in the same file, and a global map silently merged them:
+    #
+    #     WITH a AS (SELECT b.amount, b.order_no FROM sales.orders    b),
+    #          c AS (SELECT b.region, b.tier     FROM sales.customers b)
+    #
+    # gave `sales.customers` all four columns - two it does not have - and left
+    # `sales.orders` EMPTY, because the map was last-write-wins. Both halves are harmful:
+    # invented columns let a name bind to the wrong table, and an emptied relation is
+    # exactly PG-16's trigger for refusing an entire run.
+    scope_cache: dict[int, dict[str, tuple[str, str]]] = {}
+
+    def _scope_map(select: Any) -> dict[str, tuple[str, str]]:
+        """Aliases introduced by THIS select's own FROM and JOINs, and nothing deeper.
+
+        A table inside a subquery in the FROM belongs to that subquery's scope, not this
+        one - what this scope sees is the subquery's ALIAS, which is not a table at all.
+        `_owning_select` is what draws that line.
+        """
+        cached = scope_cache.get(id(select))
+        if cached is not None:
+            return cached
+        found: dict[str, tuple[str, str]] = {}
+        for table in select.find_all(exp.Table):
+            if _owning_select(table) is not select:
+                continue
+            name = table.name
+            if not name:
+                continue
+            folded = fold(name, dialect)
+            # A CTE reference is recorded as a CTE, not resolved here: its columns are
+            # computed, and only the passthrough rule can say what they came from.
+            entry = (
+                ("cte", folded)
+                if folded in cte_names
+                else ("table", _qualified(table, default_schema, dialect))
+            )
+            if table.alias:
+                found[fold(table.alias, dialect)] = entry
+            found[folded] = entry
+
+        # A DERIVED TABLE that projects a star over exactly one stored relation lends that
+        # relation its columns, exactly as a `SELECT *` CTE does. `CROSS JOIN LATERAL
+        # (SELECT * FROM mfg_eng.bill_of_material x WHERE ...) AS b2` followed by
+        # `b2.scrap_pct` determines the column's owner - the star makes it so and one
+        # relation makes it unambiguous - and neither fact cares whether the alias came
+        # from WITH or from a subquery.
+        #
+        # This was drafted before the scoping fix above and deliberately held back: alias
+        # names like `b2`, `q` and `z` are reused far more often than CTE names, so with a
+        # file-wide map it would have spread PG-21 rather than helped. It is safe now
+        # because the alias is only ever visible in the scope that introduced it.
+        for node in select.find_all(exp.Subquery, exp.Lateral):
+            if _owning_select(node) is not select or not node.alias:
+                continue
+            if not _projects_star(_query_of(node)):
+                continue
+            relations = {
+                _qualified(table, default_schema, dialect)
+                for table in node.find_all(exp.Table)
+                if table.name and fold(table.name, dialect) not in cte_names
+            }
+            if len(relations) == 1:
+                found[fold(node.alias, dialect)] = ("table", next(iter(relations)))
+
+        scope_cache[id(select)] = found
+        return found
+
+    def _resolve(column: Any, qualifier: str) -> str | None:
+        """The relation `qualifier` names, seen from `column`'s position.
+
+        Walks OUTWARD through enclosing selects, which is what makes a correlated
+        reference - `WHERE x.item_id = o.item_id` inside a LATERAL - resolve to the outer
+        relation it actually means. The innermost binding wins, as in SQL.
+        """
+        wanted = fold(qualifier, dialect)
+        select = _owning_select(column)
+        while select is not None:
+            entry = _scope_map(select).get(wanted)
+            if entry is not None:
+                kind, value = entry
+                return value if kind == "table" else passthrough.get(value)
+            select = _owning_select(select)
+        return None
+
     unattributed = 0
     for statement in statements:
         for column in statement.find_all(exp.Column):
@@ -143,16 +231,12 @@ def infer_dictionary(
 
             qualifier = column.table
             if qualifier:
-                key = aliases.get(fold(qualifier, dialect))
+                key = _resolve(column, qualifier)
                 if key is None:
-                    # A `SELECT *` passthrough CTE over one relation: the column is that
-                    # relation's, determined by the star rather than guessed.
-                    key = passthrough.get(fold(qualifier, dialect))
-                    if key is None:
-                        continue  # a CTE or derived table that is not a passthrough
-                    columns.setdefault(key, [])
+                    continue  # a derived table, or a CTE that is not a passthrough
+                columns.setdefault(key, [])
             else:
-                key = _sole_relation(column.parent_select, aliases, dialect)
+                key = _sole_relation(column.parent_select, cte_names, default_schema, dialect)
                 if key is None:
                     unattributed += 1
                     continue
@@ -199,8 +283,45 @@ def infer_dictionary(
     return book, warnings
 
 
+def _query_of(node: Any) -> Any:
+    """The SELECT inside a derived table, past any LATERAL and subquery wrappers.
+
+    SQLGlot puts the alias of `CROSS JOIN LATERAL (...) AS b2` on the `Lateral` and leaves
+    the `Subquery` beneath it unnamed, so the alias and the query it names are two nodes
+    apart.
+    """
+    inner = node.this if isinstance(node, exp.Lateral) else node
+    while isinstance(inner, exp.Subquery):
+        inner = inner.this
+    return inner
+
+
+def _projects_star(node: Any) -> bool:
+    """Does this query's OWN select list contain `*` or `alias.*`?
+
+    Both spellings count: a bare `*` parses as `exp.Star`, while `p.*` parses as a column
+    whose `this` is one. Set operations are true if any arm projects a star, since any arm
+    can be the one supplying the passthrough columns.
+    """
+    if isinstance(node, exp.SetOperation):
+        return _projects_star(node.this) or _projects_star(node.expression)
+    return any(
+        isinstance(projection, exp.Star)
+        or (isinstance(projection, exp.Column) and isinstance(projection.this, exp.Star))
+        for projection in (getattr(node, "selects", None) or [])
+    )
+
+
+def _owning_select(node: Any) -> Any:
+    """The nearest enclosing SELECT, or None. The unit of alias scope."""
+    parent = node.parent
+    while parent is not None and not isinstance(parent, exp.Select):
+        parent = parent.parent
+    return parent
+
+
 def _sole_relation(
-    select: Any, aliases: dict[str, str], dialect: str
+    select: Any, cte_names: set[str], default_schema: str, dialect: str
 ) -> str | None:
     """The one stored relation this select reads, or None if that is not certain.
 
@@ -233,8 +354,12 @@ def _sole_relation(
     source = from_clause.this
     if not isinstance(source, exp.Table):
         return None
+    if not source.name or fold(source.name, dialect) in cte_names:
+        return None
 
-    return aliases.get(fold(source.alias or source.name, dialect))
+    # Computed from the table in THIS select's FROM rather than looked up in a file-wide
+    # alias map, which carried the same defect as the qualified path (PG-21).
+    return _qualified(source, default_schema, dialect)
 
 
 def _qualified(table: Any, default_schema: str, dialect: str) -> str:
