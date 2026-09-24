@@ -101,6 +101,32 @@ line  764   JSON_VALUE(... RETURNING timestamp with time zone ...)
 Supporting `CYCLE` would move the failure to line 168, not produce lineage. Roughly 60
 rewrite rules were needed to make the file parse end to end.
 
+## 3a. A refusal that was CORRECT, recorded so it is not re-investigated
+
+`another_stress_test.txt` (3,711 lines, 134 CTEs, 16 base tables) **parses cleanly** and is
+then refused:
+
+```
+NAME_NOT_RESOLVED  could not qualify names: Unknown column: amount
+```
+
+That refusal is right, and the SQL is wrong. `lateral_hub` projects eight columns -
+`entity_id`, `positive_count`, `negative_count`, `distinct_kinds`, `token_count`,
+`first_token`, `json_keys`, `series_sum` - and `amount` is not among them, because it takes
+only `s.entity_id` from `seed_orchid`. The next CTE then reads `p.amount` from it eight
+times. PostgreSQL would reject the same statement with `column p.amount does not exist`.
+
+Confirmed by repair rather than by reading: adding `s.amount` to `lateral_hub` moves the
+error to `Unknown column: payload` - the same defect, next column. The generator wrote a
+narrowing hub and 111 downstream stages that assume the full upstream shape survives it.
+
+**Two things worth keeping from this.** First, parse success and name resolution are
+different stages, and only the first is what section 2 measures - this file counts as a
+PARSE success. Second, a static check of CTE references could verify only 82 of 522 of
+them; the other 440 sit behind a `SELECT *`, whose shape is not decidable from the text. So
+there may be more such errors in that file, and `amount` and `payload` are simply the first
+two the resolver reached.
+
 ## 4. What the codebase does own
 
 Three parse-adjacent behaviours are ours, and all three are now correct:
