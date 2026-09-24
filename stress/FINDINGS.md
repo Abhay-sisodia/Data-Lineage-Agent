@@ -101,6 +101,8 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-15 | `convention` | open, needs a decision | `SUM(x) FILTER (WHERE c)` and `SUM(CASE WHEN c THEN x END)` compute the same number and produce DIFFERENT lineage — a relation-targeted filter against a column-targeted value edge |
 | PG-16 | `construct-coverage` | **fixed** | **one column-less relation in the dictionary refused EVERY statement in the run**, including statements that never mention it. SQLGlot's `qualify` raises per STATEMENT on an empty schema entry. Neither shipped dictionary has one, which is why nothing had ever reached it; a capture lacking column privileges on one unrelated table would have taken a whole run to zero edges |
 | PG-17 | `dialect-leak` | **fixed** | **PostgreSQL dollar-quoting `$$word$$` is classified as Oracle's `$$PLSQL_UNIT` inquiry directive and the statement is refused.** Measured cost: 3 of 3 edges on a fully readable `INSERT ... SELECT`, 0% parse coverage. A false abstention (T3.1d) with no ambiguity to justify it — the refusal register was not dialect-aware, and **four** detection sites had to be scoped, not one |
+| PG-21 | `silent-loss` | open, **worst-shaped finding in the PG series** | **`infer.py` keys aliases GLOBALLY, so one alias reused in two scopes mixes two tables' columns — and last write wins, so one real table is left EMPTY.** Four lines of SQL reproduce it: `sales.orders` gets `[]` and `sales.customers` gets all four columns, two of which it does not have. This is the inference INVENTING columns, the one thing its docstring forbids, and an empty relation then triggers PG-16's whole-run refusal |
+| PG-20 | `refusal-granularity` | open | **one `JSON_TABLE` in one CTE out of 85 refuses a 2,948-line query in its entirety.** The refusal is correct per construct and catastrophic per file, because the refusal unit is the STATEMENT and a modern analytical query is one statement. Same shape as PG-16, and the general case of PG-06 |
 | PG-19 | `measurement-error` | open | **a whole-file parse failure reports `statements_seen = 0` and `parse_coverage = None`, not `seen 1 / coverage 0.0`.** The boundary IS declared, so nothing is silent — but the file drops out of the coverage denominator entirely, so a batch in which a file failed to parse scores the same as one where that file did not exist. Found only because PG-17's spurious refusal had been padding the count |
 | PG-18 | `construct-coverage` | open | **a recursive CTE's `SEARCH`/`CYCLE` decorations fail the parse outright, taking the whole file with them.** Narrowed by decomposition: the breaking token is `CYCLE ... TO <v>` — `CYCLE id SET c` and `CYCLE id SET c USING p` both parse, and adding `TO 'Y'` is what fails. `SEARCH` fails too, but only in the position the file uses it (followed by `, next_cte`, or with a multi-column `BY`). Cannot go in `rewrite.py`: these DEFINE columns (`org_is_cycle`, `org_dfs_order`) the query then filters on and projects, so stripping them would silently narrow lineage — they belong in the refusal register |
 
@@ -3023,6 +3025,85 @@ were analysed", so the repair is not simply to divide differently — it is to d
 an unparseable file counts as one unanalysed statement or needs a separate declared figure.
 That is a decision about what the measurement MEANS, so it is recorded here and not taken
 in passing. It also touches the signed phase-0 numbers, which makes it its own measurement.
+
+## PG-21 · `silent-loss` · OPEN — a reused alias mixes two tables' columns, and empties one
+
+Found while building a parseable variant of the torture file, and it is the worst-shaped
+finding in this series: the inference **invents columns**, which `infer.py`'s own docstring
+names as the one thing it must never do.
+
+`infer_dictionary` builds ONE alias map for the whole file:
+
+```python
+aliases[fold(table.alias, dialect)] = key    # global, last write wins
+```
+
+Aliases are scoped to a SELECT in SQL and are not unique across a file. Four lines
+reproduce it:
+
+```sql
+WITH a AS (SELECT b.amount, b.order_no FROM sales.orders    b),
+     c AS (SELECT b.region, b.tier     FROM sales.customers b)
+SELECT a.amount, c.region FROM a CROSS JOIN c
+```
+
+```
+sales.customers  ['amount', 'order_no', 'region', 'tier']   <- two it does not have
+sales.orders     []                                          <- lost every column it has
+```
+
+**Both halves are dangerous, in different ways.** The invented columns let `qualify` bind a
+name to the wrong table, and an edge built on that is wrong while looking ordinary - the
+silent-wrong-answer category. The emptied relation is a column-less entry in the dictionary,
+which is exactly PG-16's trigger, so a single reused alias can take a whole run to zero
+edges by a route that mentions neither alias nor table.
+
+Measured at scale on the torture variant, where `b` names four different things
+(`bill_of_material`, a `generate_series` ordinality alias, `cust_yoy`, `bom_explode`) and
+`x` names five: `mfg_eng.bill_of_material` acquired `yr`, `revenue`, `row_hash`, `segment`,
+`_dup_cnt`, `integration_id` and `bucket_start`, none of which are its columns.
+
+**The fix is scope-aware resolution**, not a bigger map: resolve a qualified column's
+alias against the aliases visible in ITS enclosing select, walking outward only for
+correlated references. That is a real change to `infer.py` and needs its own measurement,
+so it is recorded rather than taken in passing.
+
+A related extension was drafted and **deliberately dropped**: lending columns from a
+`SELECT *` DERIVED TABLE the way the existing rule does for a `SELECT *` CTE, so that
+`CROSS JOIN LATERAL (SELECT * FROM mfg_eng.bill_of_material x) AS b2` followed by
+`b2.scrap_pct` resolves. The rule is sound in isolation and was the obvious way to clear the
+`Unknown column: scrap_pct` refusal, but subquery aliases (`b2`, `q`, `z`, `t`) are reused
+far more often than CTE names, so adding it before the scoping fix would spread this defect
+rather than contain it. Scope first, then extend.
+
+## PG-20 · `refusal-granularity` · OPEN — one CTE's construct refuses 2,948 lines
+
+Once the torture file was made parseable, the run produced this:
+
+```
+statements seen 1   analysed 0   coverage 0.0   EDGES 0   refusals 3
+   REFUSAL [SHAPE_NOT_DECIDABLE] XMLTABLE/JSON_TABLE - columns are projected out of a
+   document by path expression, and the document's structure is not in the dictionary
+```
+
+The refusal is **correct about the construct**: `JSON_TABLE`'s columns genuinely come out of
+a document by path, and refusing it is the honest answer. It is **catastrophic about the
+file**, because two CTEs out of 85 carried it and the refusal unit is the STATEMENT — and a
+modern analytical query is one statement with eighty-five CTEs in it.
+
+The other 83 CTEs are ordinary joins and aggregates the analyser reads perfectly well. All
+of their lineage is discarded to abstain from two.
+
+This is the general case of PG-06 ("the scope contract is stated per STATEMENT and the
+losses are per COLUMN") and the same shape as PG-16, where one column-less relation refused
+every statement in a run. Three findings now point at one cause: **the refusal unit is too
+coarse for the SQL people actually write.** A construct that poisons one CTE should refuse
+that CTE's columns and declare a boundary there, leaving the rest of the statement analysed.
+
+Worked around for the variant by rewriting both CTE bodies into ordinary `jsonb` and `xpath`
+projections over the same source columns — which, note, yields BETTER lineage than the
+original: `shp_hdr.header_attrs -> hdr_packages.pkg_id` is a real edge where `JSON_TABLE`
+gives only a refusal.
 
 ## PG-18 · `construct-coverage` · OPEN — `CYCLE ... SET ... USING` fails the parse outright
 
