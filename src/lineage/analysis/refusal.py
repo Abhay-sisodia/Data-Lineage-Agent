@@ -35,21 +35,29 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Literal
 
 from lineage.dialects import fold
 from lineage.parsing.plsql import ParsedStatement, Program
 
 __all__ = [
     "CONSTRUCTS",
+    "PoisonedCte",
     "Refusal",
     "RefusalCode",
+    "RefusalScope",
     "classify_program",
     "classify_statement",
     "conditional_compilation_spans",
+    "cte_bodies",
+    "cte_scoped_construct",
     "enclosing_unit_at",
     "last_line",
     "violations",
 ]
+
+RefusalScope = Literal["statement", "cte"]
+"""How much of a statement a refusal withdraws. See `Refusal.scope` (finding PG-20)."""
 
 
 class RefusalCode(StrEnum):
@@ -116,6 +124,20 @@ class Refusal:
     excerpt: str
     code: RefusalCode = RefusalCode.UNSUPPORTED_CONSTRUCT
     unit: str = "<anonymous>"
+    scope: RefusalScope = "statement"
+    """How much of the statement this refusal withdraws (finding PG-20).
+
+    `"statement"` is the original and still the default: nothing in the statement was
+    analysed, so it costs one statement of parse coverage.
+
+    `"cte"` says the construct was confined to one named CTE of a statement whose other
+    CTEs were read normally. Such a refusal **does not** subtract from
+    `statements_analysed`, because the statement WAS analysed - counting it as unanalysed
+    while it contributes edges is an incoherence, not a conservatism. What it costs is
+    recorded separately as `partial_statements`, so the new category is visible rather
+    than folded into a number that already existed.
+    """
+
     end_line: int | None = None
     """Last line of the refused statement.
 
@@ -410,6 +432,166 @@ def classify_statement(text: str, dialect: str = "oracle") -> Construct | None:
         if construct.applies_to(dialect) and construct.pattern.search(clean):
             return construct
     return None
+
+
+@dataclass(frozen=True)
+class PoisonedCte:
+    """One CTE of a statement whose construct the analyser refuses, located exactly.
+
+    `line` and `end_line` are 1-based and relative to the START of the statement text, so
+    a caller holding the statement's own line adds `statement.line - 1` to each. They
+    bound the CTE's BODY - the parenthesised query - which is the span the construct
+    actually sits in and therefore the span a refusal is entitled to withdraw.
+    """
+
+    name: str
+    line: int
+    end_line: int
+
+
+_WITH_HEAD = re.compile(r"WITH\s+(?:RECURSIVE\s+)?", re.IGNORECASE)
+_CTE_HEAD = re.compile(
+    r"""\s*(?:"(?P<quoted>[^"]+)"|(?P<bare>[A-Za-z_]\w*))   # the CTE's name
+        \s*(?:\([^()]*\)\s*)?                               # its optional column list
+        AS\s+(?:NOT\s+)?(?:MATERIALIZED\s+)?\(              # PG's materialisation hints
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _matching_paren(clean: str, opening: int) -> int | None:
+    """Offset of the `)` closing the `(` at `opening`, or None if it is never closed.
+
+    `clean` must be noise-stripped, so a parenthesis inside a string literal or a comment
+    cannot unbalance the count. Regex cannot do this - a CTE body contains `count(*)`,
+    `coalesce(a, b)` and nested subqueries - and getting it wrong in the *silent*
+    direction was the shape of two separate defects in this project's rewrite rules.
+    """
+    depth = 0
+    for index in range(opening, len(clean)):
+        if clean[index] == "(":
+            depth += 1
+        elif clean[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+def cte_bodies(text: str) -> list[tuple[str, int, int]]:
+    """Every top-level CTE in this statement, as `(name, body_start, body_end)` offsets.
+
+    Body offsets are half-open over the text INSIDE the parentheses, so blanking
+    `text[start:end]` removes the CTE's query and nothing else.
+
+    **Text scanning rather than SQLGlot, deliberately.** This module classifies constructs
+    the SQL parser may not be able to read at all - that is `classify_program`'s third
+    pass, and a construct that fails to parse is *more* reason to refuse, not less. Asking
+    SQLGlot to find the CTEs would make the refusal depend on the very parse whose failure
+    is the thing being refused, and would put the answer in a different coordinate space
+    from the line numbers every `Refusal` is addressed by.
+
+    Returns `[]` for a statement with no `WITH` clause, which is the common case and not
+    an error. Nested CTEs - a `WITH` inside a CTE body - are not returned: the outer body
+    already contains them, and the poison is confined by the outermost one that holds it.
+    """
+    clean = _strip_noise(text)
+
+    # The opening `WITH`, found at paren depth 0 so that a `WITH` inside a subquery does
+    # not start the scan, and confirmed by the `name AS (` that must follow it - `WITH` is
+    # also a modifier in `GROUP BY ... WITH ROLLUP` and `unnest(...) WITH ORDINALITY`.
+    start: int | None = None
+    depth = 0
+    for index, char in enumerate(clean):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif depth == 0 and (char in "Ww") and (head := _WITH_HEAD.match(clean, index)):
+            if index and (clean[index - 1].isalnum() or clean[index - 1] == "_"):
+                continue
+            if _CTE_HEAD.match(clean, head.end()):
+                start = head.end()
+                break
+
+    if start is None:
+        return []
+
+    bodies: list[tuple[str, int, int]] = []
+    position = start
+    while (head := _CTE_HEAD.match(clean, position)) is not None:
+        opening = head.end() - 1
+        closing = _matching_paren(clean, opening)
+        if closing is None:
+            break
+        bodies.append((head.group("quoted") or head.group("bare"), opening + 1, closing))
+        separator = re.compile(r"\s*,\s*").match(clean, closing + 1)
+        if separator is None:
+            break
+        position = separator.end()
+
+    return bodies
+
+
+def cte_scoped_construct(
+    text: str, dialect: str = "oracle"
+) -> tuple[Construct, list[PoisonedCte]] | None:
+    """The refused construct and the CTEs it is CONFINED to, or None if it is not confined.
+
+    **Finding PG-20.** The refusal unit was the statement, and a modern analytical query is
+    one statement with eighty-five CTEs in it. One `JSON_TABLE` in one CTE therefore
+    discarded the other eighty-four, which are ordinary joins and aggregates the analyser
+    reads perfectly well. Measured on a three-CTE reduction: four correct edges lost to
+    abstain from one.
+
+    None means "refuse the whole statement", and it is returned generously, because every
+    case this cannot prove is a case where the old behaviour is still right:
+
+    * the statement has no `WITH` clause, so there is nothing narrower to refuse;
+    * the construct is `CONTEXT_DEPENDENT`, whose poison is not bounded by syntax at all -
+      conditional compilation governs the statements AROUND it (see
+      `conditional_compilation_spans`), so a syntactic span would be the wrong instrument;
+    * no CTE body contains the construct, so it is in the main query and owns the statement;
+    * **anything at all is still refused once the poisoned bodies are blanked out.** This
+      is the load-bearing check and it is exact rather than inferential: the same
+      classifier is re-run over the same text with the poison removed, so a second
+      construct elsewhere - in the main query, or in a DIFFERENT CTE - falls back to the
+      whole-statement refusal instead of being quietly analysed.
+
+    That last clause means a statement poisoned by TWO different constructs is still
+    refused whole. Narrowing it further would mean classifying every construct rather than
+    the first, which is a larger change and a separate measurement; the cost of leaving it
+    is one refusal that is broader than it needs to be, which is the safe direction.
+    """
+    construct = classify_statement(text, dialect)
+    if construct is None or construct.code is RefusalCode.CONTEXT_DEPENDENT:
+        return None
+
+    bodies = cte_bodies(text)
+    if not bodies:
+        return None
+
+    clean = _strip_noise(text)
+    poisoned = [
+        (name, start, end)
+        for name, start, end in bodies
+        if construct.pattern.search(clean, start, end)
+    ]
+    if not poisoned:
+        return None
+
+    blanked = list(clean)
+    for _, start, end in poisoned:
+        for position in range(start, end):
+            if blanked[position] != "\n":
+                blanked[position] = " "
+    if classify_statement("".join(blanked), dialect) is not None:
+        return None
+
+    return construct, [
+        PoisonedCte(name=name, line=_line_of(text, start), end_line=_line_of(text, end))
+        for name, start, end in poisoned
+    ]
 
 
 def _enclosing_unit(program: Program, statement: ParsedStatement) -> str:

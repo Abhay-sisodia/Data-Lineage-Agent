@@ -84,12 +84,37 @@ def analyse_source(
     # Only flagged statements are counted, and each one costs exactly one statement of
     # parse coverage. Refusing is never free: a classifier that abstained from everything
     # would report 0% coverage, not 100% precision.
+    # `scoped_statements` carries the statements band 0 refused only in PART (PG-20). Their
+    # refusals are addressed at a CTE's line rather than the statement's, so the dedup key
+    # below cannot see them, and this pass would re-refuse the whole statement: a second
+    # `statements_seen`, a refusal spanning lineage that was legitimately produced, and a
+    # `violations` contradiction for every recovered edge. Measured before it was fixed -
+    # the ungated probe reported `seen 2, refusals 1, violations 1` on four correct edges.
     already_refused = {(refusal.unit, refusal.line) for refusal in result.refusals}
-    for refusal in classify_program(program):
-        if (refusal.unit, refusal.line) not in already_refused:
-            result.statements_seen += 1
-            result.refusals.append(refusal)
-            already_refused.add((refusal.unit, refusal.line))
+    already_refused |= result.scoped_statements
+    standing = list(result.refusals)
+    for candidate in classify_program(program):
+        # Addressed already, either exactly or by falling inside a standing refusal's SPAN.
+        # The span test is the part PG-20 needed. `classify_program`'s third pass reports a
+        # construct at the line the construct sits on, while its first pass and band 0
+        # report the line the STATEMENT starts on, so the two addresses for one construct
+        # differ by however long the statement is - 795 lines, in the torture file. Without
+        # it the same `JSON_TABLE` was refused twice at two addresses, which cost a second
+        # `statements_seen` and reported coverage 0.5 for a statement that was analysed and
+        # produced 329 edges.
+        if (candidate.unit, candidate.line) in already_refused:
+            continue
+        if any(prior.covers(candidate.unit, candidate.line) for prior in standing):
+            continue
+        result.statements_seen += 1
+        result.refusals.append(candidate)
+        already_refused.add((candidate.unit, candidate.line))
+        # Appended, so the span test also holds WITHIN this pass. Two constructs in one
+        # statement otherwise produce two refusals and two `statements_seen` for one
+        # statement - which contradicts `_deduplicate`'s stated policy of one refusal per
+        # statement, and which band 0 never noticed because it only ever reaches statements
+        # its own front end could parse.
+        standing.append(candidate)
     for refusal in result.refusals:
         refused = Boundary(
             kind=BoundaryKind.REFUSAL,

@@ -51,6 +51,7 @@ from lineage.analysis.refusal import (
     RefusalCode,
     classify_statement,
     conditional_compilation_spans,
+    cte_scoped_construct,
     last_line,
     not_cross_checkable,
     violations,
@@ -108,9 +109,37 @@ class AnalysisResult:
     dictionary, because band 0 cannot know which units came from there.
     """
 
+    partial_statements: int = 0
+    """Statements analysed with one or more CTEs refused out of them (finding PG-20).
+
+    A category of its own rather than a share of an existing number. These statements DID
+    produce lineage, so counting them as unanalysed would be false; they also withheld a
+    named part of themselves, so counting them as wholly analysed would be false too. The
+    honest report is both numbers plus this one, and a reader who wants the strict figure
+    can subtract it.
+    """
+
+    scoped_statements: set[tuple[str, int]] = field(default_factory=set)
+    """`(unit, line)` of each statement whose refusal was narrowed to a CTE.
+
+    Read by `procedure.analyse_source`, whose second classifier pass would otherwise
+    re-refuse the same statement WHOLE - counting it twice and contradicting the edges the
+    first pass legitimately produced. The dedup there keys on the statement's own address,
+    which a CTE-scoped refusal deliberately does not carry.
+    """
+
     @property
     def statements_analysed(self) -> int:
-        return self.statements_seen - len(self.refusals)
+        """Statements that produced whatever lineage they had to give.
+
+        **CTE-scoped refusals are not subtracted** (PG-20). A refusal that withdraws one
+        CTE of eighty-five leaves a statement that was analysed, and whose edges are real;
+        subtracting it would report `analysed 0` beside a non-empty edge list, which is
+        not conservatism but an arithmetic that contradicts its own output. The withheld
+        part is counted by `partial_statements` instead, where it stays visible.
+        """
+        whole = [refusal for refusal in self.refusals if refusal.scope == "statement"]
+        return self.statements_seen - len(whole)
 
     def refusal_violations(self) -> list[tuple[Refusal, list[PredictedEdge]]]:
         """Flagged statements that produced edges anyway (T3.1c). Must be empty."""
@@ -2493,20 +2522,53 @@ def analyse_source(
             )
             continue
 
+        # A construct the analyser cannot resolve. Before refusing the STATEMENT, ask
+        # whether the construct is confined to a named CTE - finding PG-20, where one
+        # `JSON_TABLE` in one CTE out of eighty-five discarded the other eighty-four.
+        # `cte_scoped_construct` returns None for everything it cannot prove confined, so
+        # the fall-through below is the original behaviour unchanged.
+        drop_ctes: frozenset[str] = frozenset()
         construct = classify_statement(statement.text, program.dialect)
         if construct is not None:
-            result.refusals.append(
-                Refusal(
-                    kind=statement.kind,
-                    line=statement.line,
-                    reason=construct.reason,
-                    excerpt=" ".join(statement.text.split())[:80],
-                    code=construct.code,
-                    unit=unit,
-                    end_line=last_line(statement),
+            scoped = cte_scoped_construct(statement.text, program.dialect)
+            if scoped is None:
+                result.refusals.append(
+                    Refusal(
+                        kind=statement.kind,
+                        line=statement.line,
+                        reason=construct.reason,
+                        excerpt=" ".join(statement.text.split())[:80],
+                        code=construct.code,
+                        unit=unit,
+                        end_line=last_line(statement),
+                    )
                 )
-            )
-            continue
+                continue
+
+            _, poisoned = scoped
+            # One refusal PER CTE, each addressed at its own body. A single refusal
+            # spanning the first and last poisoned CTE would swallow every clean CTE
+            # between them, and then `violations` - which asks whether any edge originates
+            # inside a refusal's span - would report every recovered edge as a
+            # contradiction. The narrow spans are what make that cross-check mean
+            # something here rather than merely pass.
+            for cte in poisoned:
+                result.refusals.append(
+                    Refusal(
+                        kind=statement.kind,
+                        line=statement.line + cte.line - 1,
+                        reason=f"{construct.reason}; confined to CTE {cte.name}, whose "
+                        f"columns are withheld while the rest of the statement is analysed",
+                        excerpt=" ".join(statement.text.split())[:80],
+                        code=construct.code,
+                        unit=unit,
+                        scope="cte",
+                        end_line=statement.line + cte.end_line - 1,
+                    )
+                )
+            result.partial_statements += 1
+            result.scoped_statements.add((unit, statement.line))
+            drop_ctes = frozenset(cte.name.upper() for cte in poisoned)
 
         edges, refusal, unresolved = _analyse_statement(
             statement,
@@ -2516,6 +2578,7 @@ def analyse_source(
             origin,
             known_calls,
             result_target,
+            drop_ctes,
         )
         # Declared, counted, and never silent. An identifier the analyser could not
         # resolve is a stated boundary - which is what makes the coverage number
@@ -2570,6 +2633,86 @@ def _enclosing_unit(program: Program, statement: ParsedStatement) -> str:
     return fold(candidates[-1].name, program.dialect) if candidates else "<anonymous>"
 
 
+def _drop_ctes(
+    parsed: Any, names: frozenset[str]
+) -> tuple[Any, list[Boundary], frozenset[str]]:
+    """Remove the refused CTEs from the tree, declare each, and report which were found.
+
+    The third return value is what was ACTUALLY dropped. The caller compares it with what
+    it asked for, because "I dropped nothing" and "there was nothing to drop" must not be
+    the same answer - see the scar below.
+
+    **Removal, not avoidance, and the difference is the whole safety of PG-20's fix.** A
+    refusal narrowed to a CTE has to stop that CTE from CONTRIBUTING as well as from being
+    trusted, because a construct the classifier refuses is not thereby a construct SQLGlot
+    declines to interpret. `CONNECT BY` is the recorded case: it parses cleanly and emits
+    three `x -> x` self-edges, which look entirely ordinary beside a real projection.
+    Leaving the body in the tree and merely declining to believe it would have re-created
+    the guessed edge the classifier exists to prevent - and the edge would have carried the
+    statement's origin, outside the CTE-scoped refusal's span, so `violations` would not
+    have caught it either.
+
+    What remains is a reference to a relation nobody defines, which is exactly what it is.
+    Downstream columns taken from it resolve to nothing and are declared - measured, not
+    assumed: the reduction in `tests/test_cte_scoped_refusal.py` yields a
+    `dangling_reference` for the dropped CTE and NO edge for the column read out of it.
+
+    An empty `WITH` list is removed from its parent rather than left behind, since a `WITH`
+    with no CTEs is not valid SQL and later passes regenerate the tree.
+
+    **The clause is located by TRAVERSAL, never by argument key**, and that is a scar. The
+    first version read `parsed.args.get("with")`, which is `None` twice over: an INSERT's
+    `WITH` hangs off the inner `Select`, and the key there is spelled `with_`. So it found
+    nothing, dropped nothing, returned no boundary - and the reduction still produced the
+    right four edges, because `JSON_TABLE` happens to dangle on its own. A silent no-op
+    wearing a passing result. That is the same defect as `from_` vs `from` in `infer.py`
+    and `with` vs `with_` in `bisect_chain.py`: the third time an argument key returned an
+    empty answer where "not found" was meant.
+    """
+    targets = [
+        clause
+        for clause in parsed.find_all(exp.With)
+        if any((cte.alias_or_name or "").upper() in names for cte in clause.expressions)
+    ]
+    if not targets:
+        return parsed, [], frozenset()
+
+    # The shallowest matching clause is the statement's own. A `WITH` nested inside a CTE
+    # body is a different scope that may reuse a name, and `cte_bodies` only ever reports
+    # top-level CTEs, so a deeper match is a coincidence of spelling rather than the thing
+    # that was refused.
+    with_clause = min(targets, key=_node_depth)
+    poisoned = [
+        cte for cte in with_clause.expressions if (cte.alias_or_name or "").upper() in names
+    ]
+    kept = [cte for cte in with_clause.expressions if cte not in poisoned]
+
+    withheld = [
+        Boundary(
+            kind=BoundaryKind.DANGLING_REFERENCE,
+            subject=cte.alias_or_name,
+            detail=f"CTE {cte.alias_or_name} was refused, so columns taken from it have "
+            f"no traceable source; the rest of the statement was analysed",
+        )
+        for cte in poisoned
+    ]
+
+    if kept:
+        with_clause.set("expressions", kept)
+    else:
+        with_clause.pop()
+    return parsed, withheld, frozenset((cte.alias_or_name or "").upper() for cte in poisoned)
+
+
+def _node_depth(node: Any) -> int:
+    depth = 0
+    parent = node.parent
+    while parent is not None:
+        depth += 1
+        parent = parent.parent
+    return depth
+
+
 def _analyse_statement(
     statement: ParsedStatement,
     dictionary: Dictionary,
@@ -2578,6 +2721,7 @@ def _analyse_statement(
     origin: Origin,
     summaries: dict[str, Any],
     result_target: str | None = None,
+    drop_ctes: frozenset[str] = frozenset(),
 ) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None, list[Boundary]]:
     unresolved: list[Boundary] = []
     try:
@@ -2590,6 +2734,66 @@ def _analyse_statement(
             (RefusalCode.PARSE_FAILED, f"SQLGlot could not parse: {str(exc).splitlines()[0]}"),
             unresolved,
         )
+
+    if drop_ctes:
+        parsed, withheld, dropped = _drop_ctes(parsed, drop_ctes)
+        unresolved.extend(withheld)
+
+        # Two guards, because the CTE spans were located by TEXT and the tree is the
+        # authority. Either failing means the narrowed refusal cannot be justified, so the
+        # statement falls back to being refused whole - the behaviour PG-20 improves on,
+        # which is exactly the right place to land when the improvement cannot be proved.
+        #
+        # The first catches a name that is not in the tree at all, which would make
+        # `_drop_ctes` a silent no-op and let the refused construct contribute edges under
+        # cover of a refusal that claims it was withheld.
+        if dropped != drop_ctes:
+            return (
+                [],
+                (
+                    RefusalCode.UNSUPPORTED_CONSTRUCT,
+                    f"refused CTE(s) {', '.join(sorted(drop_ctes - dropped))} were located "
+                    f"in the text but are not CTEs of the parsed statement, so the refusal "
+                    f"could not be narrowed safely and the statement is refused whole",
+                ),
+                unresolved,
+            )
+
+        # The second catches a span that was too LONG: if blanking it hid a construct that
+        # actually lives elsewhere, the confinement check would have passed while the
+        # construct stayed in the tree. Measured need, not hypothetical - the torture
+        # file's `E'O\\'Reilly'` desynchronises the noise-stripper and over-spans a CTE by
+        # 150 lines (finding PG-23). Honest limitation: this re-reads GENERATED SQL, so a
+        # construct SQLGlot normalises beyond recognition would slip past.
+        try:
+            regenerated = parsed.sql(dialect=dictionary.dialect)
+        except Exception as exc:
+            # Failing CLOSED. If the remaining tree cannot be re-read, the confinement
+            # cannot be confirmed, and an unconfirmed narrowing is the one outcome this
+            # guard exists to prevent.
+            return (
+                [],
+                (
+                    RefusalCode.UNSUPPORTED_CONSTRUCT,
+                    f"could not re-read the statement after withholding its refused CTEs, "
+                    f"so the narrowed refusal could not be confirmed: "
+                    f"{str(exc).splitlines()[0]}",
+                ),
+                unresolved,
+            )
+
+        still_there = classify_statement(regenerated, dictionary.dialect)
+        if still_there is not None:
+            return (
+                [],
+                (
+                    still_there.code,
+                    f"{still_there.reason}; it survived the CTE-scoped refusal, so it is "
+                    f"not confined to the CTEs that were withheld and the statement is "
+                    f"refused whole",
+                ),
+                unresolved,
+            )
 
     parsed, notes = _inline_views(parsed, dictionary, config.budgets.view_expansion_depth_cap)
     # After view inlining, so a named window inside an expanded view is resolved too.
