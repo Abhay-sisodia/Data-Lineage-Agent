@@ -102,7 +102,9 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-16 | `construct-coverage` | **fixed** | **one column-less relation in the dictionary refused EVERY statement in the run**, including statements that never mention it. SQLGlot's `qualify` raises per STATEMENT on an empty schema entry. Neither shipped dictionary has one, which is why nothing had ever reached it; a capture lacking column privileges on one unrelated table would have taken a whole run to zero edges |
 | PG-17 | `dialect-leak` | **fixed** | **PostgreSQL dollar-quoting `$$word$$` is classified as Oracle's `$$PLSQL_UNIT` inquiry directive and the statement is refused.** Measured cost: 3 of 3 edges on a fully readable `INSERT ... SELECT`, 0% parse coverage. A false abstention (T3.1d) with no ambiguity to justify it — the refusal register was not dialect-aware, and **four** detection sites had to be scoped, not one |
 | PG-21 | `silent-loss` | **fixed** | **`infer.py` keys aliases GLOBALLY, so one alias reused in two scopes mixes two tables' columns — and last write wins, so one real table is left EMPTY.** Four lines of SQL reproduce it: `sales.orders` gets `[]` and `sales.customers` gets all four columns, two of which it does not have. This is the inference INVENTING columns, the one thing its docstring forbids, and an empty relation then triggers PG-16's whole-run refusal |
-| PG-20 | `refusal-granularity` | open | **one `JSON_TABLE` in one CTE out of 85 refuses a 2,948-line query in its entirety.** The refusal is correct per construct and catastrophic per file, because the refusal unit is the STATEMENT and a modern analytical query is one statement. Same shape as PG-16, and the general case of PG-06 |
+| PG-20 | `refusal-granularity` | **fixed** | **one `JSON_TABLE` in one CTE out of 85 refuses a 2,948-line query in its entirety.** The refusal is correct per construct and catastrophic per file, because the refusal unit is the STATEMENT and a modern analytical query is one statement. Same shape as PG-16, and the general case of PG-06. Measured cost: **0 edges where 329 were available.** The construct's CTE is now refused and REMOVED, so it can neither be trusted nor contribute |
+| PG-22 | `refusal-granularity` | open | **a provable column inside a refused CTE is refused with it.** PG-20's fix withdraws the CTE, so `s.id AS ship_id` beside a `JSON_TABLE` loses a true edge. Deliberate, because the classifier's refusal does not imply SQLGlot declines the body — but it is a false abstention (T3.1d) with a known shape, and the next narrowing |
+| PG-23 | `classifier-correctness` | open | **`_strip_noise` desynchronises on a backslash-escaped quote in an `E'...'` string, and every later literal in the file is then mis-blanked.** `E'O\'Reilly'` at torture line 1790 over-spans a CTE by 150 lines and loses 12 of 81 CTEs from the scan. The stripper feeds `classify_statement`, so this can both invent and hide refusals anywhere after such a literal |
 | PG-19 | `measurement-error` | open | **a whole-file parse failure reports `statements_seen = 0` and `parse_coverage = None`, not `seen 1 / coverage 0.0`.** The boundary IS declared, so nothing is silent — but the file drops out of the coverage denominator entirely, so a batch in which a file failed to parse scores the same as one where that file did not exist. Found only because PG-17's spurious refusal had been padding the count |
 | PG-18 | `construct-coverage` | open | **a recursive CTE's `SEARCH`/`CYCLE` decorations fail the parse outright, taking the whole file with them.** Narrowed by decomposition: the breaking token is `CYCLE ... TO <v>` — `CYCLE id SET c` and `CYCLE id SET c USING p` both parse, and adding `TO 'Y'` is what fails. `SEARCH` fails too, but only in the position the file uses it (followed by `, next_cte`, or with a multi-column `BY`). Cannot go in `rewrite.py`: these DEFINE columns (`org_is_cycle`, `org_dfs_order`) the query then filters on and projects, so stripping them would silently narrow lineage — they belong in the refusal register |
 
@@ -3191,7 +3193,7 @@ fourth - the correlated reference - passes either way, and is kept as a guard th
 walk is not too NARROW, which is the obvious way to break this while fixing it. Suite 840
 passed, 1 xfailed; postgres probe 44/44, Oracle probe unchanged.
 
-## PG-20 · `refusal-granularity` · OPEN — one CTE's construct refuses 2,948 lines
+## PG-20 · `refusal-granularity` · FIXED, 2026-09-30 — one CTE's construct refuses 2,948 lines
 
 Once the torture file was made parseable, the run produced this:
 
@@ -3219,6 +3221,186 @@ Worked around for the variant by rewriting both CTE bodies into ordinary `jsonb`
 projections over the same source columns — which, note, yields BETTER lineage than the
 original: `shp_hdr.header_attrs -> hdr_packages.pkg_id` is a real edge where `JSON_TABLE`
 gives only a refusal.
+
+### The fix, and the measurement that priced it
+
+The variant's rewrite removed the finding's own trigger, so it was put back: one
+`JSON_TABLE` into `hdr_packages`, the CTE that carried it originally, leaving the other 84
+untouched. One statement, 2,932 lines, an inferred dictionary of 29 relations.
+
+```
+                      seen  analysed  partial  EDGES  refusals        coverage  violations
+as shipped               1         0        0      0  1 statement          0.0           0
+with CTE scoping         1         1        1    329  1 cte-scoped         1.0           0
+unpoisoned ceiling       1         -        -    334  0                      -           -
+```
+
+**One poisoned CTE of 85 now costs 5 edges instead of 334.** The five are the ones that ran
+through `hdr_packages` itself, and they are declared rather than dropped.
+
+Three parts, and the third is the one that makes the first two safe.
+
+**1. Locating the confinement** (`refusal.cte_bodies`, `refusal.cte_scoped_construct`). Text
+scanning, not SQLGlot: this module classifies constructs the SQL parser may not read at all
+— that is `classify_program`'s third pass — so asking SQLGlot to find the CTEs would make
+the refusal depend on the very parse whose failure is the thing being refused, and would put
+the answer in a different coordinate space from the line numbers a `Refusal` is addressed
+by. The confinement check is exact rather than inferential: **blank the poisoned bodies out
+of the text and re-run the classifier.** If anything is still refused — a second construct
+in the main query, or in a different CTE — the statement is refused whole. Everything the
+scan cannot prove returns None, and None is the old behaviour.
+
+**2. Addressing the refusal.** One refusal PER CTE, each spanning its own body. A single
+refusal covering the first and last poisoned CTE of 85 would swallow every clean CTE between
+them, and `violations` — which asks whether any edge originates inside a refusal's span —
+would then report all 329 recovered edges as contradictions. The narrow spans are what make
+that cross-check mean something here rather than merely pass.
+
+That broke the coverage arithmetic, which was `seen - len(refusals)`, and would have gone
+NEGATIVE for two poisoned CTEs in one statement. `Refusal` therefore gains a `scope`, and a
+CTE-scoped refusal **does not subtract**: a statement that produced 329 edges was analysed,
+and reporting `analysed 0` beside them is not conservatism but an arithmetic that
+contradicts its own output. The withheld part is counted separately as `partial_statements`,
+so the new category is visible rather than folded into a number that already existed.
+
+**3. Removing the body, not merely distrusting it.** *A construct the CLASSIFIER refuses is
+not thereby a construct SQLGlot declines to interpret.* `CONNECT BY` is the recorded case —
+band 0's own comment: it parses cleanly and emits three `x -> x` self-edges, which look
+entirely ordinary beside a real projection. Leaving a poisoned body in the tree would
+re-create exactly the guessed edge the classifier exists to prevent, and that edge would
+carry the STATEMENT's origin, outside the CTE-scoped refusal's span, so `violations` would
+not have caught it either. What remains after removal is a reference to a relation nobody
+defines, which is what it is; the columns taken from it are declared per column
+(`doc_rows.weight (relation not in dictionary)`) beside the refusal's own reason.
+
+### Two guards, both failing closed
+
+The spans come from TEXT and the tree is the authority, so the narrowing is confirmed twice
+before it is trusted, and both failures land back on refusing the statement whole — the
+behaviour this finding improves on, which is the right place to land when the improvement
+cannot be proved.
+
+* **Every requested name must actually be dropped.** This one is a scar. The first version
+  of `_drop_ctes` read `parsed.args.get("with")`, which is `None` twice over: an INSERT's
+  `WITH` hangs off the inner `Select`, and the key there is spelled `with_`. So it found
+  nothing, dropped nothing, returned no boundary — **and the reduction still produced the
+  right four edges, because `JSON_TABLE` happens to dangle on its own.** A silent no-op
+  wearing a passing result. That is `from_` vs `from` in `infer.py` and `with` vs `with_` in
+  `bisect_chain.py` for the third time: an argument key answering *empty* where "not found"
+  was meant. The clause is now located by traversal, and the caller compares what was
+  dropped against what it asked for.
+* **The construct must be gone from the re-read tree.** Catches a span that was too LONG: if
+  blanking it hid a construct that actually lives elsewhere, check 1 in part 2 would have
+  passed while the construct stayed in the tree. Not hypothetical — PG-23 over-spans a CTE
+  by 150 lines in this very file. Honest limitation: this re-reads GENERATED SQL, so a
+  construct SQLGlot normalises beyond recognition would slip past it.
+
+### A duplicate refusal this exposed, and fixed
+
+`procedure.analyse_source` ran `classify_program` as a second pass and deduped against band
+0's refusals by exact `(unit, line)`. But the third pass addresses a construct at the line
+the CONSTRUCT sits on while band 0 addresses the line the STATEMENT starts on — 795 lines
+apart in the torture file. So one `JSON_TABLE` was refused twice at two addresses, costing a
+second `statements_seen` and reporting coverage 0.5 for a statement that was analysed and
+produced 329 edges. The dedup now tests SPANS, and appends candidates as it accepts them so
+the test also holds within the pass: two constructs in one statement previously produced two
+refusals and two `statements_seen` for one statement, against `_deduplicate`'s own stated
+policy of one refusal per statement.
+
+### Verification
+
+`tests/test_cte_scoped_refusal.py`, 19 tests. **7 fail with the behaviour disabled**
+(`cte_scoped_construct` forced to None, which is exactly the pre-fix state); the 12 that
+pass either way are the scanner's unit tests and the fallback assertions, which are correct
+before and after by design. Suite 862 passed, 2 skipped (Oracle container down), 1 xfailed.
+Oracle probe 63 unchanged, PostgreSQL probe 44/44.
+
+**Phase 0 was NOT re-measured**, and that is a gap rather than a result:
+`scripts/exercise_corpus.py` needs the Oracle container, which is not running here. The
+proxies that do run are unchanged — `test_refusals.py` in full, including
+`test_all_seven_constructs_in_the_corpus_are_flagged`, which is the direct guard on the
+dedup widening, plus both construct probes.
+
+### What it did not fix
+
+`PG-22`: the refusal withdraws the CTE, so a provable column inside a poisoned CTE goes with
+it. Column-level narrowing is the next step and is registered rather than taken.
+
+## PG-22 · `refusal-granularity` · OPEN — a provable column inside a refused CTE is refused with it
+
+PG-20's fix narrows the refusal from the statement to the CTE. The unit is still coarser
+than the loss:
+
+```sql
+doc_rows AS (
+    SELECT s.id        AS ship_id,        -- owes nothing to the document
+           jt.weight   AS weight         -- out of the document by path
+    FROM   silver.shipments s,
+           JSON_TABLE(s.header_attrs, '$' COLUMNS (weight numeric PATH '$.kg')) AS jt
+)
+```
+
+`shipments.id -> tgt.ship_id` is a TRUE edge and PG-20's fix declines to make it, because it
+removes the whole CTE body.
+
+**Deliberate, and the reason is the same one that made PG-20's fix safe.** A construct the
+classifier refuses may still be one SQLGlot interprets confidently enough to emit an edge
+from — `CONNECT BY`'s self-edges. Trusting *part* of a body whose shape is not decidable
+means deciding, per column, which part the construct reaches, and that is a judgement the
+current machinery does not make. Refusing the body is the safe direction.
+
+It is still a false abstention (T3.1d), now with a known shape and a measurable cost, and it
+is the fourth finding in the refusal-granularity family with PG-06, PG-16 and PG-20. The
+narrowing that would close it — refuse the COLUMNS of a poisoned CTE that the construct
+actually feeds, keep the rest — is also what PG-06 asks for on the measurement side, so the
+two should probably be taken together.
+
+**Risk if left open:** lost edges, never wrong ones. The loss is declared as a refusal with
+the CTE named, so a reader can see the abstention; what they cannot see is that some of the
+withheld columns were provable.
+
+## PG-23 · `classifier-correctness` · OPEN — the noise-stripper desynchronises on `E'...\'...'`
+
+Found while measuring PG-20, in the classifier's own foundation rather than in the fix.
+
+`_strip_noise` blanks comments and string literals before any construct pattern is applied,
+so that `-- CONNECT BY is not used here` does not trip the classifier. Its string scan
+treats `''` as an escaped quote, which is right for a standard-conforming literal. It does
+not know that an **`E'...'` string also honours a BACKSLASH escape**:
+
+```sql
+E'O\'Reilly'          -- torture file, line 1790
+```
+
+The scan takes the `\'` as the closing quote, and from that point every subsequent quote in
+the file has the wrong polarity: real code is blanked, real literals are left visible.
+
+**Measured consequence**, on the torture variant:
+
+```
+lexer_traps body, actual      lines 1779-1807
+lexer_traps body, as scanned  lines 1779-1958      <- over-spans by 150 lines
+top-level CTEs, actual        81
+top-level CTEs, as scanned    69                   <- 12 lost after the desync
+```
+
+**Why this is a finding about the classifier and not about PG-20's scanner.** The same
+stripped text feeds `classify_statement`, which is what every refusal decision in both
+dialects is made from. After such a literal the classifier is reading a corrupted view of
+the file, so it can both **invent** a refusal (a construct name inside a string it failed to
+blank) and **miss** one (a real construct it blanked by mistake). Neither is loud.
+
+Nothing in the shipped corpora contains an `E'...\'...'` literal, which is why this had
+never surfaced; the torture file contains one because it was written to contain one.
+
+**Risk if left open:** a refusal decision anywhere after an `E`-string with an escaped quote
+is unsound in both directions, and the unsoundness is silent. PG-20's second guard is what
+keeps *that* fix safe against it — it re-reads the tree rather than trusting the span — but
+nothing protects `classify_statement` itself.
+
+**The repair is small and its blast radius is not.** Honouring `\` inside an `E'...'`
+literal is a few lines, and it changes what the classifier sees in every file, so it needs
+its own before/after measurement rather than riding along with something else.
 
 ## PG-18 · `construct-coverage` · OPEN — `CYCLE ... SET ... USING` fails the parse outright
 
