@@ -60,7 +60,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S4-05 | `construct-coverage` | **fixed** | **misdiagnosed as two-collection.** A projection COMPUTED OR RENAMED in a derived table had no source at all; the second collection was just the one receiving it |
 | S4-10 | `silent-loss` | **fixed** | **filed too narrowly, in the safer direction.** S3-06 removed the subscript at four call sites and put nothing in any of them — so the collection was lost in a `VALUES` list, an `UPDATE ... SET` and every `WHERE`, **and the index was still emitted as a source on the two paths S3-06 never reached**. That half is a false positive and was not filed at all |
 | S3-11 | `key-error` | **fixed** | stress 3's key labelled two of the three reads of `l_batch` in one `INSERT` — the two that pass through a variable. Found when S4-10's fix made the analyser emit the third and the grid called a correct edge spurious |
-| P-02 | `silent-loss` | open | a `DELETE`'s predicate never sees variables at all — `DELETE ... WHERE sid = v_cutoff` loses `V_CUTOFF` where the identical `UPDATE` keeps it |
+| P-02 | `silent-loss` | **fixed** | a `DELETE`'s predicate never sees variables at all — `DELETE ... WHERE sid = v_cutoff` loses `V_CUTOFF` where the identical `UPDATE` keeps it. Def-use now claims the variable half, and S4-10's subscript rule came with it as the finding required |
 | S4-06 | `key-error` | **fixed** | **four** in stress 4's own key: a trigger inheritance omitted, a view's internal `CASE` missed, a `GROUP BY` column omitted from a rank's influence, and an `ON` clause carrying a LITERAL labelled as filter |
 | S1-01 | `identity` | **fixed** | band 0 deduplicated on `match_key()` and destroyed facts |
 | S1-02 | `construct-coverage` | **fixed** | top-level set operators under `INSERT` refused, wrong reason |
@@ -88,7 +88,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-02 | `key-error` | **fixed** | `stress_pg_01`'s key claimed `expected_boundaries: []` and called the empty list the point of the package; a real schema-context boundary was declared and the key was wrong |
 | PG-03 | `construct-coverage` | **fixed** | every column PROJECTED through a `LATERAL` alias is unresolved — the correlation's filter edges are correct, the projection is lost. Declared, not silent. Cause was one node type: a LATERAL scope's `expression` is the `exp.Lateral`, whose `selects` is an empty list rather than an error, so `_projection_named` read "no such column" from "I don't know" |
 | PG-04 | `construct-coverage` | open | `jsonb_build_object` is opaque to its own arguments — declared `source_unavailable`, so the refusal is honest and the classification is wrong |
-| PG-05 | `silent-loss` | open | **`unnest(...)` in `FROM` drops the unnested element with NO boundary at all.** `generate_series` in the same position declares `dangling_reference`, so the machinery exists and `unnest` slips past it. The only known column-level silence in the PostgreSQL path |
+| PG-05 | `silent-loss` | **fixed** | **`unnest(...)` in `FROM` drops the unnested element with NO boundary at all.** `generate_series` in the same position declares `dangling_reference`, so the machinery exists and `unnest` slips past it. The only known column-level silence in the PostgreSQL path. Not a boundary but an edge: the alias columns bind to the arrays by position, so every `FROM` spelling now matches `SELECT unnest(...)` |
 | PG-06 | `measurement-error` | open | **the scope contract is stated per STATEMENT and the losses are per COLUMN.** `probe_postgres` asks "did this statement produce edges?"; PG-03/04/05 all answer yes while losing a column. Three of 34 in-scope constructs are partial and the probe cannot tell |
 | PG-07 | `key-error` | **fixed** | `stress_pg_03`'s five refusal subjects predicted with the wrong line convention — the codes and the set were right, the numbering was the splitter's and not the SQL's |
 | PG-08 | `refusal-taxonomy` | open | `CREATE_TRIGGER_PG`'s reason never reaches the reader: band 0 declines every non-CTAS `CREATE` first and the `(unit, line)` dedup discards the classifier's better message |
@@ -104,7 +104,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-21 | `silent-loss` | **fixed** | **`infer.py` keys aliases GLOBALLY, so one alias reused in two scopes mixes two tables' columns — and last write wins, so one real table is left EMPTY.** Four lines of SQL reproduce it: `sales.orders` gets `[]` and `sales.customers` gets all four columns, two of which it does not have. This is the inference INVENTING columns, the one thing its docstring forbids, and an empty relation then triggers PG-16's whole-run refusal |
 | PG-20 | `refusal-granularity` | **fixed** | **one `JSON_TABLE` in one CTE out of 85 refuses a 2,948-line query in its entirety.** The refusal is correct per construct and catastrophic per file, because the refusal unit is the STATEMENT and a modern analytical query is one statement. Same shape as PG-16, and the general case of PG-06. Measured cost: **0 edges where 329 were available.** The construct's CTE is now refused and REMOVED, so it can neither be trusted nor contribute |
 | PG-22 | `refusal-granularity` | open | **a provable column inside a refused CTE is refused with it.** PG-20's fix withdraws the CTE, so `s.id AS ship_id` beside a `JSON_TABLE` loses a true edge. Deliberate, because the classifier's refusal does not imply SQLGlot declines the body — but it is a false abstention (T3.1d) with a known shape, and the next narrowing |
-| PG-23 | `classifier-correctness` | open | **`_strip_noise` desynchronises on a backslash-escaped quote in an `E'...'` string, and every later literal in the file is then mis-blanked.** `E'O\'Reilly'` at torture line 1790 over-spans a CTE by 150 lines and loses 12 of 81 CTEs from the scan. The stripper feeds `classify_statement`, so this can both invent and hide refusals anywhere after such a literal |
+| PG-23 | `classifier-correctness` | **fixed** | **`_strip_noise` desynchronises on a backslash-escaped quote in an `E'...'` string, and every later literal in the file is then mis-blanked.** `E'O\'Reilly'` at torture line 1790 over-spans a CTE by 150 lines and loses 12 of 81 CTEs from the scan. The stripper feeds `classify_statement`, so this can both invent and hide refusals anywhere after such a literal. Now 81 of 81, and the span ends where the CTE does |
 | PG-19 | `measurement-error` | open | **a whole-file parse failure reports `statements_seen = 0` and `parse_coverage = None`, not `seen 1 / coverage 0.0`.** The boundary IS declared, so nothing is silent — but the file drops out of the coverage denominator entirely, so a batch in which a file failed to parse scores the same as one where that file did not exist. Found only because PG-17's spurious refusal had been padding the count |
 | PG-18 | `construct-coverage` | open | **a recursive CTE's `SEARCH`/`CYCLE` decorations fail the parse outright, taking the whole file with them.** Narrowed by decomposition: the breaking token is `CYCLE ... TO <v>` — `CYCLE id SET c` and `CYCLE id SET c USING p` both parse, and adding `TO 'Y'` is what fails. `SEARCH` fails too, but only in the position the file uses it (followed by `, next_cte`, or with a multi-column `BY`). Cannot go in `rewrite.py`: these DEFINE columns (`org_is_cycle`, `org_dfs_order`) the query then filters on and projects, so stripping them would silently narrow lineage — they belong in the refusal register |
 
@@ -3401,6 +3401,90 @@ nothing protects `classify_statement` itself.
 **The repair is small and its blast radius is not.** Honouring `\` inside an `E'...'`
 literal is a few lines, and it changes what the classifier sees in every file, so it needs
 its own before/after measurement rather than riding along with something else.
+
+## PG-23 · FIXED, 2026-10-01 — `refusal._is_escape_string_prefix`
+
+The string scan now honours `\` inside a literal whose opening quote follows an `E` or `e`,
+so `\'` stays inside the string and `\\'` closes it. The prefix counts only as a whole
+token: `LIKE'C:\'` ends in an `E` too, and reading it as an escape string would swallow the
+rest of the statement — the same desync, moved. Oracle has no `E'...'` form, so no Oracle
+reading can change.
+
+**Its own before/after, as this entry asked:**
+
+```
+                                         before        after
+parseable torture, top-level CTEs        69 / 81       81 / 81
+parseable torture, lexer_traps span      +150 lines    ends where the CTE ends
+parseable torture, end to end            334 edges     334 edges, 0 refusals either way
+original and no-dollar variants          unchanged     unchanged
+```
+
+The end-to-end number not moving is the expected result, not a null one: the torture file
+contains nothing the classifier refuses after line 1790, so the corrupted view had nothing
+to invent or hide *in that file*. The tests construct both directions directly — a
+`JSON_TABLE(` inside a later literal invented a refusal, and a real `CONNECT BY` after the
+literal was missed — and six of nine fail with the fix reverted.
+
+PG-20's second guard stays. It was justified by this finding, but what it guards against is
+any span the stripper gets wrong, and the next lexer gap will look identical from there.
+
+**Not covered, recorded so it is not assumed:** `dynamic._split_concatenation` and
+`_split_arguments` have their own `''`-only quote scans. Both serve PL/SQL constant folding,
+and an `E'...'` operand already makes `_literal_value` return None, so folding refuses — the
+safe direction. Oracle's `q'[...]'` alternative quoting is a different lexer gap of the same
+shape and is not handled by this change.
+
+## P-02 · FIXED, 2026-10-01 — `defuse._analyse_delete_filter`
+
+Def-use now claims a `DELETE`, for exactly what band 0 cannot bind: declared variables and
+cursor-record fields. The column side stays with band 0, which resolves it through
+subqueries this walk does not — the split `_analyse_insert_filter` already makes, so a
+DELETE and an INSERT ... SELECT now divide their predicates the same way.
+
+```
+DELETE FROM tgt WHERE sid = v_cutoff        TGT.SID -> TGT (AST), V_CUTOFF -> TGT (DEF-USE)
+UPDATE tgt SET flag = 1 WHERE sid = v_cutoff  identical
+```
+
+**The condition this entry set is met in the same change.** The predicate goes through
+`_subscripted`, so `WHERE sid = l_ids(i)` emits `L_IDS -> TGT` and not `I -> TGT`. The
+test for the index passes with the fix reverted too — which is this entry's point exactly:
+it used to be right only because nothing could see `i`. It is now right because the rule
+says so, and it is pinned beside the test that proves the variable became visible.
+
+A cursor-record field (`WHERE sid = rec.sid`) resolves through the cursor's query to
+`SRC.SID`. That half was not in the finding as filed, and was lost the same way.
+
+## PG-05 · FIXED, 2026-10-01 — `band0._trace_through_unnest`
+
+**The cause was a projection that was not one.** SQLGlot gives `UNNEST(...) AS t(tag)` a
+scope whose `selects` are the alias IDENTIFIERS. `_projection_named` returned the bare
+`tag` identifier as if it were an expression, found no column in it, and `t.tag` traced to
+nothing — no edge and no boundary. The LATERAL spellings unwrap to an empty `selects`, which
+is why they at least declared `unresolved_identifier`.
+
+The fix is an edge, not a boundary, because nothing here is unknowable: PostgreSQL binds
+the alias columns to the arrays BY POSITION. The transform is read off the `UNNEST` node,
+so every spelling now produces what `SELECT unnest(c.tags)` always did:
+
+```
+FROM c, unnest(c.tags) AS t(tag)                         was: nothing     now: c.tags -> x derived
+FROM c CROSS JOIN LATERAL unnest(c.tags) AS t(tag)       was: declared    now: the same edge
+FROM c, unnest(c.tags) WITH ORDINALITY AS t(tag, n)      was: nothing     now: the same edge
+FROM c, unnest(c.a, c.b) AS t(x, y)                      t.y binds to c.b, not c.a
+```
+
+Two shapes are declared rather than guessed, and the tests pin both. An alias list that
+does not map one-to-one onto the arrays — an array of records expanded into its fields —
+would bind a field to the wrong array. A bare `AS t` with no column list is declared too,
+though PostgreSQL names that column `t`; resolving it is a small follow-up, not a
+correctness gap. The `ORDINALITY` column is a counter, like `ROW_NUMBER()`, and gets no
+edge and no boundary: no column's value is in it.
+
+**Measured:** `stress_pg_02` value moved 19/0/3 -> 20/0/2. False positives stay at zero, and
+the two misses left are PG-04's `jsonb_build_object`. The pin in `test_postgres_stress.py`
+was edited deliberately, with the reason beside it.
 
 ## PG-18 · `construct-coverage` · OPEN — `CYCLE ... SET ... USING` fails the parse outright
 

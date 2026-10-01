@@ -88,14 +88,13 @@ inside it is not.
 |---|---|---|---|
 | `LATERAL` subquery | the correlation's filter edges, correctly | every column PROJECTED through the LATERAL alias — declared `unresolved_identifier` | PG-03 |
 | `jsonb_build_object` | nothing from it | its arguments — declared `source_unavailable`, so the refusal is honest and the classification is wrong | PG-04 |
-| `unnest(...)` in `FROM` | nothing from it | the unnested element, **with no boundary declared at all** | PG-05 |
+| ~~`unnest(...)` in `FROM`~~ | **fixed 2026-10-01** — the element traces to its array, by position, as `SELECT unnest(...)` always did | an alias list that does not map one-to-one onto the arrays, and a bare `AS t` with no column list — both declared `unresolved_identifier` | PG-05 |
 
-**PG-05 is the one to know about.** The other two announce themselves; `unnest` does not, so
-the target column reads as having no upstream — a finding about the data rather than a gap
-in the analysis. It is the only known column-level silence in the PostgreSQL path.
-
-`generate_series` in the same position *does* declare `dangling_reference`, so the machinery
-exists and `unnest` is slipping past it.
+**PG-05 was the one to know about**, and is fixed. The other two announce themselves;
+`unnest` did not, so the target column read as having no upstream — a finding about the data
+rather than a gap in the analysis. It was the only known column-level silence in the
+PostgreSQL path, and no other is known now. That is a statement about what has been
+measured: the probe asks per statement and cannot see a per-column silence (PG-06).
 
 ## Out of scope, and refused by name
 

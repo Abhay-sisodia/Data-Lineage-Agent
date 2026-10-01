@@ -174,13 +174,14 @@ which is the project's own failure taxonomy:
 | **R4** | **Measurement distortion** | The lineage is right and the numbers describing it are not. Dangerous only when the numbers are what someone signs. |
 | **R5** | **Unmade decision** | No defect. A choice nobody has taken, where taking it either way is defensible and *not* taking it is the risk. |
 
-**There is one R1 and one R2 open.** Everything else is R3 or lower.
+**There is no R1 or R2 open** as of 2026-10-01. The two R1s (PG-05, P-02) and the one R2
+(PG-23) were fixed together and are struck through below. Everything left is R3 or lower.
 
 ### 5a. Affects whether a file can be read at all
 
 | # | Item | Risk if left open | |
 |---|---|---|---|
-| **PG-23** | `_strip_noise` desynchronises on `E'O\'Reilly'`, and every literal after it in the file is mis-blanked | **The classifier reads a corrupted view of the file from that point on**, so it can both invent a refusal (a construct name inside a string it failed to blank) and miss one (a real construct it blanked by mistake). Both dialects, silent either way. Measured: over-spans a CTE by 150 lines and loses 12 of 81 CTEs from the scan. No shipped corpus contains such a literal, which is why it never surfaced | **R2** |
+| ~~PG-23~~ | ~~`_strip_noise` desynchronises on `E'O\'Reilly'`, and every literal after it in the file is mis-blanked~~ | **FIXED 2026-10-01.** The scan honours `\` inside an `E'...'` literal. Measured: 69 -> 81 of 81 CTEs found, the over-span gone, end-to-end edges unchanged at 334 | — |
 | **PG-18** | `SEARCH` / `CYCLE ... TO <v>` fail the parse | Lost file, loudly. Upstream SQLGlot, and the failure is declared with `statements_analysed 0` against `seen 1`, so nothing is claimed. Cannot go in `rewrite.py` — these DEFINE columns the query then filters on | **R3** |
 | **S2-01** | `MERGE` with a `DELETE` arm fails to parse | Same shape, Oracle side | **R3** |
 | — | The 31 unparseable constructs in §3 | Not individually registered: upstream, declared, and clustered into six grammar areas rather than 31 independent problems | **R3** |
@@ -190,8 +191,8 @@ which is the project's own failure taxonomy:
 
 | # | Item | Risk if left open | |
 |---|---|---|---|
-| **PG-05** | `unnest(...)` in `FROM` drops the unnested element with **no boundary at all** | **The only known column-level silence in the PostgreSQL path.** `generate_series` in the same position declares `dangling_reference`, so the machinery exists and `unnest` slips past it. A reader sees a column with no upstream and has no way to know the analyser simply did not look | **R1** |
-| **P-02** | A `DELETE`'s predicate never sees variables | Silent, but narrower: the identical `UPDATE` keeps them, so the shape is known and the fix is bounded | **R1** |
+| ~~PG-05~~ | ~~`unnest(...)` in `FROM` drops the unnested element with **no boundary at all**~~ | **FIXED 2026-10-01.** An edge, not a boundary: alias columns bind to the arrays by position, so every `FROM` spelling matches `SELECT unnest(...)`. `stress_pg_02` value 19/0/3 -> 20/0/2 | — |
+| ~~P-02~~ | ~~A `DELETE`'s predicate never sees variables~~ | **FIXED 2026-10-01.** Def-use claims the variable half; a DELETE and the identical UPDATE now report the same variable, and S4-10's subscript rule came with it | — |
 | **PG-22** | A provable column inside a refused CTE is refused with it | **New, and created by PG-20's fix.** `s.id AS ship_id` beside a `JSON_TABLE` loses a true edge. Deliberate — the classifier's refusal does not imply SQLGlot declines the body, and `CONNECT BY` proves bodies can emit guesses — so the safe direction was chosen and the cost registered | **R3** |
 | **PG-04** | `jsonb_build_object` is opaque to its own arguments | The refusal is honest; only its classification is wrong. Nothing is claimed that is not true | **R3** |
 | **S4-13** | A cursor `FOR` loop carries none of the cursor query's predicates | Lost filter edges, Oracle side | **R3** |
@@ -202,7 +203,7 @@ which is the project's own failure taxonomy:
 | # | Item | Risk if left open | |
 |---|---|---|---|
 | **PG-19** | A whole-file parse failure reports `statements_seen = 0`, `coverage = None` | **An unreadable file drops out of the coverage denominator instead of lowering it**, so a batch in which a file failed to parse scores the same as one where that file did not exist. This is the measurement-side twin of the thing the corpus is meant to detect. Touches signed phase-0 numbers, so it needs its own before/after run | **R4** |
-| **PG-06** | The scope contract is stated per STATEMENT, the losses are per COLUMN | `probe_postgres` asks "did this statement produce edges?", and PG-04/05 answer yes while losing a column — so **the probe cannot see the R1 items above.** The instrument is blind in exactly the direction that matters | **R4** |
+| **PG-06** | The scope contract is stated per STATEMENT, the losses are per COLUMN | `probe_postgres` asks "did this statement produce edges?", and PG-04/05 answered yes while losing a column — so **the probe could not see PG-05, the R1 that was open until 2026-10-01**, and will not see the next one. The instrument is blind in exactly the direction that matters | **R4** |
 | **PG-01** | An `UPDATE` is analysed and never counted | `statements_seen` understates in both dialects, so parse coverage is computed over the wrong denominator. An `UPDATE` that also produced no edge would be fully silent | **R4** |
 | **PG-08** | `CREATE_TRIGGER_PG`'s reason never reaches the reader | The `(unit, line)` dedup discards the better message, so the refusal is correct and its explanation is the weaker of the two available | **R4** |
 | **S1-05** | The label format cannot express five facts in one file | Key-writing limitation, so some ground truth cannot be stated at all — and unstatable truth is unmeasurable | **R4** |

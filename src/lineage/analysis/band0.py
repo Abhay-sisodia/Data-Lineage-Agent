@@ -774,6 +774,11 @@ def _trace(
                 column, source, dictionary, unresolved, depth, constraining
             )
 
+        if isinstance(_query_of_scope(source.expression), exp.Unnest):
+            return _trace_through_unnest(
+                column, source, scope, dictionary, unresolved, depth, constraining
+            )
+
         projection = _projection_named(source, column.name)
         if projection is None:
             unresolved.append(
@@ -808,6 +813,74 @@ def _trace(
             kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
             subject=column.name.upper(),
             detail=f"{column.name.upper()} (could not resolve which relation it belongs to)",
+        )
+    )
+    return []
+
+
+def _trace_through_unnest(
+    column: exp.Column,
+    source: Scope,
+    scope: Scope,
+    dictionary: Dictionary,
+    unresolved: list[Boundary],
+    depth: int,
+    constraining: list[tuple[str, str, Transform]] | None,
+) -> list[tuple[str, str, Transform]]:
+    """A column of `UNNEST(arr, ...) AS t(x, ...)` is an element of the array in its position.
+
+    **Finding PG-05, the one column-level silence in the PostgreSQL path.** SQLGlot gives an
+    unnest a scope of its own whose `selects` are the ALIAS IDENTIFIERS - `tag` in
+    `AS t(tag)` - not expressions. `_projection_named` took that bare identifier for a
+    projection, found no column inside it, and `t.tag` traced to nothing: no edge, no
+    boundary, the statement counted clean. `generate_series` in the same position declared
+    `dangling_reference`, which is what made the gap look like an oversight rather than a
+    rule.
+
+    The answer is not a boundary, because nothing here is unknowable: PostgreSQL binds the
+    alias columns to the arrays BY POSITION, so `t.x` is an element of the first array. The
+    transform is read off the `UNNEST` node itself, so this spelling and
+    `SELECT unnest(c.tags)` produce the same edge - one computation, one answer.
+
+    The arrays are traced in the scope that REFERENCES the unnest, not in the unnest's own
+    scope: `c.tags` names a sibling of the unnest in that `FROM`, which is the scope in
+    which the reference was written.
+
+    `WITH ORDINALITY`'s column is a counter, like `ROW_NUMBER()`: no column's value is in
+    it, so it has no value source and gets no edge. Any shape that does not map one alias
+    to one array - an array of records expanded into its fields, or an alias list longer
+    than the arrays - is declared rather than guessed, because a positional guess there
+    binds a field to the wrong array.
+    """
+    wrapper = source.expression
+    unnest = _query_of_scope(wrapper)
+    alias = wrapper.args.get("alias") or unnest.args.get("alias")
+    names = [part.name.upper() for part in (alias.columns if alias is not None else [])]
+    arrays = list(unnest.expressions)
+    wanted = column.name.upper()
+
+    ordinality = unnest.args.get("offset")
+    if isinstance(ordinality, exp.Expression) and ordinality.name.upper() == wanted:
+        return []
+
+    if names and len(names) == len(arrays) and wanted in names:
+        array = arrays[names.index(wanted)]
+        traced: list[tuple[str, str, Transform]] = []
+        for inner in _value_columns(array):
+            for table, name, transform in _trace(
+                inner, scope, dictionary, unresolved, depth + 1, constraining
+            ):
+                traced.append((table, name, _combine(_transform_of_path(unnest, inner), transform)))
+        return traced
+
+    unresolved.append(
+        Boundary(
+            kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+            subject=wanted,
+            detail=(
+                f"{wanted} (an UNNEST column that cannot be bound to one array by position: "
+                f"{len(names)} alias column(s) over {len(arrays)} array(s))"
+            ),
         )
     )
     return []
@@ -2762,8 +2835,10 @@ def _analyse_statement(
         # The second catches a span that was too LONG: if blanking it hid a construct that
         # actually lives elsewhere, the confinement check would have passed while the
         # construct stayed in the tree. Measured need, not hypothetical - the torture
-        # file's `E'O\\'Reilly'` desynchronises the noise-stripper and over-spans a CTE by
-        # 150 lines (finding PG-23). Honest limitation: this re-reads GENERATED SQL, so a
+        # file's `E'O\\'Reilly'` desynchronised the noise-stripper and over-spanned a CTE by
+        # 150 lines (finding PG-23). That cause is fixed; the guard stays, because the next
+        # lexer gap the stripper has will look exactly the same from here. Honest
+        # limitation: this re-reads GENERATED SQL, so a
         # construct SQLGlot normalises beyond recognition would slip past.
         try:
             regenerated = parsed.sql(dialect=dictionary.dialect)

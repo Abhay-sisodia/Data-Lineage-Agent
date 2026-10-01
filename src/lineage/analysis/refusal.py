@@ -394,8 +394,17 @@ def _strip_noise(text: str) -> str:
                     out[position] = " "
             index = end
         elif char == "'":
+            # PG-23: an `E'...'` literal also honours BACKSLASH escapes, so `E'O\'Reilly'`
+            # is one string. Read as standard-conforming, `\'` closes it and every quote
+            # after it in the file flips polarity - real code blanked, real literals left
+            # visible. The prefix counts only as a whole token: `LIKE'...'` ends in an E
+            # too. Oracle has no `E'...'` form, so this cannot change an Oracle reading.
+            escaped = _is_escape_string_prefix(text, index)
             end = index + 1
             while end < length:
+                if escaped and text[end] == "\\":
+                    end += 2
+                    continue
                 if text[end] == "'":
                     if end + 1 < length and text[end + 1] == "'":
                         end += 2
@@ -410,6 +419,13 @@ def _strip_noise(text: str) -> str:
         else:
             index += 1
     return "".join(out)
+
+
+def _is_escape_string_prefix(text: str, quote: int) -> bool:
+    """True when the quote at `quote` opens a PostgreSQL `E'...'` escape string."""
+    if quote == 0 or text[quote - 1] not in "Ee":
+        return False
+    return quote == 1 or not (text[quote - 2].isalnum() or text[quote - 2] in "_$#\"")
 
 
 def classify_statement(text: str, dialect: str = "oracle") -> Construct | None:

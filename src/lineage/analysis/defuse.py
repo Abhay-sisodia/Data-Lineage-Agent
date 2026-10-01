@@ -653,6 +653,8 @@ def analyse_statement(
         result = _analyse_update(statement, scope, relations, dictionary, origin, guard)
     elif isinstance(statement, exp.Insert):
         result = _analyse_insert_filter(statement, scope, relations, dictionary, origin, guard)
+    elif isinstance(statement, exp.Delete):
+        result = _analyse_delete_filter(statement, scope, relations, dictionary, origin, guard)
 
     # A statement we could only read because constant propagation recovered it is band 2,
     # whatever its own shape (ADR-0001 §6). The band describes the PATH, and this path ran
@@ -1295,6 +1297,75 @@ def _analyse_insert_filter(
                     Mechanism.DEF_USE,
                 )
             )
+    return result
+
+
+def _analyse_delete_filter(
+    statement: Any,
+    scope: UnitScope,
+    relations: dict[str, str],
+    dictionary: Dictionary,
+    origin: Origin,
+    guard: str | None,
+) -> DefUseResult:
+    """The half of a `DELETE`'s predicate only this module can see (finding P-02).
+
+    `DELETE FROM tgt WHERE sid = v_cutoff` lost `V_CUTOFF` while the identical `UPDATE`
+    kept it. Band 0 owns the DELETE and has no `UnitScope`, so it cannot tell a variable
+    from a column at all; this module never claimed the statement, so nothing looked at the
+    predicate for variables - the S2-04 shape, two passes each correctly deciding the
+    statement was not theirs.
+
+    The split is the one `_analyse_insert_filter` already makes. Band 0 keeps the column
+    side, which it resolves through subqueries this walk does not; this claims what band 0
+    CANNOT bind - declared variables, and cursor-record fields, which name a row source
+    rather than a table.
+
+    **The subscript rule comes with it, as P-02 required.** `WHERE sid = l_ids(i)` used to
+    show no `I -> TGT` false positive only because band 0 could not resolve `i` to anything
+    - a correct output for the wrong reason. Going through `_subscripted` makes it correct
+    for the right one: the collection is a filter source and the index is not.
+    """
+    result = DefUseResult()
+
+    target = statement.this
+    where = statement.args.get("where")
+    if not isinstance(target, exp.Table) or not target.name or where is None:
+        return result
+    target_relation = Node(
+        kind=IRNodeKind.RELATION,
+        name=relations.get(
+            fold(target.name, dictionary.dialect),
+            fold(target.name, dictionary.dialect),
+        ),
+    )
+
+    subscripted = _subscripted(where, scope)
+    result.edges.extend(
+        _collection_edges(
+            subscripted, target_relation, Flow.FILTER, Transform.IDENTITY, origin, guard
+        )
+    )
+    for column in predicate_columns(where):
+        if id(column) in subscripted.index_ids:
+            continue
+        record_field = bool(column.table) and scope.row_source(column.table) is not None
+        classified = _classify(column, scope, relations, dictionary)
+        if classified is None or (classified[0] != "variable" and not record_field):
+            continue  # column-side filters belong to the band-0 analyser
+        kind, name = classified
+        result.edges.append(
+            _edge(
+                _node_for(kind, name),
+                target_relation,
+                Flow.FILTER,
+                Transform.IDENTITY,
+                origin,
+                guard,
+                Mechanism.DEF_USE,
+                band=_band_for("variable", target_is_variable=False),
+            )
+        )
     return result
 
 

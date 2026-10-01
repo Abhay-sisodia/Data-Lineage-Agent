@@ -91,7 +91,11 @@ EXPECTED = {
     # the string. The key had said so all along and the column had simply never resolved,
     # so the gap could not show. D-4's rule now covers ordered aggregates as well as
     # windows, which is what turned that miss into the influence hit above.
-    ("stress_pg_02_deep_nesting", Flow.VALUE): (19, 0, 3),
+    #
+    # MOVED AGAIN 2026-10-01 when PG-05 was fixed: value 19/0/3 -> 20/0/2. The `unnest`
+    # miss is the one recovered, false positives stay at zero, and the two that remain are
+    # PG-04's `jsonb_build_object`.
+    ("stress_pg_02_deep_nesting", Flow.VALUE): (20, 0, 2),
     ("stress_pg_02_deep_nesting", Flow.FILTER): (15, 0, 0),
     ("stress_pg_02_deep_nesting", Flow.INFLUENCE): (22, 0, 0),
     ("stress_pg_03_boundary", Flow.VALUE): (9, 0, 0),
