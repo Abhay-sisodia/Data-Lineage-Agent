@@ -1,0 +1,92 @@
+# Answer key for t5_metamorphic.sql - B1 core SELECT, metamorphic pairs + one realistic model.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# Each pair's facts are listed ONCE, at spelling A's line: both spellings write the same
+# target and claim the same facts, and a key cannot hold one fact twice. So the key scores
+# whether the lineage is right; stress/pg/metamorphic.py scores whether B agrees with A.
+# A spelling that is wrong in a way its twin is right shows up in the pair check even
+# when the key is satisfied by the twin.
+
+@ 28 P1 USING vs ON
+value shipments.order_id -> top_customers.customer_id identity
+value shipments.carrier_id -> top_customers.position identity
+value payments.amount -> top_customers.revenue identity
+
+@ 44 P2 named window vs inline
+value fct_order_line.product_key -> product_performance.product_id identity
+value fct_order_line.net_amount -> product_performance.running_revenue aggregated
+influence fct_order_line.store_id, fct_order_line.order_date -> product_performance.running_revenue
+
+@ 59 P3 GROUP BY ordinals vs names
+value dim_store.region -> kpi_rollup.region identity
+value dim_store.country_code -> kpi_rollup.country_code identity
+value fct_order_line.amount_usd -> kpi_rollup.revenue aggregated
+influence dim_store.region, dim_store.country_code -> kpi_rollup.orders, kpi_rollup.revenue
+
+@ 77 P4 DISTINCT vs GROUP BY without aggregates
+value orders.channel -> channel_mix.channel identity
+value orders.currency -> channel_mix.region identity
+forbid filter orders.channel -> channel_mix | DISTINCT / GROUP BY with no aggregate removes only duplicate written values (D-9)
+
+@ 92 P5 ROLLUP vs the equivalent GROUPING SETS
+value dim_customer.region -> kpi_rollup.region identity
+value dim_customer.segment -> kpi_rollup.segment identity
+value fct_order_line.net_amount -> kpi_rollup.revenue aggregated
+influence dim_customer.region, dim_customer.segment -> kpi_rollup.revenue
+
+@ 112 P6 HAVING vs WHERE over an aggregating subquery
+value fct_order_line.store_id -> sales_daily.store_id identity
+value fct_order_line.net_amount -> sales_daily.net_amount aggregated
+influence fct_order_line.store_id -> sales_daily.net_amount
+filter fct_order_line.net_amount -> sales_daily post
+
+@ 133 P7 COUNT(DISTINCT x) vs COUNT(x) over SELECT DISTINCT
+value orders.customer_id -> customer_summary.customer_id identity
+value orders.store_id -> customer_summary.lifetime_orders aggregated
+influence orders.customer_id -> customer_summary.lifetime_orders
+
+@ 152 P8 FILTER vs CASE inside AVG (D-10)
+value fct_shipment.carrier_id -> carrier_scorecard.carrier_id identity
+value fct_shipment.transit_days, fct_shipment.status -> carrier_scorecard.avg_transit_days aggregated
+influence fct_shipment.carrier_id -> carrier_scorecard.avg_transit_days
+forbid filter fct_shipment.status -> carrier_scorecard | FILTER changes one aggregate's value, exactly as the CASE spelling does (D-10)
+
+@ 168 P9 JOIN ON vs comma join (D-11)
+value fct_order_line.order_date -> sales_daily.sale_date identity
+value dim_store.region -> sales_daily.region identity
+value fct_order_line.gross_amount -> sales_daily.gross_amount identity
+forbid filter fct_order_line.store_id -> sales_daily | the join condition, whether written in ON or WHERE (D-5, D-11)
+forbid filter dim_store.id -> sales_daily | the join condition, whether written in ON or WHERE (D-5, D-11)
+
+@ 184 P10 ROW_NUMBER() = 1 vs DISTINCT ON (D-9)
+value orders.customer_id -> top_customers.customer_id identity
+value orders.amount -> top_customers.revenue identity
+filter orders.customer_id, orders.order_ts -> top_customers
+note D-9: in A the rank's PARTITION BY and ORDER BY decide which row survives `rn = 1`; in B the DISTINCT ON key and its tie-breaker do.
+
+@ 212 R1 the customer summary model
+value dim_customer.customer_id -> customer_summary.customer_id identity
+value dim_customer.full_name -> customer_summary.full_name derived
+value dim_customer.segment -> customer_summary.segment derived
+note COALESCE(segment, 'UNKNOWN'): one column argument, a null guard.
+value dim_customer.region -> customer_summary.region identity
+value fct_order_line.order_date -> customer_summary.first_order_date, customer_summary.last_order_date aggregated
+value fct_order_line.amount_usd -> customer_summary.lifetime_value, customer_summary.avg_basket aggregated
+value fct_order_line.order_date -> customer_summary.status aggregated
+note status is a CASE over last_order = MAX(MIN(order_date)); the hardest construct on the path is the aggregate.
+note lifetime_orders is COUNT(*) over order_facts: no value source. value_rank and value_decile are ranks: no value source.
+influence fct_order_line.customer_key, fct_order_line.order_id -> customer_summary.first_order_date, customer_summary.last_order_date, customer_summary.lifetime_value, customer_summary.avg_basket, customer_summary.status
+note order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again. Both apply on every path through an aggregate of order_facts.
+influence fct_order_line.customer_key -> customer_summary.lifetime_orders
+influence dim_customer.region, fct_order_line.amount_usd, fct_order_line.customer_key, fct_order_line.order_id -> customer_summary.value_rank
+influence fct_order_line.amount_usd, fct_order_line.customer_key, fct_order_line.order_id -> customer_summary.value_decile
+filter fct_order_line.status -> customer_summary
+filter fct_order_line.amount_usd -> customer_summary post
+filter dim_customer.customer_id, dim_customer.valid_from -> customer_summary
+note D-9: the DISTINCT ON key and tie-breaker pick the current SCD row.
+filter dim_customer.region -> customer_summary
+forbid value fct_order_line.amount_usd -> customer_summary.value_rank | RANK orders by LTV; no part of LTV is in the rank (D-4)
+forbid value fct_order_line.amount_usd -> customer_summary.value_decile | NTILE orders by LTV; no part of LTV is in the decile (D-4)
+forbid filter dim_customer.customer_key -> customer_summary | the join between current_customer and customer_rollup is in ON (D-5)
+forbid value fct_order_line.quantity -> customer_summary.avg_basket | order_units is computed in order_facts and never read again

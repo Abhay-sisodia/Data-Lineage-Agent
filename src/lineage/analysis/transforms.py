@@ -23,6 +23,7 @@ from typing import Any
 
 from sqlglot import exp
 
+from lineage.analysis.builtins import ALL_AGGREGATES
 from lineage.ir.model import Transform
 
 # Strongest transform on a path wins: an aggregation over a derived expression is an
@@ -95,6 +96,20 @@ def is_aggregate(node: Any) -> bool:
     """
     if isinstance(node, VALUE_SELECTING_WINDOW_FUNCTIONS):
         return False
+    # The two clauses that hang BESIDE an aggregate rather than under it: the aggregate is
+    # their `this`, and the columns they carry are its siblings, not its descendants. A path
+    # walked upward from such a column meets the clause and never the aggregate, so without
+    # this it came out `derived`:
+    #   * `percentile_cont(.5) WITHIN GROUP (ORDER BY x)` - x IS the aggregated value
+    #     (finding B1-03);
+    #   * `agg(x) FILTER (WHERE c)` - c decides which rows enter the aggregate, exactly as
+    #     it does in `agg(CASE WHEN c THEN x END)` (decision D-10).
+    if isinstance(node, (exp.WithinGroup, exp.Filter)):
+        return is_aggregate(node.this)
+    # A built-in aggregate SQLGlot has no class for - `jsonb_agg(x)` - parses as Anonymous
+    # and would read as a scalar function (see `analysis.builtins`).
+    if isinstance(node, exp.Anonymous):
+        return (node.name or "").upper() in ALL_AGGREGATES
     return isinstance(node, AGGREGATE_FUNCTIONS)
 
 

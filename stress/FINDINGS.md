@@ -87,7 +87,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 
 | PG-02 | `key-error` | **fixed** | `stress_pg_01`'s key claimed `expected_boundaries: []` and called the empty list the point of the package; a real schema-context boundary was declared and the key was wrong |
 | PG-03 | `construct-coverage` | **fixed** | every column PROJECTED through a `LATERAL` alias is unresolved — the correlation's filter edges are correct, the projection is lost. Declared, not silent. Cause was one node type: a LATERAL scope's `expression` is the `exp.Lateral`, whose `selects` is an empty list rather than an error, so `_projection_named` read "no such column" from "I don't know" |
-| PG-04 | `construct-coverage` | open | `jsonb_build_object` is opaque to its own arguments — declared `source_unavailable`, so the refusal is honest and the classification is wrong |
+| PG-04 | `construct-coverage` | **fixed** | `jsonb_build_object` is opaque to its own arguments — declared `source_unavailable`, so the refusal is honest and the classification is wrong Fixed 2026-10-01 with B1-04: a built-in is transparent to its arguments. |
 | PG-05 | `silent-loss` | **fixed** | **`unnest(...)` in `FROM` drops the unnested element with NO boundary at all.** `generate_series` in the same position declares `dangling_reference`, so the machinery exists and `unnest` slips past it. The only known column-level silence in the PostgreSQL path. Not a boundary but an edge: the alias columns bind to the arrays by position, so every `FROM` spelling now matches `SELECT unnest(...)` |
 | PG-06 | `measurement-error` | open | **the scope contract is stated per STATEMENT and the losses are per COLUMN.** `probe_postgres` asks "did this statement produce edges?"; PG-03/04/05 all answer yes while losing a column. Three of 34 in-scope constructs are partial and the probe cannot tell |
 | PG-07 | `key-error` | **fixed** | `stress_pg_03`'s five refusal subjects predicted with the wrong line convention — the codes and the set were right, the numbering was the splitter's and not the SQL's |
@@ -98,7 +98,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-12 | `key-error` | **fixed** | `stress_pg_05` omitted a CTE predicate eleven levels from its target — the identical construct is labelled a filter in `stress_pg_02`'s key |
 | PG-13 | `key-error` | **fixed** | `stress_pg_05` composed influence through a window `ORDER BY` for the depth-2 grouping keys and forgot it for the depth-5 one. **Same category as S2-13** — "a uniform rule applied to the first instance only", now third across two dialects, which makes it a fault in how keys are written rather than three slips |
 | PG-14 | `silent-loss` | **fixed** | **a named `WINDOW` clause lost its PARTITION BY and ORDER BY, silently.** With two functions sharing the window, `RANK() OVER w` produces NO EDGE AT ALL and the target column vanishes from the lineage. No refusal, no boundary, 100% parse coverage. The construct a large reporting query actually uses |
-| PG-15 | `convention` | open, needs a decision | `SUM(x) FILTER (WHERE c)` and `SUM(CASE WHEN c THEN x END)` compute the same number and produce DIFFERENT lineage — a relation-targeted filter against a column-targeted value edge |
+| PG-15 | `convention` | **fixed (D-10)** | `SUM(x) FILTER (WHERE c)` and `SUM(CASE WHEN c THEN x END)` compute the same number and produce DIFFERENT lineage — a relation-targeted filter against a column-targeted value edge Implemented 2026-10-01; the conditional xfail is now a plain assertion. |
 | PG-16 | `construct-coverage` | **fixed** | **one column-less relation in the dictionary refused EVERY statement in the run**, including statements that never mention it. SQLGlot's `qualify` raises per STATEMENT on an empty schema entry. Neither shipped dictionary has one, which is why nothing had ever reached it; a capture lacking column privileges on one unrelated table would have taken a whole run to zero edges |
 | PG-17 | `dialect-leak` | **fixed** | **PostgreSQL dollar-quoting `$$word$$` is classified as Oracle's `$$PLSQL_UNIT` inquiry directive and the statement is refused.** Measured cost: 3 of 3 edges on a fully readable `INSERT ... SELECT`, 0% parse coverage. A false abstention (T3.1d) with no ambiguity to justify it — the refusal register was not dialect-aware, and **four** detection sites had to be scoped, not one |
 | PG-21 | `silent-loss` | **fixed** | **`infer.py` keys aliases GLOBALLY, so one alias reused in two scopes mixes two tables' columns — and last write wins, so one real table is left EMPTY.** Four lines of SQL reproduce it: `sales.orders` gets `[]` and `sales.customers` gets all four columns, two of which it does not have. This is the inference INVENTING columns, the one thing its docstring forbids, and an empty relation then triggers PG-16's whole-run refusal |
@@ -107,6 +107,16 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | PG-23 | `classifier-correctness` | **fixed** | **`_strip_noise` desynchronises on a backslash-escaped quote in an `E'...'` string, and every later literal in the file is then mis-blanked.** `E'O\'Reilly'` at torture line 1790 over-spans a CTE by 150 lines and loses 12 of 81 CTEs from the scan. The stripper feeds `classify_statement`, so this can both invent and hide refusals anywhere after such a literal. Now 81 of 81, and the span ends where the CTE does |
 | PG-19 | `measurement-error` | open | **a whole-file parse failure reports `statements_seen = 0` and `parse_coverage = None`, not `seen 1 / coverage 0.0`.** The boundary IS declared, so nothing is silent — but the file drops out of the coverage denominator entirely, so a batch in which a file failed to parse scores the same as one where that file did not exist. Found only because PG-17's spurious refusal had been padding the count |
 | PG-18 | `construct-coverage` | open | **a recursive CTE's `SEARCH`/`CYCLE` decorations fail the parse outright, taking the whole file with them.** Narrowed by decomposition: the breaking token is `CYCLE ... TO <v>` — `CYCLE id SET c` and `CYCLE id SET c USING p` both parse, and adding `TO 'Y'` is what fails. `SEARCH` fails too, but only in the position the file uses it (followed by `, next_cte`, or with a multi-column `BY`). Cannot go in `rewrite.py`: these DEFINE columns (`org_is_cycle`, `org_dfs_order`) the query then filters on and projects, so stripping them would silently narrow lineage — they belong in the refusal register |
+| B1-01 | `construct-coverage` | **fixed** | **a `WITH … INSERT` loses every edge through its CTEs** — the CTE is declared `dangling_reference` ("relation not in dictionary"); `INSERT … WITH` works. PostgreSQL's usual CTE-write spelling. 84 of B1's 115 misses. `stress/pg/b1_core_select/REPORT.md` Fixed 2026-10-01: `band0._with_statement_ctes` hangs the statement's WITH on the query. |
+| B1-02 | `transform-classification` | **fixed** | the merged column of `USING` / `NATURAL` is read as `COALESCE(left, right)` for every join type; PostgreSQL uses the left input for INNER/LEFT, the right for RIGHT, COALESCE only for FULL Fixed 2026-10-01: `band0._merged_join_columns`, after every `qualify`. |
+| B1-03 | `transform-classification` | **fixed** | `percentile_cont` / `percentile_disc … WITHIN GROUP (ORDER BY x)` classified `derived`, not `aggregated` Fixed 2026-10-01: `transforms.is_aggregate` reads a WITHIN GROUP / FILTER wrapper as its aggregate. |
+| B1-04 | `construct-coverage` | **fixed** | `cardinality()` treated as an unknown routine (`source_unavailable`); a built-in-catalogue gap, the same shape as PG-04 Fixed 2026-10-01 with PG-04: `analysis/builtins.py`, a per-dialect built-in catalogue. |
+| B1-05 | `identity` | **fixed** | **a quoted mixed-case identifier is matched case-insensitively** — `x.region` resolves to the `"Region"` projection, a silent wrong edge Fixed 2026-10-01: `band0._position_named` - exact first, case-blind only if unique. |
+| B1-06 | `measurement-error` | **fixed** | every CTE-using statement gets a spurious `context_dependent_binding` boundary naming the CTE as an unqualified schema object Fixed 2026-10-01: `procedure._context_dependent_names` skips the statement's own CTE names. |
+| B1-Q1 | `convention` | open, needs a decision | what `GROUPING(a, b)` produces — today `a, b` come out as an aggregated value of the column and as a filter when it is compared in WHERE |
+| B1-Q2 | `convention` | open, needs a decision | is a NON-equality join condition written in WHERE (`a.d > b.d` between two inner-joined relations) structural, as it would be in ON (D-5)? D-11 decided equalities only; `stress_01`'s self-join labels `child.signup_date > parent.signup_date` a real filter |
+
+**`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
 **`PG-` is the PostgreSQL stress series**, kept apart from `S1-`..`S4-` for the same reason
 those are kept apart from `P-`: provenance is part of a finding's identity. A `PG-` finding
@@ -4405,3 +4415,26 @@ EMPTY schema for everything would satisfy the first two assertions and destroy a
 resolution.
 
 Phase 0 unchanged, every cell. 824 passed, 1 xfailed.
+
+## Decisions taken — 2026-10-01 (D-9, D-10, D-11)
+
+Taken by Abhay at the start of the batch programme (`stress/pg/`), **before any key was
+written**, for the same reason as every earlier decision: a key written first would have
+decided each of these quietly in its own favour. The full statements, including what each
+one deliberately does NOT cover, are in `stress/pg/b1_core_select/OBJECTIVES.md`. **All three
+were implemented the same day**, after the B1 baseline was measured against them - see
+`stress/pg/b1_core_select/REPORT.md` section 8. Each one also reached an older key or test:
+D-9 added one label to `stress_02` (its key had asked for exactly that), D-10 turned
+PG-15's xfail into an assertion, and D-11's first implementation was wider than decided
+and was narrowed (B1-Q2).
+
+* **D-9 — a column that decides which row survives is a filter.** It covers `DISTINCT ON`
+  keys and tie-breakers, the partition and order of a ranking window that is then filtered
+  (`= 1`, `<= n`), and the `ORDER BY` of a `LIMIT`/`FETCH`/`OFFSET`. An `ORDER BY` with no
+  row limit gives nothing.
+* **D-10 — `FILTER (WHERE c)` is read as `CASE WHEN c`.** This decides **PG-15**: `c` is a
+  value edge into that one aggregated column, never a filter on the relation.
+* **D-11 — a join condition is structural wherever it is written.** An EQUALITY in WHERE (first recorded as "a comparison", wider than decided; corrected the same day - see B1-Q2)
+  between columns of two inner-joined relations of the same FROM gives no edge, as in `ON`.
+  Comparisons that touch the null-supplying side of an outer join, and correlations to an
+  outer query, stay filters.

@@ -405,8 +405,12 @@ def _context_dependent_names(
             parsed = sqlglot.parse_one(statement.text, dialect=dialect)
         except Exception:
             continue
+        # A reference to a CTE is a Table node with no schema, and it resolves to the
+        # statement's own WITH - wherever it runs. Counting it made every CTE query carry a
+        # search-path warning about names that never touch the search path (finding B1-06).
+        local = {(cte.alias_or_name or "").upper() for cte in parsed.find_all(exp.CTE)}
         for table in parsed.find_all(exp.Table):
-            if table.text("db") or not table.name:
+            if table.text("db") or not table.name or table.name.upper() in local:
                 continue
             unit = enclosing_unit_at(program, statement.line)
             seen.setdefault(unit, statement.line)

@@ -30,8 +30,9 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer.qualify import qualify
-from sqlglot.optimizer.scope import Scope, build_scope
+from sqlglot.optimizer.scope import Scope, ScopeType, build_scope
 
+from lineage.analysis.builtins import is_builtin
 from lineage.analysis.ddl import exchange_partition_edges
 from lineage.analysis.dynamic import resolve_dynamic_sql
 from lineage.analysis.predicates import predicate_columns
@@ -336,6 +337,14 @@ def _correlated_filter_columns(expression: Any) -> list[Any]:
     """
     found: list[Any] = []
     for where in expression.find_all(exp.Where):
+        # `agg(x) FILTER (WHERE c)` is not a subquery predicate (decision D-10, closing
+        # PG-15). SQLGlot gives the FILTER clause its own `Where`, so this walk took `c`
+        # for a correlation and reported it as deciding which rows the TABLE holds - while
+        # `agg(CASE WHEN c THEN x END)`, the same number, reported `c` as a value of the
+        # column. A FILTER changes one aggregate's value and removes no row from the result,
+        # so its columns are left to `_value_columns`, exactly as the CASE spelling's are.
+        if isinstance(where.parent, exp.Filter):
+            continue
         found.extend(predicate_columns(where))
     return found
 
@@ -419,12 +428,90 @@ def _query_of_scope(expression: Any) -> Any:
     return node
 
 
+def _qualify(parsed: Any, dictionary: Dictionary) -> Any:
+    """SQLGlot's `qualify`, with the merged column of USING / NATURAL put right (B1-02).
+
+    Every analysis entry point qualifies through here, so the correction has one home.
+    """
+    for written in parsed.find_all(exp.Coalesce):
+        written.meta["written"] = True
+    parsed = qualify(
+        parsed,
+        schema=_schema_for(dictionary),
+        dialect=dictionary.dialect,
+        validate_qualify_columns=False,
+        infer_schema=True,
+    )
+    return _merged_join_columns(parsed)
+
+
+def _merged_join_columns(parsed: Any) -> Any:
+    """Replace `qualify`'s merged-column COALESCE with the column PostgreSQL actually uses.
+
+    **Finding B1-02.** For `JOIN ... USING (k)` and `NATURAL JOIN`, `qualify` rewrites an
+    unqualified `k` as `COALESCE(left.k, right.k)` whatever the join type. PostgreSQL does
+    that only for a FULL join; for INNER and LEFT the merged column IS the left input's, for
+    RIGHT the right input's. The COALESCE reached the transform ladder as a genuine choice
+    between two sources - a `conditional` edge from each side where the truth is one
+    `identity` edge, and `USING (k)` disagreed with the `ON a.k = b.k` it abbreviates.
+
+    Only a COALESCE `qualify` GENERATED is touched: every COALESCE in the text is marked
+    before qualifying, because `COALESCE(a.k, b.k)` written by hand over an inner join is a
+    real choice someone made, and rewriting it would be the analyser editing the query.
+    Walked innermost first, so a chain of USING joins - `COALESCE(COALESCE(a.k, b.k), c.k)`
+    - reduces one join at a time.
+    """
+    for coalesce in reversed(list(parsed.find_all(exp.Coalesce))):
+        if coalesce.meta.get("written"):
+            continue
+        arguments = [coalesce.this, *(coalesce.expressions or [])]
+        if len(arguments) != 2 or not all(
+            isinstance(argument, exp.Column) and argument.table for argument in arguments
+        ):
+            continue
+        select = coalesce.parent_select
+        joins = (select.args.get("joins") or []) if select is not None else []
+        side = next(
+            (
+                (join.side or "").upper()
+                for join in joins
+                if join.this.alias_or_name == arguments[1].table
+            ),
+            None,
+        )
+        if side is None or side == "FULL":
+            continue
+        coalesce.replace((arguments[1] if side == "RIGHT" else arguments[0]).copy())
+    return parsed
+
+
+
+def _position_named(names: list[str], name: str) -> int | None:
+    """Which of `names` a reference to `name` means: exactly, then case-blind if unique.
+
+    **Finding B1-05.** This used to compare upper-cased on both sides, so with `"Region"`
+    and `region` both projected, `x.region` bound to whichever came first - a confident
+    wrong edge with no boundary. A quoted identifier keeps its case and is a DIFFERENT
+    name from its folded twin; that is the whole point of quoting it.
+
+    After `qualify`, every identifier in the tree already carries its real case (unquoted
+    names folded by the dialect, quoted ones kept), so an exact match is the correct one.
+    The case-blind fallback exists for callers that pass a name folded elsewhere - def-use
+    upper-cases a cursor field - and is taken only when it is UNAMBIGUOUS. Two case-blind
+    candidates and no exact one means the caller's spelling cannot say which was meant,
+    and the honest answer is no match, which the caller declares.
+    """
+    for index, candidate in enumerate(names):
+        if candidate == name:
+            return index
+    folded = [index for index, candidate in enumerate(names) if candidate.upper() == name.upper()]
+    return folded[0] if len(folded) == 1 else None
+
+
 def _projection_named(scope: Scope, name: str) -> Any:
     projections: list[Any] = getattr(_query_of_scope(scope.expression), "selects", []) or []
-    for projection in projections:
-        if (projection.alias_or_name or "").upper() == name.upper():
-            return projection
-    return None
+    index = _position_named([p.alias_or_name or "" for p in projections], name)
+    return projections[index] if index is not None else None
 
 
 def resolve_projection(
@@ -469,13 +556,7 @@ def resolve_projection(
     parsed, _ = _inline_views(parsed, dictionary, settings.budgets.view_expansion_depth_cap)
     parsed = _resolve_named_windows(parsed)
     try:
-        parsed = qualify(
-            parsed,
-            schema=_schema_for(dictionary),
-            dialect=dictionary.dialect,
-            validate_qualify_columns=False,
-            infer_schema=True,
-        )
+        parsed = _qualify(parsed, dictionary)
     except Exception:
         return None
 
@@ -554,13 +635,7 @@ def resolve_query_influence(
     parsed, _ = _inline_views(parsed, dictionary, settings.budgets.view_expansion_depth_cap)
     parsed = _resolve_named_windows(parsed)
     try:
-        parsed = qualify(
-            parsed,
-            schema=_schema_for(dictionary),
-            dialect=dictionary.dialect,
-            validate_qualify_columns=False,
-            infer_schema=True,
-        )
+        parsed = _qualify(parsed, dictionary)
     except Exception:
         return QueryInfluence((), ())
 
@@ -1065,10 +1140,7 @@ def _trace_through_set_operation(
 
     first = getattr(flattened[0].expression, "selects", []) or [] if flattened else []
     name = column.name.upper()
-    position = next(
-        (i for i, item in enumerate(first) if (item.alias_or_name or "").upper() == name),
-        None,
-    )
+    position = _position_named([item.alias_or_name or "" for item in first], column.name)
     if position is None:
         unresolved.append(
             Boundary(
@@ -1208,6 +1280,36 @@ def _as_filter_influence(edge: PredictedEdge, target_name: str) -> PredictedEdge
     )
 
 
+def _with_statement_ctes(statement: Any, body: Any) -> Any:
+    """The query a write statement runs, with the CTEs written BEFORE the statement attached.
+
+    **Finding B1-01: 84 of batch B1's 115 misses.** PostgreSQL's usual way to feed a write
+    from CTEs is `WITH c AS (...) INSERT INTO t SELECT ... FROM c`. SQLGlot hangs that WITH
+    on the `Insert` node, not on the query, and the analysis only ever reads the query - so
+    `c` reached `qualify` as a bare table no dictionary holds. Every edge through a CTE was
+    lost, declared as `dangling_reference` "relation not in dictionary": honest that
+    something was missing, wrong about what. `INSERT ... WITH ... SELECT` hangs the WITH on
+    the query and always worked, which is why no earlier package saw it.
+
+    The CTEs are moved onto a COPY of the query, so the statement the caller holds is not
+    rewritten under it. When the query has a WITH of its own as well, the statement's CTEs
+    go first: the inner ones are in scope of the outer ones in PostgreSQL, never the
+    reverse. Both SQLGlot spellings of the arg are read, `with_` and the older `with`.
+    """
+    outer = statement.args.get("with_") or statement.args.get("with")
+    if outer is None or body is None or not isinstance(body, (exp.Select, exp.SetOperation)):
+        return body
+    body = body.copy()
+    inner = body.args.get("with_") or body.args.get("with")
+    hoisted = outer.copy()
+    if inner is not None:
+        hoisted.set("expressions", [*hoisted.expressions, *inner.expressions])
+        hoisted.set("recursive", bool(outer.args.get("recursive") or inner.args.get("recursive")))
+    body.set("with", None)
+    body.set("with_", hoisted)
+    return body
+
+
 def _analyse_insert(
     statement: exp.Insert,
     dictionary: Dictionary,
@@ -1218,7 +1320,7 @@ def _analyse_insert(
 ) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
     target_name, target_columns = _target_of(statement, dictionary)
 
-    body = statement.expression
+    body = _with_statement_ctes(statement, statement.expression)
 
     # A TOP-LEVEL SET OPERATION IS AN `INSERT ... SELECT`, NOT AN `INSERT ... VALUES`.
     #
@@ -1578,10 +1680,14 @@ def _call_site_edges(
     # Unknown user-defined calls: cannot be summarised, so no value edge may be claimed.
     # In a real estate most callees start outside the file being analysed, which makes
     # this the common case rather than the exotic one.
+    # A built-in SQLGlot has no class for also parses as Anonymous; it is not a routine
+    # (B1-04, PG-04), so it is left to the ordinary value rule - see `analysis.builtins`.
     unknown = [
         name
         for node in projection.find_all(exp.Anonymous)
-        if (name := (getattr(node, "name", "") or "").upper()) and name not in summaries
+        if (name := (getattr(node, "name", "") or "").upper())
+        and name not in summaries
+        and not is_builtin(name, dictionary.dialect)
     ]
 
     called = [
@@ -1667,6 +1773,24 @@ def _filter_edges(
     """
     edges: list[PredictedEdge] = []
 
+    def emit(found: list[tuple[str, str, Transform]], phase: FilterPhase | None = None) -> None:
+        for source_table, source_column, reached_by in found:
+            edges.append(
+                _edge(
+                    source_table,
+                    source_column,
+                    target_name,
+                    "",
+                    Transform.IDENTITY,
+                    band,
+                    origin,
+                    flow=Flow.FILTER,
+                    # D-6: a WHERE over a value an inner query already aggregated
+                    # acts post-aggregation, whatever the keyword says.
+                    phase=phase or _filter_phase(FilterPhase.PRE_AGGREGATION, reached_by),
+                )
+            )
+
     # Every scope, not just the outermost. A predicate inside an inlined view still
     # decides which rows reach the target, and it is exactly the kind of hidden
     # constraint that makes filter lineage worth reporting.
@@ -1674,24 +1798,15 @@ def _filter_edges(
         where = current.expression.args.get("where")
         if where is not None:
             for column in predicate_columns(where):
-                for source_table, source_column, reached_by in _trace(
-                    column, current, dictionary, unresolved
-                ):
-                    edges.append(
-                        _edge(
-                            source_table,
-                            source_column,
-                            target_name,
-                            "",
-                            Transform.IDENTITY,
-                            band,
-                            origin,
-                            flow=Flow.FILTER,
-                            # D-6: a WHERE over a value an inner query already aggregated
-                            # acts post-aggregation, whatever the keyword says.
-                            phase=_filter_phase(FilterPhase.PRE_AGGREGATION, reached_by),
-                        )
-                    )
+                emit(_trace(column, current, dictionary, unresolved))
+                # D-9: `WHERE rn = 1` over a ranking window - the rank's PARTITION BY and
+                # ORDER BY decide which row survives, though neither is in `rn`'s value.
+                found = _window_filter_sources(column, current, dictionary, unresolved)
+                emit(found, _selection_phase(found))
+
+        # D-9: DISTINCT ON and an ORDER BY under a row limit choose which rows land.
+        found = _row_selection_sources(current, dictionary, unresolved)
+        emit(found, _selection_phase(found))
 
         # A HAVING removes GROUPS, after every row has been counted (S1-03, decision D-2).
         # It is a filter - rows do disappear - but `WHERE amount > 100` and
@@ -1722,6 +1837,114 @@ def _filter_edges(
                         )
                     )
     return edges
+
+
+_ROW_SELECTING_SCOPES = (ScopeType.ROOT, ScopeType.DERIVED_TABLE, ScopeType.CTE)
+
+
+def _selection_phase(found: list[tuple[str, str, Transform]]) -> FilterPhase:
+    """One phase for every column of one row selection (D-9 with D-6).
+
+    A rank, a DISTINCT ON or a top-N picks rows by ONE ordering. If that ordering runs over
+    an aggregated value, the whole selection acts on aggregated rows - including its
+    partition columns, which reach it unaggregated. Deciding per column, as `_filter_phase`
+    does for a WHERE, would split one cut-off across two phases.
+    """
+    if any(transform == Transform.AGGREGATED for _, _, transform in found):
+        return FilterPhase.POST_AGGREGATION
+    return FilterPhase.PRE_AGGREGATION
+
+
+def _ordering_expressions(select: Any) -> list[Any]:
+    """The ORDER BY expressions, with output names and ordinals read as their projections.
+
+    PostgreSQL resolves a bare ORDER BY name against the OUTPUT columns first and only then
+    against the inputs, and `qualify` leaves exactly those references unqualified - an
+    ordinal comes out as a reference to the generated alias. Reading `ORDER BY cost` as the
+    input column when `cost` is also an output alias names the wrong column (T4 S4).
+    """
+    order = select.args.get("order")
+    if order is None:
+        return []
+    projections = select.selects or []
+    names = [p.alias_or_name or "" for p in projections]
+    resolved: list[Any] = []
+    for ordered in order.expressions:
+        expression = ordered.this
+        if isinstance(expression, exp.Literal) and not expression.is_string:
+            index = int(expression.name) - 1
+            if 0 <= index < len(projections):
+                expression = projections[index]
+        elif isinstance(expression, exp.Column) and not expression.table:
+            index = _position_named(names, expression.name)
+            if index is not None:
+                expression = projections[index]
+        resolved.append(expression.this if isinstance(expression, exp.Alias) else expression)
+    return resolved
+
+
+def _ordered_sources(
+    expressions: list[Any], scope: Scope, dictionary: Dictionary, unresolved: list[Boundary]
+) -> list[tuple[str, str, Transform]]:
+    found: list[tuple[str, str, Transform]] = []
+    for expression in expressions:
+        for column in expression.find_all(exp.Column):
+            for table, name, traced in _trace(column, scope, dictionary, unresolved):
+                found.append((table, name, _combine(_transform_of_path(expression, column), traced)))
+    return found
+
+
+def _row_selection_sources(
+    scope: Scope, dictionary: Dictionary, unresolved: list[Boundary]
+) -> list[tuple[str, str, Transform]]:
+    """Columns that choose WHICH rows a query keeps by ordering them (decision D-9).
+
+    * `DISTINCT ON (k) ... ORDER BY k, ts DESC` - the keys and the tie-breakers.
+    * `ORDER BY o ... LIMIT / FETCH / OFFSET` - the ordering, which decides the cut.
+
+    Deliberately NOT: an ORDER BY with no row limit (it removes nothing); a LIMIT with no
+    ORDER BY (it keeps arbitrary rows - no column decides which); plain DISTINCT (the rows
+    it removes are decided by the values already written). Nor a scalar subquery's
+    `ORDER BY ... LIMIT 1`: that picks a VALUE for one column, not which rows land, so only
+    root, derived-table and CTE scopes are read.
+    """
+    if getattr(scope, "scope_type", None) not in _ROW_SELECTING_SCOPES:
+        return []
+    select = scope.expression
+    if not isinstance(select, exp.Select):
+        return []
+
+    chosen: list[Any] = []
+    distinct = select.args.get("distinct")
+    distinct_on = distinct.args.get("on") if distinct is not None else None
+    limited = any(select.args.get(arg) is not None for arg in ("limit", "fetch", "offset"))
+    if distinct_on is not None:
+        chosen.extend(distinct_on.expressions if isinstance(distinct_on, exp.Tuple) else [distinct_on])
+    if distinct_on is not None or limited:
+        chosen.extend(_ordering_expressions(select))
+    return _ordered_sources(chosen, scope, dictionary, unresolved)
+
+
+def _window_filter_sources(
+    column: exp.Column, scope: Scope, dictionary: Dictionary, unresolved: list[Boundary]
+) -> list[tuple[str, str, Transform]]:
+    """A filter on a window's output also filters on what orders and partitions it (D-9).
+
+    `WHERE x.rn = 1` over `ROW_NUMBER() OVER (PARTITION BY p ORDER BY o) AS rn` keeps the
+    first row per p by o. `rn` has no value source at all, so tracing it found nothing and
+    the "latest row per key" selection - the commonest deduplication in warehouse SQL -
+    left no trace. The window's influence columns are exactly the columns the cut depends
+    on, found by the same walk `_window_influence` already makes for D-4.
+    """
+    source = scope.sources.get(column.table) if column.table else None
+    if source is None and not column.table and len(scope.sources) == 1:
+        source = next(iter(scope.sources.values()))
+    if not isinstance(source, Scope) or getattr(source, "union_scopes", None):
+        return []
+    projection = _projection_named(source, column.name)
+    if projection is None:
+        return []
+    return _window_influence(projection, source, dictionary, unresolved)
 
 
 def _filter_phase(clause_phase: FilterPhase, transform: Transform) -> FilterPhase:
@@ -2875,13 +3098,7 @@ def _analyse_statement(
     parsed = _resolve_named_windows(parsed)
 
     try:
-        parsed = qualify(
-            parsed,
-            schema=_schema_for(dictionary),
-            dialect=dictionary.dialect,
-            validate_qualify_columns=False,
-            infer_schema=True,
-        )
+        parsed = _qualify(parsed, dictionary)
     except Exception as exc:
         return (
             [],

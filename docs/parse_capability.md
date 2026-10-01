@@ -194,9 +194,9 @@ which is the project's own failure taxonomy:
 | ~~PG-05~~ | ~~`unnest(...)` in `FROM` drops the unnested element with **no boundary at all**~~ | **FIXED 2026-10-01.** An edge, not a boundary: alias columns bind to the arrays by position, so every `FROM` spelling matches `SELECT unnest(...)`. `stress_pg_02` value 19/0/3 -> 20/0/2 | — |
 | ~~P-02~~ | ~~A `DELETE`'s predicate never sees variables~~ | **FIXED 2026-10-01.** Def-use claims the variable half; a DELETE and the identical UPDATE now report the same variable, and S4-10's subscript rule came with it | — |
 | **PG-22** | A provable column inside a refused CTE is refused with it | **New, and created by PG-20's fix.** `s.id AS ship_id` beside a `JSON_TABLE` loses a true edge. Deliberate — the classifier's refusal does not imply SQLGlot declines the body, and `CONNECT BY` proves bodies can emit guesses — so the safe direction was chosen and the cost registered | **R3** |
-| **PG-04** | `jsonb_build_object` is opaque to its own arguments | The refusal is honest; only its classification is wrong. Nothing is claimed that is not true | **R3** |
+| ~~PG-04~~ | ~~`jsonb_build_object` is opaque to its own arguments~~ | **FIXED 2026-10-01** with B1-04: `analysis/builtins.py` lists the PostgreSQL built-ins SQLGlot leaves untyped, so they are traced like any typed function | — |
 | **S4-13** | A cursor `FOR` loop carries none of the cursor query's predicates | Lost filter edges, Oracle side | **R3** |
-| **PG-15** | `FILTER (WHERE c)` and `SUM(CASE WHEN c ...)` give different lineage for the same number | **Needs a decision from the owner, not a fix.** Currently `xfail`, so the disagreement is pinned and cannot drift unnoticed. The risk of leaving it is that two spellings of one computation keep producing two answers and neither is wrong yet | **R5** |
+| ~~PG-15~~ | ~~`FILTER (WHERE c)` and `SUM(CASE WHEN c ...)` give different lineage~~ | **DECIDED (D-10) AND FIXED 2026-10-01.** FILTER reads as CASE; the xfail is now an assertion | — |
 
 ### 5c. Affects the measurement rather than the answer
 

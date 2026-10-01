@@ -1,0 +1,1479 @@
+# GENERATED from t3_interaction.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for t3_interaction.sql - B1 core SELECT, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# Where two rules meet, both apply and neither is allowed to swallow the other. The
+# common failure this key is built to catch: a window's ORDER BY over an aggregate being
+# reported as a VALUE of the rank, or the GROUP BY being lost once a window sits on top.
+package: pg/b1_core_select/t3_interaction.sql
+dialect: postgres
+source_sha256: ae55d9fca2be83d686eea9469878d9882289d18944296898edfe85f25d38501a
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.margin
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: product_performance.margin
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: channel_mix.period_month
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.status
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: column
+    name: channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.gross_amount
+  target:
+    kind: column
+    name: channel_mix.share_of_region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.amount_usd
+  target:
+    kind: column
+    name: channel_mix.share_of_region
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: column
+    name: channel_mix.share_of_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_line_id
+  target:
+    kind: column
+    name: product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 53
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: product_performance.period_month
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 53
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: product_performance.running_revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 53
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.status
+  target:
+    kind: column
+    name: product_performance.running_revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 53
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.running_revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 53
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: product_performance.running_revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 53
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.segment
+  target:
+    kind: column
+    name: kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.segment
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: column
+    name: kpi_rollup.customers
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.segment
+  target:
+    kind: column
+    name: kpi_rollup.customers
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: kpi_rollup.customers
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 84
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: customer_summary.last_order_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 84
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.channel
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 84
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 84
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 84
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 84
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.cost
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.weight_kg
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.shipments
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but an aggregated column, so the grouping influences
+    it.'
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but an aggregated column, so the grouping influences
+    it.'
+- source:
+    kind: column
+    name: shipments.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.shipments
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but an aggregated column, so the grouping influences
+    it.'
+- source:
+    kind: column
+    name: shipments.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but an aggregated column, so the grouping influences
+    it.'
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 113
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.transit_days
+  target:
+    kind: column
+    name: carrier_scorecard.p50_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 113
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.status
+  target:
+    kind: column
+    name: carrier_scorecard.p50_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 113
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.weight_kg
+  target:
+    kind: column
+    name: carrier_scorecard.p90_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 113
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.p50_transit_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 113
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.p90_transit_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 113
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 129
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.customer_key
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 129
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 129
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: column
+    name: top_customers.position
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 129
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: top_customers.position
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 129
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 129
+  evidence: source_read
+  note: 'D-9: region is the DISTINCT ON key, net_amount its tie-breaker. The ROW_NUMBER is never filtered,
+    so it adds influence only.'
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 129
+  evidence: source_read
+  note: 'D-9: region is the DISTINCT ON key, net_amount its tie-breaker. The ROW_NUMBER is never filtered,
+    so it adds influence only.'
+- source:
+    kind: column
+    name: dim_customer.customer_id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.full_name
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.customer_id
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.full_name
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+  note: 'D-9 + D-6: the LIMIT keeps the top 10 by a SUM, so the filter acts after aggregation.'
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: product_performance.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.gross_amount
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.gross_amount
+  target:
+    kind: column
+    name: product_performance.prev_month_revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.gross_amount
+  target:
+    kind: column
+    name: product_performance.growth_pct
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: product_performance.prev_month_revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: product_performance.growth_pct
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: sales_daily.sale_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: sales_daily.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_id
+  target:
+    kind: column
+    name: sales_daily.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: sales_daily.avg_order_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: sales_daily.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: sales_daily.avg_order_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: sales_daily.rank_in_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: sales_daily.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: sales_daily.avg_order_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: sales_daily.rank_in_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 181
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 201
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: customer_summary.lifetime_orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 201
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: customer_summary.avg_basket
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 201
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 201
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.avg_basket
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 201
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 201
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 201
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: channel_mix.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.channel
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.discount_amount
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+  note: '`orders` is COUNT(*) FILTER (WHERE discount_amount > 0): D-10 makes the FILTER column its only
+    value source.'
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: channel_mix.share_of_region
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: channel_mix.share_of_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.channel
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.channel
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.channel
+  target:
+    kind: column
+    name: channel_mix.share_of_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: channel_mix.share_of_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.status
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+  note: 'D-9: `rnk <= 3` filters a rank partitioned by region and month and ordered by the monthly SUM,
+    so all three decide which rows survive, after aggregation.'
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+  note: 'D-9: `rnk <= 3` filters a rank partitioned by region and month and ordered by the monthly SUM,
+    so all three decide which rows survive, after aggregation.'
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 218
+  evidence: source_read
+  note: 'D-9: `rnk <= 3` filters a rank partitioned by region and month and ordered by the monthly SUM,
+    so all three decide which rows survive, after aggregation.'
+forbidden:
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: product_performance.margin
+  flow: value
+  reason: the rank orders by the SUM; no part of the SUM is in the rank (D-4)
+- source:
+    kind: column
+    name: fct_order_line.status
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  reason: a FILTER inside a window changes one column's value; every row is still written (D-10)
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: kpi_rollup.customers
+  flow: value
+  reason: DENSE_RANK orders by the SUM; no part of it is in the rank (D-4)
+- source:
+    kind: column
+    name: fct_shipment.status
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  reason: FILTER on an ordered-set aggregate changes that one value (D-10)
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: sales_daily.sale_date
+  flow: influence
+  reason: a grouping key does not influence itself (D-2)
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: sales_daily.region
+  flow: influence
+  reason: a grouping key does not influence itself (D-2)
+- source:
+    kind: column
+    name: fct_order_line.discount_amount
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  reason: FILTER changes the count, not which rows land (D-10)
+expected_boundaries: []

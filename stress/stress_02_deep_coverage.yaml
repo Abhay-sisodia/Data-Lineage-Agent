@@ -1447,6 +1447,21 @@ edges:
   # column dependency - and a negative is checked by the absence of a spurious edge, not
   # by a label. So the unit still does its job through the SPURIOUS list, and states
   # nothing in the key. Worth knowing which of the two a unit is before writing it.
+  #
+  # REVISITED 2026-10-01 by decision D-9, exactly as the note above asked: the ORDER BY
+  # under FETCH FIRST decides WHICH fifty rows land, so it is a filter now. ROWNUM and a
+  # bare FETCH FIRST still invent nothing; only the ordering column is new. (The window
+  # ORDER BY it was paired with stays influence: D-9 applies to a window only when its
+  # result is filtered.)
+
+  - source: {kind: column, name: STG_ORDERS.GROSS_AMOUNT}
+    target: {kind: relation, name: GTT_STAGE}
+    flow: filter
+    transform: identity
+    band: 0
+    origin: {unit: S2_ROW_LIMITING, line: 677}
+    evidence: source_read
+    note: D-9 - ORDER BY o.gross_amount DESC FETCH FIRST 50 ROWS ONLY picks which rows land.
 
   # === 26. s2_truncate_reload ===============================================
   # TRUNCATE is DDL and writes no lineage - but the table's entire prior contents

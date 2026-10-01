@@ -291,16 +291,16 @@ def test_a_named_window_is_resolved_through_a_derived_table(
 def test_filter_clause_and_case_inside_an_aggregate_agree(
     book: Dictionary, config: AnalysisConfig
 ) -> None:
-    """PG-15, which needs a decision rather than a fix.
+    """PG-15, decided as D-10 on 2026-10-01 and implemented: FILTER reads as CASE.
 
     `SUM(x) FILTER (WHERE c)` and `SUM(CASE WHEN c THEN x END)` compute the identical
-    number. The first makes `c` a filter on the RELATION; the second makes it a value
-    dependency of the COLUMN. Neither is wrong on its own, and a model that answers
-    differently depending on the spelling is answering a question about syntax.
+    number. The FILTER spelling used to make `c` a filter on the RELATION while the CASE
+    spelling made it a value of the COLUMN - a model answering a question about syntax.
+    D-10 took the column-targeted reading: a relation-targeted filter cannot express that
+    the restriction applies to one aggregate in the select list and not to its neighbour.
 
-    `stress_pg_02`'s key argued for the column-targeted reading before this pair existed: a
-    relation-targeted filter cannot express that the restriction applies to one aggregate in
-    the select list and not to its neighbour.
+    This was a conditional xfail while the decision was open. It is now a plain assertion,
+    so the two spellings cannot drift apart again unnoticed.
     """
     with_filter = (
         "INSERT INTO fct_revenue (cust_id, net_amount)"
@@ -312,5 +312,8 @@ def test_filter_clause_and_case_inside_an_aggregate_agree(
         " SELECT o.cust_id, SUM(CASE WHEN o.currency='GBP' THEN o.gross_amount END)"
         " FROM stg_orders o GROUP BY o.cust_id;"
     )
-    if edges_of(with_filter, book, config) != edges_of(with_case, book, config):
-        pytest.xfail("PG-15: FILTER and CASE spellings of one aggregate disagree")
+    assert edges_of(with_filter, book, config) == edges_of(with_case, book, config)
+    assert any(
+        "currency" in str(edge) and "net_amount" in str(edge)
+        for edge in edges_of(with_filter, book, config)
+    ), "equal by both losing the FILTER column is not agreement"

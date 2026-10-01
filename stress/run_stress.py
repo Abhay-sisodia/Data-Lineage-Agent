@@ -8,7 +8,11 @@ and recorded - not a side effect of writing a test.
 So this runner does the scoring itself, against `stress/`, and prints the same per-band,
 per-flow grid the harness prints. Same scoring code, different inputs.
 
-    .\\.venv\\Scripts\\python.exe stress/run_stress.py
+    .\\.venv\\Scripts\\python.exe stress/run_stress.py           every package
+    .\\.venv\\Scripts\\python.exe stress/run_stress.py pg/b1     only keys whose path contains "pg/b1"
+
+Exits 2 if any forbidden edge appeared, 1 for an origin violation or an undeclared
+boundary - a measurement result, not a crash.
 """
 
 from __future__ import annotations
@@ -29,12 +33,15 @@ STRESS = ROOT / "stress"
 
 
 # One dictionary per dialect. The Oracle one is a CAPTURE, read out of a live XE; the
-# PostgreSQL one is synthetic and says so in stress/dictionary_postgres.md. That difference
-# is a difference in authority, not in mechanism, and it is recorded where a reader of a
-# PostgreSQL score will find it.
+# PostgreSQL one is synthetic - GENERATED from stress/pg/schema.sql by build_dictionary.py.
+# That difference is a difference in authority, not in mechanism, and it is recorded where
+# a reader of a PostgreSQL score will find it.
+#
+# PostgreSQL stress lives in stress/pg/<batch>/ since 2026-10-01 (the batch programme);
+# the earlier stress_pg_* packages were retired then and remain in git history.
 DICTIONARIES = {
     "oracle": ROOT / "corpus" / "dictionary.json",
-    "postgres": STRESS / "dictionary_postgres.json",
+    "postgres": STRESS / "pg" / "dictionary.json",
 }
 
 
@@ -43,7 +50,9 @@ def main() -> int:
     books: dict[str, Dictionary] = {}
 
     worst = 0
-    for key_path in sorted(STRESS.glob("*.yaml")):
+    only = sys.argv[1] if len(sys.argv) > 1 else ""
+    keys = sorted(STRESS.glob("*.yaml")) + sorted(STRESS.glob("pg/**/*.yaml"))
+    for key_path in [k for k in keys if only in k.as_posix()]:
         truth = GroundTruth.load(key_path)
         source = (STRESS / truth.package).read_text(encoding="utf-8")
 
