@@ -103,11 +103,14 @@ def test_the_array_expression_is_traced_through() -> None:
     assert {e[:3] for e in edges} == {("column:public.c.csv", "column:public.a.x", "value")}
 
 
-def test_the_ordinality_column_has_no_value_source() -> None:
-    """A position counter, like ROW_NUMBER(): no column's value is in it. Neither an edge
-    nor a boundary - nothing was lost."""
+def test_the_ordinality_column_is_influenced_by_its_array() -> None:
+    """No column's value is in a position counter, but the array's order decides it - as a
+    window's ORDER BY decides ROW_NUMBER() (D-4). Decision D-26 (2026-10-03) replaced this
+    test's earlier "no source at all": influence from the array, no value, no boundary."""
     sql = "INSERT INTO a (y) SELECT t.n FROM c, unnest(c.tags) WITH ORDINALITY AS t(tag, n)"
-    assert _edges(sql) == set()
+    assert _edges(sql) == {
+        ("column:public.c.tags", "column:public.a.y", "influence", "identity")
+    }
     assert _declared(sql) == []
 
 
@@ -126,7 +129,9 @@ def test_an_alias_list_that_does_not_map_by_position_is_declared() -> None:
     assert _declared(sql) == ["unresolved_identifier"]
 
 
-def test_a_bare_table_alias_is_declared_not_silent() -> None:
+def test_a_bare_table_alias_names_the_one_column() -> None:
+    """PostgreSQL names a base-typed function's single column by its table alias, so `t`
+    IS the element (finding B6-03). It used to be declared as an unbindable column."""
     sql = "INSERT INTO a (x) SELECT t FROM c, unnest(c.tags) AS t"
-    assert _edges(sql) == set()
-    assert _declared(sql) == ["unresolved_identifier"]
+    assert _edges(sql) == {("column:public.c.tags", "column:public.a.x", "value", "derived")}
+    assert _declared(sql) == []

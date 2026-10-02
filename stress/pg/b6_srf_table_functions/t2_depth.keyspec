@@ -1,0 +1,45 @@
+# Answer key for B6 t2_depth.sql - set-returning and table functions, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-26..D-28. Every node is schema-qualified.
+
+@ 16 S1 unnest of an array_agg
+value staging.customers.country_code -> mart.kpi_rollup.region identity
+value staging.customers.segment -> mart.kpi_rollup.level aggregated
+influence staging.customers.country_code -> mart.kpi_rollup.level
+note array_agg is on the element's path, so it is aggregated; the GROUP BY key decides each array (D-2).
+
+@ 34 S2 a literal calendar, facts three CTEs up
+value core.dim_store.id -> mart.sales_daily.store_id identity
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount aggregated
+influence core.fct_order_line.order_date, core.fct_order_line.store_id -> mart.sales_daily.net_amount
+note sale_date is the literal series: no source (D-28). The LEFT JOIN's ON is structural.
+forbid filter core.fct_order_line.order_date -> mart.sales_daily | the LEFT JOIN's ON is structural (D-5)
+
+@ 57 S3 the ordinal filtered a CTE up
+value staging.products.tags -> mart.top_customers.full_name derived
+influence staging.products.tags -> mart.top_customers.position
+filter staging.products.tags -> mart.top_customers
+note r.n <= 3 selects rows by the array's order: a filter from the array, as rn <= 3 is (D-9, D-26).
+
+@ 74 S4 a nested SRF argument, grouped and cut
+value staging.customers.full_name, staging.customers.email -> mart.kpi_rollup.segment derived
+value staging.customers.id -> mart.kpi_rollup.orders aggregated
+influence staging.customers.full_name, staging.customers.email -> mart.kpi_rollup.orders
+filter staging.customers.id -> mart.kpi_rollup post
+
+@ 91 S5 tags and payments joined, grouped by tag
+value staging.orders.tags -> mart.channel_mix.channel derived
+value staging.payments.amount -> mart.channel_mix.revenue aggregated
+influence staging.orders.tags, staging.payments.order_id -> mart.channel_mix.revenue
+forbid filter staging.payments.order_id -> mart.channel_mix | the ON is structural (D-5)
+
+@ 111 S6 ROWS FROM an unnest and a series over its length
+value staging.orders.tags -> mart.top_customers.region derived
+value staging.orders.tags -> mart.top_customers.customer_id derived
+note The series' bound is cardinality(o.tags): derived from the array (D-28).
+
+@ 123 S7 a month series between aggregated bounds
+value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value core.fct_shipment.shipped_date -> mart.carrier_scorecard.period_month aggregated
+influence core.fct_shipment.carrier_id -> mart.carrier_scorecard.period_month

@@ -1,0 +1,361 @@
+# GENERATED from t3_interaction.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B6 t3_interaction.sql - set-returning and table functions, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-26..D-28. Every node is schema-qualified.
+package: pg/b6_srf_table_functions/t3_interaction.sql
+dialect: postgres
+source_sha256: 978abf0dc18020b546e23eee0014d0f060820b7f19a92e8704f1413e4676065e
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: column
+    name: mart.top_customers.position
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.list_price
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.id
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+  note: PARTITION BY p.id; ORDER BY t.n, whose order is the array's (D-4, D-26).
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+  note: PARTITION BY p.id; ORDER BY t.n, whose order is the array's (D-4, D-26).
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 35
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 35
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: column
+    name: core.dim_product.category_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: relation
+    name: core.dim_product
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.capacity
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.kpi_rollup.customers
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+  note: 'The subquery''s WHERE reads the email''s parts: a value of the count, aggregated (D-12).'
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: influence
+  reason: a grouping key does not influence itself (D-2)
+- source:
+    kind: column
+    name: staging.products.id
+  target:
+    kind: relation
+    name: core.dim_product
+  flow: filter
+  reason: p.id = d.product_id joins the target to FROM (D-11)
+- source:
+    kind: column
+    name: core.dim_product.product_id
+  target:
+    kind: relation
+    name: core.dim_product
+  flow: filter
+  reason: p.id = d.product_id joins the target to FROM (D-11)
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  reason: a scalar subquery's WHERE decides one value, not which rows land (D-12)
+expected_boundaries: []

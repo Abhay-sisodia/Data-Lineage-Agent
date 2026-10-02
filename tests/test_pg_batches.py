@@ -115,6 +115,23 @@ EXPECTED = {
     ("b9_names_resolution/t5_metamorphic", Flow.VALUE): (24, 0, 0),
     ("b9_names_resolution/t5_metamorphic", Flow.FILTER): (3, 0, 0),
     ("b9_names_resolution/t5_metamorphic", Flow.INFLUENCE): (1, 0, 0),
+    # B6 set-returning and table functions - agreed 2026-10-03 after every fix in
+    # REPORT.md section 6. No false positive, no miss, none hidden; all six pairs equal.
+    ("b6_srf_table_functions/t1_breadth", Flow.VALUE): (24, 0, 0),
+    ("b6_srf_table_functions/t1_breadth", Flow.FILTER): (2, 0, 0),
+    ("b6_srf_table_functions/t1_breadth", Flow.INFLUENCE): (3, 0, 0),
+    ("b6_srf_table_functions/t2_depth", Flow.VALUE): (14, 0, 0),
+    ("b6_srf_table_functions/t2_depth", Flow.FILTER): (2, 0, 0),
+    ("b6_srf_table_functions/t2_depth", Flow.INFLUENCE): (9, 0, 0),
+    ("b6_srf_table_functions/t3_interaction", Flow.VALUE): (14, 0, 0),
+    ("b6_srf_table_functions/t3_interaction", Flow.FILTER): (5, 0, 0),
+    ("b6_srf_table_functions/t3_interaction", Flow.INFLUENCE): (5, 0, 0),
+    ("b6_srf_table_functions/t4_adversarial", Flow.VALUE): (18, 0, 0),
+    ("b6_srf_table_functions/t4_adversarial", Flow.FILTER): (2, 0, 0),
+    ("b6_srf_table_functions/t4_adversarial", Flow.INFLUENCE): (1, 0, 0),
+    ("b6_srf_table_functions/t5_metamorphic", Flow.VALUE): (10, 0, 0),
+    ("b6_srf_table_functions/t5_metamorphic", Flow.FILTER): (2, 0, 0),
+    ("b6_srf_table_functions/t5_metamorphic", Flow.INFLUENCE): (2, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})

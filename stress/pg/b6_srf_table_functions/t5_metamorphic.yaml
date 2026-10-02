@@ -1,0 +1,221 @@
+# GENERATED from t5_metamorphic.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B6 t5_metamorphic.sql - set-returning and table functions, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-26..D-28. Every node is schema-qualified.
+# Pair facts are stated at spelling A and restated at B with `repeat`.
+package: pg/b6_srf_table_functions/t5_metamorphic.sql
+dialect: postgres
+source_sha256: e41e2101068e827b96c1a96133c16c2e886d86cb519df5fd0c180cdf76f4dc9d
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 29
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 42
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.discount_code
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 42
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.kpi_rollup.country_code
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.capacity
+  target:
+    kind: column
+    name: mart.kpi_rollup.orders
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 80
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: column
+    name: mart.product_performance.category_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.quantity
+  target:
+    kind: column
+    name: mart.product_performance.units
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.net_amount
+  target:
+    kind: column
+    name: mart.product_performance.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: column
+    name: mart.product_performance.units
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+  note: 'GROUP BY tl.tag (the array) and mo.month. mo.month is the literal series: no source, so it influences
+    nothing and period_month has no edge (D-28). The line''s own month reaches the result only through
+    the join, which is structural.'
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: column
+    name: mart.product_performance.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+  note: 'GROUP BY tl.tag (the array) and mo.month. mo.month is the literal series: no source, so it influences
+    nothing and period_month has no edge (D-28). The line''s own month reaches the result only through
+    the join, which is structural.'
+- source:
+    kind: column
+    name: staging.products.tags
+  target:
+    kind: relation
+    name: mart.product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+  note: t.n <= 2 is a filter from the array (D-26, D-9); f.status a plain filter.
+- source:
+    kind: column
+    name: core.fct_order_line.status
+  target:
+    kind: relation
+    name: mart.product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+  note: t.n <= 2 is a filter from the array (D-26, D-9); f.status a plain filter.
+forbidden:
+- source:
+    kind: column
+    name: core.fct_order_line.order_date
+  target:
+    kind: relation
+    name: mart.product_performance
+  flow: filter
+  reason: the join to the calendar is structural (D-5)
+- source:
+    kind: column
+    name: core.fct_order_line.product_key
+  target:
+    kind: relation
+    name: mart.product_performance
+  flow: filter
+  reason: the ON is structural (D-5)
+expected_boundaries: []

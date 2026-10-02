@@ -1,0 +1,75 @@
+# Answer key for B6 t1_breadth.sql - set-returning and table functions, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-26..D-28 (decided 2026-10-03, not implemented).
+# Every node is schema-qualified (D-25). S7's series has no source and no boundary; that
+# absence is checked in the report, not expressible here.
+
+expect dangling_reference TABLE(ANALYTICS.EXPLODE_PAYLOAD) | S10: a user-defined SRF's body is not in this analysis; declared, never guessed
+
+@ 17 S1 unnest in FROM
+value staging.orders.tags -> mart.channel_mix.channel derived
+value staging.orders.amount -> mart.channel_mix.revenue identity
+forbid filter staging.orders.tags -> mart.channel_mix | an SRF in FROM is structural, like a join (D-27)
+
+@ 25 S2 CROSS JOIN LATERAL, element filtered
+value staging.products.tags -> mart.channel_mix.channel derived
+filter staging.products.tags -> mart.channel_mix
+note The WHERE on the element is a filter on its array.
+
+@ 35 S3 two arrays by position
+value staging.orders.tags -> mart.kpi_rollup.level derived
+value staging.orders.discount_code -> mart.kpi_rollup.segment derived
+forbid value staging.orders.tags -> mart.kpi_rollup.segment derived | the arrays bind by position: b is the second array
+
+@ 44 S4 ARRAY[] constructor
+value staging.customers.country_code, staging.customers.segment -> mart.kpi_rollup.region derived
+
+@ 52 S5 WITH ORDINALITY (D-26)
+value staging.products.tags -> mart.top_customers.full_name derived
+influence staging.products.tags -> mart.top_customers.position
+forbid value staging.products.tags -> mart.top_customers.position derived | the ordinal is a position, not a value from the array (D-26)
+
+@ 61 S6 ROWS FROM with ordinality
+value staging.orders.tags -> mart.top_customers.region derived
+value staging.orders.currency -> mart.top_customers.full_name derived
+influence staging.orders.tags, staging.orders.currency -> mart.top_customers.position
+
+@ 70 S7 a series of literals
+value core.dim_warehouse.id -> mart.sales_daily.store_id identity
+
+@ 79 S8 a series bounded by a column (D-28)
+value core.dim_store.opened_on -> mart.sales_daily.sale_date derived
+value core.dim_store.region -> mart.sales_daily.region identity
+
+@ 88 S9 a series in the select list
+value core.dim_warehouse.capacity -> mart.kpi_rollup.orders derived
+value core.dim_warehouse.id -> mart.kpi_rollup.customers identity
+
+@ 97 S10 a user-defined SRF with a column-definition list
+forbid value staging.orders.payload -> mart.kpi_rollup.level derived | the routine's body is not visible: declared, not guessed
+forbid value staging.orders.payload -> mart.kpi_rollup.revenue derived | the routine's body is not visible: declared, not guessed
+
+@ 105 S11 TABLESAMPLE
+value staging.orders.channel -> mart.channel_mix.region identity
+value staging.orders.id -> mart.channel_mix.orders identity
+filter staging.orders.status -> mart.channel_mix
+
+@ 114 S12 regexp_split_to_table
+value staging.customers.email -> mart.kpi_rollup.country_code derived
+
+@ 122 S13 string_to_table in FROM
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.revenue derived
+
+@ 130 S14 an unaliased unnest
+value staging.orders.tags -> mart.product_performance.category_name derived
+
+@ 138 S15 unnest in the select list over a nested function
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.customers.email -> mart.customer_summary.segment derived
+
+@ 147 S16 an unnest whose output is never used (D-27)
+value staging.orders.amount -> mart.sales_daily.gross_amount identity
+forbid filter staging.orders.tags -> mart.sales_daily | an SRF in FROM is structural, like a join (D-27)
+forbid influence staging.orders.tags -> mart.sales_daily.gross_amount | the unnest repeats rows but names no column (D-27)

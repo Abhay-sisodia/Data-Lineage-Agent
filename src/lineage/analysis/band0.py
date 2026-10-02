@@ -35,6 +35,7 @@ from sqlglot.optimizer.scope import Scope, ScopeType, build_scope
 from lineage.analysis.builtins import is_builtin
 from lineage.analysis.pg_dml import expand as expand_postgres_writes
 from lineage.analysis.relations import AMBIGUOUS, identifier
+from lineage.analysis.srf import restate as restate_srfs
 from lineage.analysis.relations import bind as bind_relations
 from lineage.analysis.relations import (
     SEARCH_PATH,
@@ -562,6 +563,7 @@ def _qualify(parsed: Any, dictionary: Dictionary, search_path: list[str] | None 
     """
     for written in parsed.find_all(exp.Coalesce):
         written.meta["written"] = True
+    parsed = restate_srfs(parsed, dictionary.dialect)
     parsed = bind_relations(parsed, dictionary, search_path)
     if dictionary.dialect == "postgres":
         parsed = session_keywords(parsed)
@@ -820,6 +822,13 @@ def _row_source_subject(source: exp.Table, dialect: str) -> str:
     stays visible in the boundary listing where someone can act on it.
     """
     function = source.this
+    # A function called directly as the row source - PostgreSQL's `FROM s.f(x) AS r(...)`
+    # - IS the thing we could not see. Only Oracle's `TABLE(f(x))` wraps it, and there the
+    # call is the first argument; here the first argument is data (`TABLE(O.PAYLOAD)`).
+    if isinstance(function, exp.Anonymous) and function.name.upper() != "TABLE":
+        owner = source.text("db")
+        head = f"{owner}.{function.name}" if owner else function.name
+        return f"TABLE({head.upper()})"
     arguments = getattr(function, "expressions", None) or []
     if arguments:
         # The called expression rendered without its arguments: `pkg.f(1)` -> `PKG.F`.
@@ -1265,6 +1274,12 @@ def _window_influence(
     found: list[tuple[str, str, Transform]] = []
     for column in _window_influence_columns(projection):
         found.extend(_trace(column, scope, dictionary, unresolved, depth + 1))
+        # An ordering column that is itself a window - a ROW_NUMBER one level down, or an
+        # SRF's ordinal (D-26) - has no value to trace, only the ordering behind it. That
+        # ordering decides this window's order too, so it is carried up (D-4, composed).
+        inner = _projection_behind(column, scope)
+        if inner is not None:
+            found.extend(_window_influence(inner[0], inner[1], dictionary, unresolved, depth + 1))
 
     for column in _value_columns(projection):
         source = scope.sources.get(column.table) if column.table else None
@@ -1277,6 +1292,17 @@ def _window_influence(
             continue
         found.extend(_window_influence(inner, source, dictionary, unresolved, depth + 1))
     return found
+
+
+def _projection_behind(column: Any, scope: Scope) -> tuple[Any, Scope] | None:
+    """The projection a column reads from a derived table, CTE or LATERAL, with its scope."""
+    source = scope.sources.get(column.table) if column.table else None
+    if source is None and len(scope.sources) == 1:
+        source = next(iter(scope.sources.values()))
+    if not isinstance(source, Scope):
+        return None
+    inner = _projection_named(source, column.name)
+    return (inner, source) if inner is not None else None
 
 
 def _grouping_influence(

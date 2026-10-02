@@ -1,0 +1,48 @@
+# Answer key for B6 t5_metamorphic.sql - set-returning and table functions, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-26..D-28. Every node is schema-qualified.
+# Pair facts are stated at spelling A and restated at B with `repeat`.
+
+@ 17 P1A unnest in FROM
+value staging.orders.tags -> mart.channel_mix.channel derived
+@ 22 P1B unnest in the select list
+repeat value staging.orders.tags -> mart.channel_mix.channel derived
+
+@ 29 P2A comma
+value staging.products.tags -> mart.kpi_rollup.level derived
+@ 34 P2B CROSS JOIN LATERAL
+repeat value staging.products.tags -> mart.kpi_rollup.level derived
+
+@ 42 P3A ROWS FROM
+value staging.orders.tags -> mart.top_customers.region derived
+value staging.orders.discount_code -> mart.top_customers.full_name derived
+@ 48 P3B two-array unnest
+repeat value staging.orders.tags -> mart.top_customers.region derived
+repeat value staging.orders.discount_code -> mart.top_customers.full_name derived
+
+@ 56 P4A string_to_table
+value staging.customers.full_name -> mart.kpi_rollup.segment derived
+@ 61 P4B unnest(string_to_array)
+repeat value staging.customers.full_name -> mart.kpi_rollup.segment derived
+
+@ 68 P5A regexp_split_to_table
+value staging.customers.email -> mart.kpi_rollup.country_code derived
+@ 73 P5B unnest(regexp_split_to_array)
+repeat value staging.customers.email -> mart.kpi_rollup.country_code derived
+
+@ 80 P6A series in FROM
+value core.dim_warehouse.capacity -> mart.kpi_rollup.orders derived
+@ 85 P6B series in the select list
+repeat value core.dim_warehouse.capacity -> mart.kpi_rollup.orders derived
+
+@ 98 R1 tag revenue by month
+value staging.products.tags -> mart.product_performance.category_name derived
+value core.fct_order_line.quantity -> mart.product_performance.units aggregated
+value core.fct_order_line.net_amount -> mart.product_performance.revenue aggregated
+influence staging.products.tags -> mart.product_performance.units, mart.product_performance.revenue
+note GROUP BY tl.tag (the array) and mo.month. mo.month is the literal series: no source, so it influences nothing and period_month has no edge (D-28). The line's own month reaches the result only through the join, which is structural.
+filter staging.products.tags, core.fct_order_line.status -> mart.product_performance
+note t.n <= 2 is a filter from the array (D-26, D-9); f.status a plain filter.
+forbid filter core.fct_order_line.order_date -> mart.product_performance | the join to the calendar is structural (D-5)
+forbid filter core.fct_order_line.product_key -> mart.product_performance | the ON is structural (D-5)

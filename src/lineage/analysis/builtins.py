@@ -42,8 +42,6 @@ SCALAR = {
             # MERGE ... RETURNING merge_action() (PostgreSQL 17): reports the arm, no column
             "MERGE_ACTION",
             # finding B4-03: a row constructor, regex, range and numeric built-ins.
-            # `regexp_split_to_table` is left out on purpose: it returns a SET, and a
-            # set-returning function in a select list changes the row count (batch B6).
             "ROW", "REGEXP_MATCH", "REGEXP_SPLIT_TO_ARRAY",
             "TSTZRANGE", "TSRANGE", "DATERANGE", "NUMRANGE", "INT4RANGE", "INT8RANGE",
             "TSTZMULTIRANGE", "TSMULTIRANGE", "DATEMULTIRANGE", "NUMMULTIRANGE",
@@ -51,6 +49,8 @@ SCALAR = {
             "ISEMPTY", "LOWER_INC", "UPPER_INC", "LOWER_INF", "UPPER_INF",
             "ARRAY_POSITIONS", "ARRAY_REPLACE", "TRIM_SCALE", "SCALE", "MIN_SCALE",
             "GCD", "LCM",
+            # B6: set-returning built-ins read element-wise, like unnest (D-28 for series).
+            "STRING_TO_TABLE", "REGEXP_SPLIT_TO_TABLE", "GENERATE_SUBSCRIPTS", "UNNEST",
         }
     ),
 }

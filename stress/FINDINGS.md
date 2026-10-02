@@ -148,6 +148,12 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B9-02 | `construct-coverage` | **fixed** | a quoted mixed-case relation (`staging."LegacyFeed"`) is declared "not in dictionary": lookup folds the name after the quote is lost Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
 | B9-03 | `refusal-taxonomy` | **fixed** | `INSERT INTO t SELECT * ...` with no column list is refused for arity: B3's omitted-list width counts `*` as one projection (a B3 regression) Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
 | B9-04 | `flow-classification` | **fixed** | **`x.*` over a USING join yields the merged column instead of x's own** - a wrong edge (`customers.id` for `orders.customer_id`) Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
+| B6-01 | `construct-coverage` | **fixed** | built-in SRFs in FROM other than unnest (`generate_series`, `string_to_table`, `regexp_split_to_table`) are "row source is a function": columns lost, false reason; a literal series still raises a boundary. `stress/pg/b6_srf_table_functions/REPORT.md` Fixed 2026-10-03; `stress/pg/b6_srf_table_functions/REPORT.md` section 6. |
+| B6-02 | `construct-coverage` | **fixed** | `ROWS FROM (...)` unsupported: declared dangling, every column lost Fixed 2026-10-03; `stress/pg/b6_srf_table_functions/REPORT.md` section 6. |
+| B6-03 | `construct-coverage` | **fixed** | a single-column SRF aliased by table name only (`AS v`, or unaliased `unnest`) is declared "0 alias columns"; PostgreSQL names the column by the alias Fixed 2026-10-03; `stress/pg/b6_srf_table_functions/REPORT.md` section 6. |
+| B6-04 | `construct-coverage` | **fixed** | `regexp_split_to_table` in the select list is `source_unavailable` (held out of the built-ins in B4 pending B6) Fixed 2026-10-03; `stress/pg/b6_srf_table_functions/REPORT.md` section 6. |
+| B6-05 | `refusal-taxonomy` | **fixed** | **WITH ORDINALITY inside a CROSS JOIN LATERAL refuses the whole statement** ("Unknown column: n") once the ordinal is referenced Fixed 2026-10-03; `stress/pg/b6_srf_table_functions/REPORT.md` section 6. |
+| B6-06 | `scope` | **fixed** | an SRF over a scalar subquery traces the subquery's columns from the wrong scope (`unnest((SELECT array_agg(p.brand) ...))`) Fixed 2026-10-03; `stress/pg/b6_srf_table_functions/REPORT.md` section 6. |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4553,3 +4559,16 @@ Taken by Abhay before batch B9's keys were written. Full statements in
 **Schema (B9-QC):** additive B9 objects in `stress/pg/schema.sql` (`staging."LegacyFeed"`,
 `mart."FeedSummary"`, `staging.ledger` / `core.ledger`, `staging.events_log` /
 `mart.events_log`); B1-B4 unaffected.
+
+## Decisions taken — 2026-10-03 (D-26 to D-28)
+
+Taken by Abhay before batch B6's keys were written. Full statements in
+`stress/pg/b6_srf_table_functions/OBJECTIVES.md`. D-27 already held; D-26 and D-28 were
+implemented 2026-10-03 (B6 REPORT section 6).
+
+* **D-26** - the WITH ORDINALITY column gets influence from its array(s), no value (as a
+  window's ORDER BY influences ROW_NUMBER, D-4). Replaces PG-05's pinned "no source at all".
+* **D-27** - a set-returning function in FROM is structural, like a join: its argument gives
+  no filter and no influence unless the SRF's output is itself used.
+* **D-28** - a series is derived from its bound columns; a series of literals has no source,
+  no edge and no boundary.

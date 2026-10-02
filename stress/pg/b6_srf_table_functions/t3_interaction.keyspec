@@ -1,0 +1,48 @@
+# Answer key for B6 t3_interaction.sql - set-returning and table functions, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-26..D-28. Every node is schema-qualified.
+
+@ 15 S1 GROUP BY an element
+value staging.orders.tags -> mart.channel_mix.channel derived
+value staging.orders.amount -> mart.channel_mix.revenue aggregated
+influence staging.orders.tags -> mart.channel_mix.revenue
+forbid influence staging.orders.tags -> mart.channel_mix.channel | a grouping key does not influence itself (D-2)
+
+@ 24 S2 a window ordered by the ordinal
+value staging.products.tags -> mart.top_customers.full_name derived
+influence staging.products.tags -> mart.top_customers.position
+value staging.products.list_price -> mart.top_customers.revenue aggregated
+influence staging.products.id, staging.products.tags -> mart.top_customers.revenue
+note PARTITION BY p.id; ORDER BY t.n, whose order is the array's (D-4, D-26).
+
+@ 35 S3 ORDER BY an element under LIMIT
+value staging.products.tags -> mart.kpi_rollup.level derived
+filter staging.products.tags -> mart.kpi_rollup
+
+@ 47 S4 LEFT JOIN LATERAL, then an outer WHERE on the element
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.customers.email -> mart.customer_summary.segment derived
+filter staging.customers.email -> mart.customer_summary
+
+@ 58 S5 UPDATE ... FROM unnest with ordinality
+value staging.products.tags -> core.dim_product.category_name derived
+filter staging.products.tags -> core.dim_product
+forbid filter staging.products.id -> core.dim_product | p.id = d.product_id joins the target to FROM (D-11)
+forbid filter core.dim_product.product_id -> core.dim_product | p.id = d.product_id joins the target to FROM (D-11)
+
+@ 68 S6 a series summed per key
+value core.dim_warehouse.region -> mart.kpi_rollup.region identity
+value core.dim_warehouse.capacity -> mart.kpi_rollup.revenue aggregated
+influence core.dim_warehouse.region -> mart.kpi_rollup.revenue
+
+@ 77 S7 an SRF inside a scalar subquery (D-12)
+value staging.customers.full_name -> mart.kpi_rollup.segment identity
+value staging.customers.email -> mart.kpi_rollup.customers aggregated
+note The subquery's WHERE reads the email's parts: a value of the count, aggregated (D-12).
+forbid filter staging.customers.email -> mart.kpi_rollup | a scalar subquery's WHERE decides one value, not which rows land (D-12)
+
+@ 87 S8 DISTINCT ON an element
+value staging.orders.tags -> mart.top_customers.region derived
+value staging.orders.customer_id -> mart.top_customers.customer_id identity
+filter staging.orders.tags, staging.orders.order_ts -> mart.top_customers
