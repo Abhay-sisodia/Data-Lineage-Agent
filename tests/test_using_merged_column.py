@@ -35,14 +35,14 @@ def _using(join: str) -> str:
 @pytest.mark.parametrize(
     ("join", "expected"),
     [
-        ("JOIN", {("column:shipments.order_id", "identity")}),
-        ("LEFT JOIN", {("column:shipments.order_id", "identity")}),
-        ("RIGHT JOIN", {("column:payments.order_id", "identity")}),
+        ("JOIN", {("column:staging.shipments.order_id", "identity")}),
+        ("LEFT JOIN", {("column:staging.shipments.order_id", "identity")}),
+        ("RIGHT JOIN", {("column:staging.payments.order_id", "identity")}),
         (
             "FULL JOIN",
             {
-                ("column:shipments.order_id", "conditional"),
-                ("column:payments.order_id", "conditional"),
+                ("column:staging.shipments.order_id", "conditional"),
+                ("column:staging.payments.order_id", "conditional"),
             },
         ),
     ],
@@ -68,8 +68,8 @@ def test_a_coalesce_written_by_hand_is_left_alone() -> None:
         "FROM staging.shipments AS sh JOIN staging.payments AS p ON p.order_id = sh.order_id"
     )
     assert _sources(written) == {
-        ("column:shipments.order_id", "conditional"),
-        ("column:payments.order_id", "conditional"),
+        ("column:staging.shipments.order_id", "conditional"),
+        ("column:staging.payments.order_id", "conditional"),
     }
 
 
@@ -79,4 +79,4 @@ def test_natural_join_takes_the_left_input() -> None:
         "FROM (SELECT wh.region, wh.capacity FROM core.dim_warehouse AS wh) AS w "
         "NATURAL JOIN (SELECT st.region, st.opened_on FROM core.dim_store AS st) AS s"
     )
-    assert _sources(sql) == {("column:dim_warehouse.region", "identity")}
+    assert _sources(sql) == {("column:core.dim_warehouse.region", "identity")}

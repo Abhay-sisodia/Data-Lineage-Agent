@@ -17,10 +17,10 @@ labelled_at: '2026-10-01'
 edges:
 - source:
     kind: column
-    name: customers.id
+    name: staging.customers.id
   target:
     kind: column
-    name: top_customers.customer_id
+    name: mart.top_customers.customer_id
   flow: value
   transform: identity
   band: 0
@@ -30,10 +30,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.segment
+    name: staging.customers.segment
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: identity
   band: 0
@@ -43,10 +43,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.customer_id
+    name: staging.orders.customer_id
   target:
     kind: relation
-    name: top_customers
+    name: mart.top_customers
   flow: filter
   transform: identity
   band: 0
@@ -56,10 +56,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.id
+    name: staging.customers.id
   target:
     kind: relation
-    name: top_customers
+    name: mart.top_customers
   flow: filter
   transform: identity
   band: 0
@@ -69,10 +69,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.status
+    name: staging.orders.status
   target:
     kind: relation
-    name: top_customers
+    name: mart.top_customers
   flow: filter
   transform: identity
   band: 0
@@ -82,10 +82,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.id
+    name: staging.orders.id
   target:
     kind: column
-    name: channel_mix.orders
+    name: mart.channel_mix.orders
   flow: value
   transform: identity
   band: 0
@@ -95,10 +95,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.channel
+    name: staging.orders.channel
   target:
     kind: column
-    name: channel_mix.channel
+    name: mart.channel_mix.channel
   flow: value
   transform: identity
   band: 0
@@ -108,10 +108,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.id
+    name: staging.orders.id
   target:
     kind: relation
-    name: channel_mix
+    name: mart.channel_mix
   flow: filter
   transform: identity
   band: 0
@@ -121,10 +121,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.order_id
+    name: staging.payments.order_id
   target:
     kind: relation
-    name: channel_mix
+    name: mart.channel_mix
   flow: filter
   transform: identity
   band: 0
@@ -134,10 +134,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.method
+    name: staging.payments.method
   target:
     kind: relation
-    name: channel_mix
+    name: mart.channel_mix
   flow: filter
   transform: identity
   band: 0
@@ -147,10 +147,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_store.region
+    name: core.dim_store.region
   target:
     kind: column
-    name: kpi_rollup.region
+    name: mart.kpi_rollup.region
   flow: value
   transform: identity
   band: 0
@@ -160,10 +160,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_warehouse.region
+    name: core.dim_warehouse.region
   target:
     kind: column
-    name: kpi_rollup.region
+    name: mart.kpi_rollup.region
   flow: value
   transform: identity
   band: 0
@@ -173,10 +173,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_warehouse.status
+    name: core.dim_warehouse.status
   target:
     kind: relation
-    name: kpi_rollup
+    name: mart.kpi_rollup
   flow: filter
   transform: identity
   band: 0
@@ -186,10 +186,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.channel
+    name: staging.orders.channel
   target:
     kind: column
-    name: sales_daily.region
+    name: mart.sales_daily.region
   flow: value
   transform: identity
   band: 0
@@ -199,10 +199,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.method
+    name: staging.payments.method
   target:
     kind: column
-    name: sales_daily.region
+    name: mart.sales_daily.region
   flow: value
   transform: identity
   band: 0
@@ -212,10 +212,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_product.product_key
+    name: core.dim_product.product_key
   target:
     kind: column
-    name: product_performance.product_id
+    name: mart.product_performance.product_id
   flow: value
   transform: identity
   band: 0
@@ -225,10 +225,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_product.category_name
+    name: core.dim_product.category_name
   target:
     kind: column
-    name: product_performance.category_name
+    name: mart.product_performance.category_name
   flow: value
   transform: identity
   band: 0
@@ -238,10 +238,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.quantity
+    name: core.fct_order_line.quantity
   target:
     kind: relation
-    name: product_performance
+    name: mart.product_performance
   flow: filter
   transform: identity
   band: 0
@@ -251,10 +251,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_product.product_key
+    name: core.dim_product.product_key
   target:
     kind: relation
-    name: product_performance
+    name: mart.product_performance
   flow: filter
   transform: identity
   band: 0
@@ -266,10 +266,10 @@ edges:
     D-5.'
 - source:
     kind: column
-    name: fct_order_line.product_key
+    name: core.fct_order_line.product_key
   target:
     kind: relation
-    name: product_performance
+    name: mart.product_performance
   flow: filter
   transform: identity
   band: 0
@@ -281,10 +281,10 @@ edges:
     D-5.'
 - source:
     kind: column
-    name: customers.id
+    name: staging.customers.id
   target:
     kind: column
-    name: customer_summary.customer_id
+    name: mart.customer_summary.customer_id
   flow: value
   transform: identity
   band: 0
@@ -294,10 +294,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.customer_id
+    name: staging.orders.customer_id
   target:
     kind: relation
-    name: customer_summary
+    name: mart.customer_summary
   flow: filter
   transform: identity
   band: 0
@@ -307,10 +307,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.status
+    name: staging.orders.status
   target:
     kind: relation
-    name: customer_summary
+    name: mart.customer_summary
   flow: filter
   transform: identity
   band: 0
@@ -320,10 +320,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.id
+    name: staging.customers.id
   target:
     kind: relation
-    name: customer_summary
+    name: mart.customer_summary
   flow: filter
   transform: identity
   band: 0
@@ -335,10 +335,10 @@ edges:
     only a value (convention (a)).'
 - source:
     kind: column
-    name: dim_carrier.id
+    name: core.dim_carrier.id
   target:
     kind: column
-    name: carrier_scorecard.carrier_id
+    name: mart.carrier_scorecard.carrier_id
   flow: value
   transform: identity
   band: 0
@@ -348,10 +348,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.transit_days
+    name: core.fct_shipment.transit_days
   target:
     kind: column
-    name: carrier_scorecard.avg_transit_days
+    name: mart.carrier_scorecard.avg_transit_days
   flow: value
   transform: aggregated
   band: 0
@@ -361,25 +361,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.carrier_id
+    name: core.fct_shipment.carrier_id
   target:
     kind: column
-    name: carrier_scorecard.avg_transit_days
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 143
-  evidence: source_read
-  note: 'Spelling A only (D-12). RELABELLED UNDER D-14: spelling B''s LATERAL cannot remove a carrier,
-    so its WHERE is the same value as A''s (D-12). P7 is now a MUST-EQUAL pair.'
-- source:
-    kind: column
-    name: dim_carrier.id
-  target:
-    kind: column
-    name: carrier_scorecard.avg_transit_days
+    name: mart.carrier_scorecard.avg_transit_days
   flow: value
   transform: aggregated
   band: 0
@@ -391,10 +376,25 @@ edges:
     so its WHERE is the same value as A''s (D-12). P7 is now a MUST-EQUAL pair.'
 - source:
     kind: column
-    name: orders.id
+    name: core.dim_carrier.id
   target:
     kind: column
-    name: sales_daily.orders
+    name: mart.carrier_scorecard.avg_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+  note: 'Spelling A only (D-12). RELABELLED UNDER D-14: spelling B''s LATERAL cannot remove a carrier,
+    so its WHERE is the same value as A''s (D-12). P7 is now a MUST-EQUAL pair.'
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.sales_daily.orders
   flow: value
   transform: identity
   band: 0
@@ -404,10 +404,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.amount
+    name: staging.payments.amount
   target:
     kind: column
-    name: sales_daily.net_amount
+    name: mart.sales_daily.net_amount
   flow: value
   transform: identity
   band: 0
@@ -417,10 +417,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.order_id
+    name: staging.payments.order_id
   target:
     kind: column
-    name: sales_daily.net_amount
+    name: mart.sales_daily.net_amount
   flow: value
   transform: conditional
   band: 0
@@ -430,10 +430,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.id
+    name: staging.orders.id
   target:
     kind: column
-    name: sales_daily.net_amount
+    name: mart.sales_daily.net_amount
   flow: value
   transform: conditional
   band: 0
@@ -443,10 +443,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.paid_at
+    name: staging.payments.paid_at
   target:
     kind: column
-    name: sales_daily.net_amount
+    name: mart.sales_daily.net_amount
   flow: influence
   transform: identity
   band: 0
@@ -457,10 +457,10 @@ edges:
   note: Spelling A only (D-12, D-13).
 - source:
     kind: column
-    name: payments.order_id
+    name: staging.payments.order_id
   target:
     kind: column
-    name: sales_daily.net_amount
+    name: mart.sales_daily.net_amount
   flow: influence
   transform: identity
   band: 0
@@ -474,10 +474,10 @@ edges:
     match-key seam of P5/P6, left open by decision.'
 - source:
     kind: column
-    name: fct_shipment.carrier_id
+    name: core.fct_shipment.carrier_id
   target:
     kind: column
-    name: carrier_scorecard.carrier_id
+    name: mart.carrier_scorecard.carrier_id
   flow: value
   transform: identity
   band: 0
@@ -487,10 +487,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_carrier.name
+    name: core.dim_carrier.name
   target:
     kind: column
-    name: carrier_scorecard.carrier_name
+    name: mart.carrier_scorecard.carrier_name
   flow: value
   transform: identity
   band: 0
@@ -500,10 +500,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_carrier.id
+    name: core.dim_carrier.id
   target:
     kind: column
-    name: carrier_scorecard.carrier_name
+    name: mart.carrier_scorecard.carrier_name
   flow: value
   transform: conditional
   band: 0
@@ -513,10 +513,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.carrier_id
+    name: core.fct_shipment.carrier_id
   target:
     kind: column
-    name: carrier_scorecard.carrier_name
+    name: mart.carrier_scorecard.carrier_name
   flow: value
   transform: conditional
   band: 0
@@ -526,10 +526,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.shipped_date
+    name: core.fct_shipment.shipped_date
   target:
     kind: column
-    name: carrier_scorecard.period_month
+    name: mart.carrier_scorecard.period_month
   flow: value
   transform: derived
   band: 0
@@ -539,10 +539,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.delivered_date
+    name: core.fct_shipment.delivered_date
   target:
     kind: column
-    name: carrier_scorecard.on_time_pct
+    name: mart.carrier_scorecard.on_time_pct
   flow: value
   transform: aggregated
   band: 0
@@ -552,10 +552,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.promised_date
+    name: core.fct_shipment.promised_date
   target:
     kind: column
-    name: carrier_scorecard.on_time_pct
+    name: mart.carrier_scorecard.on_time_pct
   flow: value
   transform: aggregated
   band: 0
@@ -565,10 +565,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.cost
+    name: core.fct_shipment.cost
   target:
     kind: column
-    name: carrier_scorecard.cost_per_kg
+    name: mart.carrier_scorecard.cost_per_kg
   flow: value
   transform: aggregated
   band: 0
@@ -578,10 +578,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.weight_kg
+    name: core.fct_shipment.weight_kg
   target:
     kind: column
-    name: carrier_scorecard.cost_per_kg
+    name: mart.carrier_scorecard.cost_per_kg
   flow: value
   transform: aggregated
   band: 0
@@ -591,10 +591,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.carrier_id
+    name: core.fct_shipment.carrier_id
   target:
     kind: column
-    name: carrier_scorecard.shipments
+    name: mart.carrier_scorecard.shipments
   flow: influence
   transform: identity
   band: 0
@@ -605,10 +605,10 @@ edges:
   note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
 - source:
     kind: column
-    name: fct_shipment.carrier_id
+    name: core.fct_shipment.carrier_id
   target:
     kind: column
-    name: carrier_scorecard.on_time_pct
+    name: mart.carrier_scorecard.on_time_pct
   flow: influence
   transform: identity
   band: 0
@@ -619,10 +619,10 @@ edges:
   note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
 - source:
     kind: column
-    name: fct_shipment.carrier_id
+    name: core.fct_shipment.carrier_id
   target:
     kind: column
-    name: carrier_scorecard.cost_per_kg
+    name: mart.carrier_scorecard.cost_per_kg
   flow: influence
   transform: identity
   band: 0
@@ -633,10 +633,10 @@ edges:
   note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
 - source:
     kind: column
-    name: fct_shipment.shipped_date
+    name: core.fct_shipment.shipped_date
   target:
     kind: column
-    name: carrier_scorecard.shipments
+    name: mart.carrier_scorecard.shipments
   flow: influence
   transform: identity
   band: 0
@@ -647,10 +647,10 @@ edges:
   note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
 - source:
     kind: column
-    name: fct_shipment.shipped_date
+    name: core.fct_shipment.shipped_date
   target:
     kind: column
-    name: carrier_scorecard.on_time_pct
+    name: mart.carrier_scorecard.on_time_pct
   flow: influence
   transform: identity
   band: 0
@@ -661,10 +661,10 @@ edges:
   note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
 - source:
     kind: column
-    name: fct_shipment.shipped_date
+    name: core.fct_shipment.shipped_date
   target:
     kind: column
-    name: carrier_scorecard.cost_per_kg
+    name: mart.carrier_scorecard.cost_per_kg
   flow: influence
   transform: identity
   band: 0
@@ -675,10 +675,10 @@ edges:
   note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
 - source:
     kind: column
-    name: fct_shipment.status
+    name: core.fct_shipment.status
   target:
     kind: relation
-    name: carrier_scorecard
+    name: mart.carrier_scorecard
   flow: filter
   transform: identity
   band: 0
@@ -688,10 +688,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_payment.order_id
+    name: core.fct_payment.order_id
   target:
     kind: relation
-    name: carrier_scorecard
+    name: mart.carrier_scorecard
   flow: filter
   transform: identity
   band: 0
@@ -701,10 +701,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.order_id
+    name: core.fct_shipment.order_id
   target:
     kind: relation
-    name: carrier_scorecard
+    name: mart.carrier_scorecard
   flow: filter
   transform: identity
   band: 0
@@ -714,10 +714,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_payment.status
+    name: core.fct_payment.status
   target:
     kind: relation
-    name: carrier_scorecard
+    name: mart.carrier_scorecard
   flow: filter
   transform: identity
   band: 0
@@ -727,10 +727,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: shipments.order_id
+    name: staging.shipments.order_id
   target:
     kind: relation
-    name: carrier_scorecard
+    name: mart.carrier_scorecard
   flow: filter
   transform: identity
   band: 0
@@ -741,10 +741,10 @@ edges:
   note: '`WHERE mo.n >= 10` tests COUNT(*), which has no column to name.'
 - source:
     kind: column
-    name: shipments.status
+    name: staging.shipments.status
   target:
     kind: relation
-    name: carrier_scorecard
+    name: mart.carrier_scorecard
   flow: filter
   transform: identity
   band: 0
@@ -755,10 +755,10 @@ edges:
   note: '`WHERE mo.n >= 10` tests COUNT(*), which has no column to name.'
 - source:
     kind: column
-    name: returns.order_line_id
+    name: staging.returns.order_line_id
   target:
     kind: relation
-    name: carrier_scorecard
+    name: mart.carrier_scorecard
   flow: filter
   transform: identity
   band: 0
@@ -769,10 +769,10 @@ edges:
   note: '`WHERE mo.n >= 10` tests COUNT(*), which has no column to name.'
 - source:
     kind: column
-    name: returns.reason_code
+    name: staging.returns.reason_code
   target:
     kind: relation
-    name: carrier_scorecard
+    name: mart.carrier_scorecard
   flow: filter
   transform: identity
   band: 0

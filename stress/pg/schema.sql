@@ -353,3 +353,60 @@ CREATE TABLE mart.top_customers (
 ALTER TABLE mart.customer_summary ADD CONSTRAINT customer_summary_pk PRIMARY KEY (customer_id);
 ALTER TABLE mart.sales_daily ADD CONSTRAINT sales_daily_uk UNIQUE (sale_date, store_id);
 ALTER TABLE mart.product_performance ADD CONSTRAINT product_performance_uk UNIQUE (product_id, period_month);
+
+-- -----------------------------------------------------------------------------------
+-- Names and resolution (added for batch B9, additive only). PostgreSQL folds an
+-- unquoted name to lower case and keeps a quoted one exactly, so "Amount" and amount
+-- below are two DIFFERENT columns. staging.ledger and core.ledger share a name, so an
+-- unqualified `ledger` means whichever schema comes first on the search_path. New names
+-- on purpose: a second `orders` would have dragged batches B1-B4 into B9's subject.
+-- -----------------------------------------------------------------------------------
+
+CREATE TABLE staging."LegacyFeed" (
+    "FeedID"        bigint PRIMARY KEY,
+    "CustomerID"    bigint,
+    "Amount"        numeric(12,2),
+    amount          numeric(12,2),
+    "order"         integer,
+    "user"          text,
+    "Status Code"   text,
+    created_at      timestamptz
+);
+
+CREATE TABLE staging.ledger (
+    id              bigint PRIMARY KEY,
+    account         text,
+    amount          numeric(12,2),
+    currency        char(3),
+    posted_at       timestamptz
+);
+
+CREATE TABLE core.ledger (
+    id              bigint PRIMARY KEY,
+    account         text,
+    balance         numeric(14,2),
+    status          text
+);
+
+CREATE TABLE mart."FeedSummary" (
+    "CustomerID"    bigint,
+    "Total"         numeric(16,2),
+    total           numeric(16,2),
+    "order"         integer,
+    "Status Code"   text
+);
+
+-- staging.events_log and mart.events_log share a name and neither is in the default
+-- schema (core): with no search_path known, an unqualified `events_log` is ambiguous.
+CREATE TABLE staging.events_log (
+    id              bigint PRIMARY KEY,
+    kind            text,
+    payload_size    integer,
+    logged_at       timestamptz
+);
+
+CREATE TABLE mart.events_log (
+    id              bigint PRIMARY KEY,
+    kind            text,
+    rolled_up       boolean
+);

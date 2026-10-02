@@ -87,6 +87,7 @@ def test_a_populated_dictionary_is_unaffected(
     """
     from lineage.analysis.band0 import _schema_for
 
+    # Keyed by schema, then table, since B9-01 (two same-named tables collided by bare name).
     schema = _schema_for(book)
-    assert "orders" in schema and schema["orders"], "a populated relation was dropped"
-    assert "lonely" not in schema
+    assert schema.get("s", {}).get("orders"), "a populated relation was dropped"
+    assert "lonely" not in schema.get("s", {})

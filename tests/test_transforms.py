@@ -227,10 +227,10 @@ def test_a_mixed_expression_gives_each_operand_its_own_transform(
           FROM stg_orders o;
     """
     seen = _paths(sql, postgres)
-    target = "column:fct_revenue.net_amount"
-    assert seen[("column:stg_orders.gross_amount", target)] == Transform.DERIVED.value
-    assert seen[("column:stg_orders.discount_amt", target)] == Transform.DERIVED.value
-    assert seen[("column:stg_returns.refund_amount", target)] == Transform.AGGREGATED.value
+    target = "column:public.fct_revenue.net_amount"
+    assert seen[("column:public.stg_orders.gross_amount", target)] == Transform.DERIVED.value
+    assert seen[("column:public.stg_orders.discount_amt", target)] == Transform.DERIVED.value
+    assert seen[("column:public.stg_returns.refund_amount", target)] == Transform.AGGREGATED.value
 
 
 def test_an_aggregate_one_level_up_still_makes_every_operand_aggregated(
@@ -249,9 +249,9 @@ def test_an_aggregate_one_level_up_still_makes_every_operand_aggregated(
           FROM stg_orders o GROUP BY o.cust_id;
     """
     seen = _paths(sql, postgres)
-    target = "column:fct_revenue.net_amount"
-    assert seen[("column:stg_orders.gross_amount", target)] == Transform.AGGREGATED.value
-    assert seen[("column:stg_orders.discount_amt", target)] == Transform.AGGREGATED.value
+    target = "column:public.fct_revenue.net_amount"
+    assert seen[("column:public.stg_orders.gross_amount", target)] == Transform.AGGREGATED.value
+    assert seen[("column:public.stg_orders.discount_amt", target)] == Transform.AGGREGATED.value
 
 
 def test_a_conditional_branch_reaches_only_the_columns_inside_it(
@@ -270,9 +270,9 @@ def test_a_conditional_branch_reaches_only_the_columns_inside_it(
           FROM stg_orders o;
     """
     seen = _paths(sql, postgres)
-    target = "column:fct_revenue.net_amount"
-    assert seen[("column:stg_orders.gross_amount", target)] == Transform.CONDITIONAL.value
-    assert seen[("column:stg_orders.discount_amt", target)] == Transform.DERIVED.value
+    target = "column:public.fct_revenue.net_amount"
+    assert seen[("column:public.stg_orders.gross_amount", target)] == Transform.CONDITIONAL.value
+    assert seen[("column:public.stg_orders.discount_amt", target)] == Transform.DERIVED.value
 
 
 def test_identity_survives_d7(postgres: Dictionary) -> None:
@@ -282,6 +282,6 @@ def test_identity_survives_d7(postgres: Dictionary) -> None:
         SELECT o.cust_id, o.gross_amount FROM stg_orders o;
     """
     seen = _paths(sql, postgres)
-    assert seen[("column:stg_orders.cust_id", "column:fct_revenue.cust_id")] == (
+    assert seen[("column:public.stg_orders.cust_id", "column:public.fct_revenue.cust_id")] == (
         Transform.IDENTITY.value
     )

@@ -31,8 +31,8 @@ FROM (SELECT d.segment AS "Region", d.region AS region FROM core.dim_customer AS
 
 def test_each_twin_resolves_to_its_own_projection() -> None:
     assert _edges(TWINS) == {
-        ("column:dim_customer.segment", "column:kpi_rollup.region"),
-        ("column:dim_customer.region", "column:kpi_rollup.segment"),
+        ("column:core.dim_customer.segment", "column:mart.kpi_rollup.region"),
+        ("column:core.dim_customer.region", "column:mart.kpi_rollup.segment"),
     }
 
 
@@ -56,7 +56,7 @@ def test_a_lone_quoted_alias_still_resolves_case_blind_when_unambiguous() -> Non
         FROM (SELECT d.segment AS "Region" FROM core.dim_customer AS d) AS x
         """
     )
-    assert edges == {("column:dim_customer.segment", "column:kpi_rollup.region")}
+    assert edges == {("column:core.dim_customer.segment", "column:mart.kpi_rollup.region")}
 
 
 def test_the_same_holds_through_a_set_operation() -> None:
@@ -73,6 +73,6 @@ def test_the_same_holds_through_a_set_operation() -> None:
         ) AS u
         """
     )
-    assert ("column:dim_customer.segment", "column:kpi_rollup.region") in edges
-    assert ("column:dim_customer.region", "column:kpi_rollup.segment") in edges
-    assert ("column:dim_customer.segment", "column:kpi_rollup.segment") not in edges
+    assert ("column:core.dim_customer.segment", "column:mart.kpi_rollup.region") in edges
+    assert ("column:core.dim_customer.region", "column:mart.kpi_rollup.segment") in edges
+    assert ("column:core.dim_customer.segment", "column:mart.kpi_rollup.segment") not in edges

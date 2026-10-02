@@ -109,5 +109,5 @@ def test_end_to_end_the_statement_is_analysed_not_refused() -> None:
     )
     assert result.refusals == []
     assert any(
-        str(e.source) == "column:s.name" and str(e.target) == "column:t.a" for e in result.edges
+        str(e.source) == "column:public.s.name" and str(e.target) == "column:public.t.a" for e in result.edges
     )

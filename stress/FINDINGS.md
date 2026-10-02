@@ -144,6 +144,10 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B4-03 | `construct-coverage` | **fixed** | `ROW(...)`, `regexp_match`, `tstzrange` (and probably the other range constructors) declared `source_unavailable`; values lost. The same call inside a CTE passes with no boundary Fixed 2026-10-02; `stress/pg/b4_expressions_types/REPORT.md` section 6. |
 | B4-04 | `measurement-error` | **fixed** | the per-file score has no origin in its match key, so a fact repeated by a later statement hides that statement's miss; 7 such misses in B4, 3 of them flagged by nothing Fixed 2026-10-02; `stress/pg/b4_expressions_types/REPORT.md` section 6. |
 | B4-05 | `silent-loss` | open | **a user-defined function is declared at the top level and passed silently one level down**: `myschema.calc(o.amount)` in a CTE or derived table gives a `derived` edge with no boundary, while at the top level it is `source_unavailable` with no edge. Exposed by B4-03; may move Oracle numbers, so held for a decision. `stress/pg/b4_expressions_types/REPORT.md` section 6 |
+| B9-01 | `identity` | **fixed** | **the SQLGlot schema is keyed by bare table name, so the last same-named table wins**: core.ledger replaces staging.ledger's columns, refusing valid statements ("Unknown column") and binding shared column names to the wrong table invisibly. A second `orders` refused 79 B1-B4 tests. `stress/pg/b9_names_resolution/REPORT.md` Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
+| B9-02 | `construct-coverage` | **fixed** | a quoted mixed-case relation (`staging."LegacyFeed"`) is declared "not in dictionary": lookup folds the name after the quote is lost Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
+| B9-03 | `refusal-taxonomy` | **fixed** | `INSERT INTO t SELECT * ...` with no column list is refused for arity: B3's omitted-list width counts `*` as one projection (a B3 regression) Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
+| B9-04 | `flow-classification` | **fixed** | **`x.*` over a USING join yields the merged column instead of x's own** - a wrong edge (`customers.id` for `orders.customer_id`) Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4531,3 +4535,21 @@ already does; D-19 and D-20 were implemented 2026-10-02 (B4 REPORT section 6).
 **Open from B4 design (B4-Q1):** can one column be both a value and a grouping-key influence
 of the same target (a CASE test on a GROUP BY key feeding an aggregated output)? Not needed
 for B4; T3 S9 was simplified to avoid it.
+
+## Decisions taken — 2026-10-03 (D-23 to D-25)
+
+Taken by Abhay before batch B9's keys were written. Full statements in
+`stress/pg/b9_names_resolution/OBJECTIVES.md`. All three implemented 2026-10-03 (B9 REPORT section 6).
+
+* **D-23** - `SET search_path` is followed in script order; after a SET an unqualified
+  relation resolves to the first schema on the path that has it, with no assumption declared.
+  Before any SET, and after RESET, the default schema applies, with the assumption declared.
+* **D-24** - with no path known, an unqualified relation binds to the default schema if it is
+  there, else to the single schema that has the name (declared); a name in two or more
+  non-default schemas is ambiguous: declared `dangling_reference`, no edge.
+* **D-25** - every PostgreSQL node is schema-qualified (`schema.table.column`,
+  `schema.table`); Oracle unchanged. Implementing it relabels every B1-B4 key and test.
+
+**Schema (B9-QC):** additive B9 objects in `stress/pg/schema.sql` (`staging."LegacyFeed"`,
+`mart."FeedSummary"`, `staging.ledger` / `core.ledger`, `staging.events_log` /
+`mart.events_log`); B1-B4 unaffected.

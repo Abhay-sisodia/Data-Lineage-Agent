@@ -48,7 +48,7 @@ def test_field_access_is_the_column_itself() -> None:
     assert _facts(
         "INSERT INTO mart.top_customers (full_name) SELECT (c).full_name "
         "FROM staging.customers AS c"
-    ) == {("column:customers.full_name", "column:top_customers.full_name", "value", "identity")}
+    ) == {("column:staging.customers.full_name", "column:mart.top_customers.full_name", "value", "identity")}
 
 
 def test_a_whole_row_function_reads_every_column() -> None:
@@ -56,7 +56,7 @@ def test_a_whole_row_function_reads_every_column() -> None:
         "INSERT INTO mart.top_customers (region) SELECT md5(row_to_json(c)::text) "
         "FROM staging.customers AS c"
     )
-    assert {f[0].split(".")[1] for f in facts} == CUSTOMER_COLUMNS
+    assert {f[0].rsplit(".", 1)[1] for f in facts} == CUSTOMER_COLUMNS
     assert {f[3] for f in facts} == {"derived"}
 
 
@@ -65,7 +65,7 @@ def test_a_whole_row_test_in_where_filters_on_every_column() -> None:
         "INSERT INTO mart.top_customers (customer_id) SELECT c.id FROM staging.customers AS c "
         "WHERE c IS NOT NULL"
     )
-    assert {f[0].split(".")[1] for f in facts if f[2] == "filter"} == CUSTOMER_COLUMNS
+    assert {f[0].rsplit(".", 1)[1] for f in facts if f[2] == "filter"} == CUSTOMER_COLUMNS
 
 
 def test_field_access_through_a_derived_table_stays_field_exact() -> None:
@@ -75,7 +75,7 @@ def test_field_access_through_a_derived_table_stays_field_exact() -> None:
         "FROM (SELECT c FROM staging.customers AS c) AS x"
     )
     assert facts == {
-        ("column:customers.id", "column:top_customers.customer_id", "value", "identity")
+        ("column:staging.customers.id", "column:mart.top_customers.customer_id", "value", "identity")
     }
 
 
@@ -83,7 +83,7 @@ def test_an_alias_named_like_a_column_is_still_the_column() -> None:
     """The control: PostgreSQL resolves a bare name to a column before a whole row."""
     assert _facts(
         "INSERT INTO mart.kpi_rollup (orders) SELECT year FROM core.dim_date AS year"
-    ) == {("column:dim_date.year", "column:kpi_rollup.orders", "value", "identity")}
+    ) == {("column:core.dim_date.year", "column:mart.kpi_rollup.orders", "value", "identity")}
 
 
 # --- B4-02 / D-19 -------------------------------------------------------------------------
@@ -108,7 +108,7 @@ def test_two_columns_make_a_conditional(expression: str, expected: str) -> None:
         f"INSERT INTO mart.sales_daily (net_amount) SELECT {expression} "
         "FROM core.fct_order_line AS f"
     )
-    net = {f[3] for f in facts if f[0] == "column:fct_order_line.net_amount"}
+    net = {f[3] for f in facts if f[0] == "column:core.fct_order_line.net_amount"}
     assert net == {expected}
 
 
@@ -120,8 +120,8 @@ def test_a_self_join_reads_two_columns() -> None:
     )
     assert facts == {
         (
-            "column:dim_product.list_price",
-            "column:product_performance.revenue",
+            "column:core.dim_product.list_price",
+            "column:mart.product_performance.revenue",
             "value",
             "conditional",
         )
@@ -144,7 +144,7 @@ def test_row_regex_and_range_builtins_pass_their_columns(expression: str) -> Non
     sources = {f[0] for f in _facts(
         f"INSERT INTO mart.channel_mix (channel) SELECT {expression} FROM staging.orders AS o"
     )}
-    assert {"column:orders.channel", "column:orders.currency"} <= sources
+    assert {"column:staging.orders.channel", "column:staging.orders.currency"} <= sources
 
 
 def test_a_user_routine_is_still_declared() -> None:

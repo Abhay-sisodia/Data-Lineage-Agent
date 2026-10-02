@@ -1,0 +1,403 @@
+# GENERATED from t4_adversarial.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B9 t4_adversarial.sql - names and resolution, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B4, plus D-23..D-25. Every node is schema-qualified (D-25).
+package: pg/b9_names_resolution/t4_adversarial.sql
+dialect: postgres
+source_sha256: 180fdf2c3bc28d63ecb86bf3e1317531e130e5b44efa686ef0e78a8ace2f3e40
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 29
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 29
+  evidence: source_read
+  note: '`id` is payments.id, so the WHERE is p.order_id = p.id; D-12 makes its columns values.'
+- source:
+    kind: column
+    name: staging.payments.order_id
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 29
+  evidence: source_read
+  note: '`id` is payments.id, so the WHERE is p.order_id = p.id; D-12 makes its columns values.'
+- source:
+    kind: column
+    name: staging.payments.id
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 29
+  evidence: source_read
+  note: '`id` is payments.id, so the WHERE is p.order_id = p.id; D-12 makes its columns values.'
+- source:
+    kind: column
+    name: staging.LegacyFeed.CustomerID
+  target:
+    kind: column
+    name: mart.FeedSummary.CustomerID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.Amount
+  target:
+    kind: relation
+    name: mart.FeedSummary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.amount
+  target:
+    kind: relation
+    name: mart.FeedSummary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.CustomerID
+  target:
+    kind: column
+    name: mart.kpi_rollup.customers
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 49
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.Status Code
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 57
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.Amount
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 57
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.Status Code
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 57
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 74
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 74
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.id
+  target:
+    kind: column
+    name: core.ledger.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.account
+  target:
+    kind: column
+    name: core.ledger.account
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.balance
+  target:
+    kind: column
+    name: core.ledger.balance
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.status
+  target:
+    kind: column
+    name: core.ledger.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.currency
+  target:
+    kind: relation
+    name: core.ledger
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.account
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 95
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.amount
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 95
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.name
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.id
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 108
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: value
+  reason: o is payments; "O" is orders
+  transform: derived
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  reason: the bare `id` binds to the inner query's payments.id
+  transform: aggregated
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  reason: the bare `amount` binds to payments.amount
+  transform: aggregated
+- source:
+    kind: column
+    name: staging.LegacyFeed.user
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  reason: unquoted `user` is CURRENT_USER, not the column "user"
+- source:
+    kind: column
+    name: staging.ledger.amount
+  target:
+    kind: column
+    name: core.ledger.balance
+  flow: value
+  reason: c.* is core.ledger's columns only
+- source:
+    kind: column
+    name: staging.ledger.account
+  target:
+    kind: column
+    name: core.ledger.account
+  flow: value
+  reason: c.* is core.ledger's columns only
+- source:
+    kind: column
+    name: staging.events_log.id
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  reason: events_log is ambiguous with no path known (D-24)
+- source:
+    kind: column
+    name: mart.events_log.id
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  reason: events_log is ambiguous with no path known (D-24)
+expected_boundaries:
+- kind: context_dependent_binding
+  subject: <script>:106
+  reason: S10's events_log is the file's first unqualified relation resolved without a known path (S9
+    runs under a SET)
+- kind: dangling_reference
+  subject: events_log
+  reason: 'S10: events_log is in staging and mart, neither the default (D-24)'

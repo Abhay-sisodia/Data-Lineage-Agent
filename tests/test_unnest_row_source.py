@@ -80,7 +80,7 @@ def test_every_from_spelling_matches_the_select_list_spelling(sql: str) -> None:
 def test_the_edge_actually_exists() -> None:
     """Stated separately: equality above also holds if both sides lose the column."""
     sql = "INSERT INTO a (id, x) SELECT c.id, t.tag FROM c, unnest(c.tags) AS t(tag)"
-    assert ("column:c.tags", "column:a.x", "value", "derived") in _edges(sql)
+    assert ("column:public.c.tags", "column:public.a.x", "value", "derived") in _edges(sql)
     assert _declared(sql) == []
 
 
@@ -91,8 +91,8 @@ def test_multiple_arrays_bind_by_position() -> None:
         "INSERT INTO a (x, y) SELECT t.p, t.q FROM c, unnest(c.tags, c.codes) AS t(p, q)"
     )
     assert edges == {
-        ("column:c.tags", "column:a.x", "value", "derived"),
-        ("column:c.codes", "column:a.y", "value", "derived"),
+        ("column:public.c.tags", "column:public.a.x", "value", "derived"),
+        ("column:public.c.codes", "column:public.a.y", "value", "derived"),
     }
 
 
@@ -100,7 +100,7 @@ def test_the_array_expression_is_traced_through() -> None:
     edges = _edges(
         "INSERT INTO a (x) SELECT t.v FROM c, unnest(string_to_array(c.csv, ',')) AS t(v)"
     )
-    assert {e[:3] for e in edges} == {("column:c.csv", "column:a.x", "value")}
+    assert {e[:3] for e in edges} == {("column:public.c.csv", "column:public.a.x", "value")}
 
 
 def test_the_ordinality_column_has_no_value_source() -> None:
@@ -115,7 +115,7 @@ def test_a_filter_on_the_element_is_a_filter_on_the_array() -> None:
     edges = _edges(
         "INSERT INTO a (id) SELECT c.id FROM c, unnest(c.tags) AS t(tag) WHERE t.tag = 'vip'"
     )
-    assert any(e[0] == "column:c.tags" and e[2] == "filter" for e in edges)
+    assert any(e[0] == "column:public.c.tags" and e[2] == "filter" for e in edges)
 
 
 def test_an_alias_list_that_does_not_map_by_position_is_declared() -> None:

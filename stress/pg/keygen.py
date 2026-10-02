@@ -197,6 +197,18 @@ def compile_spec(spec: Path) -> str:
     for where, fact in restated:
         if fact not in stated:
             raise SystemExit(f"{where}: repeat of a fact no statement states: {fact}")
+    if len(stated) != len(edges):
+        # The harness rejects a key that states one match key twice; say which line to fix.
+        seen: set[tuple[object, ...]] = set()
+        for e in edges:
+            fact = (
+                e["source"]["name"], e["target"]["name"], e["flow"], e["transform"],  # type: ignore[index]
+                e.get("phase", "pre-aggregation"),
+            )
+            if fact in seen:
+                line = e["origin"]["line"]  # type: ignore[index]
+                raise SystemExit(f"{spec.name}: @ {line} states {fact} again - use `repeat`")
+            seen.add(fact)
 
     key = {
         "package": f"pg/{spec.parent.name}/{sql.name}",

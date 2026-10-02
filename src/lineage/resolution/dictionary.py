@@ -224,8 +224,19 @@ class Dictionary(BaseModel):
         # The central name -> relation lookup, so this is the one fold that everything else
         # depends on: every key in this snapshot was stored in the source database's own
         # casing, and a name from source text has to be folded the same way to match.
-        text = fold(name.strip().replace('"', ""), self.dialect)
-        context = fold(schema or self.default_schema, self.dialect)
+        #
+        # AN EXACT MATCH COMES FIRST (finding B9-02). Callers pass names already normalised
+        # by `qualify`, and a quoted mixed-case object (`staging."LegacyFeed"`) is stored in
+        # its own case: folding it again found nothing, and the relation was declared "not
+        # in the dictionary". A name that is not stored exactly is folded as before.
+        raw = name.strip().replace('"', "")
+        raw_context = schema or self.default_schema
+        exact = raw if "." in raw else f"{raw_context}.{raw}"
+        if exact in self.objects or exact in self.synonyms:
+            text, context = raw, raw_context
+        else:
+            text = fold(raw, self.dialect)
+            context = fold(raw_context, self.dialect)
 
         if "." in text:
             owner, _, simple = text.partition(".")

@@ -34,6 +34,15 @@ from sqlglot.optimizer.scope import Scope, ScopeType, build_scope
 
 from lineage.analysis.builtins import is_builtin
 from lineage.analysis.pg_dml import expand as expand_postgres_writes
+from lineage.analysis.relations import AMBIGUOUS, identifier
+from lineage.analysis.relations import bind as bind_relations
+from lineage.analysis.relations import (
+    SEARCH_PATH,
+    expand_qualified_stars,
+    is_path_change,
+    search_path_change,
+    session_keywords,
+)
 from lineage.analysis.whole_rows import restate as restate_whole_rows
 from lineage.analysis.ddl import exchange_partition_edges
 from lineage.analysis.dynamic import resolve_dynamic_sql
@@ -199,13 +208,39 @@ def _schema_for(dictionary: Dictionary) -> dict[str, Any]:
     the taxonomy says an unknown object should be. The alternative is a catastrophic
     refusal whose stated reason names a table the reader never asked about.
     """
-    schema: dict[str, dict[str, str]] = {}
+    # KEYED BY SCHEMA, THEN TABLE (finding B9-01). Keyed by bare table name, the last of
+    # two same-named tables won: core.ledger replaced staging.ledger's columns. Every
+    # unqualified relation is bound to a schema before `qualify` (`relations.bind`), so
+    # SQLGlot never has to choose. A name whose stored case is not what folding would give
+    # - a quoted mixed-case object - is passed quoted, or SQLGlot would fold it (B9-02).
+    schema: dict[str, dict[str, dict[str, str]]] = {}
     for qualified, columns in dictionary.columns.items():
         if not columns:
             continue
-        _, _, table = qualified.partition(".")
-        schema[table] = dict.fromkeys(columns, "UNKNOWN")
+        owner, _, table = qualified.partition(".")
+        schema.setdefault(_as_key(owner, dictionary), {})[_as_key(table, dictionary)] = {
+            _as_key(column, dictionary): "UNKNOWN" for column in columns
+        }
     return schema
+
+
+def _relation_name(resolved: Any, fallback: str, dictionary: Dictionary) -> str:
+    """How a relation is named in the lineage graph.
+
+    **D-25: a PostgreSQL relation is named `schema.table`.** Bare names merged
+    `staging.ledger` and `core.ledger` into one node, so a copy from one to the other read
+    as a self-edge and their lineage ran together. Oracle keeps the bare name its keys and
+    corpus were written against.
+    """
+    if resolved.name is None:
+        return fallback
+    if dictionary.dialect == "postgres" and resolved.owner:
+        return f"{resolved.owner}.{resolved.name}"
+    return resolved.name
+
+
+def _as_key(name: str, dictionary: Dictionary) -> str:
+    return name if fold(name, dictionary.dialect) == name else f'"{name}"'
 
 
 def _inline_views(
@@ -520,13 +555,17 @@ def _query_of_scope(expression: Any) -> Any:
     return node
 
 
-def _qualify(parsed: Any, dictionary: Dictionary) -> Any:
+def _qualify(parsed: Any, dictionary: Dictionary, search_path: list[str] | None = None) -> Any:
     """SQLGlot's `qualify`, with the merged column of USING / NATURAL put right (B1-02).
 
     Every analysis entry point qualifies through here, so the correction has one home.
     """
     for written in parsed.find_all(exp.Coalesce):
         written.meta["written"] = True
+    parsed = bind_relations(parsed, dictionary, search_path)
+    if dictionary.dialect == "postgres":
+        parsed = session_keywords(parsed)
+    parsed = expand_qualified_stars(parsed, dictionary)
     parsed = qualify(
         parsed,
         schema=_schema_for(dictionary),
@@ -892,8 +931,8 @@ def _trace(
         source = next(iter(scope.sources.values()))
 
     if isinstance(source, exp.Table):
-        table = fold(source.name, dictionary.dialect)
-        name = fold(column.name, dictionary.dialect)
+        table = identifier(source, dictionary.dialect)
+        name = identifier(column, dictionary.dialect)
 
         # A ROW SOURCE WITH NO NAME. `FROM TABLE(f(1))` parses as a Table whose `this` is
         # the function call, so `name` is the empty string - there is no relation to look
@@ -936,8 +975,26 @@ def _trace(
         #
         # So resolve the QUALIFIED name. An unqualified name is untouched and still binds
         # through the execution schema, which is the other half of s2 and is correct.
-        qualifier = fold(source.text("db") or "", dictionary.dialect)
+        db = source.args.get("db")
+        qualifier = identifier(db, dictionary.dialect) if db else ""
         lookup = f"{qualifier}.{table}" if qualifier else table
+        if qualifier == AMBIGUOUS:
+            # D-24: two or more non-default schemas have this name and no search_path says
+            # which - declared, and nothing is emitted from either table.
+            owners = sorted(
+                info.owner for info in dictionary.objects.values() if info.name == table
+            )
+            unresolved.append(
+                Boundary(
+                    kind=BoundaryKind.DANGLING_REFERENCE,
+                    subject=table,
+                    detail=(
+                        f"{table}.{name} (ambiguous: {table} is in {', '.join(owners)} and no "
+                        "search_path names one - D-24)"
+                    ),
+                )
+            )
+            return []
         try:
             known = dictionary.columns_of(lookup)
         except UnknownObjectError:
@@ -952,7 +1009,7 @@ def _trace(
         if qualifier:
             # Granted after all - report it under the object it really is, not the
             # qualifier the code happened to spell.
-            table = dictionary.resolve(lookup).name or table
+            table = _relation_name(dictionary.resolve(lookup), table, dictionary)
         if name not in known:
             # Not a column of this table. Almost always a PL/SQL variable, which is
             # band-1 territory and must be resolved by def-use analysis, not guessed at.
@@ -1444,24 +1501,30 @@ def _target_of(insert: exp.Insert, dictionary: Dictionary) -> tuple[str, list[st
     target = insert.this
     columns: list[str] | None = None
     if isinstance(target, exp.Schema):
-        columns = [fold(c.name, dictionary.dialect) for c in target.expressions]
+        columns = [identifier(c, dictionary.dialect) for c in target.expressions]
         target = target.this
     elif target.args.get("alias") is not None and target.args["alias"].columns:
-        columns = [fold(c.name, dictionary.dialect) for c in target.args["alias"].columns]
+        columns = [identifier(c, dictionary.dialect) for c in target.args["alias"].columns]
     name = target.name
     # The SCHEMA is part of the name (finding B3-01). Resolving the bare name sent
     # `mart.top_customers` through the default schema, found no `core.top_customers`, and
     # refused every INSERT that omitted its column list.
     qualified = f"{target.db}.{name}" if target.db else name
     resolved = dictionary.resolve(qualified)
-    if columns is None and target.db:
+    # A schema `relations.bind` supplied counts as written only for PostgreSQL, where D-23
+    # makes the path part of the statement's meaning. Oracle keeps declaring an omitted
+    # list on an unqualified target rather than binding by a column order nobody stated.
+    written_schema = bool(target.db) and (
+        dictionary.dialect == "postgres" or not target.meta.get("schema_bound")
+    )
+    if columns is None and written_schema:
         # An omitted column list means the table's own order - read from the QUALIFIED
         # name, because the caller looks it up by the bare one otherwise.
         try:
-            columns = [fold(c, dictionary.dialect) for c in dictionary.columns_of(qualified)]
+            columns = list(dictionary.columns_of(qualified))
         except UnknownObjectError:
             columns = None
-    return (resolved.name or fold(name, dictionary.dialect)), columns
+    return _relation_name(resolved, fold(name, dictionary.dialect), dictionary), columns
 
 
 def _set_operation_arms(node: Any) -> list[tuple[Any, bool]]:
@@ -2124,11 +2187,11 @@ def _call_site_edges(
                     known = dictionary.columns_of(relation)
                 except UnknownObjectError:
                     continue
-                if fold(column.name, dictionary.dialect) in known:
+                if identifier(column, dictionary.dialect) in known:
                     edges.append(
                         _edge(
                             relation,
-                            fold(column.name, dictionary.dialect),
+                            identifier(column, dictionary.dialect),
                             relation,
                             "",
                             Transform.IDENTITY,
@@ -2579,8 +2642,8 @@ def _condition_text(expression: Any, dialect: str) -> str:
     to move it.
     """
     rendered = expression.copy()
-    for identifier in rendered.find_all(exp.Identifier):
-        identifier.set("quoted", False)
+    for name in rendered.find_all(exp.Identifier):
+        name.set("quoted", False)
     return str(rendered.sql(dialect=dialect))
 
 
@@ -2925,7 +2988,12 @@ def _analyse_standalone_query(
         if not name:
             unnamed += 1
             name = f"column_{position}"
-        columns.append(exp.to_identifier(name))
+        # Keep a quoted name's case: RETURNING "CustomerID" is <result>.CustomerID (B9-02).
+        written = item.args.get("alias") if isinstance(item, exp.Alias) else item
+        if isinstance(written, exp.Column):
+            written = written.this
+        quoted = isinstance(written, exp.Identifier) and written.quoted
+        columns.append(exp.to_identifier(name, quoted=quoted))
 
     if result_target:
         target = exp.to_table(result_target, dialect=dictionary.dialect)
@@ -2989,8 +3057,8 @@ def _analyse_delete(
             f"DELETE from {type(target).__name__}, which is not a table reference",
         )
 
-    resolved = dictionary.resolve(name)
-    target_name = resolved.name or fold(name, dictionary.dialect)
+    resolved = dictionary.resolve(f"{target.db}.{name}" if target.db else name)
+    target_name = _relation_name(resolved, fold(name, dictionary.dialect), dictionary)
 
     where = statement.args.get("where")
     if where is None:
@@ -3012,7 +3080,7 @@ def _analyse_delete(
         edges.append(
             _edge(
                 source_table,
-                fold(column.name, dictionary.dialect),
+                identifier(column, dictionary.dialect),
                 target_name,
                 "",
                 Transform.IDENTITY,
@@ -3040,8 +3108,8 @@ def _relation_for(
     """
     tables: dict[str, str] = {}
     for table in statement.find_all(exp.Table):
-        resolved = dictionary.resolve(table.name)
-        real = resolved.name or fold(table.name, dictionary.dialect)
+        resolved = dictionary.resolve(f"{table.db}.{table.name}" if table.db else table.name)
+        real = _relation_name(resolved, identifier(table, dictionary.dialect), dictionary)
         tables[fold(table.alias or table.name, dictionary.dialect)] = real
 
     qualifier = fold(column.table or "", dictionary.dialect)
@@ -3057,7 +3125,7 @@ def _relation_for(
         )
         return None
 
-    name = fold(column.name, dictionary.dialect)
+    name = identifier(column, dictionary.dialect)
     owners = []
     for real in dict.fromkeys(tables.values()):
         try:
@@ -3093,7 +3161,11 @@ def _analyse_merge(
     a column in which case, which is the whole difficulty of the construct.
     """
     target = statement.this
-    target_name = dictionary.resolve(target.name).name or fold(target.name, dictionary.dialect)
+    target_name = _relation_name(
+        dictionary.resolve(f"{target.db}.{target.name}" if target.db else target.name),
+        identifier(target, dictionary.dialect),
+        dictionary,
+    )
 
     using = statement.args.get("using")
     if using is None:
@@ -3131,7 +3203,7 @@ def _analyse_merge(
         """
         qualifier = fold(column.table or "", dictionary.dialect)
         if qualifier and qualifier not in scope.sources and qualifier == target_alias:
-            name = fold(column.name, dictionary.dialect)
+            name = identifier(column, dictionary.dialect)
             try:
                 known = dictionary.columns_of(target_name)
             except UnknownObjectError:
@@ -3243,7 +3315,7 @@ def _analyse_merge(
             for setter in action.args.get("expressions") or []:
                 if not isinstance(setter, exp.EQ):
                     continue
-                target_column = fold(setter.this.name, dictionary.dialect)
+                target_column = identifier(setter.this, dictionary.dialect)
                 edges.extend(_influence_edges(setter.expression, target_column))
                 for column in setter.expression.find_all(exp.Column):
                     for src_table, src_column, traced in _trace_in_merge(column):
@@ -3264,7 +3336,7 @@ def _analyse_merge(
             # In a MERGE the insert arm carries a Tuple of columns and a Tuple of values,
             # not the Schema/Values pair a standalone INSERT uses.
             target_columns = [
-                fold(c.name, dictionary.dialect)
+                identifier(c, dictionary.dialect)
                 for c in getattr(action.this, "expressions", []) or []
             ]
             values = action.expression
@@ -3346,7 +3418,14 @@ def analyse_source(
     # for an Oracle reason (finding PG-17).
     ccflag_spans = conditional_compilation_spans(source, program.dialect)
 
+    path_token = SEARCH_PATH.set(None)
     for statement, statement_band in static + recovered:
+        # D-23: `SET search_path` / `RESET search_path` change how every later unqualified
+        # name binds, in script order. They carry no lineage of their own.
+        change = search_path_change(statement.text, program.dialect)
+        if is_path_change(change):
+            SEARCH_PATH.set(change)
+            continue
         # DDL that moves data (T3.4b). Checked before the SUPPORTED gate because an
         # exchange is not a DML statement and never will be - and the failure it causes is
         # the worst-shaped one there is: `fct_revenue_part` acquires its entire contents
@@ -3508,6 +3587,7 @@ def analyse_source(
         unique.setdefault(edge.identity(), edge)
     result.edges = [unique[key] for key in sorted(unique)]
 
+    SEARCH_PATH.reset(path_token)
     return result
 
 

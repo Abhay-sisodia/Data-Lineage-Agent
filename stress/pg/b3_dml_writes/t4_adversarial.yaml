@@ -12,10 +12,10 @@ labelled_at: '2026-10-01'
 edges:
 - source:
     kind: column
-    name: dim_store.country_code
+    name: core.dim_store.country_code
   target:
     kind: column
-    name: dim_store.region
+    name: core.dim_store.region
   flow: value
   transform: identity
   band: 0
@@ -25,10 +25,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.status
+    name: staging.customers.status
   target:
     kind: relation
-    name: dim_store
+    name: core.dim_store
   flow: filter
   transform: identity
   band: 0
@@ -38,10 +38,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.id
+    name: staging.customers.id
   target:
     kind: column
-    name: customer_summary.customer_id
+    name: mart.customer_summary.customer_id
   flow: value
   transform: identity
   band: 0
@@ -51,10 +51,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.country_code
+    name: staging.customers.country_code
   target:
     kind: column
-    name: customer_summary.segment
+    name: mart.customer_summary.segment
   flow: value
   transform: identity
   band: 0
@@ -64,10 +64,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_customer.first_order_date
+    name: core.dim_customer.first_order_date
   target:
     kind: column
-    name: dim_customer.first_order_date
+    name: core.dim_customer.first_order_date
   flow: value
   transform: identity
   band: 0
@@ -77,10 +77,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_customer.is_current
+    name: core.dim_customer.is_current
   target:
     kind: relation
-    name: dim_customer
+    name: core.dim_customer
   flow: filter
   transform: identity
   band: 0
@@ -90,10 +90,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_product.cost
+    name: core.dim_product.cost
   target:
     kind: column
-    name: dim_product.list_price
+    name: core.dim_product.list_price
   flow: value
   transform: derived
   band: 0
@@ -103,10 +103,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_product.list_price
+    name: core.dim_product.list_price
   target:
     kind: column
-    name: dim_product.cost
+    name: core.dim_product.cost
   flow: value
   transform: identity
   band: 0
@@ -116,10 +116,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.full_name
+    name: staging.customers.full_name
   target:
     kind: column
-    name: top_customers.full_name
+    name: mart.top_customers.full_name
   flow: value
   transform: identity
   band: 0
@@ -129,10 +129,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.id
+    name: staging.customers.id
   target:
     kind: column
-    name: top_customers.customer_id
+    name: mart.top_customers.customer_id
   flow: value
   transform: identity
   band: 0
@@ -142,10 +142,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.country_code
+    name: staging.customers.country_code
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: identity
   band: 0
@@ -155,10 +155,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.order_ts
+    name: staging.orders.order_ts
   target:
     kind: column
-    name: channel_mix.period_month
+    name: mart.channel_mix.period_month
   flow: value
   transform: derived
   band: 0
@@ -168,10 +168,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.channel
+    name: staging.orders.channel
   target:
     kind: column
-    name: channel_mix.channel
+    name: mart.channel_mix.channel
   flow: value
   transform: identity
   band: 0
@@ -181,7 +181,7 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.cost
+    name: core.fct_shipment.cost
   target:
     kind: column
     name: <result>.doubled_cost
@@ -194,7 +194,7 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.shipment_id
+    name: core.fct_shipment.shipment_id
   target:
     kind: column
     name: <result>.shipment_id
@@ -207,10 +207,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.status
+    name: core.fct_shipment.status
   target:
     kind: relation
-    name: fct_shipment
+    name: core.fct_shipment
   flow: filter
   transform: identity
   band: 0
@@ -220,7 +220,7 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_shipment.status
+    name: core.fct_shipment.status
   target:
     kind: relation
     name: <result>
@@ -233,10 +233,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_store.name
+    name: core.dim_store.name
   target:
     kind: column
-    name: dim_warehouse.name
+    name: core.dim_warehouse.name
   flow: value
   transform: identity
   band: 0
@@ -246,10 +246,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.product_key
+    name: core.fct_order_line.product_key
   target:
     kind: relation
-    name: dim_product
+    name: core.dim_product
   flow: filter
   transform: identity
   band: 0
@@ -259,10 +259,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_product.product_key
+    name: core.dim_product.product_key
   target:
     kind: relation
-    name: dim_product
+    name: core.dim_product
   flow: filter
   transform: identity
   band: 0
@@ -272,10 +272,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.quantity
+    name: core.fct_order_line.quantity
   target:
     kind: relation
-    name: dim_product
+    name: core.dim_product
   flow: filter
   transform: identity
   phase: post-aggregation
@@ -286,10 +286,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: web_events.event_ts
+    name: staging.web_events.event_ts
   target:
     kind: relation
-    name: web_events
+    name: staging.web_events
   flow: filter
   transform: identity
   band: 0
@@ -299,7 +299,7 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: web_events.event_ts
+    name: staging.web_events.event_ts
   target:
     kind: relation
     name: <result>
@@ -314,10 +314,10 @@ edges:
     is counted.'
 - source:
     kind: column
-    name: inventory_snapshots.on_hand
+    name: staging.inventory_snapshots.on_hand
   target:
     kind: relation
-    name: inventory_snapshots
+    name: staging.inventory_snapshots
   flow: filter
   transform: identity
   band: 0
@@ -328,10 +328,10 @@ edges:
   note: PostgreSQL executes it regardless; losing this is losing a write silently.
 - source:
     kind: column
-    name: inventory_snapshots.snapshot_date
+    name: staging.inventory_snapshots.snapshot_date
   target:
     kind: column
-    name: sales_daily.sale_date
+    name: mart.sales_daily.sale_date
   flow: value
   transform: identity
   band: 0
@@ -341,10 +341,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: inventory_snapshots.warehouse_id
+    name: staging.inventory_snapshots.warehouse_id
   target:
     kind: column
-    name: sales_daily.store_id
+    name: mart.sales_daily.store_id
   flow: value
   transform: identity
   band: 0
@@ -354,10 +354,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: inventory_snapshots.on_hand
+    name: staging.inventory_snapshots.on_hand
   target:
     kind: column
-    name: sales_daily.units
+    name: mart.sales_daily.units
   flow: value
   transform: identity
   band: 0
@@ -367,10 +367,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: inventory_snapshots.on_hand
+    name: staging.inventory_snapshots.on_hand
   target:
     kind: relation
-    name: sales_daily
+    name: mart.sales_daily
   flow: filter
   transform: identity
   band: 0
@@ -381,83 +381,83 @@ edges:
 forbidden:
 - source:
     kind: column
-    name: customers.country_code
+    name: staging.customers.country_code
   target:
     kind: column
-    name: dim_store.region
+    name: core.dim_store.region
   flow: value
   reason: '`customers` in the SET is the TARGET alias (dim_store); staging.customers is `c`'
 - source:
     kind: column
-    name: customers.country_code
+    name: staging.customers.country_code
   target:
     kind: relation
-    name: dim_store
+    name: core.dim_store
   flow: filter
   reason: '`c.country_code = customers.country_code` joins the FROM list to the target (D-11)'
 - source:
     kind: column
-    name: customers.segment
+    name: staging.customers.segment
   target:
     kind: column
-    name: customer_summary.segment
+    name: mart.customer_summary.segment
   flow: value
   reason: EXCLUDED.segment is the value PROPOSED for segment - x.country_code - not the source's own segment
     column
 - source:
     kind: column
-    name: dim_customer.customer_id
+    name: core.dim_customer.customer_id
   target:
     kind: relation
-    name: dim_customer
+    name: core.dim_customer
   flow: filter
   reason: the self-join key joins FROM to the target (D-11)
 - source:
     kind: column
-    name: dim_product.cost
+    name: core.dim_product.cost
   target:
     kind: column
-    name: dim_product.cost
+    name: core.dim_product.cost
   flow: value
   reason: 'every SET reads the OLD row: cost gets the old list_price, not the new `cost * 2`'
 - source:
     kind: column
-    name: customers.full_name
+    name: staging.customers.full_name
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   reason: an explicit column list binds by ITS order, not the table's
 - source:
     kind: column
-    name: orders.channel
+    name: staging.orders.channel
   target:
     kind: column
-    name: channel_mix.region
+    name: mart.channel_mix.region
   flow: value
   reason: the omitted list binds to the FIRST columns in table order
 - source:
     kind: column
-    name: dim_warehouse.name
+    name: core.dim_warehouse.name
   target:
     kind: column
-    name: dim_warehouse.name
+    name: core.dim_warehouse.name
   flow: value
   reason: '`dim_warehouse` here is the USING alias for core.dim_store'
 - source:
     kind: column
-    name: fct_order_line.quantity
+    name: core.fct_order_line.quantity
   target:
     kind: column
-    name: dim_product.status
+    name: core.dim_product.status
   flow: value
   reason: 'the subquery is in WHERE: it decides which rows are updated; D-18 is about SET'
 - source:
     kind: column
-    name: inventory_snapshots.snapshot_date
+    name: staging.inventory_snapshots.snapshot_date
   target:
     kind: relation
-    name: sales_daily
+    name: mart.sales_daily
   flow: filter
   reason: 'sales_daily_uk''s columns are the conflict target: structural (D-15)'
 expected_boundaries: []

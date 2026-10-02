@@ -33,6 +33,7 @@ from lineage.analysis.dynamic import Resolution, resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
 from lineage.analysis.refusal import classify_program, enclosing_unit_at
+from lineage.analysis.relations import is_path_change, search_path_change
 from lineage.analysis.scratch import find_fusion_hazards
 from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
@@ -398,8 +399,18 @@ def _context_dependent_names(
     accurate and unreadable - the same reason fusion hazards are declared per relation.
     """
     seen: dict[str, int] = {}
+    path: list[str] | None = None
     for statement in program.statements:
-        if statement.kind not in band0.SUPPORTED:
+        # D-23: under a `SET search_path` the binding is certain, so nothing is assumed.
+        change = search_path_change(statement.text, dialect)
+        if is_path_change(change):
+            path = change
+            continue
+        if path is not None:
+            continue
+        if statement.kind not in band0.SUPPORTED and not (
+            dialect == "postgres" and statement.kind == "update_statement"
+        ):
             continue
         try:
             parsed = sqlglot.parse_one(statement.text, dialect=dialect)

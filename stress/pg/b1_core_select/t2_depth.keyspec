@@ -14,98 +14,98 @@
 # is labelled or forbidden for it (same treatment as T1 S10a).
 
 @ 23 S1 alias chain, five levels
-value customers.id -> top_customers.customer_id identity
-value customers.full_name -> top_customers.full_name identity
-forbid value customers.id -> top_customers.customer_id derived | five renames compute nothing; the edge stays identity
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+forbid value staging.customers.id -> mart.top_customers.customer_id derived | five renames compute nothing; the edge stays identity
 
 @ 51 S2 window four levels down
-value fct_order_line.product_key -> product_performance.product_id identity
-value fct_order_line.order_date -> product_performance.period_month identity
-value fct_order_line.net_amount -> product_performance.running_revenue aggregated
-influence fct_order_line.product_key, fct_order_line.order_date -> product_performance.running_revenue
-filter fct_order_line.status -> product_performance
+value core.fct_order_line.product_key -> mart.product_performance.product_id identity
+value core.fct_order_line.order_date -> mart.product_performance.period_month identity
+value core.fct_order_line.net_amount -> mart.product_performance.running_revenue aggregated
+influence core.fct_order_line.product_key, core.fct_order_line.order_date -> mart.product_performance.running_revenue
+filter core.fct_order_line.status -> mart.product_performance
 
 @ 84 S3 re-aggregation, two GROUP BYs on one path
-value fct_order_line.store_id -> sales_daily.store_id identity
-value fct_order_line.net_amount -> sales_daily.avg_order_value aggregated
-value fct_order_line.order_id -> sales_daily.orders aggregated
-influence fct_order_line.store_id, fct_order_line.order_id -> sales_daily.avg_order_value
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.net_amount -> mart.sales_daily.avg_order_value aggregated
+value core.fct_order_line.order_id -> mart.sales_daily.orders aggregated
+influence core.fct_order_line.store_id, core.fct_order_line.order_id -> mart.sales_daily.avg_order_value
 note store_id groups at both levels; order_id only at the inner one, where it decides what each order_total is.
-influence fct_order_line.store_id -> sales_daily.orders
+influence core.fct_order_line.store_id -> mart.sales_daily.orders
 note COUNT(po.oid) counts the inner grouping key; only the OUTER grouping is applied to an aggregate on this path.
 
 @ 113 S4 HAVING three levels down, WHERE over an aggregate at the top
-value orders.customer_id -> customer_summary.customer_id identity
-value orders.id -> customer_summary.lifetime_orders aggregated
-value orders.amount -> customer_summary.lifetime_value aggregated
-influence orders.customer_id -> customer_summary.lifetime_orders, customer_summary.lifetime_value
-filter orders.status -> customer_summary
-filter orders.amount, orders.id -> customer_summary post
+value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+value staging.orders.id -> mart.customer_summary.lifetime_orders aggregated
+value staging.orders.amount -> mart.customer_summary.lifetime_value aggregated
+influence staging.orders.customer_id -> mart.customer_summary.lifetime_orders, mart.customer_summary.lifetime_value
+filter staging.orders.status -> mart.customer_summary
+filter staging.orders.amount, staging.orders.id -> mart.customer_summary post
 note amount: HAVING SUM(amount). id: the outer `WHERE t.n_orders >= 3` filters COUNT(o.id), so it acts after aggregation (D-6).
 
 @ 141 S5 ROLLUP inner, GROUPING() filter outer
-value dim_customer.region -> kpi_rollup.region identity
-value dim_customer.segment -> kpi_rollup.segment identity
-value fct_order_line.net_amount -> kpi_rollup.revenue aggregated
-influence dim_customer.region, dim_customer.segment -> kpi_rollup.revenue
-filter dim_customer.is_current -> kpi_rollup
+value core.dim_customer.region -> mart.kpi_rollup.region identity
+value core.dim_customer.segment -> mart.kpi_rollup.segment identity
+value core.fct_order_line.net_amount -> mart.kpi_rollup.revenue aggregated
+influence core.dim_customer.region, core.dim_customer.segment -> mart.kpi_rollup.revenue
+filter core.dim_customer.is_current -> mart.kpi_rollup
 
 @ 163 S6 a join inside a derived table, joined again outside
-value orders.order_ts -> channel_mix.period_month derived
-value orders.channel -> channel_mix.channel identity
-value dim_store.region -> channel_mix.region identity
-value order_lines.quantity, order_lines.unit_price, fx_rates.rate_to_usd -> channel_mix.revenue derived
-forbid filter fx_rates.rate_date -> channel_mix | an ON clause is structural (D-5), even when its operand was computed one level down
-forbid filter orders.currency -> channel_mix | an ON clause is structural (D-5), even when its operand was computed one level down
+value staging.orders.order_ts -> mart.channel_mix.period_month derived
+value staging.orders.channel -> mart.channel_mix.channel identity
+value core.dim_store.region -> mart.channel_mix.region identity
+value staging.order_lines.quantity, staging.order_lines.unit_price, staging.fx_rates.rate_to_usd -> mart.channel_mix.revenue derived
+forbid filter staging.fx_rates.rate_date -> mart.channel_mix | an ON clause is structural (D-5), even when its operand was computed one level down
+forbid filter staging.orders.currency -> mart.channel_mix | an ON clause is structural (D-5), even when its operand was computed one level down
 
 @ 191 S7 aggregate FILTER three levels down
-value fct_shipment.carrier_id -> carrier_scorecard.carrier_id identity
-value fct_shipment.transit_days, fct_shipment.delivered_date, fct_shipment.promised_date -> carrier_scorecard.on_time_pct aggregated
-influence fct_shipment.carrier_id -> carrier_scorecard.on_time_pct
-forbid filter fct_shipment.delivered_date -> carrier_scorecard | FILTER (WHERE) changes one aggregate's value, at any depth (D-10)
+value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value core.fct_shipment.transit_days, core.fct_shipment.delivered_date, core.fct_shipment.promised_date -> mart.carrier_scorecard.on_time_pct aggregated
+influence core.fct_shipment.carrier_id -> mart.carrier_scorecard.on_time_pct
+forbid filter core.fct_shipment.delivered_date -> mart.carrier_scorecard | FILTER (WHERE) changes one aggregate's value, at any depth (D-10)
 
 @ 211 S8 DISTINCT ON two levels down, feeding an aggregate
-value orders.currency -> channel_mix.channel identity
-value orders.customer_id -> channel_mix.orders aggregated
-value orders.amount -> channel_mix.revenue aggregated
-influence orders.currency -> channel_mix.orders, channel_mix.revenue
-filter orders.customer_id, orders.updated_at -> channel_mix
+value staging.orders.currency -> mart.channel_mix.channel identity
+value staging.orders.customer_id -> mart.channel_mix.orders aggregated
+value staging.orders.amount -> mart.channel_mix.revenue aggregated
+influence staging.orders.currency -> mart.channel_mix.orders, mart.channel_mix.revenue
+filter staging.orders.customer_id, staging.orders.updated_at -> mart.channel_mix
 note D-9: the DISTINCT ON key and its tie-breaker decide which order per customer survives into the aggregate.
 
 @ 232 S9 a predicate five levels down, never projected
-value payments.order_id -> top_customers.customer_id identity
-value payments.amount -> top_customers.revenue identity
-filter payments.method, payments.currency -> top_customers
+value staging.payments.order_id -> mart.top_customers.customer_id identity
+value staging.payments.amount -> mart.top_customers.revenue identity
+filter staging.payments.method, staging.payments.currency -> mart.top_customers
 
 @ 256 S10 a column carried up and dropped
-value inventory_snapshots.snapshot_date -> sales_daily.sale_date identity
-value inventory_snapshots.on_hand -> sales_daily.units identity
-forbid value inventory_snapshots.reserved -> sales_daily.units | projected at depth 3 and 2 as unused_cost, never read by the level that writes
-forbid filter inventory_snapshots.reserved -> sales_daily | carried, never compared to anything
+value staging.inventory_snapshots.snapshot_date -> mart.sales_daily.sale_date identity
+value staging.inventory_snapshots.on_hand -> mart.sales_daily.units identity
+forbid value staging.inventory_snapshots.reserved -> mart.sales_daily.units | projected at depth 3 and 2 as unused_cost, never read by the level that writes
+forbid filter staging.inventory_snapshots.reserved -> mart.sales_daily | carried, never compared to anything
 
 @ 273 S11 a named window two levels down, used twice
-value fct_order_line.order_line_id -> product_performance.product_id identity
-value fct_order_line.net_amount -> product_performance.prev_month_revenue derived
-value fct_order_line.quantity -> product_performance.growth_pct derived
-influence fct_order_line.store_id, fct_order_line.order_date -> product_performance.prev_month_revenue, product_performance.growth_pct
+value core.fct_order_line.order_line_id -> mart.product_performance.product_id identity
+value core.fct_order_line.net_amount -> mart.product_performance.prev_month_revenue derived
+value core.fct_order_line.quantity -> mart.product_performance.growth_pct derived
+influence core.fct_order_line.store_id, core.fct_order_line.order_date -> mart.product_performance.prev_month_revenue, mart.product_performance.growth_pct
 
 @ 290 S12 three sibling CTEs at three grains
-value fct_order_line.customer_key -> customer_summary.customer_id identity
-value fct_order_line.order_date -> customer_summary.last_order_date identity
-value fct_order_line.net_amount -> customer_summary.lifetime_value aggregated
-value fct_order_line.order_id -> customer_summary.lifetime_orders aggregated
-value fct_order_line.unit_price -> customer_summary.avg_basket aggregated
-influence fct_order_line.customer_key -> customer_summary.lifetime_value
-influence fct_order_line.order_date -> customer_summary.lifetime_orders
-influence fct_order_line.customer_key, fct_order_line.order_date -> customer_summary.avg_basket
-forbid influence fct_order_line.order_date -> customer_summary.lifetime_value | by_customer groups by customer_key only; order_date is by_day's grouping
-forbid influence fct_order_line.customer_key -> customer_summary.lifetime_orders | by_day groups by order_date only; customer_key is by_customer's grouping
+value core.fct_order_line.customer_key -> mart.customer_summary.customer_id identity
+value core.fct_order_line.order_date -> mart.customer_summary.last_order_date identity
+value core.fct_order_line.net_amount -> mart.customer_summary.lifetime_value aggregated
+value core.fct_order_line.order_id -> mart.customer_summary.lifetime_orders aggregated
+value core.fct_order_line.unit_price -> mart.customer_summary.avg_basket aggregated
+influence core.fct_order_line.customer_key -> mart.customer_summary.lifetime_value
+influence core.fct_order_line.order_date -> mart.customer_summary.lifetime_orders
+influence core.fct_order_line.customer_key, core.fct_order_line.order_date -> mart.customer_summary.avg_basket
+forbid influence core.fct_order_line.order_date -> mart.customer_summary.lifetime_value | by_customer groups by customer_key only; order_date is by_day's grouping
+forbid influence core.fct_order_line.customer_key -> mart.customer_summary.lifetime_orders | by_day groups by order_date only; customer_key is by_customer's grouping
 
 @ 326 S13 a window over an aggregate three levels below it
-value fct_order_line.order_date -> sales_daily.sale_date identity
-value dim_store.region -> sales_daily.region identity
-value fct_order_line.gross_amount -> sales_daily.gross_amount aggregated
-influence fct_order_line.store_id, fct_order_line.order_date -> sales_daily.gross_amount
-influence dim_store.region, fct_order_line.order_date, fct_order_line.gross_amount, fct_order_line.store_id -> sales_daily.rank_in_region
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.dim_store.region -> mart.sales_daily.region identity
+value core.fct_order_line.gross_amount -> mart.sales_daily.gross_amount aggregated
+influence core.fct_order_line.store_id, core.fct_order_line.order_date -> mart.sales_daily.gross_amount
+influence core.dim_store.region, core.fct_order_line.order_date, core.fct_order_line.gross_amount, core.fct_order_line.store_id -> mart.sales_daily.rank_in_region
 note region and order_date partition the rank; gross_amount orders it through the SUM; store_id and order_date decided what each SUM is.
-forbid value fct_order_line.gross_amount -> sales_daily.rank_in_region | RANK's ORDER BY decides the rank; no part of the sum is in it (D-4)
+forbid value core.fct_order_line.gross_amount -> mart.sales_daily.rank_in_region | RANK's ORDER BY decides the rank; no part of the sum is in it (D-4)

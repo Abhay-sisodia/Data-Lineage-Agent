@@ -137,6 +137,36 @@
       "owner": "mart",
       "name": "top_customers",
       "object_type": "TABLE"
+    },
+    "staging.LegacyFeed": {
+      "owner": "staging",
+      "name": "LegacyFeed",
+      "object_type": "TABLE"
+    },
+    "staging.ledger": {
+      "owner": "staging",
+      "name": "ledger",
+      "object_type": "TABLE"
+    },
+    "core.ledger": {
+      "owner": "core",
+      "name": "ledger",
+      "object_type": "TABLE"
+    },
+    "mart.FeedSummary": {
+      "owner": "mart",
+      "name": "FeedSummary",
+      "object_type": "TABLE"
+    },
+    "staging.events_log": {
+      "owner": "staging",
+      "name": "events_log",
+      "object_type": "TABLE"
+    },
+    "mart.events_log": {
+      "owner": "mart",
+      "name": "events_log",
+      "object_type": "TABLE"
     }
   },
   "columns": {
@@ -420,6 +450,47 @@
       "full_name",
       "revenue",
       "position"
+    ],
+    "staging.LegacyFeed": [
+      "FeedID",
+      "CustomerID",
+      "Amount",
+      "amount",
+      "order",
+      "user",
+      "Status Code",
+      "created_at"
+    ],
+    "staging.ledger": [
+      "id",
+      "account",
+      "amount",
+      "currency",
+      "posted_at"
+    ],
+    "core.ledger": [
+      "id",
+      "account",
+      "balance",
+      "status"
+    ],
+    "mart.FeedSummary": [
+      "CustomerID",
+      "Total",
+      "total",
+      "order",
+      "Status Code"
+    ],
+    "staging.events_log": [
+      "id",
+      "kind",
+      "payload_size",
+      "logged_at"
+    ],
+    "mart.events_log": [
+      "id",
+      "kind",
+      "rolled_up"
     ]
   },
   "temporary": {
@@ -449,6 +520,12 @@
     "mart.carrier_scorecard": false,
     "mart.channel_mix": false,
     "mart.kpi_rollup": false,
-    "mart.top_customers": false
+    "mart.top_customers": false,
+    "staging.LegacyFeed": false,
+    "staging.ledger": false,
+    "core.ledger": false,
+    "mart.FeedSummary": false,
+    "staging.events_log": false,
+    "mart.events_log": false
   }
 }

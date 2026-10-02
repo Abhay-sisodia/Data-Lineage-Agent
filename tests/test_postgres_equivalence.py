@@ -249,19 +249,19 @@ def test_a_shared_named_window_reaches_every_function_that_uses_it(
     """
     edges = edges_of(SHARED_WINDOW, book, config)
 
-    for target in ("fct_cohort.rank_in_region", "fct_cohort.running_revenue"):
+    for target in ("public.fct_cohort.rank_in_region", "public.fct_cohort.running_revenue"):
         influence = {
             e[0] for e in edges if e[1] == f"column:{target}" and e[2] == "influence"
         }
         assert influence == {
-            "column:stg_customer.region",
-            "column:stg_customer.signup_date",
+            "column:public.stg_customer.region",
+            "column:public.stg_customer.signup_date",
         }, f"{target} lost its window's PARTITION BY / ORDER BY: {sorted(influence)}"
 
     # RANK() takes no argument, so it must have influence and NO value - the distinction
     # the whole of D-4 rests on, and the one an over-eager fix would collapse.
     assert not [
-        e for e in edges if e[1] == "column:fct_cohort.rank_in_region" and e[2] == "value"
+        e for e in edges if e[1] == "column:public.fct_cohort.rank_in_region" and e[2] == "value"
     ], "RANK() takes no argument; a value edge into rank_in_region is invented"
 
 
@@ -280,8 +280,8 @@ def test_a_named_window_is_resolved_through_a_derived_table(
               FROM stg_customer c WINDOW w AS (PARTITION BY c.signup_date)) t;"""
 
     assert (
-        "column:stg_customer.signup_date",
-        "column:fct_cohort.rank_in_region",
+        "column:public.stg_customer.signup_date",
+        "column:public.fct_cohort.rank_in_region",
         "influence",
         "identity",
         "pre-aggregation",

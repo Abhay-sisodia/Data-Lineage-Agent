@@ -46,7 +46,7 @@ def test_distinct_on_keys_and_tie_breakers_are_filters() -> None:
         "INSERT INTO mart.top_customers (customer_id, revenue) "
         "SELECT DISTINCT ON (o.customer_id) o.customer_id, o.amount FROM staging.orders AS o "
         "ORDER BY o.customer_id, o.order_ts DESC"
-    ) == {("column:orders.customer_id", PRE), ("column:orders.order_ts", PRE)}
+    ) == {("column:staging.orders.customer_id", PRE), ("column:staging.orders.order_ts", PRE)}
 
 
 def test_a_filtered_rank_filters_on_its_partition_and_order() -> None:
@@ -57,7 +57,7 @@ def test_a_filtered_rank_filters_on_its_partition_and_order() -> None:
         "  SELECT o.customer_id, o.amount, ROW_NUMBER() OVER "
         "    (PARTITION BY o.customer_id ORDER BY o.order_ts DESC) AS rn "
         "  FROM staging.orders AS o) AS x WHERE x.rn = 1"
-    ) == {("column:orders.customer_id", PRE), ("column:orders.order_ts", PRE)}
+    ) == {("column:staging.orders.customer_id", PRE), ("column:staging.orders.order_ts", PRE)}
 
 
 def test_an_ordinal_under_a_limit_is_the_projection_it_numbers() -> None:
@@ -66,7 +66,7 @@ def test_an_ordinal_under_a_limit_is_the_projection_it_numbers() -> None:
         "INSERT INTO mart.channel_mix (channel, revenue) "
         "SELECT o.channel, SUM(o.amount) FROM staging.orders AS o "
         "GROUP BY 1 ORDER BY 2 DESC LIMIT 5"
-    ) == {("column:orders.amount", POST)}
+    ) == {("column:staging.orders.amount", POST)}
 
 
 def test_an_output_name_under_a_limit_wins_over_an_input_column() -> None:
@@ -76,7 +76,7 @@ def test_an_output_name_under_a_limit_wins_over_an_input_column() -> None:
         "INSERT INTO mart.top_customers (customer_id, revenue) "
         "SELECT sh.order_id, sh.weight_kg AS cost FROM staging.shipments AS sh "
         "WHERE cost > 0 ORDER BY cost DESC LIMIT 20"
-    ) == {("column:shipments.cost", PRE), ("column:shipments.weight_kg", PRE)}
+    ) == {("column:staging.shipments.cost", PRE), ("column:staging.shipments.weight_kg", PRE)}
 
 
 def test_no_row_limit_or_no_ordering_decides_nothing() -> None:
@@ -126,7 +126,7 @@ def test_a_comma_join_equality_is_structural() -> None:
         "INSERT INTO mart.sales_daily (sale_date, gross_amount) "
         "SELECT f.order_date, f.gross_amount FROM core.fct_order_line AS f, core.dim_store AS s "
         "WHERE f.store_id = s.id AND s.status = 'OPEN'"
-    ) == {("column:dim_store.status", PRE)}
+    ) == {("column:core.dim_store.status", PRE)}
 
 
 def test_a_non_equality_between_relations_is_still_a_filter() -> None:
@@ -136,7 +136,7 @@ def test_a_non_equality_between_relations_is_still_a_filter() -> None:
         "INSERT INTO mart.sales_daily (sale_date) "
         "SELECT f.order_date FROM core.fct_order_line AS f, core.dim_store AS s "
         "WHERE f.store_id = s.id AND f.order_date >= s.opened_on"
-    ) == {("column:fct_order_line.order_date", PRE), ("column:dim_store.opened_on", PRE)}
+    ) == {("column:core.fct_order_line.order_date", PRE), ("column:core.dim_store.opened_on", PRE)}
 
 
 def test_an_equality_touching_an_outer_joins_nullable_side_stays_a_filter() -> None:
@@ -145,11 +145,11 @@ def test_an_equality_touching_an_outer_joins_nullable_side_stays_a_filter() -> N
         "INSERT INTO mart.kpi_rollup (region) "
         "SELECT c.mode FROM core.dim_carrier AS c "
         "LEFT JOIN core.fct_shipment AS s ON s.carrier_id = c.id WHERE s.status = c.status"
-    ) == {("column:fct_shipment.status", PRE), ("column:dim_carrier.status", PRE)}
+    ) == {("column:core.fct_shipment.status", PRE), ("column:core.dim_carrier.status", PRE)}
 
 
 def test_an_equality_under_or_is_logic_not_a_join() -> None:
-    assert ("column:dim_store.id", PRE) in _filters(
+    assert ("column:core.dim_store.id", PRE) in _filters(
         "INSERT INTO mart.sales_daily (sale_date) "
         "SELECT f.order_date FROM core.fct_order_line AS f, core.dim_store AS s "
         "WHERE f.store_id = s.id OR s.status = 'X'"
@@ -165,10 +165,10 @@ def test_an_ordered_set_aggregate_is_aggregated() -> None:
         "SELECT s.carrier_id, percentile_cont(0.5) WITHIN GROUP (ORDER BY s.transit_days) "
         "FROM core.fct_shipment AS s GROUP BY s.carrier_id"
     ) == {
-        ("column:fct_shipment.carrier_id", "column:carrier_scorecard.carrier_id", "identity"),
+        ("column:core.fct_shipment.carrier_id", "column:mart.carrier_scorecard.carrier_id", "identity"),
         (
-            "column:fct_shipment.transit_days",
-            "column:carrier_scorecard.p50_transit_days",
+            "column:core.fct_shipment.transit_days",
+            "column:mart.carrier_scorecard.p50_transit_days",
             "aggregated",
         ),
     }

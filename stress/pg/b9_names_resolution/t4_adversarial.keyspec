@@ -1,0 +1,61 @@
+# Answer key for B9 t4_adversarial.sql - names and resolution, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B4, plus D-23..D-25. Every node is schema-qualified (D-25).
+
+expect context_dependent_binding <script>:106 | S10's events_log is the file's first unqualified relation resolved without a known path (S9 runs under a SET)
+expect dangling_reference events_log | S10: events_log is in staging and mart, neither the default (D-24)
+
+@ 18 S1 "O" and o
+value staging.orders.amount -> mart.channel_mix.revenue identity
+value staging.payments.amount -> mart.channel_mix.orders derived
+forbid value staging.orders.amount -> mart.channel_mix.orders derived | o is payments; "O" is orders
+
+@ 29 S2 unqualified names bind innermost
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.payments.amount, staging.payments.order_id, staging.payments.id -> mart.channel_mix.revenue aggregated
+note `id` is payments.id, so the WHERE is p.order_id = p.id; D-12 makes its columns values.
+forbid value staging.orders.id -> mart.channel_mix.revenue aggregated | the bare `id` binds to the inner query's payments.id
+forbid value staging.orders.amount -> mart.channel_mix.revenue aggregated | the bare `amount` binds to payments.amount
+
+@ 39 S3 "Amount" and amount in WHERE
+value staging.LegacyFeed.CustomerID -> mart.FeedSummary.CustomerID identity
+filter staging.LegacyFeed.Amount, staging.LegacyFeed.amount -> mart.FeedSummary
+
+@ 49 S4 unquoted user is a function
+value staging.LegacyFeed.CustomerID -> mart.kpi_rollup.customers identity
+forbid value staging.LegacyFeed.user -> mart.kpi_rollup.level | unquoted `user` is CURRENT_USER, not the column "user"
+
+@ 57 S5 a name with a space
+value staging.LegacyFeed.Status Code -> mart.kpi_rollup.level identity
+value staging.LegacyFeed.Amount -> mart.kpi_rollup.revenue aggregated
+influence staging.LegacyFeed.Status Code -> mart.kpi_rollup.revenue
+
+@ 66 S6 alias named like a schema
+repeat value staging.orders.channel -> mart.channel_mix.channel identity
+
+@ 74 S7 alias named like a column
+value staging.customers.status -> mart.kpi_rollup.level identity
+value staging.customers.segment -> mart.kpi_rollup.segment identity
+
+@ 82 S8 c.* of one of two same-named tables
+value core.ledger.id -> core.ledger.id identity
+value core.ledger.account -> core.ledger.account identity
+value core.ledger.balance -> core.ledger.balance identity
+value core.ledger.status -> core.ledger.status identity
+filter staging.ledger.currency -> core.ledger
+forbid value staging.ledger.amount -> core.ledger.balance | c.* is core.ledger's columns only
+forbid value staging.ledger.account -> core.ledger.account | c.* is core.ledger's columns only
+
+@ 95 S9 a quoted schema in SET
+value staging.ledger.account -> mart.kpi_rollup.segment identity
+filter staging.ledger.amount -> mart.kpi_rollup
+
+@ 108 S10 an ambiguous relation inside EXISTS, after RESET
+value core.dim_store.name -> mart.kpi_rollup.level identity
+filter core.dim_store.id -> mart.kpi_rollup
+forbid filter staging.events_log.id -> mart.kpi_rollup | events_log is ambiguous with no path known (D-24)
+forbid filter mart.events_log.id -> mart.kpi_rollup | events_log is ambiguous with no path known (D-24)
+
+@ 117 S11 a keyword as a quoted alias
+repeat value staging.orders.amount -> mart.channel_mix.revenue identity

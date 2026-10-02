@@ -97,6 +97,24 @@ EXPECTED = {
     ("b4_expressions_types/t5_metamorphic", Flow.VALUE): (42, 0, 0),
     ("b4_expressions_types/t5_metamorphic", Flow.FILTER): (7, 0, 0),
     ("b4_expressions_types/t5_metamorphic", Flow.INFLUENCE): (18, 0, 0),
+    # B9 names and resolution - agreed 2026-10-03 after every fix in REPORT.md section 6,
+    # scored strictly against schema-qualified keys (D-25). No false positive, no miss,
+    # none hidden per statement; all ten T5 pairs equal.
+    ("b9_names_resolution/t1_breadth", Flow.VALUE): (33, 0, 0),
+    ("b9_names_resolution/t1_breadth", Flow.FILTER): (6, 0, 0),
+    ("b9_names_resolution/t1_breadth", Flow.INFLUENCE): (1, 0, 0),
+    ("b9_names_resolution/t2_depth", Flow.VALUE): (16, 0, 0),
+    ("b9_names_resolution/t2_depth", Flow.FILTER): (8, 0, 0),
+    ("b9_names_resolution/t2_depth", Flow.INFLUENCE): (3, 0, 0),
+    ("b9_names_resolution/t3_interaction", Flow.VALUE): (21, 0, 0),
+    ("b9_names_resolution/t3_interaction", Flow.FILTER): (5, 0, 0),
+    ("b9_names_resolution/t3_interaction", Flow.INFLUENCE): (5, 0, 0),
+    ("b9_names_resolution/t4_adversarial", Flow.VALUE): (18, 0, 0),
+    ("b9_names_resolution/t4_adversarial", Flow.FILTER): (5, 0, 0),
+    ("b9_names_resolution/t4_adversarial", Flow.INFLUENCE): (1, 0, 0),
+    ("b9_names_resolution/t5_metamorphic", Flow.VALUE): (24, 0, 0),
+    ("b9_names_resolution/t5_metamorphic", Flow.FILTER): (3, 0, 0),
+    ("b9_names_resolution/t5_metamorphic", Flow.INFLUENCE): (1, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})

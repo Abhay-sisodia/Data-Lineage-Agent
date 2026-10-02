@@ -123,10 +123,10 @@ def test_those_edges_are_not_an_empty_set() -> None:
     """Stated separately because the equality above is also satisfied by both sides
     producing nothing - a regression wearing a passing test as a disguise."""
     assert _edges(POISONED) == {
-        ("column:orders.region", "relation:tgt", "filter", "identity"),
-        ("column:orders.id", "column:tgt.a", "value", "identity"),
-        ("column:orders.id", "column:tgt.b", "influence", "identity"),
-        ("column:orders.amount", "column:tgt.b", "value", "aggregated"),
+        ("column:silver.orders.region", "relation:gold.tgt", "filter", "identity"),
+        ("column:silver.orders.id", "column:gold.tgt.a", "value", "identity"),
+        ("column:silver.orders.id", "column:gold.tgt.b", "influence", "identity"),
+        ("column:silver.orders.amount", "column:gold.tgt.b", "value", "aggregated"),
     }
 
 
@@ -271,8 +271,8 @@ def test_an_ordinary_projection_inside_a_refused_cte_contributes_nothing() -> No
     """
     edges = _edges(PROVABLE_COLUMN_INSIDE_THE_POISONED_CTE)
 
-    assert not [e for e in edges if e[0] == "column:shipments.id"]
-    assert ("column:orders.id", "column:tgt.a", "value", "identity") in edges
+    assert not [e for e in edges if e[0] == "column:silver.shipments.id"]
+    assert ("column:silver.orders.id", "column:gold.tgt.a", "value", "identity") in edges
     assert _result(PROVABLE_COLUMN_INSIDE_THE_POISONED_CTE).refusal_violations() == []
 
 

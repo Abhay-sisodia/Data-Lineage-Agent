@@ -119,13 +119,19 @@ def _returning_list(statement: Any, dictionary: Dictionary) -> str | None:
     return ", ".join(_sql(item, dictionary) for item in returning.expressions)
 
 
-def _query_width(query: Any) -> int:
+def _query_width(query: Any) -> int | None:
+    """How many columns the query supplies, or None while a `*` hides the count."""
     if isinstance(query, exp.Values):
         rows = list(query.expressions)
         return len(rows[0].expressions) if rows else 0
     while isinstance(query, exp.SetOperation):
         query = query.this
-    return len(getattr(query, "selects", None) or [])
+    selects = getattr(query, "selects", None) or []
+    # A star is one projection in the text and N columns after `qualify` expands it
+    # (finding B9-03): counted as one, `INSERT INTO t SELECT * FROM t` bound one column.
+    if any(isinstance(p, exp.Star) or isinstance(p.this, exp.Star) for p in selects):
+        return None
+    return len(selects)
 
 
 # --- reads -------------------------------------------------------------------------------
@@ -156,10 +162,13 @@ def _read_of(write: Any, projection: str, dictionary: Dictionary) -> str:
         if body is None:
             return f"SELECT {projection} FROM {bare} AS {_alias_of(table)}"
         width = _query_width(body)
-        names = ", ".join(f"__c{i}" for i in range(1, width + 1))
+        # A `*` body keeps its own column names: the count is not known before qualify.
+        names = "" if width is None else "(" + ", ".join(
+            f"__c{i}" for i in range(1, width + 1)
+        ) + ")"
         return (
             f"SELECT {projection} FROM {bare} AS {_alias_of(table)} "
-            f"CROSS JOIN ({_sql(body, dictionary)}) AS __rows({names})"
+            f"CROSS JOIN ({_sql(body, dictionary)}) AS __rows{names}"
         )
     if isinstance(write, exp.Merge):
         return (
@@ -321,9 +330,10 @@ def _insert_parts(insert: Any, dictionary: Dictionary) -> list[Any]:
     target = _unaliased(table)
     if explicit is not None:
         target = exp.Schema(this=target, expressions=[e.copy() for e in explicit])
-    elif columns:
+    elif columns and _query_width(insert.expression) is not None:
         # An omitted list binds to the FIRST columns in table order, as many as the query
         # supplies - not to all of them. Read as all, a short row was refused for arity.
+        # With a `*` the width is not known yet; the full list meets the expanded star.
         width = _query_width(insert.expression)
         target = exp.Schema(
             this=target, expressions=[exp.to_identifier(name) for name in columns[:width]]

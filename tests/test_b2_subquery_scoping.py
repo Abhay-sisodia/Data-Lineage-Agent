@@ -50,12 +50,12 @@ def test_a_shadowing_inner_alias_is_the_inner_relation() -> None:
         "INSERT INTO mart.channel_mix (channel) SELECT o.channel FROM staging.orders AS o "
         "WHERE EXISTS (SELECT 1 FROM staging.payments AS o WHERE o.order_id = o.id)"
     )
-    assert filters == {("column:payments.order_id", PRE), ("column:payments.id", PRE)}
+    assert filters == {("column:staging.payments.order_id", PRE), ("column:staging.payments.id", PRE)}
 
 
 def test_a_genuine_correlation_still_resolves_outward() -> None:
     """The control: a name the inner query does not have binds to the outer one."""
-    assert ("column:orders.store_id", PRE) in _filters(
+    assert ("column:staging.orders.store_id", PRE) in _filters(
         "INSERT INTO mart.channel_mix (channel) SELECT o.channel FROM staging.orders AS o "
         "WHERE EXISTS (SELECT 1 FROM staging.shipments AS s WHERE s.carrier_id = store_id)"
     )
@@ -73,13 +73,13 @@ def test_an_ordering_and_a_join_inside_a_scalar_subquery_are_not_values() -> Non
         "FROM staging.customers AS c"
     )
     values = {(f[0], f[3]) for f in facts if f[2] == "value"}
-    assert ("column:payments.paid_at", "derived") not in values, "B2-02: the ordering is not in it"
-    assert not {s for s, _ in values} & {"column:orders.id", "column:payments.order_id"}, (
+    assert ("column:staging.payments.paid_at", "derived") not in values, "B2-02: the ordering is not in it"
+    assert not {s for s, _ in values} & {"column:staging.orders.id", "column:staging.payments.order_id"}, (
         "B2-03: a join key is structural (D-5)"
     )
     assert (
-        "column:payments.paid_at",
-        "column:customer_summary.lifetime_value",
+        "column:staging.payments.paid_at",
+        "column:mart.customer_summary.lifetime_value",
         "influence",
         "identity",
         PRE,
@@ -93,7 +93,7 @@ def test_an_exists_ordering_decides_nothing() -> None:
         "FROM core.dim_product AS p WHERE EXISTS (SELECT 1 FROM core.fct_order_line AS f "
         "WHERE f.product_key = p.product_key ORDER BY f.order_date DESC LIMIT 1)"
     )
-    assert ("column:fct_order_line.order_date", PRE) not in filters
+    assert ("column:core.fct_order_line.order_date", PRE) not in filters
 
 
 # --- D-12 / D-14 ------------------------------------------------------------------------
@@ -105,10 +105,10 @@ def test_a_scalar_subquerys_predicate_is_a_value_of_its_column() -> None:
         "SELECT c.id, (SELECT SUM(p.amount) FROM staging.payments AS p "
         "WHERE p.order_id = c.id AND p.status = 'SETTLED') FROM staging.customers AS c"
     )
-    for column in ("payments.order_id", "customers.id", "payments.status"):
+    for column in ("staging.payments.order_id", "staging.customers.id", "staging.payments.status"):
         assert (
             f"column:{column}",
-            "column:customer_summary.lifetime_value",
+            "column:mart.customer_summary.lifetime_value",
             "value",
             "aggregated",
             PRE,
@@ -124,15 +124,15 @@ def test_a_lookup_keys_are_conditional_and_its_column_identity() -> None:
         "FROM staging.orders AS o"
     )
     assert (
-        "column:customers.full_name",
-        "column:top_customers.full_name",
+        "column:staging.customers.full_name",
+        "column:mart.top_customers.full_name",
         "value",
         "identity",
         PRE,
     ) in facts
     assert (
-        "column:customers.id",
-        "column:top_customers.full_name",
+        "column:staging.customers.id",
+        "column:mart.top_customers.full_name",
         "value",
         "conditional",
         PRE,
@@ -148,13 +148,13 @@ def test_a_left_joined_sides_predicate_is_a_value_of_what_it_feeds() -> None:
         "ON lp.order_id = o.id"
     )
     assert (
-        "column:payments.status",
-        "column:sales_daily.net_amount",
+        "column:staging.payments.status",
+        "column:mart.sales_daily.net_amount",
         "value",
         "aggregated",
         PRE,
     ) in facts
-    assert ("column:payments.status", PRE) not in _filters(
+    assert ("column:staging.payments.status", PRE) not in _filters(
         "INSERT INTO mart.sales_daily (orders, net_amount) SELECT o.id, lp.amt "
         "FROM staging.orders AS o LEFT JOIN (SELECT p.order_id, SUM(p.amount) AS amt "
         "FROM staging.payments AS p WHERE p.status = 'SETTLED' GROUP BY p.order_id) AS lp "
@@ -164,7 +164,7 @@ def test_a_left_joined_sides_predicate_is_a_value_of_what_it_feeds() -> None:
 
 def test_an_inner_joined_sides_predicate_is_still_a_filter() -> None:
     """The control: the same derived table INNER JOINed CAN remove an order."""
-    assert ("column:payments.status", PRE) in _filters(
+    assert ("column:staging.payments.status", PRE) in _filters(
         "INSERT INTO mart.sales_daily (orders, net_amount) SELECT o.id, lp.amt "
         "FROM staging.orders AS o JOIN (SELECT p.order_id, SUM(p.amount) AS amt "
         "FROM staging.payments AS p WHERE p.status = 'SETTLED' GROUP BY p.order_id) AS lp "
@@ -182,8 +182,8 @@ def test_a_merge_using_a_left_joined_side_keeps_its_predicate_as_a_value() -> No
         "ON (t.orders = x.id) WHEN MATCHED THEN UPDATE SET net_amount = x.amt"
     )
     assert any(
-        f[0] == "column:payments.status"
-        and f[1] == "column:sales_daily.net_amount"
+        f[0] == "column:staging.payments.status"
+        and f[1] == "column:mart.sales_daily.net_amount"
         and f[2] == "value"
         for f in facts
     )
@@ -197,7 +197,7 @@ def test_a_limit_over_a_whole_union_filters_every_arm() -> None:
         "INSERT INTO mart.top_customers (customer_id, revenue) "
         "SELECT p.order_id, p.amount FROM staging.payments AS p UNION ALL "
         "SELECT r.order_line_id, r.amount FROM staging.returns AS r ORDER BY 2 DESC LIMIT 20"
-    ) == {("column:payments.amount", PRE), ("column:returns.amount", PRE)}
+    ) == {("column:staging.payments.amount", PRE), ("column:staging.returns.amount", PRE)}
 
 
 def test_a_limit_inside_a_lateral_is_a_filter_and_its_grouping_reaches_the_column() -> None:
@@ -207,10 +207,10 @@ def test_a_limit_inside_a_lateral_is_a_filter_and_its_grouping_reaches_the_colum
         "SUM(f.quantity) AS qty FROM core.fct_order_line AS f WHERE f.store_id = s.id "
         "GROUP BY f.product_key ORDER BY SUM(f.quantity) DESC LIMIT 5) AS t"
     )
-    assert ("column:fct_order_line.quantity", POST) in _filters(sql)
+    assert ("column:core.fct_order_line.quantity", POST) in _filters(sql)
     assert (
-        "column:fct_order_line.product_key",
-        "column:product_performance.units",
+        "column:core.fct_order_line.product_key",
+        "column:mart.product_performance.units",
         "influence",
         "identity",
         PRE,
@@ -226,8 +226,8 @@ def test_a_column_compared_through_a_subquery_aggregate_is_post_aggregation() ->
         "FROM core.fct_order_line AS f "
         "WHERE f.unit_price >= (SELECT AVG(p.list_price) FROM core.dim_product AS p)"
     )
-    assert ("column:dim_product.list_price", POST) in filters
-    assert ("column:fct_order_line.unit_price", PRE) in filters
+    assert ("column:core.dim_product.list_price", POST) in filters
+    assert ("column:core.fct_order_line.unit_price", PRE) in filters
 
 
 # --- B2-07 / B2-10 ----------------------------------------------------------------------
@@ -240,7 +240,7 @@ def test_an_in_over_an_intersect_keeps_its_first_arms_key() -> None:
         "SELECT p.product_key FROM core.dim_product AS p WHERE p.brand = 'ACME' INTERSECT "
         "SELECT p2.product_key FROM core.dim_product AS p2 WHERE p2.status = 'ACTIVE')"
     )
-    assert "column:dim_product.product_key" in {
+    assert "column:core.dim_product.product_key" in {
         str(e.source) for e in result.edges if e.flow.value == "filter"
     }
     assert result.boundaries == []
@@ -256,6 +256,6 @@ def test_a_recursive_ctes_self_reference_declares_nothing() -> None:
         "INSERT INTO mart.kpi_rollup (region) SELECT tr.department FROM tree AS tr"
     )
     assert result.boundaries == []
-    assert ("column:dim_category.department", "column:kpi_rollup.region") in {
+    assert ("column:core.dim_category.department", "column:mart.kpi_rollup.region") in {
         (str(e.source), str(e.target)) for e in result.edges
     }

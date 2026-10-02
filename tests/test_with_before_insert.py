@@ -62,11 +62,11 @@ def test_both_spellings_give_the_same_lineage(name: str) -> None:
 def test_the_with_first_spelling_actually_produces_the_lineage() -> None:
     """Stated separately: equality also holds if both spellings lose everything."""
     facts = _facts(PAIRS["plain"][0])
-    assert ("column:dim_store.region", "column:kpi_rollup.region", "value", "identity",
+    assert ("column:core.dim_store.region", "column:mart.kpi_rollup.region", "value", "identity",
             "pre-aggregation") in facts
-    assert ("column:fct_order_line.net_amount", "column:kpi_rollup.revenue", "value",
+    assert ("column:core.fct_order_line.net_amount", "column:mart.kpi_rollup.revenue", "value",
             "aggregated", "pre-aggregation") in facts
-    assert ("column:fct_order_line.status", "relation:kpi_rollup", "filter", "identity",
+    assert ("column:core.fct_order_line.status", "relation:mart.kpi_rollup", "filter", "identity",
             "pre-aggregation") in facts
     assert not [b for b in _result(PAIRS["plain"][0]).boundaries
                 if b.kind.value == "dangling_reference"]
@@ -79,7 +79,7 @@ def test_ctes_on_both_levels_are_all_in_scope() -> None:
         f"WITH {CTES} INSERT INTO mart.kpi_rollup (region) "
         "WITH d AS (SELECT c.r AS q FROM c) SELECT d.q FROM d"
     )
-    assert ("column:dim_store.region", "column:kpi_rollup.region", "value", "identity",
+    assert ("column:core.dim_store.region", "column:mart.kpi_rollup.region", "value", "identity",
             "pre-aggregation") in facts
 
 

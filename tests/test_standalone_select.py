@@ -82,13 +82,13 @@ def test_its_projections_become_the_target_columns(postgres: Dictionary) -> None
         (str(e.source), str(e.target), e.flow.value, e.transform.value) for e in result.edges
     }
     assert (
-        "column:stg_orders.gross_amount",
+        "column:public.stg_orders.gross_amount",
         "column:<result>.total",
         "value",
         "aggregated",
     ) in edges
     assert (
-        "column:stg_orders.cust_id",
+        "column:public.stg_orders.cust_id",
         "column:<result>.cust_id",
         "value",
         "identity",
@@ -108,7 +108,7 @@ def test_a_named_target_replaces_the_synthetic_one(postgres: Dictionary) -> None
         BARE, postgres, config, None, result_target="public.fct_revenue"
     )
     targets = {str(e.target) for e in result.edges}
-    assert "column:fct_revenue.total" in targets
+    assert "column:public.fct_revenue.total" in targets
     assert not any("<result>" in t for t in targets), "the synthetic name leaked through"
 
 
@@ -124,7 +124,7 @@ def test_a_select_beside_an_insert_leaves_the_insert_alone(postgres: Dictionary)
     assert result.refusals == []
     # One edge into the INSERT's table, one into the standalone query's own result.
     targets = {str(e.target) for e in result.edges}
-    assert "column:fct_revenue.cust_id" in targets
+    assert "column:public.fct_revenue.cust_id" in targets
     assert "column:<result>.cust_id" in targets
 
 

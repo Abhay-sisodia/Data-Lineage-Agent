@@ -31,7 +31,9 @@ def _book() -> Dictionary:
         default_schema="silver",
         dialect="postgres",
         objects={
-            name: ObjectInfo(owner="silver", name=name.split(".")[1], object_type="TABLE")
+            name: ObjectInfo(
+                owner=name.split(".")[0], name=name.split(".")[1], object_type="TABLE"
+            )
             for name in ("silver.src", "silver.child", "gold.tgt")
         },
         columns={
@@ -85,8 +87,8 @@ def test_the_lateral_spelling_actually_produces_edges() -> None:
 
     assert [b.kind.value for b in result.boundaries] == []
     assert _edges(LATERAL_NAMING_AN_EXPRESSION) == {
-        ("column:src.payload", "column:tgt.a", "value", "derived"),
-        ("column:src.display_name", "column:tgt.b", "value", "identity"),
+        ("column:silver.src.payload", "column:gold.tgt.a", "value", "derived"),
+        ("column:silver.src.display_name", "column:gold.tgt.b", "value", "identity"),
     }
 
 
@@ -113,9 +115,9 @@ def test_a_lateral_with_its_own_from_resolves_through_to_the_inner_table() -> No
                ) AS j
         """
     )
-    assert ("column:child.amount", "column:tgt.a", "value", "aggregated") in edges
-    assert ("column:child.pid", "column:tgt.a", "value", "aggregated") in edges
-    assert ("column:src.id", "column:tgt.a", "value", "aggregated") in edges
+    assert ("column:silver.child.amount", "column:gold.tgt.a", "value", "aggregated") in edges
+    assert ("column:silver.child.pid", "column:gold.tgt.a", "value", "aggregated") in edges
+    assert ("column:silver.src.id", "column:gold.tgt.a", "value", "aggregated") in edges
     assert not [e for e in edges if e[2] == "filter"], "a one-row LATERAL removes no row (D-14)"
 
 
@@ -159,4 +161,4 @@ def test_nested_laterals_resolve_through_both_levels() -> None:
         LEFT   JOIN LATERAL (SELECT j.score * 2 AS doubled) AS k ON TRUE
         """
     )
-    assert edges == {("column:src.payload", "column:tgt.a", "value", "derived")}
+    assert edges == {("column:silver.src.payload", "column:gold.tgt.a", "value", "derived")}

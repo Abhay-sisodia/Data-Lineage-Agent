@@ -36,14 +36,14 @@ def test_cardinality_of_an_aggregate_keeps_the_aggregate_and_its_grouping() -> N
         "FROM core.fct_shipment AS f GROUP BY f.carrier_id"
     )
     assert (
-        "column:fct_shipment.order_id",
-        "column:carrier_scorecard.shipments",
+        "column:core.fct_shipment.order_id",
+        "column:mart.carrier_scorecard.shipments",
         "value",
         "aggregated",
     ) in facts
     assert (
-        "column:fct_shipment.carrier_id",
-        "column:carrier_scorecard.shipments",
+        "column:core.fct_shipment.carrier_id",
+        "column:mart.carrier_scorecard.shipments",
         "influence",
         "identity",
     ) in facts
@@ -55,7 +55,7 @@ def test_jsonb_build_object_is_transparent_to_its_arguments() -> None:
         "INSERT INTO mart.kpi_rollup (level) "
         "SELECT jsonb_build_object('n', s.name)::text FROM core.dim_store AS s"
     )
-    assert _facts(sql) == {("column:dim_store.name", "column:kpi_rollup.level", "value", "derived")}
+    assert _facts(sql) == {("column:core.dim_store.name", "column:mart.kpi_rollup.level", "value", "derived")}
     assert not _result(sql).boundaries
 
 
@@ -66,8 +66,8 @@ def test_a_builtin_aggregate_is_an_aggregate() -> None:
         "INSERT INTO mart.kpi_rollup (region, level) "
         "SELECT s.region, jsonb_agg(s.name)::text FROM core.dim_store AS s GROUP BY s.region"
     )
-    assert ("column:dim_store.name", "column:kpi_rollup.level", "value", "aggregated") in facts
-    assert ("column:dim_store.region", "column:kpi_rollup.level", "influence", "identity") in facts
+    assert ("column:core.dim_store.name", "column:mart.kpi_rollup.level", "value", "aggregated") in facts
+    assert ("column:core.dim_store.region", "column:mart.kpi_rollup.level", "influence", "identity") in facts
 
 
 def test_a_user_function_is_still_declared() -> None:

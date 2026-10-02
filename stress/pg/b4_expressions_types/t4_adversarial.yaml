@@ -12,10 +12,10 @@ labelled_at: '2026-10-01'
 edges:
 - source:
     kind: column
-    name: fct_order_line.order_date
+    name: core.fct_order_line.order_date
   target:
     kind: column
-    name: sales_daily.sale_date
+    name: mart.sales_daily.sale_date
   flow: value
   transform: identity
   band: 0
@@ -25,10 +25,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.store_id
+    name: core.fct_order_line.store_id
   target:
     kind: column
-    name: sales_daily.store_id
+    name: mart.sales_daily.store_id
   flow: value
   transform: identity
   band: 0
@@ -38,10 +38,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.gross_amount
+    name: core.fct_order_line.gross_amount
   target:
     kind: column
-    name: sales_daily.gross_amount
+    name: mart.sales_daily.gross_amount
   flow: value
   transform: derived
   band: 0
@@ -51,10 +51,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.net_amount
+    name: core.fct_order_line.net_amount
   target:
     kind: column
-    name: sales_daily.net_amount
+    name: mart.sales_daily.net_amount
   flow: value
   transform: derived
   band: 0
@@ -64,10 +64,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.quantity
+    name: core.fct_order_line.quantity
   target:
     kind: column
-    name: sales_daily.units
+    name: mart.sales_daily.units
   flow: value
   transform: derived
   band: 0
@@ -77,10 +77,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_customer.customer_id
+    name: core.dim_customer.customer_id
   target:
     kind: column
-    name: customer_summary.customer_id
+    name: mart.customer_summary.customer_id
   flow: value
   transform: identity
   band: 0
@@ -90,10 +90,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_customer.customer_key
+    name: core.dim_customer.customer_key
   target:
     kind: column
-    name: customer_summary.lifetime_value
+    name: mart.customer_summary.lifetime_value
   flow: value
   transform: derived
   band: 0
@@ -103,10 +103,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_customer.customer_key
+    name: core.dim_customer.customer_key
   target:
     kind: column
-    name: customer_summary.avg_basket
+    name: mart.customer_summary.avg_basket
   flow: value
   transform: derived
   band: 0
@@ -116,10 +116,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_customer.region
+    name: core.dim_customer.region
   target:
     kind: column
-    name: customer_summary.region
+    name: mart.customer_summary.region
   flow: value
   transform: derived
   band: 0
@@ -129,10 +129,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_product.product_id
+    name: core.dim_product.product_id
   target:
     kind: column
-    name: product_performance.product_id
+    name: mart.product_performance.product_id
   flow: value
   transform: identity
   band: 0
@@ -142,10 +142,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_product.list_price
+    name: core.dim_product.list_price
   target:
     kind: column
-    name: product_performance.revenue
+    name: mart.product_performance.revenue
   flow: value
   transform: conditional
   band: 0
@@ -155,10 +155,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_product.cost
+    name: core.dim_product.cost
   target:
     kind: column
-    name: product_performance.margin
+    name: mart.product_performance.margin
   flow: value
   transform: conditional
   band: 0
@@ -168,10 +168,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_date.year
+    name: core.dim_date.year
   target:
     kind: column
-    name: kpi_rollup.level
+    name: mart.kpi_rollup.level
   flow: value
   transform: derived
   band: 0
@@ -181,10 +181,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_date.month
+    name: core.dim_date.month
   target:
     kind: column
-    name: kpi_rollup.region
+    name: mart.kpi_rollup.region
   flow: value
   transform: derived
   band: 0
@@ -194,10 +194,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_date.quarter
+    name: core.dim_date.quarter
   target:
     kind: column
-    name: kpi_rollup.region
+    name: mart.kpi_rollup.region
   flow: value
   transform: derived
   band: 0
@@ -207,10 +207,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_date.calendar_date
+    name: core.dim_date.calendar_date
   target:
     kind: column
-    name: kpi_rollup.orders
+    name: mart.kpi_rollup.orders
   flow: value
   transform: derived
   band: 0
@@ -220,10 +220,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_date.week
+    name: core.dim_date.week
   target:
     kind: relation
-    name: kpi_rollup
+    name: mart.kpi_rollup
   flow: filter
   transform: identity
   band: 0
@@ -233,10 +233,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_date.calendar_date
+    name: core.dim_date.calendar_date
   target:
     kind: relation
-    name: kpi_rollup
+    name: mart.kpi_rollup
   flow: filter
   transform: identity
   band: 0
@@ -246,10 +246,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: dim_date.month
+    name: core.dim_date.month
   target:
     kind: relation
-    name: kpi_rollup
+    name: mart.kpi_rollup
   flow: filter
   transform: identity
   band: 0
@@ -259,10 +259,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.currency
+    name: staging.orders.currency
   target:
     kind: column
-    name: channel_mix.region
+    name: mart.channel_mix.region
   flow: value
   transform: derived
   band: 0
@@ -272,10 +272,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.status
+    name: staging.orders.status
   target:
     kind: relation
-    name: channel_mix
+    name: mart.channel_mix
   flow: filter
   transform: identity
   band: 0
@@ -285,10 +285,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.amount
+    name: staging.orders.amount
   target:
     kind: column
-    name: channel_mix.orders
+    name: mart.channel_mix.orders
   flow: value
   transform: derived
   band: 0
@@ -298,10 +298,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.amount
+    name: staging.orders.amount
   target:
     kind: column
-    name: channel_mix.revenue
+    name: mart.channel_mix.revenue
   flow: value
   transform: derived
   band: 0
@@ -311,10 +311,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.currency
+    name: staging.orders.currency
   target:
     kind: column
-    name: channel_mix.channel
+    name: mart.channel_mix.channel
   flow: value
   transform: derived
   band: 0
@@ -324,10 +324,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.id
+    name: staging.customers.id
   target:
     kind: column
-    name: top_customers.customer_id
+    name: mart.top_customers.customer_id
   flow: value
   transform: identity
   band: 0
@@ -337,10 +337,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.full_name
+    name: staging.customers.full_name
   target:
     kind: column
-    name: top_customers.full_name
+    name: mart.top_customers.full_name
   flow: value
   transform: identity
   band: 0
@@ -350,10 +350,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.id
+    name: staging.customers.id
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: derived
   band: 0
@@ -363,10 +363,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.email
+    name: staging.customers.email
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: derived
   band: 0
@@ -376,10 +376,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.full_name
+    name: staging.customers.full_name
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: derived
   band: 0
@@ -389,10 +389,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.country_code
+    name: staging.customers.country_code
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: derived
   band: 0
@@ -402,10 +402,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.segment
+    name: staging.customers.segment
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: derived
   band: 0
@@ -415,10 +415,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.status
+    name: staging.customers.status
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: derived
   band: 0
@@ -428,10 +428,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.signup_ts
+    name: staging.customers.signup_ts
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: derived
   band: 0
@@ -441,10 +441,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.attributes
+    name: staging.customers.attributes
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: derived
   band: 0
@@ -454,10 +454,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.created_at
+    name: staging.customers.created_at
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   transform: derived
   band: 0
@@ -467,10 +467,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.tags
+    name: staging.orders.tags
   target:
     kind: column
-    name: channel_mix.channel
+    name: mart.channel_mix.channel
   flow: value
   transform: derived
   band: 0
@@ -480,10 +480,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.tags
+    name: staging.orders.tags
   target:
     kind: column
-    name: channel_mix.orders
+    name: mart.channel_mix.orders
   flow: value
   transform: derived
   band: 0
@@ -493,10 +493,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.store_id
+    name: staging.orders.store_id
   target:
     kind: column
-    name: channel_mix.channel
+    name: mart.channel_mix.channel
   flow: value
   transform: derived
   band: 0
@@ -506,10 +506,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.store_id
+    name: staging.orders.store_id
   target:
     kind: column
-    name: channel_mix.orders
+    name: mart.channel_mix.orders
   flow: value
   transform: derived
   band: 0
@@ -519,10 +519,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.order_id
+    name: staging.payments.order_id
   target:
     kind: column
-    name: top_customers.customer_id
+    name: mart.top_customers.customer_id
   flow: value
   transform: identity
   band: 0
@@ -532,10 +532,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.amount
+    name: staging.payments.amount
   target:
     kind: column
-    name: top_customers.revenue
+    name: mart.top_customers.revenue
   flow: value
   transform: identity
   band: 0
@@ -545,10 +545,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.paid_at
+    name: staging.payments.paid_at
   target:
     kind: relation
-    name: top_customers
+    name: mart.top_customers
   flow: filter
   transform: identity
   band: 0
@@ -558,10 +558,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.method
+    name: staging.payments.method
   target:
     kind: relation
-    name: top_customers
+    name: mart.top_customers
   flow: filter
   transform: identity
   band: 0
@@ -571,10 +571,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.currency
+    name: staging.payments.currency
   target:
     kind: relation
-    name: top_customers
+    name: mart.top_customers
   flow: filter
   transform: identity
   band: 0
@@ -584,10 +584,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: payments.status
+    name: staging.payments.status
   target:
     kind: relation
-    name: top_customers
+    name: mart.top_customers
   flow: filter
   transform: identity
   band: 0
@@ -597,10 +597,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.id
+    name: staging.customers.id
   target:
     kind: column
-    name: customer_summary.customer_id
+    name: mart.customer_summary.customer_id
   flow: value
   transform: identity
   band: 0
@@ -610,10 +610,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.country_code
+    name: staging.customers.country_code
   target:
     kind: column
-    name: customer_summary.segment
+    name: mart.customer_summary.segment
   flow: value
   transform: conditional
   band: 0
@@ -623,10 +623,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: customers.segment
+    name: staging.customers.segment
   target:
     kind: column
-    name: customer_summary.segment
+    name: mart.customer_summary.segment
   flow: value
   transform: conditional
   band: 0
@@ -636,10 +636,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.net_amount
+    name: core.fct_order_line.net_amount
   target:
     kind: column
-    name: sales_daily.net_amount
+    name: mart.sales_daily.net_amount
   flow: value
   transform: conditional
   band: 0
@@ -649,10 +649,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.gross_amount
+    name: core.fct_order_line.gross_amount
   target:
     kind: column
-    name: sales_daily.net_amount
+    name: mart.sales_daily.net_amount
   flow: value
   transform: conditional
   band: 0
@@ -662,10 +662,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.net_amount
+    name: core.fct_order_line.net_amount
   target:
     kind: column
-    name: sales_daily.avg_order_value
+    name: mart.sales_daily.avg_order_value
   flow: value
   transform: conditional
   band: 0
@@ -675,10 +675,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: fct_order_line.unit_price
+    name: core.fct_order_line.unit_price
   target:
     kind: column
-    name: sales_daily.avg_order_value
+    name: mart.sales_daily.avg_order_value
   flow: value
   transform: conditional
   band: 0
@@ -688,10 +688,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.channel
+    name: staging.orders.channel
   target:
     kind: column
-    name: kpi_rollup.level
+    name: mart.kpi_rollup.level
   flow: value
   transform: identity
   band: 0
@@ -701,10 +701,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.amount
+    name: staging.orders.amount
   target:
     kind: relation
-    name: kpi_rollup
+    name: mart.kpi_rollup
   flow: filter
   transform: identity
   band: 0
@@ -714,10 +714,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.id
+    name: staging.orders.id
   target:
     kind: relation
-    name: kpi_rollup
+    name: mart.kpi_rollup
   flow: filter
   transform: identity
   band: 0
@@ -727,10 +727,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.store_id
+    name: staging.orders.store_id
   target:
     kind: relation
-    name: kpi_rollup
+    name: mart.kpi_rollup
   flow: filter
   transform: identity
   band: 0
@@ -740,10 +740,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.currency
+    name: staging.orders.currency
   target:
     kind: relation
-    name: kpi_rollup
+    name: mart.kpi_rollup
   flow: filter
   transform: identity
   band: 0
@@ -753,10 +753,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: orders.discount_code
+    name: staging.orders.discount_code
   target:
     kind: relation
-    name: kpi_rollup
+    name: mart.kpi_rollup
   flow: filter
   transform: identity
   band: 0
@@ -766,10 +766,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: shipments.id
+    name: staging.shipments.id
   target:
     kind: column
-    name: fct_shipment.shipment_id
+    name: core.fct_shipment.shipment_id
   flow: value
   transform: identity
   band: 0
@@ -779,10 +779,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: shipments.shipped_at
+    name: staging.shipments.shipped_at
   target:
     kind: column
-    name: fct_shipment.promised_date
+    name: core.fct_shipment.promised_date
   flow: value
   transform: derived
   band: 0
@@ -792,10 +792,10 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: shipments.weight_kg
+    name: staging.shipments.weight_kg
   target:
     kind: column
-    name: fct_shipment.promised_date
+    name: core.fct_shipment.promised_date
   flow: value
   transform: derived
   band: 0
@@ -806,85 +806,85 @@ edges:
 forbidden:
 - source:
     kind: column
-    name: dim_customer.customer_key
+    name: core.dim_customer.customer_key
   target:
     kind: column
-    name: customer_summary.lifetime_value
+    name: mart.customer_summary.lifetime_value
   flow: value
   reason: COALESCE(x, x) reads one distinct column (D-19)
   transform: conditional
 - source:
     kind: column
-    name: dim_customer.customer_key
+    name: core.dim_customer.customer_key
   target:
     kind: column
-    name: customer_summary.avg_basket
+    name: mart.customer_summary.avg_basket
   flow: value
   reason: d.customer_key and customer_key are the same column (D-19)
   transform: conditional
 - source:
     kind: column
-    name: dim_customer.region
+    name: core.dim_customer.region
   target:
     kind: column
-    name: customer_summary.region
+    name: mart.customer_summary.region
   flow: value
   reason: a CASE over one column and constants is derived (D-19)
   transform: conditional
 - source:
     kind: column
-    name: dim_product.product_key
+    name: core.dim_product.product_key
   target:
     kind: relation
-    name: product_performance
+    name: mart.product_performance
   flow: filter
   reason: an ON inequality is still structural (D-5)
 - source:
     kind: column
-    name: dim_date.year
+    name: core.dim_date.year
   target:
     kind: column
-    name: kpi_rollup.orders
+    name: mart.kpi_rollup.orders
   flow: value
   reason: '`year` inside EXTRACT is a field keyword, not the column'
 - source:
     kind: column
-    name: orders.channel
+    name: staging.orders.channel
   target:
     kind: column
-    name: channel_mix.channel
+    name: mart.channel_mix.channel
   flow: value
   reason: '''o.channel'' is a string literal'
 - source:
     kind: column
-    name: orders.amount
+    name: staging.orders.amount
   target:
     kind: column
-    name: channel_mix.region
+    name: mart.channel_mix.region
   flow: value
   reason: '''amount'' is a format() argument literal'
 - source:
     kind: column
-    name: orders.amount
+    name: staging.orders.amount
   target:
     kind: relation
-    name: channel_mix
+    name: mart.channel_mix
   flow: filter
   reason: '''o.amount > 0'' is a string literal'
 - source:
     kind: column
-    name: orders.id
+    name: staging.orders.id
   target:
     kind: column
-    name: top_customers.customer_id
+    name: mart.top_customers.customer_id
   flow: value
   reason: the alias `orders` is staging.customers
 - source:
     kind: column
-    name: orders.customer_id
+    name: staging.orders.customer_id
   target:
     kind: column
-    name: top_customers.region
+    name: mart.top_customers.region
   flow: value
   reason: the alias `orders` is staging.customers
 expected_boundaries: []

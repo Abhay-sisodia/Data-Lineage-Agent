@@ -54,9 +54,9 @@ def test_update_from_join_is_not_a_filter_and_from_values_resolve() -> None:
         "FROM staging.customers AS c WHERE c.id = d.customer_id AND c.status = 'A'"
     )
     assert facts == {
-        ("column:customers.country_code", "column:dim_customer.country_code",
+        ("column:staging.customers.country_code", "column:core.dim_customer.country_code",
          "value", "identity", PRE),
-        ("column:customers.status", "relation:dim_customer", "filter", "identity", PRE),
+        ("column:staging.customers.status", "relation:core.dim_customer", "filter", "identity", PRE),
     }
 
 
@@ -66,7 +66,7 @@ def test_delete_using_join_is_not_a_filter() -> None:
         "DELETE FROM core.fct_payment AS fp USING staging.payments AS p "
         "WHERE p.id = fp.payment_id AND p.status = 'REVERSED'",
         "filter",
-    ) == {("column:payments.status", "relation:fct_payment")}
+    ) == {("column:staging.payments.status", "relation:core.fct_payment")}
 
 
 # --- B3-05: WITH before a write ----------------------------------------------------------
@@ -80,7 +80,7 @@ def test_a_leading_with_reaches_an_update() -> None:
         "WHERE d.customer_id IN (SELECT s.id FROM stale AS s)",
         "filter",
     )
-    assert ("column:customers.status", "relation:dim_customer") in filters
+    assert ("column:staging.customers.status", "relation:core.dim_customer") in filters
     assert not any("stale" in source for source, _ in filters)
 
 
@@ -95,8 +95,8 @@ def test_row_valued_set_writes_each_named_column() -> None:
         "value",
     )
     assert values == {
-        ("column:dim_store.name", "column:dim_store.name"),
-        ("column:dim_store.country_code", "column:dim_store.region"),
+        ("column:core.dim_store.name", "column:core.dim_store.name"),
+        ("column:core.dim_store.country_code", "column:core.dim_store.region"),
     }
 
 
@@ -110,7 +110,7 @@ def test_a_writable_cte_nothing_reads_still_filters_its_own_table() -> None:
         "WITH gone AS (DELETE FROM staging.payments AS p WHERE p.status = 'VOID' "
         "RETURNING p.id) SELECT 1"
     )
-    assert facts == {("column:payments.status", "relation:payments", "filter", "identity", PRE)}
+    assert facts == {("column:staging.payments.status", "relation:staging.payments", "filter", "identity", PRE)}
 
 
 def test_a_writable_cte_predicate_filters_every_table_its_rows_reach() -> None:
@@ -121,17 +121,17 @@ def test_a_writable_cte_predicate_filters_every_table_its_rows_reach() -> None:
         "INSERT INTO core.fct_payment (payment_id, amount) SELECT g.id, g.amount FROM gone AS g"
     )
     assert {(f[0], f[1]) for f in facts if f[2] == "filter"} == {
-        ("column:payments.status", "relation:payments"),
-        ("column:payments.status", "relation:fct_payment"),
+        ("column:staging.payments.status", "relation:staging.payments"),
+        ("column:staging.payments.status", "relation:core.fct_payment"),
     }
-    assert ("column:payments.amount", "column:fct_payment.amount") in {
+    assert ("column:staging.payments.amount", "column:core.fct_payment.amount") in {
         (f[0], f[1]) for f in facts if f[2] == "value"
     }
 
 
 def test_returning_lands_in_result() -> None:
     """D-16. The returned value is the written row's, so it comes from the target column."""
-    assert ("column:channel_mix.channel", "column:<result>.channel") in _flow(
+    assert ("column:mart.channel_mix.channel", "column:<result>.channel") in _flow(
         "INSERT INTO mart.channel_mix (channel) SELECT o.channel FROM staging.orders AS o "
         "RETURNING channel",
         "value",
@@ -149,9 +149,9 @@ def test_on_conflict_do_update_set_and_where_are_analysed() -> None:
         "ON CONFLICT (customer_id) DO UPDATE SET lifetime_value = EXCLUDED.lifetime_value "
         "WHERE cs.status <> 'FROZEN'"
     )
-    assert ("column:orders.amount", "column:customer_summary.lifetime_value", "value",
+    assert ("column:staging.orders.amount", "column:mart.customer_summary.lifetime_value", "value",
             "aggregated", PRE) in facts
-    assert ("column:customer_summary.status", "relation:customer_summary", "filter",
+    assert ("column:mart.customer_summary.status", "relation:mart.customer_summary", "filter",
             "identity", PRE) in facts
     # D-15: the conflict target is structural - customer_id is never a filter.
     assert not any(f[2] == "filter" and f[0].endswith(".customer_id") for f in facts)
@@ -164,7 +164,7 @@ def test_a_merge_arm_condition_is_a_filter_and_on_is_not() -> None:
         "WHEN MATCHED THEN UPDATE SET email = s.email",
         "filter",
     )
-    assert filters == {("column:customers.status", "relation:dim_customer")}
+    assert filters == {("column:staging.customers.status", "relation:core.dim_customer")}
 
 
 # --- B3-01 / B3-02: target spellings ------------------------------------------------------
@@ -172,7 +172,7 @@ def test_a_merge_arm_condition_is_a_filter_and_on_is_not() -> None:
 
 def test_an_aliased_target_keeps_its_schema() -> None:
     """`mart.top_customers AS tc` was looked up as `core.top_customers` and refused."""
-    assert ("column:customers.full_name", "column:top_customers.full_name") in _flow(
+    assert ("column:staging.customers.full_name", "column:mart.top_customers.full_name") in _flow(
         "INSERT INTO mart.top_customers AS tc (customer_id, full_name) "
         "SELECT c.id, c.full_name FROM staging.customers AS c",
         "value",
@@ -185,8 +185,8 @@ def test_an_omitted_column_list_binds_the_first_columns_in_table_order() -> None
         "INSERT INTO mart.channel_mix SELECT o.order_ts::date, o.channel FROM staging.orders AS o",
         "value",
     ) == {
-        ("column:orders.order_ts", "column:channel_mix.period_month"),
-        ("column:orders.channel", "column:channel_mix.channel"),
+        ("column:staging.orders.order_ts", "column:mart.channel_mix.period_month"),
+        ("column:staging.orders.channel", "column:mart.channel_mix.channel"),
     }
 
 
@@ -207,7 +207,7 @@ def test_a_set_scalar_subquery_predicate_is_a_value_not_a_filter() -> None:
         "FROM staging.customers AS c WHERE c.id = d.customer_id)"
     )
     assert not any(f[2] == "filter" for f in facts)
-    assert ("column:customers.id", "column:dim_customer.full_name", "value", "conditional",
+    assert ("column:staging.customers.id", "column:core.dim_customer.full_name", "value", "conditional",
             PRE) in facts
 
 
@@ -218,8 +218,8 @@ def test_a_values_scalar_subquery_resolves() -> None:
         "(SELECT COUNT(DISTINCT o.id) FROM staging.orders AS o WHERE o.channel = 'web'))",
         "value",
     ) == {
-        ("column:orders.id", "column:channel_mix.orders"),
-        ("column:orders.channel", "column:channel_mix.orders"),
+        ("column:staging.orders.id", "column:mart.channel_mix.orders"),
+        ("column:staging.orders.channel", "column:mart.channel_mix.orders"),
     }
 
 
@@ -233,8 +233,8 @@ def test_a_rank_ordered_by_an_inline_aggregate_is_post_aggregation() -> None:
         "GROUP BY d.region, o.customer_id) AS r WHERE r.rn <= 10"
     )
     assert {(f[0], f[4]) for f in facts if f[2] == "filter"} == {
-        ("column:orders.amount", POST),
-        ("column:dim_customer.region", POST),
+        ("column:staging.orders.amount", POST),
+        ("column:core.dim_customer.region", POST),
     }
 
 
@@ -254,7 +254,7 @@ def test_an_update_predicate_through_an_aggregate_is_post_aggregation() -> None:
         "UPDATE core.dim_customer AS d SET status = 'VIP' WHERE (SELECT SUM(o.amount) "
         "FROM staging.orders AS o WHERE o.customer_id = d.customer_id) > 1000"
     )
-    assert ("column:orders.amount", "relation:dim_customer", "filter", "identity",
+    assert ("column:staging.orders.amount", "relation:core.dim_customer", "filter", "identity",
             POST) in facts
 
 
