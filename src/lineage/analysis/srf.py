@@ -39,6 +39,22 @@ from sqlglot import exp
 
 _BUILTIN_SRFS = {"UNNEST", "GENERATE_SERIES", "STRING_TO_TABLE", "REGEXP_SPLIT_TO_TABLE"}
 
+# Batch B5 (finding B5-01): the JSON and hstore set-returning functions, by output shape.
+# One column, named as PostgreSQL names it when no alias says otherwise:
+_SINGLE_DOCUMENT_SRFS = {
+    "JSONB_ARRAY_ELEMENTS": "value", "JSONB_ARRAY_ELEMENTS_TEXT": "value",
+    "JSON_ARRAY_ELEMENTS": "value", "JSON_ARRAY_ELEMENTS_TEXT": "value",
+    "JSONB_OBJECT_KEYS": "jsonb_object_keys", "JSON_OBJECT_KEYS": "json_object_keys",
+    "JSONB_PATH_QUERY": "jsonb_path_query", "SKEYS": "skeys", "SVALS": "svals",
+}
+# Two columns, key and value:
+_PAIR_DOCUMENT_SRFS = {"JSONB_EACH", "JSONB_EACH_TEXT", "JSON_EACH", "JSON_EACH_TEXT", "EACH"}
+# As many columns as the column-definition list names - each read from the document:
+_RECORD_DOCUMENT_SRFS = {
+    "JSONB_TO_RECORDSET", "JSONB_TO_RECORD", "JSON_TO_RECORDSET", "JSON_TO_RECORD",
+}
+_RECORD = "*record"
+
 
 def restate(parsed: Any, dialect: str) -> Any:
     """Rewrite every built-in SRF used as a FROM / JOIN source, in place."""
@@ -84,15 +100,24 @@ def _restated(node: Any, dialect: str, first: bool) -> Any:
         return None
 
     names = [_folded(c) for c in alias.columns] if alias is not None and alias.columns else []
+    record = calls[0][0] == _RECORD
     if isinstance(offset, exp.Identifier):
         ordinal = _folded(offset)
     elif offset:
-        ordinal = names.pop() if len(names) == len(calls) + 1 else "ordinality"
+        fits = record or len(names) == len(calls) + 1
+        ordinal = names.pop() if fits and names else "ordinality"
     table_alias = _folded(alias.this) if alias is not None and alias.name else None
+    if record:
+        # A record function's columns are whatever its column-definition list names.
+        if not names:
+            return None
+        calls = [calls[0]] * len(names)
 
     if not names:
         if len(calls) == 1:
             names = [table_alias or calls[0][0].lower()]
+        elif all(name in ("key", "value") for name, _, _ in calls):
+            names = [name for name, _, _ in calls]  # jsonb_each's own column names
         else:
             return None
     if len(names) != len(calls):
@@ -136,9 +161,19 @@ def _table_calls(table: exp.Table) -> list[tuple[str, str, list[str]]]:
     if isinstance(function, exp.ExplodingGenerateSeries):
         args = [a for a in (function.args.get(k) for k in ("start", "end", "step")) if a]
         return [("GENERATE_SERIES", _call("generate_series", args), _column_args(args))]
-    if isinstance(function, exp.Anonymous) and function.name.upper() in _BUILTIN_SRFS:
-        args = list(function.expressions)
-        return [(function.name.upper(), _call(function.name.lower(), args), _column_args(args))]
+    if not isinstance(function, exp.Anonymous):
+        return []
+    name = function.name.upper()
+    args = list(function.expressions)
+    call = (_call(function.name.lower(), args), _column_args(args))
+    if name in _BUILTIN_SRFS:
+        return [(name, *call)]
+    if name in _SINGLE_DOCUMENT_SRFS:
+        return [(_SINGLE_DOCUMENT_SRFS[name].upper(), *call)]
+    if name in _PAIR_DOCUMENT_SRFS:
+        return [("key", *call), ("value", *call)]
+    if name in _RECORD_DOCUMENT_SRFS:
+        return [(_RECORD, *call)]
     return []
 
 
@@ -153,6 +188,8 @@ def _column_args(args: list[Any]) -> list[str]:
 
 def _folded(identifier: Any) -> str:
     """A PostgreSQL name as written: quoted kept exactly, unquoted folded to lower case."""
+    if isinstance(identifier, exp.ColumnDef):  # `AS r(qty int)`: the name, not the type
+        identifier = identifier.this
     return identifier.name if identifier.quoted else identifier.name.lower()
 
 

@@ -1,0 +1,237 @@
+# GENERATED from t2_depth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B5 t2_depth.sql - semi-structured data, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-29 and D-30. Every node is schema-qualified.
+package: pg/b5_semi_structured/t2_depth.sql
+dialect: postgres
+source_sha256: 40abf9956b7f5cd290d34bba41a82c45123e2b8b17c51cc1cb86ce05bbfcb3c6
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'Column-level (D-29): ''seg'' is extracted from a document built from both columns.'
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'Column-level (D-29): ''seg'' is extracted from a document built from both columns.'
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.product_performance.product_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 38
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.product_performance.units
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 38
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.product_performance.units
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 38
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 38
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 66
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 66
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.device_attrs.attrs
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.top_customers.position
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 102
+  evidence: source_read
+forbidden: []
+expected_boundaries: []

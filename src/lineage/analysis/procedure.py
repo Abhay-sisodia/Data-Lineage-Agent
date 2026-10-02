@@ -29,6 +29,7 @@ from lineage.analysis.defuse import (
     collect_scopes,
     definitions_and_uses,
 )
+from lineage.analysis.document_tables import restate as restate_document_tables
 from lineage.analysis.dynamic import Resolution, resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
@@ -65,6 +66,12 @@ def analyse_source(
     """
     settings = config or AnalysisConfig()
     dialect = resolve_dialect(settings, dictionary)
+
+    if dialect.name == "postgres":
+        # D-30: JSON_TABLE / XMLTABLE restated as LATERAL subqueries in the SOURCE, before
+        # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
+        # (B5-04), and the refusal register scans the raw text. Line counts are kept.
+        source = restate_document_tables(source)
 
     program = dialect.frontend.parse(source)
 

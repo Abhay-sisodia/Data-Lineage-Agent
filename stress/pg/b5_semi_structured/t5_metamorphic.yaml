@@ -1,0 +1,335 @@
+# GENERATED from t5_metamorphic.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B5 t5_metamorphic.sql - semi-structured data, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-29 and D-30. Every node is schema-qualified.
+# Pair facts are stated at spelling A and restated at B with `repeat`.
+package: pg/b5_semi_structured/t5_metamorphic.sql
+dialect: postgres
+source_sha256: 473bf0431ebab015e9db5abb8e78158fc1a5cd963f9ee90f8419dc458cccd615
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.attributes
+  target:
+    kind: column
+    name: mart.customer_summary.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 29
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 41
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 53
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.product_performance.units
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 65
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.device_attrs.attrs
+  target:
+    kind: column
+    name: mart.customer_summary.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 106
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.event_ts
+  target:
+    kind: column
+    name: mart.channel_mix.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.properties
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.attributes
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.customer_id
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.properties
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.event_ts
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.event_ts
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.properties
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.properties
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.attributes
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.attributes
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.event_type
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.properties
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  reason: the ON is structural (D-5)
+expected_boundaries: []

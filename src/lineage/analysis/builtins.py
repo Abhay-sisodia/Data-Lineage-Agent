@@ -51,6 +51,19 @@ SCALAR = {
             "GCD", "LCM",
             # B6: set-returning built-ins read element-wise, like unnest (D-28 for series).
             "STRING_TO_TABLE", "REGEXP_SPLIT_TO_TABLE", "GENERATE_SUBSCRIPTS", "UNNEST",
+            # B5 (finding B5-02): SQL/JSON, jsonpath, the JSON and hstore SRFs (also the
+            # select-list form `srf.restate` produces), xpath and array_to_json. A
+            # document is read whole (D-29), so each is an ordinary derived built-in.
+            "JSON_VALUE", "JSON_QUERY", "JSON_EXISTS",
+            "JSONB_PATH_QUERY", "JSONB_PATH_QUERY_FIRST", "JSONB_PATH_QUERY_ARRAY",
+            "JSONB_PATH_EXISTS", "JSONB_PATH_MATCH",
+            "JSONB_ARRAY_ELEMENTS", "JSONB_ARRAY_ELEMENTS_TEXT",
+            "JSON_ARRAY_ELEMENTS", "JSON_ARRAY_ELEMENTS_TEXT",
+            "JSONB_EACH", "JSONB_EACH_TEXT", "JSON_EACH", "JSON_EACH_TEXT",
+            "JSONB_OBJECT_KEYS", "JSON_OBJECT_KEYS",
+            "JSONB_TO_RECORDSET", "JSONB_TO_RECORD", "JSON_TO_RECORDSET", "JSON_TO_RECORD",
+            "EACH", "SKEYS", "SVALS", "AKEYS", "AVALS", "HSTORE_TO_JSONB", "HSTORE_TO_JSON",
+            "XPATH", "XPATH_EXISTS", "ARRAY_TO_JSON",
         }
     ),
 }

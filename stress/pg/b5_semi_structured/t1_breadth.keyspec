@@ -1,0 +1,85 @@
+# Answer key for B5 t1_breadth.sql - semi-structured data, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-29 (column-level) and D-30 (JSON_TABLE /
+# XMLTABLE analysed), decided 2026-10-03, not implemented. Every node is schema-qualified.
+
+@ 18 S1 extraction operators
+value staging.orders.payload -> mart.kpi_rollup.level, mart.kpi_rollup.region, mart.kpi_rollup.country_code, mart.kpi_rollup.segment derived
+
+@ 30 S2 a key from another column
+value staging.orders.payload, staging.orders.channel -> mart.channel_mix.channel derived
+
+@ 38 S3 builders
+value staging.customers.full_name, staging.customers.email -> mart.customer_summary.full_name derived
+value staging.customers.segment, staging.customers.status -> mart.customer_summary.segment derived
+
+@ 48 S4 modifiers
+value staging.customers.attributes, staging.customers.segment -> mart.customer_summary.region derived
+value staging.customers.attributes, staging.customers.country_code -> mart.customer_summary.status derived
+
+@ 58 S5 SQL/JSON functions and IS JSON
+value staging.customers.attributes -> mart.top_customers.full_name derived
+value staging.customers.id, staging.customers.country_code -> mart.top_customers.region derived
+filter staging.customers.attributes -> mart.top_customers
+
+@ 69 S6 predicates in WHERE
+value staging.orders.channel -> mart.channel_mix.region identity
+filter staging.orders.payload -> mart.channel_mix
+
+@ 81 S7a jsonb_object_agg
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.id, staging.orders.amount -> mart.channel_mix.share_of_region aggregated
+influence staging.orders.channel -> mart.channel_mix.share_of_region
+
+@ 90 S7b jsonb_agg ORDER BY
+value staging.shipments.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value staging.shipments.tracking -> mart.carrier_scorecard.carrier_name aggregated
+influence staging.shipments.shipped_at, staging.shipments.carrier_id -> mart.carrier_scorecard.carrier_name
+
+@ 99 S8 jsonb_array_elements with ordinality
+value staging.orders.customer_id -> mart.top_customers.customer_id identity
+influence staging.orders.payload -> mart.top_customers.position
+filter staging.orders.payload -> mart.top_customers
+note The element filter is a filter on the document (B6, D-29); the ordinal is influenced by it (D-26).
+
+@ 109 S9 jsonb_each_text
+value staging.products.dims -> mart.product_performance.category_name derived
+
+@ 117 S10 jsonb_object_keys in the select list
+value staging.web_events.properties -> mart.channel_mix.channel derived
+
+@ 125 S11 jsonb_to_recordset
+value staging.orders.payload -> mart.sales_daily.units, mart.sales_daily.gross_amount derived
+
+@ 134 S12 jsonb_path_query and _first
+value staging.orders.payload -> mart.kpi_rollup.orders, mart.kpi_rollup.revenue derived
+
+@ 144 S13 JSON_TABLE with ordinality (D-30)
+value staging.orders.payload -> mart.product_performance.product_id, mart.product_performance.units, mart.product_performance.revenue derived
+influence staging.orders.payload -> mart.product_performance.growth_pct
+
+@ 161 S14 JSON_TABLE with PASSING
+value staging.orders.payload, staging.orders.discount_code -> mart.sales_daily.region derived
+
+@ 173 S15 XMLTABLE
+value staging.feed_xml.doc -> mart.top_customers.revenue derived
+filter staging.feed_xml.source -> mart.top_customers
+
+@ 183 S16 xpath
+value staging.feed_xml.doc -> mart.FeedSummary.Status Code derived
+value staging.feed_xml.id -> mart.FeedSummary.CustomerID identity
+
+@ 191 S17 xmlagg over xmlelement
+value core.dim_store.id -> mart.kpi_rollup.customers aggregated
+value core.dim_store.name -> mart.kpi_rollup.level aggregated
+influence core.dim_store.opened_on -> mart.kpi_rollup.level
+
+@ 199 S18 hstore operators
+value staging.device_attrs.device_id -> mart.customer_summary.customer_id identity
+value staging.device_attrs.attrs -> mart.customer_summary.full_name derived
+filter staging.device_attrs.attrs -> mart.customer_summary
+
+@ 209 S19 hstore each()
+value staging.device_attrs.updated_at -> mart.channel_mix.period_month derived
+value staging.device_attrs.attrs -> mart.channel_mix.region derived

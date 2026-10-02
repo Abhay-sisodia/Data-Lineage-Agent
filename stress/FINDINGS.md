@@ -154,6 +154,10 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B6-04 | `construct-coverage` | **fixed** | `regexp_split_to_table` in the select list is `source_unavailable` (held out of the built-ins in B4 pending B6) Fixed 2026-10-03; `stress/pg/b6_srf_table_functions/REPORT.md` section 6. |
 | B6-05 | `refusal-taxonomy` | **fixed** | **WITH ORDINALITY inside a CROSS JOIN LATERAL refuses the whole statement** ("Unknown column: n") once the ordinal is referenced Fixed 2026-10-03; `stress/pg/b6_srf_table_functions/REPORT.md` section 6. |
 | B6-06 | `scope` | **fixed** | an SRF over a scalar subquery traces the subquery's columns from the wrong scope (`unnest((SELECT array_agg(p.brand) ...))`) Fixed 2026-10-03; `stress/pg/b6_srf_table_functions/REPORT.md` section 6. |
+| B5-01 | `construct-coverage` | **fixed** | JSON / hstore set-returning functions in FROM (`jsonb_array_elements(_text)`, `jsonb_each(_text)`, `jsonb_to_recordset`, `each`) are "row source is a function"; a literal document still raises the boundary. `stress/pg/b5_semi_structured/REPORT.md` Fixed 2026-10-03; `stress/pg/b5_semi_structured/REPORT.md` section 6. |
+| B5-02 | `construct-coverage` | **fixed** | built-ins declared `source_unavailable`: `JSON_VALUE`, `JSON_QUERY`, `jsonb_object_keys`, `jsonb_path_query(_first)`, `jsonb_array_elements_text` (select list), `xpath`, `array_to_json` Fixed 2026-10-03; `stress/pg/b5_semi_structured/REPORT.md` section 6. |
+| B5-03 | `flow-classification` | **fixed** | **an ordered aggregate SQLGlot does not type (`jsonb_agg`, `xmlagg`) reports its ORDER BY column as an aggregated VALUE** - B1's rule makes it influence; typed aggregates are right Fixed 2026-10-03; `stress/pg/b5_semi_structured/REPORT.md` section 6. |
+| B5-04 | `parse-failure` | **fixed** | a JSON_TABLE with a PASSING clause does not parse in SQLGlot Fixed 2026-10-03; `stress/pg/b5_semi_structured/REPORT.md` section 6. |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4572,3 +4576,18 @@ implemented 2026-10-03 (B6 REPORT section 6).
   no filter and no influence unless the SRF's output is itself used.
 * **D-28** - a series is derived from its bound columns; a series of literals has no source,
   no edge and no boundary.
+
+## Decisions taken — 2026-10-03 (D-29 and D-30)
+
+Taken by Abhay before batch B5's keys were written. Full statements in
+`stress/pg/b5_semi_structured/OBJECTIVES.md`. D-29 already held; D-30 was implemented
+2026-10-03 (B5 REPORT section 6).
+
+* **D-29** - lineage into and out of a document (jsonb, xml, hstore) is column-level: the
+  document column is the node, and any key, path or extraction reads it as a derived value.
+  Literal paths are part of the expression, not the node.
+* **D-30** - JSON_TABLE and XMLTABLE are analysed: each COLUMNS column is a derived value of
+  the document and of every PASSING column; FOR ORDINALITY gets influence from the document
+  (D-26). Their SHAPE_NOT_DECIDABLE refusal is retired once implemented.
+
+**Schema (B5-QC):** additive `staging.feed_xml` (xml) and `staging.device_attrs` (hstore).

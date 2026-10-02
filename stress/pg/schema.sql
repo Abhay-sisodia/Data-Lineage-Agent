@@ -410,3 +410,22 @@ CREATE TABLE mart.events_log (
     kind            text,
     rolled_up       boolean
 );
+
+-- -----------------------------------------------------------------------------------
+-- Semi-structured documents (added for batch B5, additive only): an xml column for
+-- XMLTABLE / xpath(), and an hstore column (the hstore extension is assumed installed).
+-- -----------------------------------------------------------------------------------
+
+CREATE TABLE staging.feed_xml (
+    id              bigint PRIMARY KEY,
+    source          text,
+    doc             xml,
+    received_at     timestamptz
+);
+
+CREATE TABLE staging.device_attrs (
+    id              bigint PRIMARY KEY,
+    device_id       bigint,
+    attrs           hstore,
+    updated_at      timestamptz
+);

@@ -427,7 +427,13 @@ def _window_influence_columns(expression: Any) -> list[Any]:
             found.extend(order.find_all(exp.Column))
 
     for order in expression.find_all(exp.Order):
-        if not isinstance(order.parent, exp.AggFunc):
+        # A built-in aggregate SQLGlot does not type - `jsonb_agg(x ORDER BY y)`,
+        # `xmlagg(...)` - is an Anonymous, and its ORDER BY became a VALUE (finding B5-03).
+        parent = order.parent
+        if not (
+            isinstance(parent, exp.AggFunc)
+            or (isinstance(parent, exp.Anonymous) and _is_aggregate(parent))
+        ):
             continue
         for ordered in order.expressions or []:
             found.extend(ordered.find_all(exp.Column))

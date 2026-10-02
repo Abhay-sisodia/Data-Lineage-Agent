@@ -132,6 +132,22 @@ EXPECTED = {
     ("b6_srf_table_functions/t5_metamorphic", Flow.VALUE): (10, 0, 0),
     ("b6_srf_table_functions/t5_metamorphic", Flow.FILTER): (2, 0, 0),
     ("b6_srf_table_functions/t5_metamorphic", Flow.INFLUENCE): (2, 0, 0),
+    # B5 semi-structured - agreed 2026-10-03 after every fix in REPORT.md section 6. No
+    # false positive, no miss, none hidden; all eight pairs equal. T4 has no influence.
+    ("b5_semi_structured/t1_breadth", Flow.VALUE): (44, 0, 0),
+    ("b5_semi_structured/t1_breadth", Flow.FILTER): (5, 0, 0),
+    ("b5_semi_structured/t1_breadth", Flow.INFLUENCE): (6, 0, 0),
+    ("b5_semi_structured/t2_depth", Flow.VALUE): (11, 0, 0),
+    ("b5_semi_structured/t2_depth", Flow.FILTER): (2, 0, 0),
+    ("b5_semi_structured/t2_depth", Flow.INFLUENCE): (4, 0, 0),
+    ("b5_semi_structured/t3_interaction", Flow.VALUE): (17, 0, 0),
+    ("b5_semi_structured/t3_interaction", Flow.FILTER): (4, 0, 0),
+    ("b5_semi_structured/t3_interaction", Flow.INFLUENCE): (3, 0, 0),
+    ("b5_semi_structured/t4_adversarial", Flow.VALUE): (14, 0, 0),
+    ("b5_semi_structured/t4_adversarial", Flow.FILTER): (4, 0, 0),
+    ("b5_semi_structured/t5_metamorphic", Flow.VALUE): (14, 0, 0),
+    ("b5_semi_structured/t5_metamorphic", Flow.FILTER): (3, 0, 0),
+    ("b5_semi_structured/t5_metamorphic", Flow.INFLUENCE): (7, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})

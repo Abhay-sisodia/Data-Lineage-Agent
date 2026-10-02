@@ -19,6 +19,10 @@ which is exactly what it is.
 assertion; that nothing inside the refused CTE contributes, that a construct in the main
 query still refuses everything, and that a CTE name which is not in the parsed tree falls
 back rather than silently dropping nothing, are the ones that keep the fix honest.
+
+**The poisoned construct is a PIVOT over a subquery** (still SHAPE_NOT_DECIDABLE). It was a
+`JSON_TABLE` until decision D-30 (2026-10-03) made JSON_TABLE analysable for PostgreSQL;
+these tests are about the refusal MECHANISM, so the construct was swapped, not the tests.
 """
 
 from __future__ import annotations
@@ -80,9 +84,9 @@ WITH clean_orders AS (
 ),
 doc_rows AS (
     SELECT jt.pkg_id AS pkg_id, jt.weight AS weight
-    FROM   silver.shipments s,
-           JSON_TABLE(s.header_attrs, '$.packages[*]'
-               COLUMNS (pkg_id text PATH '$.id', weight numeric PATH '$.kg')) AS jt
+    FROM   silver.shipments s
+           PIVOT (sum(s.id) FOR s.header_attrs IN (SELECT 1))
+               AS jt
 ),
 totals AS (
     SELECT c.id AS id, sum(c.amount) AS total
@@ -195,8 +199,8 @@ WITH clean_orders AS (
     SELECT o.id AS id, o.amount AS amount FROM silver.orders o
 )
 SELECT c.id, jt.weight
-FROM   clean_orders c,
-       JSON_TABLE(c.id, '$.packages[*]' COLUMNS (weight numeric PATH '$.kg')) AS jt
+FROM   clean_orders c
+       PIVOT (sum(c.amount) FOR c.id IN (SELECT 1)) AS jt
 """
 
 
@@ -215,8 +219,8 @@ TWO_DIFFERENT_CONSTRUCTS = """
 INSERT INTO gold.tgt (a, b)
 WITH doc_rows AS (
     SELECT jt.weight AS weight
-    FROM   silver.shipments s,
-           JSON_TABLE(s.header_attrs, '$' COLUMNS (weight numeric PATH '$.kg')) AS jt
+    FROM   silver.shipments s
+           PIVOT (sum(s.id) FOR s.header_attrs IN (SELECT 1)) AS jt
 ),
 hier AS (
     SELECT o.id AS id FROM silver.orders o START WITH o.id IS NULL
@@ -244,8 +248,8 @@ INSERT INTO gold.tgt (a, b)
 WITH doc_rows AS (
     SELECT s.id AS ship_id,
            jt.weight AS weight
-    FROM   silver.shipments s,
-           JSON_TABLE(s.header_attrs, '$' COLUMNS (weight numeric PATH '$.kg')) AS jt
+    FROM   silver.shipments s
+           PIVOT (sum(s.id) FOR s.header_attrs IN (SELECT 1)) AS jt
 ),
 clean_orders AS (
     SELECT o.id AS id, o.amount AS amount FROM silver.orders o
@@ -369,7 +373,7 @@ def test_a_construct_mentioned_only_in_a_comment_is_not_confined_because_it_is_n
     nothing to confine - and `cte_scoped_construct` says None rather than inventing a
     poisoned CTE out of prose."""
     sql = """
-    WITH good AS (SELECT 1)  -- JSON_TABLE is discussed here and not used
+    WITH good AS (SELECT 1)  -- PIVOT ... IN (SELECT is discussed here and not used
     SELECT 1 FROM good
     """
     assert cte_scoped_construct(sql, "postgres") is None

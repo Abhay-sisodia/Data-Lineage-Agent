@@ -167,6 +167,16 @@
       "owner": "mart",
       "name": "events_log",
       "object_type": "TABLE"
+    },
+    "staging.feed_xml": {
+      "owner": "staging",
+      "name": "feed_xml",
+      "object_type": "TABLE"
+    },
+    "staging.device_attrs": {
+      "owner": "staging",
+      "name": "device_attrs",
+      "object_type": "TABLE"
     }
   },
   "columns": {
@@ -491,6 +501,18 @@
       "id",
       "kind",
       "rolled_up"
+    ],
+    "staging.feed_xml": [
+      "id",
+      "source",
+      "doc",
+      "received_at"
+    ],
+    "staging.device_attrs": [
+      "id",
+      "device_id",
+      "attrs",
+      "updated_at"
     ]
   },
   "temporary": {
@@ -526,6 +548,8 @@
     "core.ledger": false,
     "mart.FeedSummary": false,
     "staging.events_log": false,
-    "mart.events_log": false
+    "mart.events_log": false,
+    "staging.feed_xml": false,
+    "staging.device_attrs": false
   }
 }

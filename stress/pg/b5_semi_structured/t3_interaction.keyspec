@@ -1,0 +1,44 @@
+# Answer key for B5 t3_interaction.sql - semi-structured data, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-29 and D-30. Every node is schema-qualified.
+
+@ 16 S1 GROUP BY an extracted key
+value staging.orders.payload -> mart.channel_mix.channel derived
+value staging.orders.amount -> mart.channel_mix.revenue aggregated
+influence staging.orders.payload -> mart.channel_mix.revenue
+
+@ 25 S2 a running sum ordered by JSON_TABLE's ordinality
+value staging.orders.payload -> mart.product_performance.product_id derived
+value staging.orders.payload -> mart.product_performance.running_revenue aggregated
+influence staging.orders.id, staging.orders.payload -> mart.product_performance.running_revenue
+note PARTITION BY o.id; ORDER BY jt.n, whose order is the document's (D-4, D-26, D-30).
+
+@ 37 S3 ORDER BY an extracted key under LIMIT
+value staging.customers.id -> mart.top_customers.customer_id identity
+filter staging.customers.attributes -> mart.top_customers
+
+@ 47 S4 a jsonpath test in a scalar subquery
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.orders.customer_id, staging.customers.id, staging.orders.payload -> mart.customer_summary.lifetime_orders aggregated
+forbid filter staging.orders.payload -> mart.customer_summary | a scalar subquery's WHERE decides one value, not which rows land (D-12)
+
+@ 60 S5 UPDATE ... SET payload = jsonb_set(...)
+value staging.orders.payload, staging.payments.amount -> staging.orders.payload derived
+filter staging.payments.status -> staging.orders
+forbid filter staging.payments.order_id -> staging.orders | p.order_id = o.id joins the target to FROM (D-11)
+
+@ 70 S6 an ON CONFLICT accumulator merging documents
+repeat value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.customers.segment -> mart.customer_summary.status derived
+value mart.customer_summary.status -> mart.customer_summary.status derived
+note EXCLUDED.status is the proposed document, built from segment; cs.status is the accumulator's self-edge (S3-07).
+forbid filter staging.customers.id -> mart.customer_summary | the conflict target is structural (D-15)
+
+@ 80 S7 one key from two documents across UNION ALL
+value staging.orders.payload, staging.web_events.properties -> mart.kpi_rollup.level derived
+
+@ 91 S8 DISTINCT ON an extracted key
+value staging.web_events.properties -> mart.top_customers.region derived
+value staging.web_events.page -> mart.top_customers.full_name identity
+filter staging.web_events.properties, staging.web_events.event_ts -> mart.top_customers
