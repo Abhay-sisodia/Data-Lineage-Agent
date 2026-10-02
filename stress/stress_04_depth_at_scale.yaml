@@ -773,20 +773,8 @@ edges:
     unit: S4_CUSTOMER_SCORING
     line: 181
   evidence: source_read
-- source:
-    kind: column
-    name: FCT_REVENUE.CUST_ID
-  target:
-    kind: relation
-    name: DW_DIM_CUSTOMER_V2
-  flow: filter
-  transform: identity
-  band: 0
-  origin:
-    unit: S4_CUSTOMER_SCORING
-    line: 181
-  evidence: source_read
-  note: Inner operand of a correlation. Both operands stay - predicates.py, and S3-09.
+# RETIRED 2026-10-01: FCT_REVENUE.CUST_ID -> relation:DW_DIM_CUSTOMER_V2 [filter]. D-12 (2026-10-01): a scalar subquery's predicate is a VALUE of the column it feeds, not a filter on the relation.
+# The relabelled fact is at the end of `edges:`.
 - source:
     kind: column
     name: STG_CUSTOMER.CUST_ID
@@ -801,32 +789,10 @@ edges:
     line: 181
   evidence: source_read
   note: Outer operand of the same two correlations - the edge S3-10 made reachable.
-- source:
-    kind: column
-    name: STG_RETURNS.CUST_ID
-  target:
-    kind: relation
-    name: DW_DIM_CUSTOMER_V2
-  flow: filter
-  transform: identity
-  band: 0
-  origin:
-    unit: S4_CUSTOMER_SCORING
-    line: 181
-  evidence: source_read
-- source:
-    kind: column
-    name: STG_RETURNS.STATUS_CODE
-  target:
-    kind: relation
-    name: DW_DIM_CUSTOMER_V2
-  flow: filter
-  transform: identity
-  band: 0
-  origin:
-    unit: S4_CUSTOMER_SCORING
-    line: 181
-  evidence: source_read
+# RETIRED 2026-10-01: STG_RETURNS.CUST_ID -> relation:DW_DIM_CUSTOMER_V2 [filter]. D-12 (2026-10-01): a scalar subquery's predicate is a VALUE of the column it feeds, not a filter on the relation.
+# The relabelled fact is at the end of `edges:`.
+# RETIRED 2026-10-01: STG_RETURNS.STATUS_CODE -> relation:DW_DIM_CUSTOMER_V2 [filter]. D-12 (2026-10-01): a scalar subquery's predicate is a VALUE of the column it feeds, not a filter on the relation.
+# The relabelled fact is at the end of `edges:`.
 - source:
     kind: column
     name: STG_CUSTOMER.REGION
@@ -1380,19 +1346,8 @@ edges:
     unit: S4_CATEGORY_MATRIX
     line: 474
   evidence: source_read
-- source:
-    kind: column
-    name: STG_RETURNS.STATUS_CODE
-  target:
-    kind: relation
-    name: FCT_PRODUCT_SALES
-  flow: filter
-  transform: identity
-  band: 0
-  origin:
-    unit: S4_CATEGORY_MATRIX
-    line: 474
-  evidence: source_read
+# RETIRED 2026-10-01: STG_RETURNS.STATUS_CODE -> relation:FCT_PRODUCT_SALES [filter]. D-14 (2026-10-01): inside an outer join's null-supplying side the predicate cannot remove a row, so it is a VALUE of the columns fed from that side.
+# The relabelled fact is at the end of `edges:`.
 - source:
     kind: column
     name: STG_ORDERS.ORDER_DATE
@@ -2467,19 +2422,8 @@ edges:
     unit: S4_STAGED_UPSERT
     line: 1057
   evidence: source_read
-- source:
-    kind: column
-    name: STG_RETURNS.STATUS_CODE
-  target:
-    kind: relation
-    name: FCT_REVENUE_PART
-  flow: filter
-  transform: identity
-  band: 0
-  origin:
-    unit: S4_STAGED_UPSERT
-    line: 1057
-  evidence: source_read
+# RETIRED 2026-10-01: STG_RETURNS.STATUS_CODE -> relation:FCT_REVENUE_PART [filter]. D-14 (2026-10-01): inside an outer join's null-supplying side the predicate cannot remove a row, so it is a VALUE of the columns fed from that side.
+# The relabelled fact is at the end of `edges:`.
 - source:
     kind: column
     name: FCT_REVENUE_PART.NET_AMOUNT
@@ -3360,6 +3304,187 @@ edges:
     and NTILE orders by unit_total, which that grouping governs - so category_id influences the rank as
     surely as the other two grouping keys do. I listed order_date and quantity and stopped at the two
     that appear in the window clause itself.
+# === relabelled 2026-10-01 (batch B2: D-12, D-14) ====================
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+  note: 'D-12 (2026-10-01): a scalar subquery''s predicate is a VALUE of the column it feeds, not a filter
+    on the relation.'
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: DIM_CUSTOMER.LIFETIME_VALUE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+  note: 'D-12 (2026-10-01): a scalar subquery''s predicate is a VALUE of the column it feeds, not a filter
+    on the relation.'
+- source:
+    kind: column
+    name: FCT_REVENUE.CUST_ID
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+  note: 'D-12 (2026-10-01): a scalar subquery''s predicate is a VALUE of the column it feeds, not a filter
+    on the relation.'
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: DIM_CUSTOMER.IS_ACTIVE
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+  note: 'D-12 (2026-10-01): a scalar subquery''s predicate is a VALUE of the column it feeds, not a filter
+    on the relation.'
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: DIM_CUSTOMER.LIFETIME_VALUE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_MERGE_UPSERT
+    line: 291
+  evidence: source_read
+  note: 'D-12 (2026-10-01): a scalar subquery''s predicate is a VALUE of the column it feeds, not a filter
+    on the relation.'
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.IS_ACTIVE
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+  note: 'D-12 (2026-10-01): a scalar subquery''s predicate is a VALUE of the column it feeds, not a filter
+    on the relation.'
+- source:
+    kind: column
+    name: STG_CUSTOMER.CUST_ID
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+  note: 'D-12 (2026-10-01): a scalar subquery''s predicate is a VALUE of the column it feeds, not a filter
+    on the relation.'
+- source:
+    kind: column
+    name: STG_RETURNS.CUST_ID
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+  note: 'D-12 (2026-10-01): a scalar subquery''s predicate is a VALUE of the column it feeds, not a filter
+    on the relation.'
+- source:
+    kind: column
+    name: STG_RETURNS.STATUS_CODE
+  target:
+    kind: column
+    name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_CUSTOMER_SCORING
+    line: 181
+  evidence: source_read
+  note: 'D-12 (2026-10-01): a scalar subquery''s predicate is a VALUE of the column it feeds, not a filter
+    on the relation.'
+- source:
+    kind: column
+    name: STG_RETURNS.STATUS_CODE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.NET_SALES
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_RETURN_RATE
+    line: 1007
+  evidence: source_read
+  note: 'D-14 (2026-10-01): inside an outer join''s null-supplying side the predicate cannot remove a
+    row, so it is a VALUE of the columns fed from that side.'
+- source:
+    kind: column
+    name: STG_RETURNS.STATUS_CODE
+  target:
+    kind: column
+    name: FCT_PRODUCT_SALES.REFUND_TOTAL
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_RETURN_RATE
+    line: 1007
+  evidence: source_read
+  note: 'D-14 (2026-10-01): inside an outer join''s null-supplying side the predicate cannot remove a
+    row, so it is a VALUE of the columns fed from that side.'
+- source:
+    kind: column
+    name: STG_RETURNS.STATUS_CODE
+  target:
+    kind: column
+    name: FCT_REVENUE_PART.NET_AMOUNT
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: S4_STAGED_UPSERT
+    line: 1057
+  evidence: source_read
+  note: 'D-14 (2026-10-01): inside an outer join''s null-supplying side the predicate cannot remove a
+    row, so it is a VALUE of the columns fed from that side.'
 forbidden:
 - source:
     kind: column

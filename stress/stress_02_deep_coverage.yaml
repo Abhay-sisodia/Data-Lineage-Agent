@@ -554,11 +554,15 @@ edges:
   - source: {kind: column, name: STG_PRODUCTS.STATUS_CODE}
     target: {kind: relation, name: TMP_RECENT}
     flow: filter
+    phase: post-aggregation
     transform: identity
     band: 0
     origin: {unit: S2_SUBQUERY_FORMS, line: 176}
     evidence: source_read
-    note: The scalar subquery in the WHERE - still a filter, not a value.
+    note: >
+      The scalar subquery in the WHERE - still a filter, not a value. PHASE post-aggregation
+      since 2026-10-01 (finding B2-06): status_code reaches the comparison THROUGH the
+      MAX, and D-6 decides the phase per column by what it does.
 
   - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
     target: {kind: relation, name: TMP_RECENT}

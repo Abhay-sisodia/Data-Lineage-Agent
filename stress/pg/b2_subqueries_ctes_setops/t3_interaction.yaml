@@ -1,0 +1,1161 @@
+# GENERATED from t3_interaction.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B2 t3_interaction.sql - subqueries meeting B1's rules.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions as T1; D-12 and D-13 not yet implemented.
+package: pg/b2_subqueries_ctes_setops/t3_interaction.sql
+dialect: postgres
+source_sha256: fd6c8ae35fc6ad7f9c44a8c721d45ca4ed2c946d47b4d2c71c718bcfeb10a000
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: column
+    name: sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: fx_rates.rate_to_usd
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: fx_rates.currency
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.'
+- source:
+    kind: column
+    name: orders.currency
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.'
+- source:
+    kind: column
+    name: fx_rates.rate_date
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.'
+- source:
+    kind: column
+    name: orders.order_ts
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.'
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.value_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: column
+    name: customer_summary.value_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.order_ts
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.order_ts
+  target:
+    kind: column
+    name: customer_summary.value_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.created_at
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.created_at
+  target:
+    kind: column
+    name: customer_summary.value_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.name
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.country_code
+  target:
+    kind: column
+    name: kpi_rollup.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.id
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_category.department
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_category.department
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_category.department
+  target:
+    kind: column
+    name: channel_mix.share_of_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_category.parent_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+  note: 'Both counts are COUNT(*): no value source, but aggregated, so the grouping reaches them.'
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: column
+    name: product_performance.units
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.units
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.product_key
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.brand
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.status
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.amount
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+  note: 'D-12 in a CASE condition: the count decides the branch, so its correlation is a value of full_name.'
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+  note: 'D-12 in a CASE condition: the count decides the branch, so its correlation is a value of full_name.'
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+  note: 'D-12 in a CASE condition: the count decides the branch, so its correlation is a value of full_name.'
+- source:
+    kind: column
+    name: dim_carrier.name
+  target:
+    kind: column
+    name: kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.transit_days
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: kpi_rollup.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: column
+    name: kpi_rollup.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: fct_shipment.shipment_id
+  target:
+    kind: column
+    name: kpi_rollup.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: fct_shipment.shipment_id
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: shipments.id
+  target:
+    kind: column
+    name: kpi_rollup.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: shipments.id
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: shipments.status
+  target:
+    kind: column
+    name: kpi_rollup.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: shipments.status
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 157
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 157
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 157
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.cost
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 157
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 157
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.region
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 157
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 157
+  evidence: source_read
+  note: 'D-9 over a set operation: ORDER BY 3 is the SUM both arms supply.'
+- source:
+    kind: column
+    name: fct_shipment.cost
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 157
+  evidence: source_read
+  note: 'D-9 over a set operation: ORDER BY 3 is the SUM both arms supply.'
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 176
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.gross_amount
+  target:
+    kind: column
+    name: sales_daily.gross_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 176
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: sales_daily.gross_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 176
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.gross_amount
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 176
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_carrier.name
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.cost
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.cost
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+  note: 'D-9: the DISTINCT ON key and tie-breaker, from both union arms.'
+- source:
+    kind: column
+    name: shipments.carrier_id
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+  note: 'D-9: the DISTINCT ON key and tie-breaker, from both union arms.'
+- source:
+    kind: column
+    name: fct_shipment.shipped_date
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+  note: 'D-9: the DISTINCT ON key and tie-breaker, from both union arms.'
+- source:
+    kind: column
+    name: shipments.shipped_at
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 193
+  evidence: source_read
+  note: 'D-9: the DISTINCT ON key and tie-breaker, from both union arms.'
+forbidden:
+- source:
+    kind: column
+    name: fx_rates.currency
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  reason: a lookup key in a scalar subquery removes no row (D-12)
+- source:
+    kind: column
+    name: orders.order_ts
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  reason: a lookup key in a scalar subquery removes no row (D-12)
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  reason: the correlation of a SELECT-list scalar subquery removes no row (D-12)
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  reason: a lookup key in a SELECT-list scalar subquery (D-12)
+expected_boundaries: []

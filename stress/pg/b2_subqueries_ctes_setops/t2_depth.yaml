@@ -1,0 +1,1026 @@
+# GENERATED from t2_depth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B2 t2_depth.sql - subqueries, CTEs, set operations: depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions as T1; D-12 and D-13 not yet implemented.
+package: pg/b2_subqueries_ctes_setops/t2_depth.sql
+dialect: postgres
+source_sha256: 9ae3abc72f147cee9978bbf0b366ebd849be10d491d1e5fc9771f5f134f16c80
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
+    are summed.'
+- source:
+    kind: column
+    name: payments.order_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
+    are summed.'
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
+    are summed.'
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
+    are summed.'
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
+    are summed.'
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
+    are summed.'
+- source:
+    kind: column
+    name: dim_customer.customer_id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.full_name
+  target:
+    kind: column
+    name: customer_summary.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.is_current
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.customer_key
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.customer_key
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+  note: 'net_amount is compared directly (pre) and through AVG (post): one column, two facts.'
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: customer_summary.value_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+  note: 'NTILE orders by `value`, a SUM per customer: the summed amounts and the grouping both reach it.'
+- source:
+    kind: column
+    name: returns.amount
+  target:
+    kind: column
+    name: customer_summary.value_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+  note: 'NTILE orders by `value`, a SUM per customer: the summed amounts and the grouping both reach it.'
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.value_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+  note: 'NTILE orders by `value`, a SUM per customer: the summed amounts and the grouping both reach it.'
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: column
+    name: customer_summary.value_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+  note: 'NTILE orders by `value`, a SUM per customer: the summed amounts and the grouping both reach it.'
+- source:
+    kind: column
+    name: orders.status
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+  note: '`WHERE s4.net > 0` filters the SUM (D-6). The ''order''/''return'' kind literal goes nowhere.'
+- source:
+    kind: column
+    name: returns.amount
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+  note: '`WHERE s4.net > 0` filters the SUM (D-6). The ''order''/''return'' kind literal goes nowhere.'
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 107
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.customer_id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 107
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 107
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.full_name
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 107
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 107
+  evidence: source_read
+  note: 'D-12: the correlation operand pe.k is fed by BOTH union arms.'
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 107
+  evidence: source_read
+  note: 'D-12: the correlation operand pe.k is fed by BOTH union arms.'
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 107
+  evidence: source_read
+  note: 'D-12: the correlation operand pe.k is fed by BOTH union arms.'
+- source:
+    kind: column
+    name: dim_customer.customer_id
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 107
+  evidence: source_read
+  note: 'D-12: the correlation operand pe.k is fed by BOTH union arms.'
+- source:
+    kind: column
+    name: dim_customer.is_current
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 107
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: product_performance.category_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: column
+    name: product_performance.units
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.units
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.id
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+  note: 'D-9 + D-6: the LIMIT 5 is ordered by SUM(quantity).'
+- source:
+    kind: column
+    name: dim_category.department
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 153
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 153
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.category_id
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 153
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_category.department
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 153
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_category.parent_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 153
+  evidence: source_read
+  note: The anchor's WHERE picks the roots. All three joins - the recursion and both CTE joins - are structural.
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.currency
+  target:
+    kind: column
+    name: channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.order_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.status
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 205
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 205
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.customer_key
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 205
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_id
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 205
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 224
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.order_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 224
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 224
+  evidence: source_read
+  note: 'The CTE''s `status <> ''LOST''` is reached only through the scalar subquery: D-12''s reasoning
+    makes it a value, not a filter.'
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 224
+  evidence: source_read
+  note: 'The CTE''s `status <> ''LOST''` is reached only through the scalar subquery: D-12''s reasoning
+    makes it a value, not a filter.'
+- source:
+    kind: column
+    name: shipments.status
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 224
+  evidence: source_read
+  note: 'The CTE''s `status <> ''LOST''` is reached only through the scalar subquery: D-12''s reasoning
+    makes it a value, not a filter.'
+- source:
+    kind: column
+    name: shipments.shipped_at
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 224
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 243
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 243
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.amount
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 243
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 243
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.id
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 243
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: payments.order_id
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  reason: inside a SELECT-list scalar subquery, however deep (D-12)
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  reason: the scalar subquery's correlation removes no row (D-12)
+- source:
+    kind: column
+    name: shipments.status
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  reason: the CTE is read only inside a SELECT-list scalar subquery, so it removes no row (D-12)
+- source:
+    kind: column
+    name: shipments.shipped_at
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  reason: an ordered pick in a scalar subquery (D-13)
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  reason: a correlation inside a SELECT-list scalar subquery (D-12)
+expected_boundaries: []

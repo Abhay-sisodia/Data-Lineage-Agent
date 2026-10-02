@@ -242,13 +242,8 @@ edges:
       the phase-0 corpus. It was right, and the gap turned out to be in the analyser rather
       than in the labelling.
 
-  - source: {kind: column, name: STG_RETURNS.STATUS_CODE}
-    target: {kind: relation, name: FCT_PRODUCT_SALES}
-    flow: filter
-    transform: identity
-    band: 0
-    origin: {unit: STRESS_CTE_WINDOW, line: 25}
-    evidence: source_read
+  # RETIRED 2026-10-01: STG_RETURNS.STATUS_CODE -> relation:FCT_PRODUCT_SALES [filter]. D-14 (2026-10-01): inside an outer join's null-supplying side the predicate cannot remove a row, so it is a VALUE of the columns fed from that side.
+  # The relabelled fact is appended at the end of `edges:`.
 
   # ================================================================================
   # stress_set_ops - UNION ALL, positional binding
@@ -631,13 +626,8 @@ edges:
     evidence: source_read
     note: A scalar subquery in the select list resolves against its OWN scope, not the outer one.
 
-  - source: {kind: column, name: STG_PRODUCTS.CATEGORY_ID}
-    target: {kind: relation, name: DIM_CUSTOMER_HIER}
-    flow: filter
-    transform: identity
-    band: 0
-    origin: {unit: STRESS_SELF_JOIN_AND_SCALAR, line: 207}
-    evidence: source_read
+  # RETIRED 2026-10-01: STG_PRODUCTS.CATEGORY_ID -> relation:DIM_CUSTOMER_HIER [filter]. D-12 (2026-10-01): a scalar subquery's predicate is a VALUE of the column it feeds, not a filter on the relation.
+  # The relabelled fact is appended at the end of `edges:`.
 
   - source: {kind: column, name: STG_CUSTOMER.SIGNUP_DATE}
     target: {kind: relation, name: DIM_CUSTOMER_HIER}
@@ -1179,6 +1169,35 @@ edges:
     band: 2
     origin: {unit: STRESS_DYNAMIC_MIXED, line: 262}
     evidence: source_read
+
+  # === relabelled 2026-10-01 (batch B2: D-12, D-14) ====================
+  - source: {kind: column, name: STG_PRODUCTS.CATEGORY_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_SELF_JOIN_AND_SCALAR, line: 207}
+    evidence: source_read
+    note: >
+      D-12 (2026-10-01): a scalar subquery's predicate is a VALUE of the column it feeds, not a filter on the relation.
+  - source: {kind: column, name: STG_RETURNS.STATUS_CODE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.NET_SALES}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: >
+      D-14 (2026-10-01): inside an outer join's null-supplying side the predicate cannot remove a row, so it is a VALUE of the columns fed from that side.
+  - source: {kind: column, name: STG_RETURNS.STATUS_CODE}
+    target: {kind: column, name: FCT_PRODUCT_SALES.REFUND_TOTAL}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: STRESS_CTE_WINDOW, line: 25}
+    evidence: source_read
+    note: >
+      D-14 (2026-10-01): inside an outer join's null-supplying side the predicate cannot remove a row, so it is a VALUE of the columns fed from that side.
 
 forbidden:
   - source: {kind: column, name: STG_ORDERS.ORDER_ID}

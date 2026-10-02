@@ -115,6 +115,17 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B1-06 | `measurement-error` | **fixed** | every CTE-using statement gets a spurious `context_dependent_binding` boundary naming the CTE as an unqualified schema object Fixed 2026-10-01: `procedure._context_dependent_names` skips the statement's own CTE names. |
 | B1-Q1 | `convention` | open, needs a decision | what `GROUPING(a, b)` produces — today `a, b` come out as an aggregated value of the column and as a filter when it is compared in WHERE |
 | B1-Q2 | `convention` | open, needs a decision | is a NON-equality join condition written in WHERE (`a.d > b.d` between two inner-joined relations) structural, as it would be in ON (D-5)? D-11 decided equalities only; `stress_01`'s self-join labels `child.signup_date > parent.signup_date` a real filter |
+| B2-01 | `transform-classification` | **fixed** | a column a scalar subquery passes through unchanged is reported `derived`, not `identity` - the subquery wrapper counted as a computation. `stress/pg/b2_subqueries_ctes_setops/REPORT.md` Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-02 | `flow-classification` | **fixed** | **a scalar subquery's ORDER BY column is reported as a VALUE source** - S2-12's defect in a new position Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-03 | `flow-classification` | **fixed** | **a join inside a scalar subquery leaks its keys as VALUE sources**, and B1's D-9 code does the same when ordering by such a subquery Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-04 | `construct-coverage` | **fixed** | D-9 not applied to an ORDER BY ... LIMIT over a whole set operation Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-05 | `construct-coverage` | **fixed** | inside a LATERAL, D-9's ordering and the GROUP BY's influence are both lost Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-06 | `flow-classification` | **fixed** | a filter column reaching its predicate through an aggregate inside a subquery gets phase pre-aggregation; a HAVING inside an IN subquery is swept up as pre Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-07 | `construct-coverage` | **fixed** | `x IN (SELECT ... INTERSECT SELECT ...)` loses the first arm's projected key, declared as unresolved Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-08 | `identity` | **fixed** | **an inner alias that shadows an outer one is resolved OUTWARD** - a silent wrong edge Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-09 | `flow-classification` | **fixed** | an EXISTS subquery's ORDER BY is swept into the outer WHERE's filters Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-10 | `measurement-error` | **fixed** | `unresolved_identifier` boundaries on columns that WERE traced - recursive CTEs, nested subqueries, set operations in subqueries; 22 in B2 Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
+| B2-Q1 | `convention` | **decided as D-14, scoped** | a predicate that cannot remove a result row - inside an outer join's null-supplying side, or a one-row LATERAL - is a value/influence of the columns it feeds, not a filter. Settles the P7 and P8 seams. Semi-join and anti-join match keys (P5, P6) deliberately left open: labelling them consistently reverses D-5 or the correlation rule |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4438,3 +4449,35 @@ and was narrowed (B1-Q2).
   between columns of two inner-joined relations of the same FROM gives no edge, as in `ON`.
   Comparisons that touch the null-supplying side of an outer join, and correlations to an
   outer query, stay filters.
+
+## Decisions taken — 2026-10-01 (D-12, D-13)
+
+Taken by Abhay before batch B2's keys were written. Full statements in
+`stress/pg/b2_subqueries_ctes_setops/OBJECTIVES.md`.
+
+* **D-12 — a scalar subquery's predicate is a VALUE of the column it feeds.** Every WHERE
+  column of a SELECT-list scalar subquery, both correlation operands included, is a value
+  source of that one column (`aggregated` if the subquery aggregates, else `conditional`),
+  never a filter on the relation. This is D-10's reasoning applied to D-10's twin, and it
+  **reverses the s7 convention for this position only**; the tension the S3-09 entry
+  recorded is resolved in the column-targeted direction. Subqueries in WHERE are
+  unchanged and stay filters. Not implemented yet: older keys built on s7 move when it is.
+* **D-13 — an ordered pick inside a scalar subquery is INFLUENCE** on that column (D-4's
+  argument), not a D-9 filter: no target row is removed.
+
+* **D-14 (B2-Q1, scoped)** - a predicate that CANNOT remove a result row is not a filter:
+  inside the null-supplying side of an outer join, or a LATERAL returning one row per outer
+  row, WHERE columns are values (D-12) and DISTINCT ON / LIMIT orderings influence (D-13)
+  of the columns fed from that side. Not applied to semi-/anti-join match keys, which can
+  remove rows; those seams (B2 P5, P6) stay open.
+
+## Phase 0 must be re-measured — owed since 2026-10-02
+
+Decisions D-9 to D-14 change what the analyser emits, and one of them reached a **phase-0
+corpus key**: `ground_truth/sq_06_self_join.yaml` was relabelled under D-12 (two filter
+labels of a SELECT-list scalar subquery's correlation became values of `ROOT_NAME`), by
+explicit decision. The signed phase-0 grid cannot be re-run here - `scripts/exercise_corpus.py`
+needs the Oracle container. **Until it is, the signed numbers describe the analyser and keys
+of 2026-09-25, not the current ones.** When the container is back: re-run, and review every
+moved cell against D-9..D-14 before accepting it; a phase-0 key other than sq_06 may hold
+the same shapes and has not been checked by any test that runs without Oracle.

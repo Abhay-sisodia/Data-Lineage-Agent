@@ -883,6 +883,26 @@ edges:
       written, and this key copied only one of them. Checking the precedent BEFORE
       labelling would have caught it; checking it after is how it was caught.
 
+  # === relabelled 2026-10-01 (batch B2: D-12, D-14) ====================
+  - source: {kind: column, name: FCT_REVENUE.CUST_ID}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 147}
+    evidence: source_read
+    note: >
+      D-12 (2026-10-01): a scalar subquery's predicate is a VALUE of the column it feeds, not a filter on the relation.
+  - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
+    target: {kind: column, name: DW_DIM_CUSTOMER_V2.LIFETIME_VALUE}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: S3_INCREMENTAL_MERGE, line: 147}
+    evidence: source_read
+    note: >
+      D-12 (2026-10-01): a scalar subquery's predicate is a VALUE of the column it feeds, not a filter on the relation.
+
 forbidden:
   - source: {kind: column, name: STG_ORDER_LINES.ORDER_ID}
     target: {kind: column, name: FCT_REVENUE.CUST_ID}

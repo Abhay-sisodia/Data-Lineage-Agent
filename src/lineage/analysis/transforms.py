@@ -202,6 +202,7 @@ def transform_of_path(expression: Any, column: Any) -> Transform:
     # and classify against nodes that have nothing to do with it.
     node = getattr(column, "parent", None)
     inside = False
+    computed = False
     for _ in range(200):
         if node is None:
             break
@@ -209,6 +210,8 @@ def transform_of_path(expression: Any, column: Any) -> Transform:
             saw_aggregate = True
         elif is_conditional(node):
             saw_conditional = True
+        elif not isinstance(node, _PASS_THROUGH):
+            computed = True
         if node is expression:
             inside = True
             break
@@ -224,7 +227,13 @@ def transform_of_path(expression: Any, column: Any) -> Transform:
         return Transform.AGGREGATED
     if saw_conditional:
         return Transform.CONDITIONAL
-    return Transform.DERIVED
+    return Transform.DERIVED if computed else Transform.IDENTITY
+
+
+# Nodes that carry a value without changing it: a column read through a scalar subquery, a
+# derived table or a set-operation arm arrives exactly as it was (finding B2-01). Counting
+# the wrapper as a computation reported `(SELECT c.full_name FROM c WHERE ...)` as derived.
+_PASS_THROUGH = (exp.Alias, exp.Subquery, exp.Select, exp.Paren, exp.From, exp.SetOperation)
 
 
 def combine(first: Transform, second: Transform) -> Transform:

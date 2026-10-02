@@ -168,14 +168,31 @@ def test_nesting_changes_nothing_about_influence_either(dictionary: Dictionary) 
 def test_a_correlated_predicate_does_not_become_a_value_source_through_a_subquery(
     dictionary: Dictionary,
 ) -> None:
-    """The second exclusion, same recursion.
+    """The second exclusion, same recursion - and what replaced it under D-12.
 
     Recorded because it was found by accident: the fix for the window case removed this
     too, and stress 3's register entry had it diagnosed as a separate defect in a
     different module. One `find_all`, two findings.
-    """
-    sources = _value_sources(CORRELATED_IN_SUBQUERY, dictionary, "TGT.AMT")
 
-    assert "LOOKUP.VAL" in sources, "the aggregate's argument is a real value source"
-    assert "LOOKUP.ID" not in sources, "the correlation's inner column leaked as a value"
-    assert "SRC.ID" not in sources, "the correlation's outer column leaked as a value"
+    **Decision D-12 (2026-10-02) changed the answer, not the defect.** The correlation of
+    a SELECT-list scalar subquery is now a VALUE of the column it feeds - it decides which
+    rows are summed into `total` and removes no target row. So LOOKUP.ID and SRC.ID ARE
+    value sources of TGT.AMT, deliberately, and `aggregated` because the subquery sums.
+    The original leak swept them in by a generic column walk with the wrong transform and
+    alongside a filter; the assertions below pin the decided shape exactly, so a return of
+    that leak still fails here.
+    """
+    result = analyse_source(CORRELATED_IN_SUBQUERY, dictionary)
+    into_amt = {
+        (edge.source.name, edge.transform.value)
+        for edge in result.edges
+        if edge.flow is Flow.VALUE and edge.target.name == "TGT.AMT"
+    }
+    filters = {edge.source.name for edge in result.edges if edge.flow is Flow.FILTER}
+
+    assert into_amt == {
+        ("LOOKUP.VAL", "aggregated"),
+        ("LOOKUP.ID", "aggregated"),
+        ("SRC.ID", "aggregated"),
+    }
+    assert not filters & {"LOOKUP.ID", "SRC.ID"}, "a scalar correlation removes no row (D-12)"

@@ -1,0 +1,68 @@
+# Answer key for B2 t5_metamorphic.sql - pairs and one realistic model.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# P1-P4 must be equal: their facts are listed once, at spelling A.
+# P5-P8 are SEAM pairs: the same rows, labelled differently by today's conventions. The
+# key holds the UNION of both spellings' facts, each labelled by the rule its own
+# spelling falls under, and says which spelling owns which. The pair check is expected to
+# report them as DIFFER; that difference is the finding, put up for decision.
+
+@ 24 P1 EXISTS vs IN
+value customers.id -> top_customers.customer_id identity
+value customers.segment -> top_customers.region identity
+filter orders.customer_id, customers.id, orders.status -> top_customers
+
+@ 45 P2 IN vs = ANY
+value orders.id -> channel_mix.orders identity
+value orders.channel -> channel_mix.channel identity
+filter orders.id, payments.order_id, payments.method -> channel_mix
+
+@ 61 P3 CTE vs inlined derived table
+value dim_store.region, dim_warehouse.region -> kpi_rollup.region identity
+filter dim_warehouse.status -> kpi_rollup
+
+@ 83 P4 UNION vs UNION of DISTINCTs
+value orders.channel, payments.method -> sales_daily.region identity
+
+@ 100 P5 SEAM semi-join: IN vs JOIN + DISTINCT
+value dim_product.product_key -> product_performance.product_id identity
+value dim_product.category_name -> product_performance.category_name identity
+filter fct_order_line.quantity -> product_performance
+filter dim_product.product_key, fct_order_line.product_key -> product_performance
+note Spelling A only: the IN's match columns are filters. In B they are a join key, structural under D-5.
+
+@ 122 P6 SEAM anti-join: EXCEPT vs NOT EXISTS
+value customers.id -> customer_summary.customer_id identity
+filter orders.customer_id, orders.status -> customer_summary
+filter customers.id -> customer_summary
+note Spelling B only: the correlation's outer operand. In A, customers.id is the first arm and supplies only a value (convention (a)).
+
+@ 143 P7 SEAM scalar subquery vs LEFT JOIN LATERAL
+value dim_carrier.id -> carrier_scorecard.carrier_id identity
+value fct_shipment.transit_days -> carrier_scorecard.avg_transit_days aggregated
+value fct_shipment.carrier_id, dim_carrier.id -> carrier_scorecard.avg_transit_days aggregated
+note Spelling A only (D-12).
+note RELABELLED UNDER D-14: spelling B's LATERAL cannot remove a carrier, so its WHERE is the same value as A's (D-12). P7 is now a MUST-EQUAL pair.
+
+@ 166 P8 SEAM ordered pick vs LEFT JOIN to DISTINCT ON
+value orders.id -> sales_daily.orders identity
+value payments.amount -> sales_daily.net_amount identity
+value payments.order_id, orders.id -> sales_daily.net_amount conditional
+influence payments.paid_at -> sales_daily.net_amount
+note Spelling A only (D-12, D-13).
+influence payments.order_id -> sales_daily.net_amount
+note RELABELLED UNDER D-14: under the LEFT JOIN the DISTINCT ON removes no order, so its key and tie-breaker decide WHICH amount arrives - influence, as D-13 says of the ordered pick. paid_at now agrees across the pair. payments.order_id still differs (influence in B, a conditional value in A): that is the match-key seam of P5/P6, left open by decision.
+
+@ 196 R1 the monthly carrier scorecard
+value fct_shipment.carrier_id -> carrier_scorecard.carrier_id identity
+value dim_carrier.name -> carrier_scorecard.carrier_name identity
+value dim_carrier.id, fct_shipment.carrier_id -> carrier_scorecard.carrier_name conditional
+value fct_shipment.shipped_date -> carrier_scorecard.period_month derived
+value fct_shipment.delivered_date, fct_shipment.promised_date -> carrier_scorecard.on_time_pct aggregated
+value fct_shipment.cost, fct_shipment.weight_kg -> carrier_scorecard.cost_per_kg aggregated
+influence fct_shipment.carrier_id, fct_shipment.shipped_date -> carrier_scorecard.shipments, carrier_scorecard.on_time_pct, carrier_scorecard.cost_per_kg
+note `shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.
+filter fct_shipment.status, fct_payment.order_id, fct_shipment.order_id, fct_payment.status -> carrier_scorecard
+filter shipments.order_id, shipments.status, returns.order_line_id, returns.reason_code -> carrier_scorecard
+note `WHERE mo.n >= 10` tests COUNT(*), which has no column to name.

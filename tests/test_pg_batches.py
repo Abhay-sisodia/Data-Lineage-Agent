@@ -44,6 +44,25 @@ EXPECTED = {
     ("b1_core_select/t5_metamorphic", Flow.VALUE): (34, 0, 0),
     ("b1_core_select/t5_metamorphic", Flow.FILTER): (8, 0, 0),
     ("b1_core_select/t5_metamorphic", Flow.INFLUENCE): (29, 0, 0),
+    # B2 subqueries, CTEs, set operations - agreed 2026-10-02 after the fixes in REPORT.md
+    # section 6, under D-12, D-13 and D-14. Every cell 100%. Three T5 pairs (P5, P6, P8's
+    # match key) still DIFFER by decision - the semi-join / anti-join seam left open - and
+    # their keys hold the union of both spellings, so the grid does not see it.
+    ("b2_subqueries_ctes_setops/t1_breadth", Flow.VALUE): (58, 0, 0),
+    ("b2_subqueries_ctes_setops/t1_breadth", Flow.FILTER): (34, 0, 0),
+    ("b2_subqueries_ctes_setops/t1_breadth", Flow.INFLUENCE): (5, 0, 0),
+    ("b2_subqueries_ctes_setops/t2_depth", Flow.VALUE): (41, 0, 0),
+    ("b2_subqueries_ctes_setops/t2_depth", Flow.FILTER): (21, 0, 0),
+    ("b2_subqueries_ctes_setops/t2_depth", Flow.INFLUENCE): (10, 0, 0),
+    ("b2_subqueries_ctes_setops/t3_interaction", Flow.VALUE): (50, 0, 0),
+    ("b2_subqueries_ctes_setops/t3_interaction", Flow.FILTER): (16, 0, 0),
+    ("b2_subqueries_ctes_setops/t3_interaction", Flow.INFLUENCE): (16, 0, 0),
+    ("b2_subqueries_ctes_setops/t4_adversarial", Flow.VALUE): (32, 0, 0),
+    ("b2_subqueries_ctes_setops/t4_adversarial", Flow.FILTER): (17, 0, 0),
+    ("b2_subqueries_ctes_setops/t4_adversarial", Flow.INFLUENCE): (4, 0, 0),
+    ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.VALUE): (28, 0, 0),
+    ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.FILTER): (21, 0, 0),
+    ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.INFLUENCE): (8, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})

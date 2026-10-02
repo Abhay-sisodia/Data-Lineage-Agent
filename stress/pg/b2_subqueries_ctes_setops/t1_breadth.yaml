@@ -1,0 +1,1424 @@
+# GENERATED from t1_breadth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B2 t1_breadth.sql - subqueries, CTEs, set operations: breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# Conventions: B1's (D-2, D-4, D-5, D-6, D-7, D-9, D-10, D-11), convention (a) for set
+# operations, plus D-12 and D-13 decided for this batch and NOT yet implemented - the facts
+# resting on them are expected to score as disagreements until they are.
+package: pg/b2_subqueries_ctes_setops/t1_breadth.sql
+dialect: postgres
+source_sha256: 90514ca844fb3699163001e1672332b1e9a4f6d4d750875abd0da7961623689c
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: dim_store.name
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12: status decides which lines feed the total; every store row is written.'
+- source:
+    kind: column
+    name: fct_order_line.status
+  target:
+    kind: column
+    name: kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-12: status decides which lines feed the total; every store row is written.'
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: customer_summary.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.status
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+  note: COUNT(*) has no value source; only its correlation feeds lifetime_orders (D-12).
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: customer_summary.lifetime_orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+  note: COUNT(*) has no value source; only its correlation feeds lifetime_orders (D-12).
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.id
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+  note: 'D-12: a lookup''s keys select which value arrives - conditional, like a CASE condition.'
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+  note: 'D-12: a lookup''s keys select which value arrives - conditional, like a CASE condition.'
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.order_id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.order_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.order_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.paid_at
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 85
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 85
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 85
+  evidence: source_read
+  note: 'Both subqueries are in WHERE: they decide which customers land. The NOT EXISTS reaches orders.customer_id
+    through two structural joins.'
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 85
+  evidence: source_read
+  note: 'Both subqueries are in WHERE: they decide which customers land. The NOT EXISTS reaches orders.customer_id
+    through two structural joins.'
+- source:
+    kind: column
+    name: orders.status
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 85
+  evidence: source_read
+  note: 'Both subqueries are in WHERE: they decide which customers land. The NOT EXISTS reaches orders.customer_id
+    through two structural joins.'
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.currency
+  target:
+    kind: column
+    name: channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.status
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: sales_daily.sale_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.amount
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.status
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.product_key
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.brand
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.unit_price
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.list_price
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+  note: 'list_price reaches its comparison through AVG: post-aggregation, per column (D-6).'
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 151
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 151
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.gross_amount
+  target:
+    kind: column
+    name: product_performance.revenue_share
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 151
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: product_performance.revenue_share
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 151
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: product_performance.revenue_share
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 151
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: product_performance.category_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 171
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 171
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 171
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: product_performance.units
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 171
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 171
+  evidence: source_read
+  note: The LATERAL's correlation decides which rows land (a row source, not a scalar); amount orders
+    the LIMIT 3 (D-9).
+- source:
+    kind: column
+    name: dim_store.id
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 171
+  evidence: source_read
+  note: The LATERAL's correlation decides which rows land (a row source, not a scalar); amount orders
+    the LIMIT 3 (D-9).
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 171
+  evidence: source_read
+  note: The LATERAL's correlation decides which rows land (a row source, not a scalar); amount orders
+    the LIMIT 3 (D-9).
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 195
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 195
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 195
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 195
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.status
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 195
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 195
+  evidence: source_read
+  note: '`WHERE e.region_rev > 0` filters a SUM of a SUM: post-aggregation (D-6).'
+- source:
+    kind: column
+    name: dim_category.name
+  target:
+    kind: column
+    name: kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 238
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_category.department
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 238
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_category.name
+  target:
+    kind: column
+    name: kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 238
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_category.parent_id
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 238
+  evidence: source_read
+  note: 'The anchor''s `parent_id IS NULL` picks the roots. `depth` (-> orders) has no base source: a
+    literal that only adds to itself.'
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: sales_daily.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 257
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.method
+  target:
+    kind: column
+    name: sales_daily.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 257
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 257
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.amount
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 257
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.status
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 257
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 271
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.customer_id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 271
+  evidence: source_read
+  note: 'Convention (a): the later arms of INTERSECT and EXCEPT decide which values survive and supply
+    none.'
+- source:
+    kind: column
+    name: dim_customer.segment
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 271
+  evidence: source_read
+  note: 'Convention (a): the later arms of INTERSECT and EXCEPT decide which values survive and supply
+    none.'
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 271
+  evidence: source_read
+  note: 'Convention (a): the later arms of INTERSECT and EXCEPT decide which values survive and supply
+    none.'
+- source:
+    kind: column
+    name: returns.status
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 271
+  evidence: source_read
+  note: 'Convention (a): the later arms of INTERSECT and EXCEPT decide which values survive and supply
+    none.'
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 289
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 289
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.country_code
+  target:
+    kind: column
+    name: kpi_rollup.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 289
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 289
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.country_code
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 289
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.is_current
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 289
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.order_id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 310
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 310
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.amount
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 310
+  evidence: source_read
+- source:
+    kind: column
+    name: returns.amount
+  target:
+    kind: column
+    name: top_customers.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 310
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.amount
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 310
+  evidence: source_read
+  note: 'D-9: ORDER BY 2 is the second output column, which both arms supply.'
+- source:
+    kind: column
+    name: returns.amount
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 310
+  evidence: source_read
+  note: 'D-9: ORDER BY 2 is the second output column, which both arms supply.'
+- source:
+    kind: column
+    name: dim_warehouse.name
+  target:
+    kind: column
+    name: <result>.warehouse_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 323
+  evidence: source_read
+- source:
+    kind: column
+    name: inventory_snapshots.on_hand
+  target:
+    kind: column
+    name: <result>.stock_units
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 323
+  evidence: source_read
+- source:
+    kind: column
+    name: inventory_snapshots.warehouse_id
+  target:
+    kind: column
+    name: <result>.stock_units
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 323
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.id
+  target:
+    kind: column
+    name: <result>.stock_units
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 323
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: fct_order_line.status
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  reason: a SELECT-list scalar subquery's WHERE removes no target row (D-12)
+- source:
+    kind: column
+    name: payments.status
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  reason: 'inside a SELECT-list scalar subquery: a value of lifetime_value (D-12)'
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  reason: a correlation operand of a SELECT-list scalar subquery (D-12)
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  reason: a correlation operand of a SELECT-list scalar subquery (D-12)
+- source:
+    kind: column
+    name: payments.order_id
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  reason: the join inside the subquery is structural (D-5), and the subquery filters nothing anyway
+- source:
+    kind: column
+    name: dim_store.id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  reason: a lookup key in a SELECT-list scalar subquery removes no row (D-12)
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  reason: a lookup key in a SELECT-list scalar subquery removes no row (D-12)
+- source:
+    kind: column
+    name: payments.paid_at
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  reason: ORDER BY ... LIMIT 1 in a scalar subquery picks a value, it removes no row (D-13)
+- source:
+    kind: column
+    name: payments.paid_at
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  reason: paid_at decides which amount, no part of it is in the amount (D-13)
+- source:
+    kind: column
+    name: order_lines.id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  reason: a join key inside the NOT EXISTS (D-5)
+- source:
+    kind: column
+    name: dim_category.id
+  target:
+    kind: column
+    name: kpi_rollup.orders
+  flow: value
+  reason: depth counts recursion steps; the join key is not in it
+- source:
+    kind: column
+    name: dim_customer.customer_id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  reason: an INTERSECT's later arm supplies no value (convention (a))
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  reason: UNION (distinct) removes only duplicates of the values written (D-9's DISTINCT rule)
+- source:
+    kind: column
+    name: inventory_snapshots.warehouse_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: a SELECT-list scalar subquery's correlation removes no row (D-12)
+expected_boundaries: []

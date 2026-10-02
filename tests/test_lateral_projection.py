@@ -96,6 +96,10 @@ def test_a_lateral_with_its_own_from_resolves_through_to_the_inner_table() -> No
     Its filter edges were already correct - `child.pid` and `src.id` - and only the value
     edge was missing, which is what made the finding easy to under-read as "LATERAL works".
     The transform must be AGGREGATED: the value passed through `sum`.
+
+    **Under D-14 (2026-10-02) the correlation is a VALUE, no longer a filter.** This LATERAL
+    aggregates with no GROUP BY, so it returns exactly one row for every `src` row: its
+    WHERE cannot remove a result row. It decides which children are summed into `a`.
     """
     edges = _edges(
         """
@@ -110,8 +114,9 @@ def test_a_lateral_with_its_own_from_resolves_through_to_the_inner_table() -> No
         """
     )
     assert ("column:child.amount", "column:tgt.a", "value", "aggregated") in edges
-    assert ("column:child.pid", "relation:tgt", "filter", "identity") in edges
-    assert ("column:src.id", "relation:tgt", "filter", "identity") in edges
+    assert ("column:child.pid", "column:tgt.a", "value", "aggregated") in edges
+    assert ("column:src.id", "column:tgt.a", "value", "aggregated") in edges
+    assert not [e for e in edges if e[2] == "filter"], "a one-row LATERAL removes no row (D-14)"
 
 
 def test_a_lateral_projection_over_an_unknown_column_still_declares() -> None:

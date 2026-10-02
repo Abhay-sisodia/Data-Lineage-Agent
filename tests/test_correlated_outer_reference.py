@@ -33,6 +33,13 @@ INSERT case was equally broken, and was wrong.
 qualifier being discarded so a name bound to a relation the statement never mentioned; this
 is a table alias being discarded for the same result. The fix is the same principle: when
 the statement says WHICH relation it means, that is not a guess to be overridden.
+
+**The FLOW these tests assert changed on 2026-10-02 (decision D-12); the binding did not.**
+A SELECT-list scalar subquery's correlation used to be a filter on the written relation
+(the s7 convention). D-12 made it a VALUE of the column the subquery feeds - here
+`TGT.TOTAL`, aggregated through the SUM - because it decides which rows feed that one
+value and removes no target row. What this file exists to protect is unchanged: each
+operand reaches the relation it NAMES, and nothing is declared that was resolved.
 """
 
 from __future__ import annotations
@@ -112,12 +119,18 @@ def _edges(source: str, dictionary: Dictionary) -> list[tuple[str, str, str]]:
 def test_both_operands_of_a_correlation_reach_their_own_relation(
     dictionary: Dictionary,
 ) -> None:
-    """`predicates.py`: "both of its operands stay". One of them could not get there."""
+    """`predicates.py`: "both of its operands stay". One of them could not get there.
+
+    Both are values of TGT.TOTAL under D-12; before D-12 both were filters on TGT.
+    """
     edges = _edges(CORRELATED_IN_MERGE, dictionary)
 
-    assert ("REV.RID", "TGT", Flow.FILTER.value) in edges, "the inner operand was lost"
-    assert ("SRC.SID", "TGT", Flow.FILTER.value) in edges, (
+    assert ("REV.RID", "TGT.TOTAL", Flow.VALUE.value) in edges, "the inner operand was lost"
+    assert ("SRC.SID", "TGT.TOTAL", Flow.VALUE.value) in edges, (
         "the correlated OUTER operand did not resolve to the relation it names"
+    )
+    assert ("REV.RID", "TGT", Flow.FILTER.value) not in edges, (
+        "a scalar subquery's correlation removes no target row (D-12)"
     )
 
 
@@ -163,16 +176,16 @@ def test_the_outer_operand_is_not_bound_to_the_inner_relation(dictionary: Dictio
     FILTER source, which the wrong binding can never produce.
     """
     edges = _edges(SHARED_NAME_CORRELATION, dictionary)
-    # The FLOW matters. `s.sid` is also the first projected column, so it reaches SRC.SID
-    # by a value edge no matter what the predicate does - asserting on the source set alone
-    # passes without the fix, for a reason that has nothing to do with the finding.
-    filters = {source for source, _, flow in edges if flow == Flow.FILTER.value}
+    # The TARGET matters. `s.sid` is also the first projected column, so it reaches SRC.SID
+    # by a value edge into TGT.SID no matter what the predicate does - asserting on the
+    # source set alone passes without the fix. Under D-12 the correlation feeds TGT.TOTAL.
+    into_total = {source for source, target, _ in edges if target == "TGT.TOTAL"}
 
-    assert "SRC.SID" in filters, (
+    assert "SRC.SID" in into_total, (
         "the outer operand never reached SRC - it was bound to the inner relation instead, "
         "and with a shared column name that produces a wrong edge rather than a boundary"
     )
-    assert "REV_SHARED.SID" in filters, "the inner operand's own filter edge was lost"
+    assert "REV_SHARED.SID" in into_total, "the inner operand's own edge was lost"
 
 
 def test_the_insert_form_loses_its_spurious_boundary(dictionary: Dictionary) -> None:
@@ -191,7 +204,7 @@ def test_the_insert_form_loses_its_spurious_boundary(dictionary: Dictionary) -> 
     """
     result = analyse_source(CORRELATED_IN_INSERT, dictionary)
 
-    assert ("SRC.SID", "TGT", Flow.FILTER.value) in [
+    assert ("SRC.SID", "TGT.TOTAL", Flow.VALUE.value) in [
         (e.source.name, e.target.name, e.flow.value) for e in result.edges
     ]
     assert "REV.SID" not in {b.subject for b in result.boundaries}, (

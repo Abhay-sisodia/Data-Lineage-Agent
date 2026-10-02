@@ -78,24 +78,29 @@ edges:
     evidence: source_read
 
   - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
-    target: {kind: relation, name: DIM_CUSTOMER_HIER}
-    flow: filter
-    transform: identity
-    band: 0
-    origin: {unit: SQ_SELF_JOIN, line: 21}
-    evidence: source_read
-    note: The correlation predicate inside the scalar subquery.
-
-  - source: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
-    target: {kind: relation, name: DIM_CUSTOMER_HIER}
-    flow: filter
-    transform: identity
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    transform: aggregated
     band: 0
     origin: {unit: SQ_SELF_JOIN, line: 21}
     evidence: source_read
     note: >
-      COMPLETION, 2026-09-06. The other operand of `s.cust_id = parent.cust_id`. Every
-      operand of a predicate is a filter edge - the convention from b0_01, applied
-      uniformly in the earlier label completion and missed here. Raises agreement.
+      RELABELLED 2026-10-02 under decision D-12 (was: filter on DIM_CUSTOMER_HIER). The
+      correlation inside a SELECT-list scalar subquery decides WHICH email lands in
+      root_name; it removes no row - a row with no matching customer is still written, with
+      root_name NULL. So it is a value of that one column, aggregated because the subquery
+      takes MAX. Signed phase-0 numbers move with this; re-measurement is owed (FINDINGS).
+
+  - source: {kind: column, name: DIM_CUSTOMER_HIER.CUST_ID}
+    target: {kind: column, name: DIM_CUSTOMER_HIER.ROOT_NAME}
+    flow: value
+    transform: aggregated
+    band: 0
+    origin: {unit: SQ_SELF_JOIN, line: 21}
+    evidence: source_read
+    note: >
+      RELABELLED 2026-10-02 under decision D-12 (was: filter on DIM_CUSTOMER_HIER, added as
+      a completion on 2026-09-06). The outer operand of `s.cust_id = parent.cust_id`: same
+      reasoning as the inner one - it picks which customer's email feeds root_name.
 
 boundaries: []

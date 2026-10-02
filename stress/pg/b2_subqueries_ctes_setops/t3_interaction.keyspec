@@ -1,0 +1,74 @@
+# Answer key for B2 t3_interaction.sql - subqueries meeting B1's rules.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions as T1; D-12 and D-13 not yet implemented.
+
+@ 18 S1 a per-row FX lookup, then summed
+value orders.store_id -> sales_daily.store_id identity
+value orders.amount, fx_rates.rate_to_usd -> sales_daily.net_amount aggregated
+value fx_rates.currency, orders.currency, fx_rates.rate_date, orders.order_ts -> sales_daily.net_amount aggregated
+note D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.
+influence orders.store_id -> sales_daily.net_amount
+forbid filter fx_rates.currency -> sales_daily | a lookup key in a scalar subquery removes no row (D-12)
+forbid filter orders.order_ts -> sales_daily | a lookup key in a scalar subquery removes no row (D-12)
+
+@ 36 S2 a UNION ALL feeding two windows
+value orders.customer_id, returns.order_line_id -> customer_summary.customer_id identity
+value orders.amount, returns.amount -> customer_summary.lifetime_value aggregated
+influence orders.customer_id, returns.order_line_id, orders.order_ts, returns.created_at -> customer_summary.lifetime_value, customer_summary.value_rank
+
+@ 54 S3 EXISTS over a HAVING-filtered CTE
+value dim_store.name -> kpi_rollup.region identity
+value dim_store.country_code -> kpi_rollup.country_code identity
+filter fct_order_line.store_id, dim_store.id -> kpi_rollup
+filter fct_order_line.quantity -> kpi_rollup post
+
+@ 70 S4 recursion feeding GROUP BY and a window
+value dim_category.department -> channel_mix.channel identity
+influence dim_category.department -> channel_mix.orders, channel_mix.share_of_region
+filter dim_category.parent_id -> channel_mix
+note Both counts are COUNT(*): no value source, but aggregated, so the grouping reaches them.
+
+@ 92 S5 IN over an INTERSECT, aggregating with HAVING
+value fct_order_line.product_key -> product_performance.product_id identity
+value fct_order_line.quantity -> product_performance.units aggregated
+value fct_order_line.net_amount -> product_performance.revenue aggregated
+influence fct_order_line.product_key -> product_performance.units, product_performance.revenue
+filter fct_order_line.product_key, dim_product.product_key, dim_product.brand, dim_product.status -> product_performance
+filter fct_order_line.quantity -> product_performance post
+
+@ 112 S6 scalar subqueries deciding a CASE and inside COALESCE
+value customers.id -> top_customers.customer_id identity
+value customers.full_name -> top_customers.full_name conditional
+value orders.customer_id, customers.id -> top_customers.full_name aggregated
+value payments.amount, orders.customer_id, customers.id -> top_customers.revenue aggregated
+note D-12 in a CASE condition: the count decides the branch, so its correlation is a value of full_name.
+forbid filter orders.customer_id -> top_customers | the correlation of a SELECT-list scalar subquery removes no row (D-12)
+
+@ 137 S7 LEFT JOIN LATERAL of an aggregate, with NOT IN
+value dim_carrier.name -> kpi_rollup.segment identity
+value fct_shipment.transit_days -> kpi_rollup.revenue aggregated
+value fct_shipment.carrier_id, dim_carrier.id, fct_shipment.shipment_id, shipments.id, shipments.status -> kpi_rollup.orders, kpi_rollup.revenue aggregated
+note RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide the values of the two columns it feeds - both aggregated.
+
+@ 157 S8 LIMIT over a UNION ALL of two aggregations
+value dim_store.region, dim_warehouse.region -> kpi_rollup.region identity
+value fct_order_line.net_amount, fct_shipment.cost -> kpi_rollup.revenue aggregated
+influence dim_store.region, dim_warehouse.region -> kpi_rollup.revenue
+filter fct_order_line.net_amount, fct_shipment.cost -> kpi_rollup post
+note D-9 over a set operation: ORDER BY 3 is the SUM both arms supply.
+
+@ 176 S9 a HAVING against an aggregate of aggregates
+value fct_order_line.store_id -> sales_daily.store_id identity
+value fct_order_line.gross_amount -> sales_daily.gross_amount aggregated
+influence fct_order_line.store_id -> sales_daily.gross_amount
+filter fct_order_line.gross_amount -> sales_daily post
+
+@ 193 S10 DISTINCT ON over a UNION ALL, with a lookup
+value fct_shipment.carrier_id, shipments.carrier_id -> carrier_scorecard.carrier_id identity
+value dim_carrier.name -> carrier_scorecard.carrier_name identity
+value dim_carrier.id, fct_shipment.carrier_id, shipments.carrier_id -> carrier_scorecard.carrier_name conditional
+value fct_shipment.cost, shipments.cost -> carrier_scorecard.cost_per_kg identity
+filter fct_shipment.carrier_id, shipments.carrier_id, fct_shipment.shipped_date, shipments.shipped_at -> carrier_scorecard
+note D-9: the DISTINCT ON key and tie-breaker, from both union arms.
+forbid filter dim_carrier.id -> carrier_scorecard | a lookup key in a SELECT-list scalar subquery (D-12)

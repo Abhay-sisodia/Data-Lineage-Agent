@@ -1,0 +1,785 @@
+# GENERATED from t5_metamorphic.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B2 t5_metamorphic.sql - pairs and one realistic model.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# P1-P4 must be equal: their facts are listed once, at spelling A.
+# P5-P8 are SEAM pairs: the same rows, labelled differently by today's conventions. The
+# key holds the UNION of both spellings' facts, each labelled by the rule its own
+# spelling falls under, and says which spelling owns which. The pair check is expected to
+# report them as DIFFER; that difference is the finding, put up for decision.
+package: pg/b2_subqueries_ctes_setops/t5_metamorphic.sql
+dialect: postgres
+source_sha256: 3b0df449d0074a7daeb1d652b3f6f0f7057086648e6d355a0cffef88cb26ca1e
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.status
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 45
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 45
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 45
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.order_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 45
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.method
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 45
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 61
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 61
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.status
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 61
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: sales_daily.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 83
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.method
+  target:
+    kind: column
+    name: sales_daily.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 83
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.product_key
+  target:
+    kind: column
+    name: product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.category_name
+  target:
+    kind: column
+    name: product_performance.category_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.product_key
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+  note: 'Spelling A only: the IN''s match columns are filters. In B they are a join key, structural under
+    D-5.'
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+  note: 'Spelling A only: the IN''s match columns are filters. In B they are a join key, structural under
+    D-5.'
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.status
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+  note: 'Spelling B only: the correlation''s outer operand. In A, customers.id is the first arm and supplies
+    only a value (convention (a)).'
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.transit_days
+  target:
+    kind: column
+    name: carrier_scorecard.avg_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.avg_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+  note: 'Spelling A only (D-12). RELABELLED UNDER D-14: spelling B''s LATERAL cannot remove a carrier,
+    so its WHERE is the same value as A''s (D-12). P7 is now a MUST-EQUAL pair.'
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: column
+    name: carrier_scorecard.avg_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+  note: 'Spelling A only (D-12). RELABELLED UNDER D-14: spelling B''s LATERAL cannot remove a carrier,
+    so its WHERE is the same value as A''s (D-12). P7 is now a MUST-EQUAL pair.'
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: sales_daily.orders
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 166
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.amount
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 166
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.order_id
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 166
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 166
+  evidence: source_read
+- source:
+    kind: column
+    name: payments.paid_at
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 166
+  evidence: source_read
+  note: Spelling A only (D-12, D-13).
+- source:
+    kind: column
+    name: payments.order_id
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 166
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14: under the LEFT JOIN the DISTINCT ON removes no order, so its key and tie-breaker
+    decide WHICH amount arrives - influence, as D-13 says of the ordered pick. paid_at now agrees across
+    the pair. payments.order_id still differs (influence in B, a conditional value in A): that is the
+    match-key seam of P5/P6, left open by decision.'
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_carrier.name
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.shipped_date
+  target:
+    kind: column
+    name: carrier_scorecard.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.delivered_date
+  target:
+    kind: column
+    name: carrier_scorecard.on_time_pct
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.promised_date
+  target:
+    kind: column
+    name: carrier_scorecard.on_time_pct
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.cost
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.weight_kg
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.shipments
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.on_time_pct
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
+- source:
+    kind: column
+    name: fct_shipment.shipped_date
+  target:
+    kind: column
+    name: carrier_scorecard.shipments
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
+- source:
+    kind: column
+    name: fct_shipment.shipped_date
+  target:
+    kind: column
+    name: carrier_scorecard.on_time_pct
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
+- source:
+    kind: column
+    name: fct_shipment.shipped_date
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.'
+- source:
+    kind: column
+    name: fct_shipment.status
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_payment.order_id
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.order_id
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_payment.status
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.order_id
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`WHERE mo.n >= 10` tests COUNT(*), which has no column to name.'
+- source:
+    kind: column
+    name: shipments.status
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`WHERE mo.n >= 10` tests COUNT(*), which has no column to name.'
+- source:
+    kind: column
+    name: returns.order_line_id
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`WHERE mo.n >= 10` tests COUNT(*), which has no column to name.'
+- source:
+    kind: column
+    name: returns.reason_code
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 196
+  evidence: source_read
+  note: '`WHERE mo.n >= 10` tests COUNT(*), which has no column to name.'
+forbidden: []
+expected_boundaries: []

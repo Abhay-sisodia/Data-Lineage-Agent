@@ -1,0 +1,123 @@
+# Answer key for B2 t1_breadth.sql - subqueries, CTEs, set operations: breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# Conventions: B1's (D-2, D-4, D-5, D-6, D-7, D-9, D-10, D-11), convention (a) for set
+# operations, plus D-12 and D-13 decided for this batch and NOT yet implemented - the facts
+# resting on them are expected to score as disagreements until they are.
+
+@ 18 S1 uncorrelated scalar subquery
+value dim_store.name -> kpi_rollup.region identity
+value fct_order_line.net_amount, fct_order_line.status -> kpi_rollup.revenue aggregated
+note D-12: status decides which lines feed the total; every store row is written.
+forbid filter fct_order_line.status -> kpi_rollup | a SELECT-list scalar subquery's WHERE removes no target row (D-12)
+
+@ 34 S2 correlated aggregating scalar subqueries
+value customers.id -> customer_summary.customer_id identity
+value customers.full_name -> customer_summary.full_name identity
+value payments.amount, payments.status, orders.customer_id, customers.id -> customer_summary.lifetime_value aggregated
+value orders.customer_id, customers.id -> customer_summary.lifetime_orders aggregated
+note COUNT(*) has no value source; only its correlation feeds lifetime_orders (D-12).
+forbid filter payments.status -> customer_summary | inside a SELECT-list scalar subquery: a value of lifetime_value (D-12)
+forbid filter customers.id -> customer_summary | a correlation operand of a SELECT-list scalar subquery (D-12)
+forbid filter orders.customer_id -> customer_summary | a correlation operand of a SELECT-list scalar subquery (D-12)
+forbid filter payments.order_id -> customer_summary | the join inside the subquery is structural (D-5), and the subquery filters nothing anyway
+
+@ 55 S3 lookup scalar subqueries
+value orders.id -> top_customers.customer_id identity
+value customers.full_name -> top_customers.full_name identity
+value customers.id, orders.customer_id -> top_customers.full_name conditional
+value dim_store.region -> top_customers.region identity
+value dim_store.id, orders.store_id -> top_customers.region conditional
+note D-12: a lookup's keys select which value arrives - conditional, like a CASE condition.
+filter orders.channel -> top_customers
+forbid filter dim_store.id -> top_customers | a lookup key in a SELECT-list scalar subquery removes no row (D-12)
+forbid filter orders.store_id -> top_customers | a lookup key in a SELECT-list scalar subquery removes no row (D-12)
+
+@ 68 S4 an ordered pick (D-13)
+value shipments.order_id -> customer_summary.customer_id identity
+value payments.amount -> customer_summary.lifetime_value identity
+value payments.order_id, shipments.order_id -> customer_summary.lifetime_value conditional
+influence payments.paid_at -> customer_summary.lifetime_value
+forbid filter payments.paid_at -> customer_summary | ORDER BY ... LIMIT 1 in a scalar subquery picks a value, it removes no row (D-13)
+forbid value payments.paid_at -> customer_summary.lifetime_value | paid_at decides which amount, no part of it is in the amount (D-13)
+
+@ 85 S5 EXISTS and NOT EXISTS
+value customers.id -> top_customers.customer_id identity
+value customers.segment -> top_customers.region identity
+filter orders.customer_id, customers.id, orders.status -> top_customers
+note Both subqueries are in WHERE: they decide which customers land. The NOT EXISTS reaches orders.customer_id through two structural joins.
+forbid filter order_lines.id -> top_customers | a join key inside the NOT EXISTS (D-5)
+
+@ 112 S6 IN and NOT IN
+value orders.channel -> channel_mix.channel identity
+value orders.currency -> channel_mix.region identity
+value orders.amount -> channel_mix.revenue identity
+filter orders.customer_id, customers.id, customers.segment, orders.store_id, dim_store.id, dim_store.status -> channel_mix
+
+@ 131 S7 ALL, ANY, a scalar comparison in WHERE
+value fct_order_line.order_date -> sales_daily.sale_date identity
+value fct_order_line.store_id -> sales_daily.store_id identity
+value fct_order_line.net_amount -> sales_daily.net_amount identity
+filter fct_order_line.net_amount, returns.amount, returns.status, fct_order_line.product_key, dim_product.product_key, dim_product.brand, fct_order_line.unit_price -> sales_daily
+filter dim_product.list_price -> sales_daily post
+note list_price reaches its comparison through AVG: post-aggregation, per column (D-6).
+
+@ 151 S8 an aggregating derived table joined back
+value fct_order_line.product_key -> product_performance.product_id identity
+value fct_order_line.net_amount -> product_performance.revenue identity
+value fct_order_line.gross_amount -> product_performance.revenue_share derived
+value fct_order_line.net_amount -> product_performance.revenue_share aggregated
+influence fct_order_line.store_id -> product_performance.revenue_share
+
+@ 171 S9 CROSS JOIN LATERAL, top 3 per store
+value dim_store.region -> product_performance.category_name identity
+value orders.id -> product_performance.product_id identity
+value orders.amount -> product_performance.revenue identity
+influence orders.amount -> product_performance.units
+filter orders.store_id, dim_store.id, orders.amount -> product_performance
+note The LATERAL's correlation decides which rows land (a row source, not a scalar); amount orders the LIMIT 3 (D-9).
+
+@ 195 S10 six CTEs with MATERIALIZED hints
+value dim_store.region -> channel_mix.region identity
+value fct_order_line.net_amount -> channel_mix.revenue aggregated
+influence fct_order_line.store_id, dim_store.region -> channel_mix.revenue
+filter fct_order_line.status -> channel_mix
+filter fct_order_line.net_amount -> channel_mix post
+note `WHERE e.region_rev > 0` filters a SUM of a SUM: post-aggregation (D-6).
+
+@ 238 S11 WITH RECURSIVE over the category tree
+value dim_category.name -> kpi_rollup.level derived
+value dim_category.department -> kpi_rollup.region identity
+value dim_category.name -> kpi_rollup.segment identity
+filter dim_category.parent_id -> kpi_rollup
+note The anchor's `parent_id IS NULL` picks the roots. `depth` (-> orders) has no base source: a literal that only adds to itself.
+forbid value dim_category.id -> kpi_rollup.orders | depth counts recursion steps; the join key is not in it
+
+@ 257 S12a UNION ALL, both arms supply values
+value orders.channel, payments.method -> sales_daily.region identity
+value orders.amount, payments.amount -> sales_daily.net_amount identity
+filter orders.status -> sales_daily
+
+@ 271 S12b INTERSECT then EXCEPT ALL
+value orders.customer_id -> top_customers.customer_id identity
+filter dim_customer.customer_id, dim_customer.segment, returns.order_line_id, returns.status -> top_customers
+note Convention (a): the later arms of INTERSECT and EXCEPT decide which values survive and supply none.
+forbid value dim_customer.customer_id -> top_customers.customer_id | an INTERSECT's later arm supplies no value (convention (a))
+
+@ 289 S12c a parenthesised UNION, then EXCEPT, in a CTE
+value dim_store.region, dim_warehouse.region -> kpi_rollup.region identity
+value dim_store.country_code -> kpi_rollup.country_code identity
+filter dim_customer.region, dim_customer.country_code, dim_customer.is_current -> kpi_rollup
+forbid filter dim_store.region -> kpi_rollup | UNION (distinct) removes only duplicates of the values written (D-9's DISTINCT rule)
+
+@ 310 S12d ORDER BY / LIMIT over a whole UNION ALL
+value payments.order_id, returns.order_line_id -> top_customers.customer_id identity
+value payments.amount, returns.amount -> top_customers.revenue identity
+filter payments.amount, returns.amount -> top_customers
+note D-9: ORDER BY 2 is the second output column, which both arms supply.
+
+@ 323 S13 bare SELECT with a correlated scalar subquery
+value dim_warehouse.name -> <result>.warehouse_name identity
+value inventory_snapshots.on_hand, inventory_snapshots.warehouse_id, dim_warehouse.id -> <result>.stock_units aggregated
+forbid filter inventory_snapshots.warehouse_id -> <result> | a SELECT-list scalar subquery's correlation removes no row (D-12)
