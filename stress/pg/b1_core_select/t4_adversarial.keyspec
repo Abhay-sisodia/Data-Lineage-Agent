@@ -31,7 +31,8 @@ forbid value customers.status -> customer_summary.status | the alias `customers`
 value fct_shipment.carrier_id -> carrier_scorecard.carrier_id identity
 value dim_carrier.name -> carrier_scorecard.carrier_name identity
 value fct_shipment.cost -> carrier_scorecard.cost_per_kg derived
-value fct_shipment.weight_kg -> carrier_scorecard.cost_per_kg conditional
+# Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. NULLIF(x, 0) reads one column.
+value fct_shipment.weight_kg -> carrier_scorecard.cost_per_kg derived
 filter dim_carrier.status -> carrier_scorecard
 forbid filter fct_shipment.status -> carrier_scorecard | the `x` filtered on status is dim_carrier; the fct_shipment `x` has no WHERE
 forbid value dim_carrier.id -> carrier_scorecard.carrier_id | the projection reads a.cid (fct_shipment); b.cid is only the join partner

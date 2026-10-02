@@ -319,10 +319,11 @@ edges:
     evidence: source_read
     note: Both arms write it; the same fact from two arms is deduplicated, not counted twice.
 
+  # Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. CASE WHEN s.status_code = 'A' THEN 1 ELSE 0 END reads one column.
   - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
     target: {kind: column, name: DIM_CUSTOMER.IS_ACTIVE}
     flow: value
-    transform: conditional
+    transform: derived
     band: 0
     origin: {unit: STRESS_MERGE_UPSERT, line: 93}
     evidence: source_read
@@ -395,10 +396,11 @@ edges:
     origin: {unit: STRESS_VIEW_AND_SYNONYM, line: 119}
     evidence: source_read
 
+  # Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. a one-column CASE through the view chain reads one column.
   - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
     target: {kind: column, name: DW_DIM_CUSTOMER_V2.IS_ACTIVE}
     flow: value
-    transform: conditional
+    transform: derived
     band: 0
     origin: {unit: STRESS_VIEW_AND_SYNONYM, line: 119}
     evidence: source_read

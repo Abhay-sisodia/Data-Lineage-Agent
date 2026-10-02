@@ -31,6 +31,7 @@ filter returns.order_line_id, order_lines.id, order_lines.status -> returns
 
 @ 115 P6 SEAM DELETE ... USING vs EXISTS
 filter orders.status -> payments
+@ 121 P6 B (spelling B's own facts, at its line - B4-04)
 filter orders.id, payments.order_id -> payments
 note Spelling B only: the EXISTS correlation's operands. In A, `o.id = p.order_id` joins USING to the target (D-11) - the semi-join seam left open in B2.
 

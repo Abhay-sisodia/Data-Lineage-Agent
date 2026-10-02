@@ -1,0 +1,1440 @@
+# GENERATED from t1_breadth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B4 t1_breadth.sql - expressions and types, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B3, plus D-19..D-22 (decided 2026-10-02, not implemented).
+# A cast is derived. A literal, now() or random() gives nothing (S14's projections).
+package: pg/b4_expressions_types/t1_breadth.sql
+dialect: postgres
+source_sha256: 4abe8ab96b6695dc7ae93c7bf3e03fa4d55bdd55e74a37fdbcb2f4156b561019
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.status
+  target:
+    kind: column
+    name: customer_summary.segment
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: column
+    name: customer_summary.segment
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.status
+  target:
+    kind: column
+    name: customer_summary.status
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+  note: 'The simple CASE maps one column to constants: derived (D-19).'
+- source:
+    kind: column
+    name: customers.country_code
+  target:
+    kind: column
+    name: customer_summary.region
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+  note: The outer CASE reads country_code and, through the inner CASE, segment.
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: column
+    name: customer_summary.region
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+  note: The outer CASE reads country_code and, through the inner CASE, segment.
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: sales_daily.sale_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 43
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: sales_daily.store_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 43
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.gross_amount
+  target:
+    kind: column
+    name: sales_daily.gross_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 43
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: sales_daily.gross_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 43
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 43
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: sales_daily.avg_order_value
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 43
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: column
+    name: sales_daily.avg_order_value
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 43
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: column
+    name: sales_daily.units
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 43
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_line_id
+  target:
+    kind: column
+    name: sales_daily.units
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 43
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.order_ts
+  target:
+    kind: column
+    name: channel_mix.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.created_at
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: dim_customer.customer_key
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.email
+  target:
+    kind: column
+    name: dim_customer.email
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: dim_customer.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.country_code
+  target:
+    kind: column
+    name: dim_customer.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.country_code
+  target:
+    kind: column
+    name: dim_customer.country_code
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: column
+    name: dim_customer.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.email
+  target:
+    kind: column
+    name: dim_customer.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.status
+  target:
+    kind: column
+    name: dim_customer.status
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.id
+  target:
+    kind: column
+    name: fct_shipment.shipment_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.order_id
+  target:
+    kind: column
+    name: fct_shipment.order_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.shipped_at
+  target:
+    kind: column
+    name: fct_shipment.shipped_date
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.delivered_at
+  target:
+    kind: column
+    name: fct_shipment.delivered_date
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.promised_at
+  target:
+    kind: column
+    name: fct_shipment.promised_date
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.delivered_at
+  target:
+    kind: column
+    name: fct_shipment.transit_days
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.shipped_at
+  target:
+    kind: column
+    name: fct_shipment.transit_days
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.delivered_at
+  target:
+    kind: relation
+    name: fct_shipment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.shipped_at
+  target:
+    kind: relation
+    name: fct_shipment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: products.id
+  target:
+    kind: column
+    name: product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: products.list_price
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: products.list_price
+  target:
+    kind: column
+    name: product_performance.margin
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: products.cost
+  target:
+    kind: column
+    name: product_performance.margin
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: products.cost
+  target:
+    kind: column
+    name: product_performance.growth_pct
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: products.list_price
+  target:
+    kind: column
+    name: product_performance.growth_pct
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: products.list_price
+  target:
+    kind: column
+    name: product_performance.units
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.segment
+  target:
+    kind: column
+    name: kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 118
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 118
+  evidence: source_read
+  note: A comparison computes a boolean; it is not a conditional form.
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 118
+  evidence: source_read
+  note: A comparison computes a boolean; it is not a conditional form.
+- source:
+    kind: column
+    name: dim_customer.status
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 118
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.valid_to
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 118
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.valid_from
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 118
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.discount_code
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: channel_mix.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.discount_code
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.currency
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.email
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.country_code
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.created_at
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: '(c).id IS c.id: field-exact, identity (D-20).'
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: row_to_json(c) reads every column of the row (D-20).
+- source:
+    kind: column
+    name: customers.email
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: row_to_json(c) reads every column of the row (D-20).
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: row_to_json(c) reads every column of the row (D-20).
+- source:
+    kind: column
+    name: customers.country_code
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: row_to_json(c) reads every column of the row (D-20).
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: row_to_json(c) reads every column of the row (D-20).
+- source:
+    kind: column
+    name: customers.status
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: row_to_json(c) reads every column of the row (D-20).
+- source:
+    kind: column
+    name: customers.signup_ts
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: row_to_json(c) reads every column of the row (D-20).
+- source:
+    kind: column
+    name: customers.attributes
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: row_to_json(c) reads every column of the row (D-20).
+- source:
+    kind: column
+    name: customers.created_at
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 159
+  evidence: source_read
+  note: row_to_json(c) reads every column of the row (D-20).
+- source:
+    kind: column
+    name: orders.tags
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 170
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.tags
+  target:
+    kind: column
+    name: channel_mix.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 170
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 170
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 170
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.tags
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 170
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: kpi_rollup.customers
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.region
+  target:
+    kind: column
+    name: kpi_rollup.customers
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 185
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.shipped_at
+  target:
+    kind: column
+    name: fct_shipment.status
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.promised_at
+  target:
+    kind: column
+    name: fct_shipment.status
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+- source:
+    kind: column
+    name: shipments.delivered_at
+  target:
+    kind: column
+    name: fct_shipment.status
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_date.is_weekend
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 217
+  evidence: source_read
+  note: '''snapshot'', to_char(now(), ...) and random() have no source.'
+- source:
+    kind: column
+    name: dim_carrier.id
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 231
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_carrier.name
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 231
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_carrier.mode
+  target:
+    kind: column
+    name: carrier_scorecard.carrier_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 231
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_carrier.mode
+  target:
+    kind: column
+    name: carrier_scorecard.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 231
+  evidence: source_read
+  note: 'The unit CASE reads one column (mode): derived (D-19), and a parameter (D-22).'
+- source:
+    kind: column
+    name: fct_shipment.shipped_date
+  target:
+    kind: column
+    name: carrier_scorecard.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 231
+  evidence: source_read
+  note: 'The unit CASE reads one column (mode): derived (D-19), and a parameter (D-22).'
+- source:
+    kind: column
+    name: fct_shipment.cost
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 231
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.weight_kg
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 231
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.transit_days
+  target:
+    kind: column
+    name: carrier_scorecard.cost_per_kg
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 231
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.customer_key
+  target:
+    kind: column
+    name: dim_customer.customer_key
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 244
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.valid_to
+  target:
+    kind: column
+    name: dim_customer.is_current
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 244
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.status
+  target:
+    kind: column
+    name: dim_customer.is_current
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 244
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.first_order_date
+  target:
+    kind: column
+    name: dim_customer.first_order_date
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 244
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.valid_from
+  target:
+    kind: column
+    name: dim_customer.first_order_date
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 244
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.region
+  target:
+    kind: column
+    name: kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 255
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.name
+  target:
+    kind: column
+    name: kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 255
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.capacity
+  target:
+    kind: column
+    name: kpi_rollup.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 255
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.region
+  target:
+    kind: column
+    name: kpi_rollup.country_code
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 255
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.capacity
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 255
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: customers.status
+  target:
+    kind: column
+    name: customer_summary.status
+  flow: value
+  reason: a CASE over one column and constants is derived (D-19)
+  transform: conditional
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: sales_daily.net_amount
+  flow: value
+  reason: 'LEAST(x, constant) is a clamp over one column: derived (D-19)'
+  transform: conditional
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: column
+    name: sales_daily.avg_order_value
+  flow: value
+  reason: 'NULLIF(x, 0) is a guard over one column: derived (D-19)'
+  transform: conditional
+- source:
+    kind: column
+    name: orders.id
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: value
+  reason: a cast is between the column and the target, even to the same type
+  transform: identity
+- source:
+    kind: column
+    name: dim_store.country_code
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  reason: the ON is structural (D-5)
+- source:
+    kind: column
+    name: orders.store_id
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  reason: the ON is structural (D-5)
+- source:
+    kind: column
+    name: dim_carrier.mode
+  target:
+    kind: column
+    name: carrier_scorecard.period_month
+  flow: influence
+  reason: a parameter column is a derived value, not influence (D-22)
+- source:
+    kind: column
+    name: fct_shipment.carrier_id
+  target:
+    kind: relation
+    name: carrier_scorecard
+  flow: filter
+  reason: the ON is structural (D-5)
+expected_boundaries: []

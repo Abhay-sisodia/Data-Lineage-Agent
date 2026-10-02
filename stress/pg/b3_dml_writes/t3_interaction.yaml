@@ -266,7 +266,7 @@ edges:
     kind: column
     name: product_performance.growth_pct
   flow: value
-  transform: conditional
+  transform: derived
   band: 0
   origin:
     unit: <script>

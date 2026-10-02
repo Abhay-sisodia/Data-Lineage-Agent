@@ -609,10 +609,11 @@ edges:
     evidence: source_read
     note: SUBSTR is a derivation, not a copy.
 
+  # Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. DECODE(s.status_code, 'A', 1, 0) reads one column.
   - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
     target: {kind: column, name: DW_DIM_CUSTOMER_V2.IS_ACTIVE}
     flow: value
-    transform: conditional
+    transform: derived
     band: 0
     origin: {unit: S2_SCALAR_FUNCTIONS, line: 195}
     evidence: source_read
@@ -660,10 +661,11 @@ edges:
 
   # === 8. s2_nested_expressions =============================================
 
+  # Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. NVL(NULLIF(s.region, 'XX'), 'UNKNOWN') reads one column.
   - source: {kind: column, name: STG_CUSTOMER.REGION}
     target: {kind: column, name: DIM_CUSTOMER.REGION}
     flow: value
-    transform: conditional
+    transform: derived
     band: 0
     origin: {unit: S2_NESTED_EXPRESSIONS, line: 216}
     evidence: source_read

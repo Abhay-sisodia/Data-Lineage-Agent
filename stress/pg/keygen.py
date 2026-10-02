@@ -22,10 +22,18 @@ Keyspec grammar, one directive per line (`#` starts a comment, copied into the Y
     forbid    <flow> <src> -> <tgt> [<transform>] | <reason>
     expect    <boundary kind> <subject> | <reason>
     note      <text>                       attached to the facts on the line above
+    repeat    <value|filter|influence line>  this statement states a fact again (B4-04)
 
 `src` and `tgt` are `table.column`, written exactly as the analyser names nodes: bare table
 name, lower case. A filter's target is a relation name. Lists expand to every
 (source, target) pair, which is what a GROUP BY's influence actually is.
+
+**`repeat` (finding B4-04).** The harness's match key has no origin, so a fact two
+statements both produce is ONE fact per file and a key may state it only once. A later
+statement that also produces it says so with `repeat`: the line is parsed and checked like
+a fact, must restate a fact the file states elsewhere, and adds nothing to the YAML.
+`triage.py` reads it to check that statement on its own - otherwise a miss there scores as
+a hit, because an earlier statement found the same fact.
 """
 
 from __future__ import annotations
@@ -48,6 +56,52 @@ def _node(name: str, kind: str = "column") -> dict[str, str]:
     return {"kind": kind, "name": name}
 
 
+def parse_facts(directive: str, rest: str, where: str) -> list[tuple[str, ...]]:
+    """(source, target, flow, transform, phase, target kind) for one value/filter/influence line."""
+    sources_part, _, target_part = rest.partition("->")
+    if not target_part:
+        raise SystemExit(f"{where}: no '->' in {rest!r}")
+    sources = _names(sources_part)
+    target_words = target_part.strip().rsplit(" ", 1)
+    if directive == "value":
+        if len(target_words) != 2 or target_words[1] not in TRANSFORMS:
+            raise SystemExit(f"{where}: value needs a transform, one of {sorted(TRANSFORMS)}")
+        targets, transform = _names(target_words[0]), target_words[1]
+        return [
+            (s, t, "value", transform, "pre-aggregation", "column")
+            for s in sources
+            for t in targets
+        ]
+    if directive == "filter":
+        phase = "pre-aggregation"
+        relation = target_part.strip()
+        if relation.endswith(" post"):
+            relation, phase = relation[: -len(" post")].strip(), "post-aggregation"
+        return [(s, relation, "filter", "identity", phase, "relation") for s in sources]
+    if directive == "influence":
+        targets = _names(target_part)
+        return [
+            (s, t, "influence", "identity", "pre-aggregation", "column")
+            for s in sources
+            for t in targets
+        ]
+    raise SystemExit(f"{where}: unknown directive {directive!r}")
+
+
+def repeats_of(spec: Path) -> dict[int, list[tuple[str, ...]]]:
+    """The facts each statement restates with `repeat`, by the statement's `@` line."""
+    found: dict[int, list[tuple[str, ...]]] = {}
+    line: int | None = None
+    for number, raw in enumerate(spec.read_text(encoding="utf-8").splitlines(), start=1):
+        directive, _, rest = raw.strip().partition(" ")
+        if directive == "@":
+            line = int(rest.split()[0])
+        elif directive == "repeat" and line is not None:
+            flow, _, body = rest.strip().partition(" ")
+            found.setdefault(line, []).extend(parse_facts(flow, body, f"{spec.name}:{number}"))
+    return found
+
+
 def compile_spec(spec: Path) -> str:
     sql = spec.with_suffix(".sql")
     if not sql.exists():
@@ -59,6 +113,7 @@ def compile_spec(spec: Path) -> str:
     header: list[str] = []
     line: int | None = None
     last: list[dict[str, object]] = []
+    restated: list[tuple[str, tuple[str, ...]]] = []
 
     for number, raw in enumerate(spec.read_text(encoding="utf-8").splitlines(), start=1):
         text = raw.strip()
@@ -109,37 +164,13 @@ def compile_spec(spec: Path) -> str:
 
         if line is None:
             raise SystemExit(f"{where}: a fact before any '@ <line>'")
-        sources_part, _, target_part = rest.partition("->")
-        if not target_part:
-            raise SystemExit(f"{where}: no '->' in {text!r}")
-        sources = _names(sources_part)
-        target_words = target_part.strip().rsplit(" ", 1)
-
+        if directive == "repeat":
+            flow, _, body = rest.partition(" ")
+            restated.extend((where, fact[:5]) for fact in parse_facts(flow, body.strip(), where))
+            last = []
+            continue
         last = []
-        if directive == "value":
-            if len(target_words) != 2 or target_words[1] not in TRANSFORMS:
-                raise SystemExit(f"{where}: value needs a transform, one of {sorted(TRANSFORMS)}")
-            targets, transform = _names(target_words[0]), target_words[1]
-            pairs = [
-                (s, t, "value", transform, "pre-aggregation", "column")
-                for s in sources
-                for t in targets
-            ]
-        elif directive == "filter":
-            phase = "pre-aggregation"
-            relation = target_part.strip()
-            if relation.endswith(" post"):
-                relation, phase = relation[: -len(" post")].strip(), "post-aggregation"
-            pairs = [(s, relation, "filter", "identity", phase, "relation") for s in sources]
-        elif directive == "influence":
-            targets = _names(target_part)
-            pairs = [
-                (s, t, "influence", "identity", "pre-aggregation", "column")
-                for s in sources
-                for t in targets
-            ]
-        else:
-            raise SystemExit(f"{where}: unknown directive {directive!r}")
+        pairs = parse_facts(directive, rest, where)
 
         for source, target, flow, transform, phase, target_kind in pairs:
             edge: dict[str, object] = {
@@ -155,6 +186,17 @@ def compile_spec(spec: Path) -> str:
             )
             edges.append(edge)
             last.append(edge)
+
+    stated = {
+        (
+            e["source"]["name"], e["target"]["name"], e["flow"], e["transform"],  # type: ignore[index]
+            e.get("phase", "pre-aggregation"),
+        )
+        for e in edges
+    }
+    for where, fact in restated:
+        if fact not in stated:
+            raise SystemExit(f"{where}: repeat of a fact no statement states: {fact}")
 
     key = {
         "package": f"pg/{spec.parent.name}/{sql.name}",

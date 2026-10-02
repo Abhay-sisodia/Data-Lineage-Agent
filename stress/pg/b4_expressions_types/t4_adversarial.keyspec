@@ -1,0 +1,82 @@
+# Answer key for B4 t4_adversarial.sql - expressions and types, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B3, plus D-19..D-22.
+
+@ 20 S1 dead reads (D-21)
+value fct_order_line.order_date -> sales_daily.sale_date identity
+value fct_order_line.store_id -> sales_daily.store_id identity
+value fct_order_line.gross_amount -> sales_daily.gross_amount derived
+value fct_order_line.net_amount -> sales_daily.net_amount derived
+value fct_order_line.quantity -> sales_daily.units derived
+
+@ 34 S2 one column read twice (D-19)
+value dim_customer.customer_id -> customer_summary.customer_id identity
+value dim_customer.customer_key -> customer_summary.lifetime_value, customer_summary.avg_basket derived
+value dim_customer.region -> customer_summary.region derived
+forbid value dim_customer.customer_key -> customer_summary.lifetime_value conditional | COALESCE(x, x) reads one distinct column (D-19)
+forbid value dim_customer.customer_key -> customer_summary.avg_basket conditional | d.customer_key and customer_key are the same column (D-19)
+forbid value dim_customer.region -> customer_summary.region conditional | a CASE over one column and constants is derived (D-19)
+
+@ 52 S3 self-join, two instances (D-19)
+value dim_product.product_id -> product_performance.product_id identity
+value dim_product.list_price -> product_performance.revenue conditional
+value dim_product.cost -> product_performance.margin conditional
+forbid filter dim_product.product_key -> product_performance | an ON inequality is still structural (D-5)
+
+@ 67 S4 year / month columns beside EXTRACT
+value dim_date.year -> kpi_rollup.level derived
+value dim_date.month, dim_date.quarter -> kpi_rollup.region derived
+value dim_date.calendar_date -> kpi_rollup.orders derived
+filter dim_date.week, dim_date.calendar_date, dim_date.month -> kpi_rollup
+forbid value dim_date.year -> kpi_rollup.orders | `year` inside EXTRACT is a field keyword, not the column
+
+@ 81 S5 column names inside strings
+value orders.currency -> channel_mix.region derived
+filter orders.status -> channel_mix
+forbid value orders.channel -> channel_mix.channel | 'o.channel' is a string literal
+forbid value orders.amount -> channel_mix.region | 'amount' is a format() argument literal
+forbid filter orders.amount -> channel_mix | 'o.amount > 0' is a string literal
+
+@ 92 S6 cast chains
+value orders.amount -> channel_mix.orders, channel_mix.revenue derived
+value orders.currency -> channel_mix.channel derived
+
+@ 104 S7 whole row through an alias named like a real table (D-20)
+value customers.id -> top_customers.customer_id identity
+value customers.full_name -> top_customers.full_name identity
+value customers.id, customers.email, customers.full_name, customers.country_code, customers.segment, customers.status, customers.signup_ts, customers.attributes, customers.created_at -> top_customers.region derived
+forbid value orders.id -> top_customers.customer_id | the alias `orders` is staging.customers
+forbid value orders.customer_id -> top_customers.region | the alias `orders` is staging.customers
+
+@ 115 S8 column subscript and slice bound (D-22)
+value orders.tags, orders.store_id -> channel_mix.channel, channel_mix.orders derived
+
+@ 125 S9 NULL tests four ways
+value payments.order_id -> top_customers.customer_id identity
+value payments.amount -> top_customers.revenue identity
+filter payments.paid_at, payments.method, payments.currency, payments.status -> top_customers
+
+@ 136 S10 constant results behind a two-column test (D-19)
+value customers.id -> customer_summary.customer_id identity
+value customers.country_code, customers.segment -> customer_summary.segment conditional
+
+@ 148 S11 two-column NULLIF; guard inside a two-column COALESCE
+repeat value fct_order_line.order_date -> sales_daily.sale_date identity
+repeat value fct_order_line.store_id -> sales_daily.store_id identity
+value fct_order_line.net_amount, fct_order_line.gross_amount -> sales_daily.net_amount conditional
+value fct_order_line.net_amount, fct_order_line.unit_price -> sales_daily.avg_order_value conditional
+
+@ 160 S12 CASE in ORDER BY under LIMIT (D-9)
+repeat value payments.order_id -> top_customers.customer_id identity
+repeat value payments.amount -> top_customers.revenue identity
+repeat filter payments.method -> top_customers
+repeat filter payments.paid_at -> top_customers
+
+@ 170 S13 columns as BETWEEN bounds and IN-list members
+value orders.channel -> kpi_rollup.level identity
+filter orders.amount, orders.id, orders.store_id, orders.currency, orders.discount_code -> kpi_rollup
+
+@ 180 S14 column times an interval
+value shipments.id -> fct_shipment.shipment_id identity
+value shipments.shipped_at, shipments.weight_kg -> fct_shipment.promised_date derived

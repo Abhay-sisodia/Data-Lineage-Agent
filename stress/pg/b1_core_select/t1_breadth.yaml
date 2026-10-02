@@ -127,7 +127,7 @@ edges:
     kind: column
     name: product_performance.revenue_share
   flow: value
-  transform: conditional
+  transform: derived
   band: 0
   origin:
     unit: <script>
@@ -826,7 +826,7 @@ edges:
     kind: column
     name: carrier_scorecard.cost_per_kg
   flow: value
-  transform: conditional
+  transform: derived
   band: 0
   origin:
     unit: <script>

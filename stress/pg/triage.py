@@ -9,6 +9,13 @@ appeared - and, for files carrying `-- @pair` markers, whether each metamorphic 
 
 Nothing here changes a score; it reads the same key and the same analyser output the runner
 does. The analyser is run unchanged.
+
+**The per-statement check (finding B4-04).** The harness scores a FILE: its match key has no
+origin, so a fact two statements both produce is one fact, and a statement that misses it
+scores as a hit whenever another statement found it. Triage therefore also checks each
+statement on its own - the facts stated at its line plus the ones its keyspec marks
+`repeat` - and prints every HIDDEN MISS: a fact absent from its statement that the
+per-file score counted as found.
 """
 
 from __future__ import annotations
@@ -26,6 +33,9 @@ from lineage.config import AnalysisConfig  # noqa: E402
 from lineage.harness.labels import Flow, GroundTruth  # noqa: E402
 from lineage.harness.scoring import score  # noqa: E402
 from lineage.resolution.dictionary import Dictionary  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from keygen import repeats_of  # noqa: E402
 
 STRESS = ROOT / "stress"
 HERE = Path(__file__).resolve().parent
@@ -134,7 +144,42 @@ def triage(key_path: Path, book: Dictionary, config: AnalysisConfig) -> None:
         for entry in sorted(by_line[line]):
             print(f"       {entry}")
 
+    _per_statement(key_path, truth, report, result.edges, spans)
     _pairs(sql, result.edges, starts, spans)
+
+
+def _per_statement(
+    key_path: Path,
+    truth: GroundTruth,
+    report: object,
+    edges: list[object],
+    spans: list[tuple[int, int, int]],
+) -> None:
+    expected: dict[int, set[tuple[str, ...]]] = defaultdict(set)
+    for label in truth.edges:
+        expected[label.origin.line].add(label.key()[:5])
+    spec = key_path.with_suffix(".keyspec")
+    if spec.exists():
+        for line, facts in repeats_of(spec).items():
+            for source, target, flow, transform, phase, kind in facts:
+                expected[line].add((f"column:{source}", f"{kind}:{target}", flow, transform, phase))
+    produced: dict[int, set[tuple[str, ...]]] = defaultdict(set)
+    for edge in edges:
+        produced[_owner(edge.origin.line, spans)].add(_fact(edge))
+    missed = {m[:5] for m in report.missed_edges}  # type: ignore[attr-defined]
+
+    total = found = 0
+    hidden: list[tuple[int, tuple[str, ...]]] = []
+    for line, facts in expected.items():
+        total += len(facts)
+        for fact in facts:
+            if fact in produced[line]:
+                found += 1
+            elif fact not in missed:
+                hidden.append((line, fact))
+    print(f"  per statement: {found} / {total} found, {len(hidden)} hidden miss(es)")
+    for line, fact in sorted(hidden):
+        print(f"       HIDDEN MISS at line {line}: {_show(fact)}")
 
 
 def _pairs(

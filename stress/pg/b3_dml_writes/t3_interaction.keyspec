@@ -20,7 +20,8 @@ value fct_order_line.order_date -> product_performance.period_month derived
 value fct_order_line.net_amount, fct_order_line.status -> product_performance.revenue aggregated
 value fct_order_line.net_amount -> product_performance.revenue_share aggregated
 value fct_order_line.net_amount, fct_order_line.status -> product_performance.growth_pct aggregated
-value product_performance.revenue -> product_performance.growth_pct conditional
+# Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. NULLIF(x, 0) reads one column.
+value product_performance.revenue -> product_performance.growth_pct derived
 note growth_pct in DO UPDATE: EXCLUDED.revenue (the FILTER SUM) over NULLIF of the target's own revenue.
 influence fct_order_line.product_key, fct_order_line.order_date -> product_performance.revenue, product_performance.revenue_share, product_performance.growth_pct
 forbid filter fct_order_line.status -> product_performance | an aggregate FILTER changes one value (D-10)

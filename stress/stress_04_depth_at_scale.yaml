@@ -1886,6 +1886,7 @@ edges:
     line: 699
   evidence: source_read
   note: COUNT(r.order_count) is month_count, which the CASE tests.
+# Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. v_cust_l2's CASE WHEN status = 1 THEN 1 ELSE 0 END; reverses S4-06's correction, which applied the old rule reads one column.
 - source:
     kind: column
     name: STG_CUSTOMER.STATUS_CODE
@@ -1893,7 +1894,7 @@ edges:
     kind: column
     name: DW_DIM_CUSTOMER_V2.EMAIL
   flow: value
-  transform: conditional
+  transform: derived
   band: 0
   origin:
     unit: S4_VIEW_RESOLUTION

@@ -130,17 +130,26 @@ def is_conditional(node: Any) -> bool:
     rather than assumed - classifying every `COALESCE` as conditional costs one phase-0
     label (`sq_06`'s `NVL(parent.depth, 0) + 1`), and this rule leaves it alone.
 
+    **D-19 (finding B4-02) made that rule every conditional form's.** It lived on COALESCE
+    alone, so `COALESCE(x, 0)` was derived while `GREATEST(x, 0)`, `NULLIF(x, 0)` and `CASE
+    WHEN x IS NULL THEN 0 ELSE x END` - the same guard spelled three other ways - were
+    conditional. Now every form is conditional only when the node reads TWO OR MORE
+    DISTINCT COLUMNS, across its tests and results together: a choice that involves another
+    column. One column against constants - a guard, a clamp, a mapping, a band - is derived.
+    Distinct means distinct reference: `a.x` and `b.x` in a self-join are two, `x` written
+    twice is one. Columns are counted where the node is written, so `COALESCE(t.net, 0)`
+    reads one column even when `t.net` was built from two.
+
     **This rule never existed in band 1 at all until S2-08.** `defuse` had the pre-S2-05
     two-element tuple and no COALESCE handling, so a `DECODE` or a two-column `COALESCE`
     reached through def-use was reported `derived`.
     """
-    if isinstance(node, exp.Coalesce):
-        candidates = [node.this, *(node.expressions or [])]
-        supplying = [
-            arg for arg in candidates if arg is not None and list(arg.find_all(exp.Column))
-        ]
-        return len(supplying) > 1
-    return isinstance(node, CONDITIONAL_EXPRESSIONS)
+    if not isinstance(node, (exp.Coalesce, *CONDITIONAL_EXPRESSIONS)):
+        return False
+    distinct = {
+        (column.table.lower(), column.name.lower()) for column in node.find_all(exp.Column)
+    }
+    return len(distinct) > 1
 
 
 def transform_of(expression: Any) -> Transform:

@@ -222,15 +222,22 @@ END writer_two;
     ("expression", "expected"),
     [
         # Oracle's own documentation defines DECODE as equivalent to CASE.
-        ("DECODE(status_code, 'A', 1, 0)", Transform.CONDITIONAL),
-        # Replaces the value with NULL on a test.
-        ("NULLIF(region, 'XX')", Transform.CONDITIONAL),
+        ("DECODE(status_code, 'A', region, email)", Transform.CONDITIONAL),
+        # Replaces the value with NULL on a test against another column.
+        ("NULLIF(region, country_code)", Transform.CONDITIONAL),
         # Choose between two SOURCES by comparison.
         ("GREATEST(gross_amount, discount_amt)", Transform.CONDITIONAL),
         ("LEAST(gross_amount, discount_amt)", Transform.CONDITIONAL),
         # Tests one argument, returns one of two others.
-        ("NVL2(region, 1, 0)", Transform.CONDITIONAL),
-        ("CASE WHEN status_code = 'A' THEN 1 ELSE 0 END", Transform.CONDITIONAL),
+        ("NVL2(region, email, status_code)", Transform.CONDITIONAL),
+        ("CASE WHEN status_code = 'A' THEN region ELSE 'X' END", Transform.CONDITIONAL),
+        # D-19 (B4-02): ONE column against constants is a mapping, guard or clamp - derived,
+        # whichever conditional form spells it. These four were `conditional` until then.
+        ("DECODE(status_code, 'A', 1, 0)", Transform.DERIVED),
+        ("NULLIF(region, 'XX')", Transform.DERIVED),
+        ("NVL2(region, 1, 0)", Transform.DERIVED),
+        ("CASE WHEN status_code = 'A' THEN 1 ELSE 0 END", Transform.DERIVED),
+        ("GREATEST(gross_amount, 0)", Transform.DERIVED),
         # Not conditional: the input flows through an expression.
         ("TRUNC(order_date, 'MM')", Transform.DERIVED),
         ("cust_id", Transform.IDENTITY),

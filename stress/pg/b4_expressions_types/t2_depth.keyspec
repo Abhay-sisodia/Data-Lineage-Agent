@@ -1,0 +1,70 @@
+# Answer key for B4 t2_depth.sql - expressions and types, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B3, plus D-19..D-22. The transform is the strongest on the
+# path (D-7); D-19 counts a node's columns in its own scope.
+
+@ 19 S1 cast, guard, CASE, aggregate over four CTEs
+value orders.customer_id -> customer_summary.customer_id identity
+value orders.channel -> customer_summary.segment aggregated
+value orders.amount, orders.status -> customer_summary.lifetime_value aggregated
+value orders.amount, orders.status -> customer_summary.status aggregated
+note The status band is a CASE over SUM(...): the aggregate on the path dominates.
+influence orders.customer_id -> customer_summary.segment, customer_summary.lifetime_value, customer_summary.status
+
+@ 56 S2 whole row through a derived table (D-20)
+value customers.id -> top_customers.customer_id identity
+value customers.full_name -> top_customers.full_name identity
+value customers.id, customers.email, customers.full_name, customers.country_code, customers.segment, customers.status, customers.signup_ts, customers.attributes, customers.created_at -> top_customers.region derived
+filter customers.status -> top_customers
+
+@ 73 S3 D-19 in the node's own scope
+value fct_order_line.order_date -> sales_daily.sale_date identity
+value fct_order_line.store_id -> sales_daily.store_id identity
+value fct_order_line.gross_amount, fct_order_line.discount_amount -> sales_daily.net_amount derived
+value fct_order_line.gross_amount, fct_order_line.discount_amount -> sales_daily.gross_amount conditional
+forbid value fct_order_line.discount_amount -> sales_daily.net_amount conditional | COALESCE(x.net, 0) reads one column in its own scope: derived (D-19)
+
+@ 94 S4 band over an aggregate, filtered two levels up
+value dim_customer.region -> kpi_rollup.region identity
+value dim_customer.segment -> kpi_rollup.segment derived
+value fct_order_line.net_amount -> kpi_rollup.revenue, kpi_rollup.level aggregated
+influence dim_customer.region, dim_customer.segment -> kpi_rollup.revenue, kpi_rollup.level
+filter dim_customer.is_current -> kpi_rollup
+filter fct_order_line.net_amount -> kpi_rollup post
+note t.lvl = 'HIGH' is a band over SUM(net_amount): post-aggregation (B2-06).
+forbid filter fct_order_line.customer_key -> kpi_rollup | the ON is structural (D-5)
+
+@ 119 S5 arrays through two CTEs
+value orders.channel -> channel_mix.channel identity
+value orders.tags, orders.currency -> channel_mix.region derived
+value orders.id, orders.tags, orders.currency -> channel_mix.orders aggregated
+note FILTER (WHERE f.n > 2) reads n = cardinality(tags || currency): values of that column (D-10).
+influence orders.channel, orders.tags, orders.currency -> channel_mix.orders
+filter orders.tags, orders.currency -> channel_mix
+
+@ 144 S6 ranges built, measured, averaged
+value shipments.carrier_id -> carrier_scorecard.carrier_id identity
+value shipments.shipped_at, shipments.delivered_at -> carrier_scorecard.period_month derived
+value shipments.shipped_at, shipments.delivered_at -> carrier_scorecard.avg_transit_days aggregated
+value shipments.shipped_at, shipments.delivered_at, shipments.promised_at -> carrier_scorecard.on_time_pct aggregated
+influence shipments.carrier_id, shipments.shipped_at, shipments.delivered_at -> carrier_scorecard.avg_transit_days, carrier_scorecard.on_time_pct
+note The GROUP BY's `m` is date_trunc of lower(tstzrange(shipped_at, delivered_at)): both columns.
+filter shipments.delivered_at -> carrier_scorecard
+
+@ 168 S7 six derived-table levels
+value dim_product.product_id -> product_performance.product_id identity
+value dim_product.category_name -> product_performance.category_name derived
+value dim_product.list_price, dim_product.cost -> product_performance.margin derived
+filter dim_product.status -> product_performance
+
+@ 199 S8 CASE over two CTEs, whole-row test in WHERE
+value customers.id -> customer_summary.customer_id identity
+value customers.full_name -> customer_summary.full_name identity
+value orders.order_ts -> customer_summary.status aggregated
+value customers.status -> customer_summary.status conditional
+repeat influence orders.customer_id -> customer_summary.status
+filter customers.id, customers.full_name, customers.status -> customer_summary
+note `c IS NOT NULL` tests every column of the CTE row (D-20).
+forbid filter orders.order_ts -> customer_summary | o is on the null side of a LEFT JOIN (D-14)
+forbid filter orders.customer_id -> customer_summary | the ON is structural (D-5)

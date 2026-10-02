@@ -35,6 +35,7 @@ note Spelling A only: the IN's match columns are filters. In B they are a join k
 @ 122 P6 SEAM anti-join: EXCEPT vs NOT EXISTS
 value customers.id -> customer_summary.customer_id identity
 filter orders.customer_id, orders.status -> customer_summary
+@ 128 P6 B (spelling B's own facts, at its line - B4-04)
 filter customers.id -> customer_summary
 note Spelling B only: the correlation's outer operand. In A, customers.id is the first arm and supplies only a value (convention (a)).
 
@@ -51,6 +52,7 @@ value payments.amount -> sales_daily.net_amount identity
 value payments.order_id, orders.id -> sales_daily.net_amount conditional
 influence payments.paid_at -> sales_daily.net_amount
 note Spelling A only (D-12, D-13).
+@ 176 P8 B (spelling B's own facts, at its line - B4-04)
 influence payments.order_id -> sales_daily.net_amount
 note RELABELLED UNDER D-14: under the LEFT JOIN the DISTINCT ON removes no order, so its key and tie-breaker decide WHICH amount arrives - influence, as D-13 says of the ordered pick. paid_at now agrees across the pair. payments.order_id still differs (influence in B, a conditional value in A): that is the match-key seam of P5/P6, left open by decision.
 

@@ -34,6 +34,7 @@ from sqlglot.optimizer.scope import Scope, ScopeType, build_scope
 
 from lineage.analysis.builtins import is_builtin
 from lineage.analysis.pg_dml import expand as expand_postgres_writes
+from lineage.analysis.whole_rows import restate as restate_whole_rows
 from lineage.analysis.ddl import exchange_partition_edges
 from lineage.analysis.dynamic import resolve_dynamic_sql
 from lineage.analysis.predicates import predicate_columns
@@ -533,7 +534,9 @@ def _qualify(parsed: Any, dictionary: Dictionary) -> Any:
         validate_qualify_columns=False,
         infer_schema=True,
     )
-    return _merged_join_columns(parsed)
+    # A whole-row reference comes out of `qualify` as `TableColumn`, which no column walk
+    # sees; restated here as columns so it is traced or declared, never dropped (B4-01).
+    return restate_whole_rows(_merged_join_columns(parsed), dictionary)
 
 
 def _merged_join_columns(parsed: Any) -> Any:

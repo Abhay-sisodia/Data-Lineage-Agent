@@ -139,6 +139,11 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B3-11 | `flow-classification` | **fixed** | the B2-06 phase rule is missing from the UPDATE and DELETE paths Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
 | B3-12 | `construct-coverage` | **fixed** | a scalar subquery in INSERT ... VALUES loses columns ("unresolved id in VALUES") Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
 | B3-13 | `flow-classification` | open | **D-18 is implemented for PostgreSQL only.** An Oracle UPDATE still goes through def-use, which reads a SET scalar subquery's correlation as a filter, not a value. No Oracle stress case has the shape, so nothing measured moved. `stress/pg/b3_dml_writes/REPORT.md` section 6 |
+| B4-01 | `silent-loss` | **fixed** | **whole-row references and composite field access produce nothing and declare nothing**: `(c).id`, `row_to_json(c)`, `to_jsonb(c)`, `md5(t::text)`, `WHERE (c).status = ...`, `WHERE c IS NOT NULL`. `stress/pg/b4_expressions_types/REPORT.md` Fixed 2026-10-02; `stress/pg/b4_expressions_types/REPORT.md` section 6. |
+| B4-02 | `transform-classification` | **fixed** | D-19 not implemented: a one-column GREATEST / LEAST / NULLIF / CASE is `conditional`, so equivalent spellings disagree (13 false positives; pairs P1, P2, P3) Fixed 2026-10-02; `stress/pg/b4_expressions_types/REPORT.md` section 6. |
+| B4-03 | `construct-coverage` | **fixed** | `ROW(...)`, `regexp_match`, `tstzrange` (and probably the other range constructors) declared `source_unavailable`; values lost. The same call inside a CTE passes with no boundary Fixed 2026-10-02; `stress/pg/b4_expressions_types/REPORT.md` section 6. |
+| B4-04 | `measurement-error` | **fixed** | the per-file score has no origin in its match key, so a fact repeated by a later statement hides that statement's miss; 7 such misses in B4, 3 of them flagged by nothing Fixed 2026-10-02; `stress/pg/b4_expressions_types/REPORT.md` section 6. |
+| B4-05 | `silent-loss` | open | **a user-defined function is declared at the top level and passed silently one level down**: `myschema.calc(o.amount)` in a CTE or derived table gives a `derived` edge with no boundary, while at the top level it is `source_unavailable` with no edge. Exposed by B4-03; may move Oracle numbers, so held for a decision. `stress/pg/b4_expressions_types/REPORT.md` section 6 |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4507,3 +4512,22 @@ Taken by Abhay before batch B3's keys were written. Full statements in
 * **D-17** - a writable CTE's predicate filters every table its rows reach (the table it
   modifies, and the table its returned rows are written to).
 * **D-18** - D-12 applies in a SET and in VALUES: a subquery there decides values, not rows.
+
+## Decisions taken — 2026-10-02 (D-19 to D-22)
+
+Taken by Abhay before batch B4's keys were written. Full statements in
+`stress/pg/b4_expressions_types/OBJECTIVES.md`. D-21 and D-22 describe what the analyser
+already does; D-19 and D-20 were implemented 2026-10-02 (B4 REPORT section 6).
+
+* **D-19** - CASE / COALESCE / NULLIF / GREATEST / LEAST / IF / DECODE are `conditional`
+  only when the node reads two or more distinct columns (by relation instance, counted in
+  the node's own scope); one column against constants is `derived`.
+* **D-20** - `(t).f` is `t.f`; a whole-row use (`row_to_json(t)`, `ROW(t.*)`, `t IS NOT
+  NULL`) reads every column of `t`, as derived values or, in WHERE, as filters.
+* **D-21** - dead reads keep their edges; no constant folding.
+* **D-22** - a column used as a function parameter (precision, format, unit, width,
+  pattern) is a derived value, not influence.
+
+**Open from B4 design (B4-Q1):** can one column be both a value and a grouping-key influence
+of the same target (a CASE test on a GROUP BY key feeding an aggregated output)? Not needed
+for B4; T3 S9 was simplified to avoid it.

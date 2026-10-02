@@ -588,10 +588,11 @@ edges:
       NVL(t.lifetime_value, 0) + NVL(s.revenue_total, 0) - the accumulator reads its own
       prior value. A genuine self-edge, same shape as trg_recent_audit's.
 
+  # Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. CASE WHEN s.status_code = 'A' THEN 1 ELSE 0 END reads one column.
   - source: {kind: column, name: STG_CUSTOMER.STATUS_CODE}
     target: {kind: column, name: DW_DIM_CUSTOMER_V2.IS_ACTIVE}
     flow: value
-    transform: conditional
+    transform: derived
     band: 0
     origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
     evidence: source_read

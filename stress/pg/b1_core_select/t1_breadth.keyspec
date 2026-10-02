@@ -27,7 +27,8 @@ note COALESCE(brand, 'n/a') has one column argument: a null guard, so derived, n
 value products.created_at -> product_performance.period_month derived
 value products.list_price -> product_performance.revenue derived
 value products.list_price, products.cost -> product_performance.margin derived
-value products.cost -> product_performance.revenue_share conditional
+# Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. NULLIF(x, 0) reads one column.
+value products.cost -> product_performance.revenue_share derived
 value products.list_price -> product_performance.revenue_share derived
 note D-7: cost passes through NULLIF on its path, list_price does not.
 value products.list_price, products.cost -> product_performance.running_revenue conditional
@@ -91,7 +92,8 @@ note A filter inside a derived table still decides what lands in the written rel
 value shipments.carrier_id -> carrier_scorecard.carrier_id identity
 value shipments.order_id -> carrier_scorecard.shipments identity
 value shipments.cost -> carrier_scorecard.cost_per_kg derived
-value shipments.weight_kg -> carrier_scorecard.cost_per_kg conditional
+# Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. NULLIF(x, 0) reads one column.
+value shipments.weight_kg -> carrier_scorecard.cost_per_kg derived
 
 @ 190 S8b NATURAL JOIN on the one shared column
 value dim_warehouse.region -> kpi_rollup.region identity

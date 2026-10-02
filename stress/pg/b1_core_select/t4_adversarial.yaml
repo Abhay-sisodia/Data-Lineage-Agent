@@ -193,7 +193,7 @@ edges:
     kind: column
     name: carrier_scorecard.cost_per_kg
   flow: value
-  transform: conditional
+  transform: derived
   band: 0
   origin:
     unit: <script>

@@ -1,0 +1,104 @@
+# Answer key for B4 t5_metamorphic.sql - expressions and types, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B3, plus D-19..D-22. Each pair's two halves carry the same
+# facts; the pair check in triage.py compares them independently of this key.
+
+@ 18 P1A COALESCE(x, 0)
+value fct_order_line.order_date -> sales_daily.sale_date identity
+value fct_order_line.net_amount -> sales_daily.net_amount derived
+@ 23 P1B CASE WHEN x IS NULL
+repeat value fct_order_line.order_date -> sales_daily.sale_date identity
+repeat value fct_order_line.net_amount -> sales_daily.net_amount derived
+forbid value fct_order_line.net_amount -> sales_daily.net_amount conditional | the CASE spelling of a one-column guard is derived, like COALESCE (D-19)
+
+@ 30 P2A GREATEST(x, 0)
+repeat value fct_order_line.order_date -> sales_daily.sale_date identity
+value fct_order_line.gross_amount -> sales_daily.gross_amount derived
+@ 35 P2B CASE clamp
+repeat value fct_order_line.order_date -> sales_daily.sale_date identity
+repeat value fct_order_line.gross_amount -> sales_daily.gross_amount derived
+
+@ 42 P3A NULLIF(x, 0)
+repeat value fct_order_line.order_date -> sales_daily.sale_date identity
+value fct_order_line.quantity -> sales_daily.units derived
+@ 47 P3B CASE to NULL
+repeat value fct_order_line.order_date -> sales_daily.sale_date identity
+repeat value fct_order_line.quantity -> sales_daily.units derived
+
+@ 54 P4A COALESCE(a, b)
+repeat value fct_order_line.order_date -> sales_daily.sale_date identity
+value fct_order_line.net_amount, fct_order_line.gross_amount -> sales_daily.avg_order_value conditional
+@ 59 P4B CASE a ELSE b
+repeat value fct_order_line.order_date -> sales_daily.sale_date identity
+repeat value fct_order_line.net_amount -> sales_daily.avg_order_value conditional
+repeat value fct_order_line.gross_amount -> sales_daily.avg_order_value conditional
+
+@ 68 P5A ::numeric
+value orders.channel -> channel_mix.channel identity
+value orders.amount -> channel_mix.revenue derived
+@ 73 P5B CAST
+repeat value orders.channel -> channel_mix.channel identity
+repeat value orders.amount -> channel_mix.revenue derived
+
+@ 80 P6A ||
+value customers.id -> dim_customer.customer_key identity
+value customers.full_name, customers.email -> dim_customer.full_name derived
+@ 85 P6B concat
+repeat value customers.id -> dim_customer.customer_key identity
+repeat value customers.full_name -> dim_customer.full_name derived
+repeat value customers.email -> dim_customer.full_name derived
+
+@ 92 P7A EXTRACT
+repeat value orders.channel -> channel_mix.channel identity
+value orders.order_ts -> channel_mix.orders derived
+@ 97 P7B date_part
+repeat value orders.channel -> channel_mix.channel identity
+repeat value orders.order_ts -> channel_mix.orders derived
+
+@ 104 P8A IN list
+repeat value orders.channel -> channel_mix.channel identity
+value orders.amount -> channel_mix.revenue identity
+filter orders.currency -> channel_mix
+@ 110 P8B = ANY(ARRAY)
+repeat value orders.channel -> channel_mix.channel identity
+repeat value orders.amount -> channel_mix.revenue identity
+repeat filter orders.currency -> channel_mix
+
+@ 118 P9A IS DISTINCT FROM
+repeat value orders.channel -> channel_mix.channel identity
+value orders.currency -> channel_mix.region identity
+filter orders.status, orders.discount_code -> channel_mix
+@ 124 P9B expanded
+repeat value orders.channel -> channel_mix.channel identity
+repeat value orders.currency -> channel_mix.region identity
+repeat filter orders.status -> channel_mix
+repeat filter orders.discount_code -> channel_mix
+
+@ 133 P10A (c).field
+value customers.id -> top_customers.customer_id identity
+value customers.full_name -> top_customers.full_name identity
+filter customers.status -> top_customers
+@ 139 P10B c.field
+repeat value customers.id -> top_customers.customer_id identity
+repeat value customers.full_name -> top_customers.full_name identity
+repeat filter customers.status -> top_customers
+
+@ 156 R1 pricing, conversion and banding model
+value order_lines.product_id -> product_performance.product_id identity
+value order_lines.unit_price, order_lines.discount_pct, order_lines.quantity, products.cost, fx_rates.rate_to_usd -> product_performance.category_name aggregated
+value dim_category.name -> product_performance.category_name conditional
+note The band CASE reads margin, rev and cat.name: conditional; the SUMs dominate their own paths.
+value orders.order_ts -> product_performance.period_month derived
+value order_lines.quantity -> product_performance.units aggregated
+value order_lines.unit_price, order_lines.discount_pct, order_lines.quantity, fx_rates.rate_to_usd -> product_performance.revenue, product_performance.revenue_share, product_performance.growth_pct aggregated
+value order_lines.unit_price, order_lines.discount_pct, order_lines.quantity, products.cost, fx_rates.rate_to_usd -> product_performance.margin aggregated
+influence order_lines.product_id, products.category_id, orders.order_ts -> product_performance.category_name, product_performance.units, product_performance.revenue, product_performance.margin, product_performance.revenue_share, product_performance.growth_pct
+note monthly's GROUP BY keys, and the windows' PARTITION BY / ORDER BY over them (D-2, D-4).
+filter order_lines.status, orders.order_ts -> product_performance
+filter order_lines.quantity -> product_performance post
+note GREATEST(units, 0) > 0 tests SUM(quantity): post-aggregation (B2-06).
+forbid filter fx_rates.rate_date -> product_performance | an ON condition is structural (D-5), and fx is on a LEFT JOIN's null side (D-14)
+forbid filter fx_rates.rate_to_usd -> product_performance | the rate is on a LEFT JOIN's null side (D-14)
+forbid filter dim_category.id -> product_performance | the ON is structural (D-5)
+forbid influence orders.order_ts -> product_performance.period_month | a grouping key does not influence itself (D-2)

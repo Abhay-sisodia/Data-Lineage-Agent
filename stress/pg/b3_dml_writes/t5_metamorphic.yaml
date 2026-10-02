@@ -256,7 +256,7 @@ edges:
   band: 0
   origin:
     unit: <script>
-    line: 115
+    line: 121
   evidence: source_read
   note: 'Spelling B only: the EXISTS correlation''s operands. In A, `o.id = p.order_id` joins USING to
     the target (D-11) - the semi-join seam left open in B2.'
@@ -271,7 +271,7 @@ edges:
   band: 0
   origin:
     unit: <script>
-    line: 115
+    line: 121
   evidence: source_read
   note: 'Spelling B only: the EXISTS correlation''s operands. In A, `o.id = p.order_id` joins USING to
     the target (D-11) - the semi-join seam left open in B2.'

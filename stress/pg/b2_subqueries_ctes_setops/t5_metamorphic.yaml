@@ -329,7 +329,7 @@ edges:
   band: 0
   origin:
     unit: <script>
-    line: 122
+    line: 128
   evidence: source_read
   note: 'Spelling B only: the correlation''s outer operand. In A, customers.id is the first arm and supplies
     only a value (convention (a)).'
@@ -466,7 +466,7 @@ edges:
   band: 0
   origin:
     unit: <script>
-    line: 166
+    line: 176
   evidence: source_read
   note: 'RELABELLED UNDER D-14: under the LEFT JOIN the DISTINCT ON removes no order, so its key and tie-breaker
     decide WHICH amount arrives - influence, as D-13 says of the ordered pick. paid_at now agrees across

@@ -63,7 +63,7 @@ def test_s2_05_now_reaches_band_1(dictionary: Dictionary) -> None:
     v_flag   NUMBER;
     v_region VARCHAR2(10);
 BEGIN
-    SELECT DECODE(status_code, 'A', 1, 0) INTO v_flag
+    SELECT DECODE(status_code, 'A', region, email) INTO v_flag
       FROM stg_customer WHERE cust_id = 1;
 
     SELECT COALESCE(email, region) INTO v_region
@@ -80,6 +80,8 @@ END band1_decode;
     assert into_variables[("column:STG_CUSTOMER.STATUS_CODE", "variable:V_FLAG")] is (
         Transform.CONDITIONAL
     ), "DECODE reached through def-use is still classified as derived"
+    # Two columns since D-19 (B4-02): `DECODE(status_code, 'A', 1, 0)` is now derived by
+    # decision, so the band-1 check needs a DECODE that genuinely chooses between columns.
     assert into_variables[("column:STG_CUSTOMER.EMAIL", "variable:V_REGION")] is (
         Transform.CONDITIONAL
     )
@@ -115,11 +117,17 @@ END band1_nvl;
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
-        ("DECODE(status_code, 'A', 1, 0)", Transform.CONDITIONAL),
-        ("NULLIF(region, 'XX')", Transform.CONDITIONAL),
+        ("DECODE(status_code, 'A', region, email)", Transform.CONDITIONAL),
+        ("NULLIF(region, country_code)", Transform.CONDITIONAL),
         ("GREATEST(gross_amount, discount_amt)", Transform.CONDITIONAL),
-        ("NVL2(region, 1, 0)", Transform.CONDITIONAL),
+        ("NVL2(region, email, status_code)", Transform.CONDITIONAL),
         ("COALESCE(email, region)", Transform.CONDITIONAL),
+        # D-19 (B4-02): one column against constants is derived in every conditional form.
+        ("DECODE(status_code, 'A', 1, 0)", Transform.DERIVED),
+        ("NULLIF(region, 'XX')", Transform.DERIVED),
+        ("NVL2(region, 1, 0)", Transform.DERIVED),
+        ("COALESCE(a.x, b.x)", Transform.CONDITIONAL),
+        ("COALESCE(x, x)", Transform.DERIVED),
         ("NVL(lifetime_value, 0)", Transform.DERIVED),
         ("SUM(line_amount)", Transform.AGGREGATED),
         ("FIRST_VALUE(product_name) OVER (PARTITION BY product_id)", Transform.DERIVED),

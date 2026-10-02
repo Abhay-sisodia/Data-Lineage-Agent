@@ -80,6 +80,23 @@ EXPECTED = {
     ("b3_dml_writes/t5_metamorphic", Flow.VALUE): (18, 0, 0),
     ("b3_dml_writes/t5_metamorphic", Flow.FILTER): (13, 0, 0),
     ("b3_dml_writes/t5_metamorphic", Flow.INFLUENCE): (7, 0, 0),
+    # B4 expressions and types - agreed 2026-10-02 after every fix in REPORT.md section 6.
+    # No false positive, no miss, and none hidden per statement (triage.py). T4 has no
+    # influence fact. All ten T5 pairs are equal.
+    ("b4_expressions_types/t1_breadth", Flow.VALUE): (85, 0, 0),
+    ("b4_expressions_types/t1_breadth", Flow.FILTER): (17, 0, 0),
+    ("b4_expressions_types/t1_breadth", Flow.INFLUENCE): (1, 0, 0),
+    ("b4_expressions_types/t2_depth", Flow.VALUE): (49, 0, 0),
+    ("b4_expressions_types/t2_depth", Flow.FILTER): (10, 0, 0),
+    ("b4_expressions_types/t2_depth", Flow.INFLUENCE): (16, 0, 0),
+    ("b4_expressions_types/t3_interaction", Flow.VALUE): (48, 0, 0),
+    ("b4_expressions_types/t3_interaction", Flow.FILTER): (10, 0, 0),
+    ("b4_expressions_types/t3_interaction", Flow.INFLUENCE): (30, 0, 0),
+    ("b4_expressions_types/t4_adversarial", Flow.VALUE): (48, 0, 0),
+    ("b4_expressions_types/t4_adversarial", Flow.FILTER): (13, 0, 0),
+    ("b4_expressions_types/t5_metamorphic", Flow.VALUE): (42, 0, 0),
+    ("b4_expressions_types/t5_metamorphic", Flow.FILTER): (7, 0, 0),
+    ("b4_expressions_types/t5_metamorphic", Flow.INFLUENCE): (18, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})
