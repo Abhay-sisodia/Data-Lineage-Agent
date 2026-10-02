@@ -647,6 +647,17 @@ def analyse_statement(
     # collapses them into a single self-edge and loses the predicate's other half.
     relations = {**_relations_in(statement, dictionary), **scope.correlations}
 
+    # PostgreSQL UPDATE and DELETE belong to band 0, which restates them as reads
+    # (`analysis.pg_dml`). A PostgreSQL script has no PL/pgSQL variable for def-use to find
+    # - routine bodies are refused - so running both would only report each edge twice,
+    # once with def-use's thinner rules (the join-as-filter of B3-04).
+    if dictionary.dialect == "postgres" and isinstance(
+        statement, (exp.Update, exp.Delete, exp.Insert)
+    ):
+        # INSERT too: def-use's part of an INSERT is the VALUES list and variable
+        # predicates, and PostgreSQL VALUES are restated as SELECTs in band 0 (B3-12).
+        return result
+
     if isinstance(statement, exp.Select) and statement.args.get("into") is not None:
         result = _analyse_select_into(statement, scope, relations, dictionary, origin, guard)
     elif isinstance(statement, exp.Update):

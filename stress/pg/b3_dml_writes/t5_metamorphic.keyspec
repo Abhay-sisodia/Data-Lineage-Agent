@@ -1,0 +1,49 @@
+# Answer key for B3 t5_metamorphic.sql - pairs and one realistic job.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# P1-P5 must be equal: facts listed once, at spelling A. P6 is a SEAM pair: the key holds
+# both spellings' facts and says which owns which. Conventions: B1/B2 plus D-15..D-18.
+
+@ 22 P1 ON CONFLICT DO UPDATE vs MERGE
+value fct_order_line.order_date -> sales_daily.sale_date identity
+value fct_order_line.store_id -> sales_daily.store_id identity
+value fct_order_line.gross_amount -> sales_daily.gross_amount aggregated
+influence fct_order_line.order_date, fct_order_line.store_id -> sales_daily.gross_amount
+forbid filter fct_order_line.store_id -> sales_daily | the conflict target (A) and the MERGE ON (B) are both structural (D-15, D-5)
+
+@ 47 P2 CTE-fed INSERT vs inlined
+value payments.order_id -> top_customers.customer_id identity
+value payments.amount -> top_customers.revenue identity
+filter payments.method -> top_customers
+
+@ 66 P3 omitted vs explicit column list
+value dim_store.region -> kpi_rollup.region identity
+value dim_store.country_code -> kpi_rollup.country_code identity
+filter dim_store.status -> kpi_rollup
+
+@ 82 P4 SET a = x, b = y vs SET (a, b) = (x, y)
+value dim_warehouse.name -> dim_warehouse.name derived
+value dim_warehouse.capacity -> dim_warehouse.capacity derived
+filter dim_warehouse.status -> dim_warehouse
+
+@ 96 P5 DELETE ... IN vs EXISTS
+filter returns.order_line_id, order_lines.id, order_lines.status -> returns
+
+@ 115 P6 SEAM DELETE ... USING vs EXISTS
+filter orders.status -> payments
+filter orders.id, payments.order_id -> payments
+note Spelling B only: the EXISTS correlation's operands. In A, `o.id = p.order_id` joins USING to the target (D-11) - the semi-join seam left open in B2.
+
+@ 141 R1 the nightly customer job
+value orders.customer_id -> customer_summary.customer_id identity
+value orders.order_ts -> customer_summary.first_order_date, customer_summary.last_order_date, customer_summary.status aggregated
+value customer_summary.lifetime_orders -> customer_summary.lifetime_orders derived
+note The accumulator `cs.lifetime_orders + EXCLUDED.lifetime_orders`; the inserted count is COUNT(*), which has no source.
+value orders.amount, payments.amount -> customer_summary.lifetime_value aggregated
+value payments.status, payments.paid_at -> customer_summary.lifetime_value aggregated
+note D-14: the archived refunds reach the summary only through a LEFT JOIN, so their predicate decides lifetime_value and removes no summary row.
+influence orders.customer_id -> customer_summary.first_order_date, customer_summary.last_order_date, customer_summary.lifetime_orders, customer_summary.lifetime_value, customer_summary.status
+filter orders.status, customer_summary.status -> customer_summary
+filter payments.status, payments.paid_at -> payments
+note The DELETE in `archived` removes those payments (convention (c)).
+forbid filter payments.status -> customer_summary | reaches the summary only through a LEFT JOIN: it cannot remove a summary row (D-14)

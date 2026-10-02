@@ -1,0 +1,463 @@
+# GENERATED from t4_adversarial.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B3 t4_adversarial.sql - DML-specific traps.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# The forbidden list is the test. Conventions: B1/B2 plus D-15..D-18 (not implemented).
+package: pg/b3_dml_writes/t4_adversarial.sql
+dialect: postgres
+source_sha256: f7135e244968f1b28734b57404842d65bfa8472ef0b2221b9c1cb429d4e90f3b
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: dim_store.country_code
+  target:
+    kind: column
+    name: dim_store.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.status
+  target:
+    kind: relation
+    name: dim_store
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 30
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.country_code
+  target:
+    kind: column
+    name: customer_summary.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 30
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.first_order_date
+  target:
+    kind: column
+    name: dim_customer.first_order_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 40
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_customer.is_current
+  target:
+    kind: relation
+    name: dim_customer
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 40
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.cost
+  target:
+    kind: column
+    name: dim_product.list_price
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 52
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.list_price
+  target:
+    kind: column
+    name: dim_product.cost
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 52
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 61
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 61
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.country_code
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 61
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.order_ts
+  target:
+    kind: column
+    name: channel_mix.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.cost
+  target:
+    kind: column
+    name: <result>.doubled_cost
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.shipment_id
+  target:
+    kind: column
+    name: <result>.shipment_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.status
+  target:
+    kind: relation
+    name: fct_shipment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.name
+  target:
+    kind: column
+    name: dim_warehouse.name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: relation
+    name: dim_product
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.product_key
+  target:
+    kind: relation
+    name: dim_product
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: relation
+    name: dim_product
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: web_events.event_ts
+  target:
+    kind: relation
+    name: web_events
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: web_events.event_ts
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 108
+  evidence: source_read
+  note: '`removed` is COUNT(*): no value source. D-17: the predicate decides what is deleted and what
+    is counted.'
+- source:
+    kind: column
+    name: inventory_snapshots.on_hand
+  target:
+    kind: relation
+    name: inventory_snapshots
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+  note: PostgreSQL executes it regardless; losing this is losing a write silently.
+- source:
+    kind: column
+    name: inventory_snapshots.snapshot_date
+  target:
+    kind: column
+    name: sales_daily.sale_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 134
+  evidence: source_read
+- source:
+    kind: column
+    name: inventory_snapshots.warehouse_id
+  target:
+    kind: column
+    name: sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 134
+  evidence: source_read
+- source:
+    kind: column
+    name: inventory_snapshots.on_hand
+  target:
+    kind: column
+    name: sales_daily.units
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 134
+  evidence: source_read
+- source:
+    kind: column
+    name: inventory_snapshots.on_hand
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 134
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: customers.country_code
+  target:
+    kind: column
+    name: dim_store.region
+  flow: value
+  reason: '`customers` in the SET is the TARGET alias (dim_store); staging.customers is `c`'
+- source:
+    kind: column
+    name: customers.country_code
+  target:
+    kind: relation
+    name: dim_store
+  flow: filter
+  reason: '`c.country_code = customers.country_code` joins the FROM list to the target (D-11)'
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: column
+    name: customer_summary.segment
+  flow: value
+  reason: EXCLUDED.segment is the value PROPOSED for segment - x.country_code - not the source's own segment
+    column
+- source:
+    kind: column
+    name: dim_customer.customer_id
+  target:
+    kind: relation
+    name: dim_customer
+  flow: filter
+  reason: the self-join key joins FROM to the target (D-11)
+- source:
+    kind: column
+    name: dim_product.cost
+  target:
+    kind: column
+    name: dim_product.cost
+  flow: value
+  reason: 'every SET reads the OLD row: cost gets the old list_price, not the new `cost * 2`'
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: top_customers.region
+  flow: value
+  reason: an explicit column list binds by ITS order, not the table's
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: column
+    name: channel_mix.region
+  flow: value
+  reason: the omitted list binds to the FIRST columns in table order
+- source:
+    kind: column
+    name: dim_warehouse.name
+  target:
+    kind: column
+    name: dim_warehouse.name
+  flow: value
+  reason: '`dim_warehouse` here is the USING alias for core.dim_store'
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: column
+    name: dim_product.status
+  flow: value
+  reason: 'the subquery is in WHERE: it decides which rows are updated; D-18 is about SET'
+- source:
+    kind: column
+    name: inventory_snapshots.snapshot_date
+  target:
+    kind: relation
+    name: sales_daily
+  flow: filter
+  reason: 'sales_daily_uk''s columns are the conflict target: structural (D-15)'
+expected_boundaries: []

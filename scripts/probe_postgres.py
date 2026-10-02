@@ -95,6 +95,12 @@ CONSTRUCTS: list[tuple[str, str, str]] = [
     (IN_SCOPE, "DELETE ... WHERE subquery", """
         DELETE FROM gtt_stage WHERE cust_id IN (SELECT o.cust_id FROM stg_orders o);"""),
     (IN_SCOPE, "DELETE ... USING", """
+        DELETE FROM gtt_stage g USING stg_orders o
+         WHERE o.cust_id = g.cust_id AND o.gross_amount < 0;"""),
+    # The target-to-USING equality is the join (D-11, B3 OBJECTIVES), so a USING whose WHERE
+    # is ONLY that join has no filter to name: counted, and correctly empty. Whether that
+    # join should still filter is the open semi-join seam (B3 P6), not settled here.
+    (NO_LINEAGE, "DELETE ... USING, join only", """
         DELETE FROM gtt_stage g USING stg_orders o WHERE o.cust_id = g.cust_id;"""),
     (IN_SCOPE, "INSERT ... ON CONFLICT DO UPDATE (upsert)", """
         INSERT INTO fct_revenue (cust_id, net_amount)
@@ -255,7 +261,9 @@ CONSTRUCTS: list[tuple[str, str, str]] = [
          WHERE o.currency = 'GBP' GROUP BY o.cust_id;"""),
     (OUT_OF_SCOPE, "COPY from file", """
         COPY gtt_stage (cust_id, amount) FROM '/tmp/data.csv' WITH (FORMAT csv);"""),
-    (OUT_OF_SCOPE, "data-modifying CTE", """
+    # In scope since B3 (2026-10-02): the CTE reads as its RETURNING, and its predicate
+    # filters every table its rows reach (D-17). It was declared dangling_reference before.
+    (IN_SCOPE, "data-modifying CTE", """
         WITH moved AS (
             DELETE FROM gtt_stage RETURNING cust_id, amount
         )

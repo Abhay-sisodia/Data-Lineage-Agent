@@ -1,0 +1,67 @@
+# Answer key for B3 t4_adversarial.sql - DML-specific traps.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# The forbidden list is the test. Conventions: B1/B2 plus D-15..D-18 (not implemented).
+
+@ 20 S1 a target alias spelled like another table
+value dim_store.country_code -> dim_store.region identity
+filter customers.status -> dim_store
+forbid value customers.country_code -> dim_store.region | `customers` in the SET is the TARGET alias (dim_store); staging.customers is `c`
+forbid filter customers.country_code -> dim_store | `c.country_code = customers.country_code` joins the FROM list to the target (D-11)
+
+@ 30 S2 EXCLUDED is the proposed row
+value customers.id -> customer_summary.customer_id identity
+value customers.country_code -> customer_summary.segment identity
+forbid value customers.segment -> customer_summary.segment | EXCLUDED.segment is the value PROPOSED for segment - x.country_code - not the source's own segment column
+
+@ 40 S3 the target joined to itself
+value dim_customer.first_order_date -> dim_customer.first_order_date identity
+filter dim_customer.is_current -> dim_customer
+forbid filter dim_customer.customer_id -> dim_customer | the self-join key joins FROM to the target (D-11)
+
+@ 52 S4 two SETs reading each other's OLD values
+value dim_product.cost -> dim_product.list_price derived
+value dim_product.list_price -> dim_product.cost identity
+forbid value dim_product.cost -> dim_product.cost | every SET reads the OLD row: cost gets the old list_price, not the new `cost * 2`
+
+@ 61 S5 an explicit column list out of table order
+value customers.full_name -> top_customers.full_name identity
+value customers.id -> top_customers.customer_id identity
+value customers.country_code -> top_customers.region identity
+forbid value customers.full_name -> top_customers.region | an explicit column list binds by ITS order, not the table's
+
+@ 70 S6 an omitted column list, fewer values than columns
+value orders.order_ts -> channel_mix.period_month derived
+value orders.channel -> channel_mix.channel identity
+forbid value orders.channel -> channel_mix.region | the omitted list binds to the FIRST columns in table order
+
+@ 78 S7 RETURNING an expression from a DELETE (D-16)
+value fct_shipment.cost -> <result>.doubled_cost derived
+value fct_shipment.shipment_id -> <result>.shipment_id identity
+filter fct_shipment.status -> fct_shipment
+filter fct_shipment.status -> <result>
+
+@ 87 S8 MERGE whose USING alias is the target's name
+value dim_store.name -> dim_warehouse.name identity
+forbid value dim_warehouse.name -> dim_warehouse.name | `dim_warehouse` here is the USING alias for core.dim_store
+
+@ 98 S9 a correlated subquery in an UPDATE's WHERE
+filter fct_order_line.product_key, dim_product.product_key -> dim_product
+filter fct_order_line.quantity -> dim_product post
+forbid value fct_order_line.quantity -> dim_product.status | the subquery is in WHERE: it decides which rows are updated; D-18 is about SET
+
+@ 108 S10a a writable CTE read by a bare SELECT
+filter web_events.event_ts -> web_events
+filter web_events.event_ts -> <result>
+note `removed` is COUNT(*): no value source. D-17: the predicate decides what is deleted and what is counted.
+
+@ 122 S10b a writable CTE nothing reads
+filter inventory_snapshots.on_hand -> inventory_snapshots
+note PostgreSQL executes it regardless; losing this is losing a write silently.
+
+@ 134 S11 ON CONFLICT ON CONSTRAINT, DO UPDATE WHERE on EXCLUDED
+value inventory_snapshots.snapshot_date -> sales_daily.sale_date identity
+value inventory_snapshots.warehouse_id -> sales_daily.store_id identity
+value inventory_snapshots.on_hand -> sales_daily.units identity
+filter inventory_snapshots.on_hand -> sales_daily
+forbid filter inventory_snapshots.snapshot_date -> sales_daily | sales_daily_uk's columns are the conflict target: structural (D-15)

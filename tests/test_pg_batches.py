@@ -63,9 +63,32 @@ EXPECTED = {
     ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.VALUE): (28, 0, 0),
     ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.FILTER): (21, 0, 0),
     ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.INFLUENCE): (8, 0, 0),
+    # B3 DML writes - agreed 2026-10-02 after every fix in REPORT.md section 6. No false
+    # positive and no miss. T4 has no influence fact. T5's P6 differs by the open
+    # semi-join seam, which no key scores.
+    ("b3_dml_writes/t1_breadth", Flow.VALUE): (38, 0, 0),
+    ("b3_dml_writes/t1_breadth", Flow.FILTER): (23, 0, 0),
+    ("b3_dml_writes/t1_breadth", Flow.INFLUENCE): (4, 0, 0),
+    ("b3_dml_writes/t2_depth", Flow.VALUE): (16, 0, 0),
+    ("b3_dml_writes/t2_depth", Flow.FILTER): (28, 0, 0),
+    ("b3_dml_writes/t2_depth", Flow.INFLUENCE): (10, 0, 0),
+    ("b3_dml_writes/t3_interaction", Flow.VALUE): (25, 0, 0),
+    ("b3_dml_writes/t3_interaction", Flow.FILTER): (19, 0, 0),
+    ("b3_dml_writes/t3_interaction", Flow.INFLUENCE): (17, 0, 0),
+    ("b3_dml_writes/t4_adversarial", Flow.VALUE): (17, 0, 0),
+    ("b3_dml_writes/t4_adversarial", Flow.FILTER): (11, 0, 0),
+    ("b3_dml_writes/t5_metamorphic", Flow.VALUE): (18, 0, 0),
+    ("b3_dml_writes/t5_metamorphic", Flow.FILTER): (13, 0, 0),
+    ("b3_dml_writes/t5_metamorphic", Flow.INFLUENCE): (7, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})
+
+# Refusals a test makes on purpose, by code. Anything else refused is a regression.
+REFUSED_ON_PURPOSE = {
+    # TRUNCATE (no column has a source) and COPY (rows from outside the database).
+    "b3_dml_writes/t1_breadth": ["SOURCE_UNAVAILABLE", "UNSUPPORTED_CONSTRUCT"],
+}
 
 
 @pytest.fixture(scope="module")
@@ -94,4 +117,5 @@ def test_grid_has_not_moved(name: str, flow: Flow, runs: dict) -> None:
 def test_no_forbidden_edge_and_no_refusal(name: str, runs: dict) -> None:
     result, report = runs[name]
     assert report.forbidden_violations == []
-    assert result.refusals == []
+    refused = sorted(r.code.value for r in result.refusals)
+    assert refused == REFUSED_ON_PURPOSE.get(name, [])

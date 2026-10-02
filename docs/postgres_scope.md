@@ -10,14 +10,14 @@ after any change:
 
 It exits non-zero if anything is SILENT or CRASHes, so a regression cannot pass unnoticed.
 
-**Current result: 44 / 44 agree with expectation. 0 silent, 0 crashes.**
+**Current result: 45 / 45 agree with expectation. 0 silent, 0 crashes.**
 
 | bucket | count | meaning |
 |---|---|---|
-| EDGES | 35 | in scope, lineage produced |
-| NO-SOURCE | 2 | in scope, counted, and correctly has nothing to trace |
+| EDGES | 36 | in scope, lineage produced |
+| NO-SOURCE | 3 | in scope, counted, and correctly has nothing to trace |
 | REFUSED | 6 | out of scope, refused by name with a stated reason |
-| DECLARED | 1 | out of scope, a boundary names what stopped it |
+| DECLARED | 0 | out of scope, a boundary names what stopped it |
 | SILENT | **0** | never acceptable, in scope or out |
 | CRASH | **0** | |
 
@@ -58,7 +58,9 @@ model decision (PG-09).
 **Core DML** — `INSERT … SELECT`, `INSERT … VALUES`, `INSERT` with a leading CTE,
 `UPDATE … SET`, `UPDATE … FROM` (the PostgreSQL join-update), `DELETE … WHERE`,
 `DELETE … USING`, `INSERT … ON CONFLICT DO UPDATE` (upsert), `ON CONFLICT DO NOTHING`,
-`INSERT … RETURNING`, `MERGE` (PostgreSQL 15+), `CREATE TABLE AS SELECT`.
+`INSERT … RETURNING`, `MERGE` (PostgreSQL 15+), `CREATE TABLE AS SELECT`, data-modifying
+CTEs (`WITH x AS (DELETE … RETURNING) …`, since B3: D-17). A `DELETE … USING` whose WHERE
+is only the target-to-USING join is counted and empty: that equality is the join (D-11).
 
 **Query shape** — CTEs chained to any depth, `WITH RECURSIVE`, `LATERAL`†, `FULL OUTER JOIN`,
 `UNION ALL` / `EXCEPT`, scalar subqueries in the select list, `EXISTS` / `NOT EXISTS` / `IN`,
@@ -105,7 +107,6 @@ measured: the probe asks per statement and cannot see a per-column silence (PG-0
 | `CREATE TRIGGER` | `UNSUPPORTED_CONSTRUCT` | a PostgreSQL trigger names a FUNCTION that holds the body — so the lineage is in a routine we cannot parse. **Oracle triggers are handled and deliberately not refused**, which is why this refusal is scoped to one dialect |
 | `COPY … FROM/TO` | `SOURCE_UNAVAILABLE` | moves rows between a relation and something outside the database; the contents depend on data no static analysis can see |
 | `TRUNCATE` | `UNSUPPORTED_CONSTRUCT` | empties a relation unconditionally — no column has a source to name, but the statement decides what the table contains afterwards, so it is recorded rather than skipped |
-| data-modifying CTE (`WITH x AS (DELETE … RETURNING) …`) | declared `dangling_reference` | the CTE's rows come from a statement, not a relation |
 
 ## What this scope does NOT cover, by construction
 

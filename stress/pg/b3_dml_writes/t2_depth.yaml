@@ -1,0 +1,773 @@
+# GENERATED from t2_depth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B3 t2_depth.sql - DML writes fed by deep sources.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: B1/B2 plus D-15..D-18 (not implemented).
+package: pg/b3_dml_writes/t2_depth.sql
+dialect: postgres
+source_sha256: ca2189ebd70a9f327edaad6800405af1189e50dcb7150e67ed9e56700f3b02db
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.customer_key
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.customer_key
+  target:
+    kind: column
+    name: customer_summary.value_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: customer_summary.value_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'value_decile is NTILE over SUM(net_amount): no value source; its ordering and b''s grouping reach
+    it.'
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.status
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'D-9: `c.decile >= 5` filters a window ordered by the SUM - post-aggregation.'
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 48
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.amount
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 48
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 48
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: column
+    name: customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 48
+  evidence: source_read
+- source:
+    kind: column
+    name: orders.channel
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 48
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: product_performance.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.net_amount
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: column
+    name: product_performance.units
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: column
+    name: product_performance.units
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: product_performance.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: product_performance.units
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.status
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.quantity
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 71
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_payment.order_id
+  target:
+    kind: column
+    name: channel_mix.orders
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_payment.amount
+  target:
+    kind: column
+    name: channel_mix.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.delivered_date
+  target:
+    kind: relation
+    name: fct_shipment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.shipped_date
+  target:
+    kind: relation
+    name: fct_shipment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.delivered_date
+  target:
+    kind: relation
+    name: fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.shipped_date
+  target:
+    kind: relation
+    name: fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.delivered_date
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+  note: 'D-17: upd''s predicate decides which order_ids reach del''s IN, so which payments are deleted
+    and archived.'
+- source:
+    kind: column
+    name: fct_shipment.shipped_date
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+  note: 'D-17: upd''s predicate decides which order_ids reach del''s IN, so which payments are deleted
+    and archived.'
+- source:
+    kind: column
+    name: fct_payment.order_id
+  target:
+    kind: relation
+    name: fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_shipment.order_id
+  target:
+    kind: relation
+    name: fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_payment.status
+  target:
+    kind: relation
+    name: fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_payment.order_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+  note: fct_shipment.order_id is u.order_id, returned by upd and compared in del's IN.
+- source:
+    kind: column
+    name: fct_shipment.order_id
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+  note: fct_shipment.order_id is u.order_id, returned by upd and compared in del's IN.
+- source:
+    kind: column
+    name: fct_payment.status
+  target:
+    kind: relation
+    name: channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 105
+  evidence: source_read
+  note: fct_shipment.order_id is u.order_id, returned by upd and compared in del's IN.
+- source:
+    kind: column
+    name: customers.id
+  target:
+    kind: column
+    name: top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.full_name
+  target:
+    kind: column
+    name: top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+- source:
+    kind: column
+    name: top_customers.customer_id
+  target:
+    kind: column
+    name: kpi_rollup.customers
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+  note: 'D-16: the returned column is the written table''s column; COUNT of it.'
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: relation
+    name: top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+- source:
+    kind: column
+    name: customers.segment
+  target:
+    kind: relation
+    name: kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.product_id
+  target:
+    kind: relation
+    name: dim_product
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+- source:
+    kind: column
+    name: inventory_snapshots.product_id
+  target:
+    kind: relation
+    name: dim_product
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.list_price
+  target:
+    kind: relation
+    name: dim_product
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.category_id
+  target:
+    kind: relation
+    name: dim_product
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+- source:
+    kind: column
+    name: inventory_snapshots.snapshot_date
+  target:
+    kind: relation
+    name: dim_product
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_product.list_price
+  target:
+    kind: relation
+    name: dim_product
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 143
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.order_date
+  target:
+    kind: column
+    name: dim_store.opened_on
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 161
+  evidence: source_read
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: column
+    name: dim_store.opened_on
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 161
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.name
+  target:
+    kind: column
+    name: dim_store.name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 176
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.status
+  target:
+    kind: relation
+    name: dim_store
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 176
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.id
+  target:
+    kind: column
+    name: <result>.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 176
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_store.name
+  target:
+    kind: column
+    name: <result>.store_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 176
+  evidence: source_read
+- source:
+    kind: column
+    name: dim_warehouse.status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 176
+  evidence: source_read
+  note: 'merge_action() reports which arm ran: no source. USING''s filter decides which rows are merged
+    and returned.'
+forbidden:
+- source:
+    kind: column
+    name: fct_order_line.customer_key
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  reason: joins d to the target in UPDATE ... FROM (D-11)
+- source:
+    kind: column
+    name: orders.customer_id
+  target:
+    kind: relation
+    name: customer_summary
+  flow: filter
+  reason: the conflict target is structural (D-15)
+- source:
+    kind: column
+    name: fct_order_line.product_key
+  target:
+    kind: relation
+    name: product_performance
+  flow: filter
+  reason: the MERGE ON is structural (D-5)
+- source:
+    kind: column
+    name: fct_order_line.store_id
+  target:
+    kind: relation
+    name: dim_store
+  flow: filter
+  reason: '`x.store_id = s.id` joins the derived table to the target (D-11)'
+- source:
+    kind: column
+    name: dim_warehouse.id
+  target:
+    kind: relation
+    name: dim_store
+  flow: filter
+  reason: the MERGE ON is structural (D-5)
+expected_boundaries: []

@@ -1,0 +1,64 @@
+# Answer key for B3 t3_interaction.sql - DML rules meeting query rules.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: B1/B2 plus D-15..D-18 (not implemented).
+
+@ 16 S1 UPDATE ... FROM a grouped derived table with a rank
+value fct_order_line.net_amount -> sales_daily.avg_order_value aggregated
+influence fct_order_line.order_date, fct_order_line.store_id, dim_store.region -> sales_daily.avg_order_value, sales_daily.rank_in_region
+influence fct_order_line.net_amount -> sales_daily.rank_in_region
+note rank_in_region has no value source: its partition, its ordering SUM and the grouping reach it. HAVING COUNT(*) names no column.
+forbid filter fct_order_line.order_date -> sales_daily | `r.order_date = sd.sale_date` joins the derived table to the target (D-11)
+forbid filter fct_order_line.store_id -> sales_daily | `r.store_id = sd.store_id` joins the derived table to the target (D-11)
+
+@ 38 S2 DELETE duplicates via a filtered ROW_NUMBER (D-9)
+filter orders.id, orders.customer_id, orders.order_ts, orders.updated_at -> orders
+
+@ 57 S3 upsert of FILTER aggregates and a windowed share
+value fct_order_line.product_key -> product_performance.product_id identity
+value fct_order_line.order_date -> product_performance.period_month derived
+value fct_order_line.net_amount, fct_order_line.status -> product_performance.revenue aggregated
+value fct_order_line.net_amount -> product_performance.revenue_share aggregated
+value fct_order_line.net_amount, fct_order_line.status -> product_performance.growth_pct aggregated
+value product_performance.revenue -> product_performance.growth_pct conditional
+note growth_pct in DO UPDATE: EXCLUDED.revenue (the FILTER SUM) over NULLIF of the target's own revenue.
+influence fct_order_line.product_key, fct_order_line.order_date -> product_performance.revenue, product_performance.revenue_share, product_performance.growth_pct
+forbid filter fct_order_line.status -> product_performance | an aggregate FILTER changes one value (D-10)
+
+@ 75 S4 MERGE from a top-10-per-region rank
+value dim_customer.customer_id -> top_customers.customer_id identity
+value dim_customer.region -> top_customers.region identity
+value fct_order_line.net_amount -> top_customers.revenue aggregated
+influence dim_customer.customer_id, dim_customer.region -> top_customers.revenue
+filter dim_customer.region, fct_order_line.net_amount -> top_customers post
+note D-9: `rn <= 10` filters a rank partitioned by region and ordered by a SUM - post-aggregation.
+
+@ 101 S5 UPDATE ... RETURNING grouped by the next write
+value fct_payment.method -> channel_mix.channel identity
+value fct_payment.amount_usd -> channel_mix.revenue aggregated
+influence fct_payment.method -> channel_mix.revenue, channel_mix.orders
+filter fct_payment.status, fct_payment.paid_date -> fct_payment
+filter fct_payment.status, fct_payment.paid_date -> channel_mix
+note D-17: the UPDATE's predicate decides which payments are settled and which are counted.
+
+@ 117 S6 UPDATE SET CASE on a scalar subquery, EXISTS in WHERE
+value dim_customer.segment -> dim_customer.segment conditional
+value orders.amount, orders.customer_id, dim_customer.customer_id -> dim_customer.segment aggregated
+note D-18: the subquery decides the CASE branch, so its sum and its correlation are values of segment.
+filter orders.customer_id, dim_customer.customer_id, payments.status -> dim_customer
+forbid filter orders.amount -> dim_customer | inside a SET subquery: a value, not a filter (D-18)
+
+@ 137 S7 INSERT of a UNION ALL, ON CONFLICT DO NOTHING, RETURNING
+value fct_order_line.order_date, fct_payment.paid_date -> sales_daily.sale_date identity
+value fct_order_line.store_id -> sales_daily.store_id identity
+value fct_order_line.net_amount, fct_payment.amount -> sales_daily.net_amount identity
+filter fct_order_line.channel, fct_payment.method -> sales_daily
+value sales_daily.sale_date -> <result>.sale_date identity
+value sales_daily.net_amount -> <result>.net_amount identity
+filter fct_order_line.channel, fct_payment.method -> <result>
+
+@ 154 S8 WITH ... DELETE ... USING a HAVING CTE
+filter customer_summary.status -> customer_summary
+filter orders.order_ts -> customer_summary post
+note The CTE's HAVING decides which customers are dormant, so which rows are deleted.
+forbid filter orders.customer_id -> customer_summary | `dm.customer_id = cs.customer_id` joins USING to the target (D-11)

@@ -83,7 +83,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | S2-09 | `key-error` | **fixed** | `p_depth → DIM_CUSTOMER_HIER.DEPTH` never labelled — two of three bindings |
 | S2-10 | `measurement-error` | **fixed** | trigger edges carry body-relative lines, so the refusal cross-checks could not match them |
 | S2-11 | `key-error` | **fixed** | stress 1's key predated convention (c); a decided convention has to reach every key |
-| PG-01 | `measurement-error` | open | **an `UPDATE` is analysed and never counted.** `update_statement` is not in `band0.SUPPORTED` — def-use owns it — and def-use does not touch `statements_seen`. So every `UPDATE` in the project is missing from the parse-coverage denominator, in BOTH dialects, and an `UPDATE` that also produced no edge would be fully SILENT |
+| PG-01 | `measurement-error` | open (Oracle) | **Fixed for PostgreSQL 2026-10-02 (B3: an UPDATE goes through band 0 and is counted). Oracle still open: counting it moves signed phase-0 numbers, so it waits for the owed re-measurement.** **an `UPDATE` is analysed and never counted.** `update_statement` is not in `band0.SUPPORTED` — def-use owns it — and def-use does not touch `statements_seen`. So every `UPDATE` in the project is missing from the parse-coverage denominator, in BOTH dialects, and an `UPDATE` that also produced no edge would be fully SILENT |
 
 | PG-02 | `key-error` | **fixed** | `stress_pg_01`'s key claimed `expected_boundaries: []` and called the empty list the point of the package; a real schema-context boundary was declared and the key was wrong |
 | PG-03 | `construct-coverage` | **fixed** | every column PROJECTED through a `LATERAL` alias is unresolved — the correlation's filter edges are correct, the projection is lost. Declared, not silent. Cause was one node type: a LATERAL scope's `expression` is the `exp.Lateral`, whose `selects` is an empty list rather than an error, so `_projection_named` read "no such column" from "I don't know" |
@@ -126,6 +126,19 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B2-09 | `flow-classification` | **fixed** | an EXISTS subquery's ORDER BY is swept into the outer WHERE's filters Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
 | B2-10 | `measurement-error` | **fixed** | `unresolved_identifier` boundaries on columns that WERE traced - recursive CTEs, nested subqueries, set operations in subqueries; 22 in B2 Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
 | B2-Q1 | `convention` | **decided as D-14, scoped** | a predicate that cannot remove a result row - inside an outer join's null-supplying side, or a one-row LATERAL - is a value/influence of the columns it feeds, not a filter. Settles the P7 and P8 seams. Semi-join and anti-join match keys (P5, P6) deliberately left open: labelling them consistently reverses D-5 or the correlation rule |
+| B3-01 | `construct-coverage` | **fixed** | an INSERT target with an alias (`AS x`) or no column list loses its schema and the statement is refused NAME_NOT_RESOLVED. `stress/pg/b3_dml_writes/REPORT.md` Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-02 | `refusal-taxonomy` | **fixed** | `INSERT ... DEFAULT VALUES` refused ("INSERT from NoneType"); the right answer is nothing, not a refusal Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-03 | `silent-loss` | **fixed** | **data-modifying CTEs not understood** - the CTE is "dangling" or the statement refused, the DML inside never analysed; a writable CTE nothing reads produces NOTHING, silently Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-04 | `flow-classification` | **fixed** | **UPDATE ... FROM: FROM-list values unresolved and the target-FROM join emitted as a filter** (D-11 not applied) Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-05 | `construct-coverage` | **fixed** | WITH before UPDATE / DELETE / MERGE not attached - B1-01 fixed for INSERT only; CTE names emitted as bogus `cte.column` sources Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-06 | `identity` | **fixed** | **row-valued SET (`SET (a, b) = ...`) writes to a column with an EMPTY name** - malformed edges Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-07 | `flow-classification` | **fixed** | DELETE ... USING: the join condition emitted as filters, a USING CTE's own predicate not traced Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-08 | `silent-loss` | **fixed** | **ON CONFLICT ... DO UPDATE SET and WHERE are never analysed** Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-09 | `silent-loss` | **fixed** | **MERGE arm conditions (`WHEN MATCHED AND ...`, `NOT MATCHED BY SOURCE AND ...`) give no filter** Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-10 | `flow-classification` | **fixed** | D-9's phase for a window whose ORDER BY aggregate is inline comes out pre-aggregation Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-11 | `flow-classification` | **fixed** | the B2-06 phase rule is missing from the UPDATE and DELETE paths Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-12 | `construct-coverage` | **fixed** | a scalar subquery in INSERT ... VALUES loses columns ("unresolved id in VALUES") Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
+| B3-13 | `flow-classification` | open | **D-18 is implemented for PostgreSQL only.** An Oracle UPDATE still goes through def-use, which reads a SET scalar subquery's correlation as a filter, not a value. No Oracle stress case has the shape, so nothing measured moved. `stress/pg/b3_dml_writes/REPORT.md` section 6 |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4481,3 +4494,16 @@ needs the Oracle container. **Until it is, the signed numbers describe the analy
 of 2026-09-25, not the current ones.** When the container is back: re-run, and review every
 moved cell against D-9..D-14 before accepting it; a phase-0 key other than sq_06 may hold
 the same shapes and has not been checked by any test that runs without Oracle.
+
+## Decisions taken — 2026-10-02 (D-15 to D-18)
+
+Taken by Abhay before batch B3's keys were written. Full statements in
+`stress/pg/b3_dml_writes/OBJECTIVES.md`. None implemented yet.
+
+* **D-15** - an ON CONFLICT target is structural, like a MERGE ON (even under DO NOTHING);
+  a DO UPDATE ... WHERE is a filter; EXCLUDED.c's sources are what fed c in the INSERT.
+* **D-16** - RETURNING output lands in `<result>`; a returned column's source is the written
+  table's column; inside a WITH it feeds whatever reads the CTE.
+* **D-17** - a writable CTE's predicate filters every table its rows reach (the table it
+  modifies, and the table its returned rows are written to).
+* **D-18** - D-12 applies in a SET and in VALUES: a subquery there decides values, not rows.

@@ -33,6 +33,7 @@ from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import Scope, ScopeType, build_scope
 
 from lineage.analysis.builtins import is_builtin
+from lineage.analysis.pg_dml import expand as expand_postgres_writes
 from lineage.analysis.ddl import exchange_partition_edges
 from lineage.analysis.dynamic import resolve_dynamic_sql
 from lineage.analysis.predicates import predicate_columns
@@ -1442,8 +1443,21 @@ def _target_of(insert: exp.Insert, dictionary: Dictionary) -> tuple[str, list[st
     if isinstance(target, exp.Schema):
         columns = [fold(c.name, dictionary.dialect) for c in target.expressions]
         target = target.this
+    elif target.args.get("alias") is not None and target.args["alias"].columns:
+        columns = [fold(c.name, dictionary.dialect) for c in target.args["alias"].columns]
     name = target.name
-    resolved = dictionary.resolve(name)
+    # The SCHEMA is part of the name (finding B3-01). Resolving the bare name sent
+    # `mart.top_customers` through the default schema, found no `core.top_customers`, and
+    # refused every INSERT that omitted its column list.
+    qualified = f"{target.db}.{name}" if target.db else name
+    resolved = dictionary.resolve(qualified)
+    if columns is None and target.db:
+        # An omitted column list means the table's own order - read from the QUALIFIED
+        # name, because the caller looks it up by the bare one otherwise.
+        try:
+            columns = [fold(c, dictionary.dialect) for c in dictionary.columns_of(qualified)]
+        except UnknownObjectError:
+            columns = None
     return (resolved.name or fold(name, dictionary.dialect)), columns
 
 
@@ -2469,7 +2483,21 @@ def _window_filter_sources(
     projection = _projection_named(source, column.name)
     if projection is None:
         return []
-    return _window_influence(projection, source, dictionary, unresolved)
+    found = _window_influence(projection, source, dictionary, unresolved)
+    # B3-10: `ROW_NUMBER() OVER (... ORDER BY SUM(x))` with the SUM written INLINE. Each
+    # ordering column traces to a plain base column, so the selection read as
+    # pre-aggregation - while it ranks aggregated rows. The window's own expressions say
+    # whether it orders by an aggregate; when they do, the whole cut is post (D-9, D-6).
+    ordered_by_aggregate = any(
+        _is_aggregate(node)
+        for window in projection.find_all(exp.Window)
+        for part in (window.args.get("order"), *(window.args.get("partition_by") or []))
+        if part is not None
+        for node in part.walk()
+    )
+    if ordered_by_aggregate:
+        found = [(table, name, Transform.AGGREGATED) for table, name, _ in found]
+    return found
 
 
 def _filter_phase(clause_phase: FilterPhase, transform: Transform) -> FilterPhase:
@@ -3070,6 +3098,12 @@ def _analyse_merge(
 
     # Build a scope over the USING source so its projections can be traced.
     wrapper = exp.Select().select(exp.Star()).from_(using)
+    # `WITH src AS (...) MERGE INTO t USING src ...` hangs the WITH on the Merge. The
+    # wrapper is what is analysed, so it carries the WITH or `src` is a relation nobody
+    # defines - B1-01's defect, in the one write it had not been fixed for (finding B3-05).
+    outer = statement.args.get("with_") or statement.args.get("with")
+    if outer is not None:
+        wrapper.set("with_", outer.copy())
     scope = build_scope(wrapper)
     if scope is None:
         return [], (RefusalCode.PARSE_FAILED, "could not build a scope for the MERGE source")
@@ -3159,6 +3193,27 @@ def _analyse_merge(
     )
 
     for when in when_clauses:
+        # An arm's own condition - `WHEN MATCHED AND s.status = 'CLOSED'`, PostgreSQL 17's
+        # `WHEN NOT MATCHED BY SOURCE AND t.is_current` - decides which rows that arm
+        # writes or deletes: a filter, exactly like the arm's WHERE below. It gave nothing
+        # (finding B3-09), so a MERGE that deletes closed customers reported no dependency
+        # on `status` at all.
+        condition = when.args.get("condition")
+        if condition is not None:
+            for column in predicate_columns(condition):
+                for source_table, source_column, _ in _trace_in_merge(column):
+                    edges.append(
+                        _edge(
+                            source_table,
+                            source_column,
+                            target_name,
+                            "",
+                            Transform.IDENTITY,
+                            band,
+                            origin,
+                            flow=Flow.FILTER,
+                        )
+                    )
         action = when.args.get("then")
         if isinstance(action, exp.Update):
             # The arm's own WHERE - `WHEN MATCHED THEN UPDATE SET ... WHERE x.b > 0`. It
@@ -3312,7 +3367,17 @@ def analyse_source(
         # It was silent until 2026-09-24 and refused for part of that day; the refusal
         # was the honest interim while the target was a model decision, and the decision
         # has been taken.
-        if statement.kind not in SUPPORTED and not _is_standalone_query(program, statement):
+        # A PostgreSQL UPDATE is analysed HERE, restated as the read it performs (B3,
+        # `pg_dml`) - and so it is counted, which closes PG-01 for PostgreSQL. Oracle keeps
+        # UPDATE in def-use, which can tell a PL/SQL variable from a column.
+        postgres_update = (
+            program.dialect == "postgres" and statement.kind == "update_statement"
+        )
+        if (
+            statement.kind not in SUPPORTED
+            and not postgres_update
+            and not _is_standalone_query(program, statement)
+        ):
             continue
         result.statements_seen += 1
         unit = _enclosing_unit(program, statement)
@@ -3618,6 +3683,33 @@ def _analyse_statement(
                 unresolved,
             )
 
+    # PostgreSQL writes are restated as the reads they perform (batch B3, `pg_dml`): an
+    # UPDATE, a DELETE, an ON CONFLICT DO UPDATE, a RETURNING and a data-modifying CTE each
+    # become one or more statements the INSERT ... SELECT path already analyses fully.
+    # Every other statement is its own single part.
+    parts = expand_postgres_writes(parsed, dictionary)
+    edges: list[PredictedEdge] = []
+    for part in parts:
+        part_edges, refusal = _analyse_parsed(
+            part, dictionary, config, band, origin, summaries, result_target, unresolved
+        )
+        if refusal is not None:
+            return [], refusal, unresolved
+        edges.extend(part_edges)
+    return edges, None, unresolved
+
+
+def _analyse_parsed(
+    parsed: Any,
+    dictionary: Dictionary,
+    config: AnalysisConfig,
+    band: int,
+    origin: Origin,
+    summaries: dict[str, Any],
+    result_target: str | None,
+    unresolved: list[Boundary],
+) -> tuple[list[PredictedEdge], tuple[RefusalCode, str] | None]:
+    """One parsed statement: inline views, resolve windows, qualify, dispatch by kind."""
     parsed, notes = _inline_views(parsed, dictionary, config.budgets.view_expansion_depth_cap)
     # After view inlining, so a named window inside an expanded view is resolved too.
     parsed = _resolve_named_windows(parsed)
@@ -3631,7 +3723,6 @@ def _analyse_statement(
                 RefusalCode.NAME_NOT_RESOLVED,
                 f"could not qualify names: {str(exc).splitlines()[0]}",
             ),
-            unresolved,
         )
 
     if isinstance(parsed, exp.Insert):
@@ -3662,11 +3753,10 @@ def _analyse_statement(
                 RefusalCode.UNSUPPORTED_CONSTRUCT,
                 f"unsupported statement type {type(parsed).__name__}",
             ),
-            unresolved,
         )
 
     if refusal is not None:
-        return [], refusal, unresolved
+        return [], refusal
 
     # Notes from view inlining are boundaries too - a view left unexpanded means the
     # lineage below it was not reached.
@@ -3674,16 +3764,12 @@ def _analyse_statement(
     # View-inlining notes arrive as prose from the resolver; classify them here, where the
     # reason they exist is still in scope. A view left unexpanded means the lineage below
     # it was never reached, which is a source that was unavailable to us.
-    return (
-        edges,
-        None,
-        unresolved
-        + [
-            Boundary(
-                kind=BoundaryKind.SOURCE_UNAVAILABLE,
-                subject=str(note).split(" ")[1] if " " in str(note) else str(note),
-                detail=str(note),
-            )
-            for note in notes
-        ],
+    unresolved.extend(
+        Boundary(
+            kind=BoundaryKind.SOURCE_UNAVAILABLE,
+            subject=str(note).split(" ")[1] if " " in str(note) else str(note),
+            detail=str(note),
+        )
+        for note in notes
     )
+    return edges, None

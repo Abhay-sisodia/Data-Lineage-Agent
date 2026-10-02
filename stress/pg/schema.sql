@@ -343,3 +343,13 @@ CREATE TABLE mart.top_customers (
     revenue             numeric(16,2),
     position            integer
 );
+
+-- -------------------------------------------------------------------------------------
+-- Keys on mart targets (added for batch B3). `INSERT ... ON CONFLICT (k)` is only valid
+-- when a unique index covers k, so an upsert test needs one to be real PostgreSQL. They
+-- add no column and change no dictionary entry.
+-- -------------------------------------------------------------------------------------
+
+ALTER TABLE mart.customer_summary ADD CONSTRAINT customer_summary_pk PRIMARY KEY (customer_id);
+ALTER TABLE mart.sales_daily ADD CONSTRAINT sales_daily_uk UNIQUE (sale_date, store_id);
+ALTER TABLE mart.product_performance ADD CONSTRAINT product_performance_uk UNIQUE (product_id, period_month);

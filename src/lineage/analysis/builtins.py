@@ -39,6 +39,8 @@ SCALAR = {
             "TIMEZONE", "ISFINITE", "CLOCK_TIMESTAMP",
             # misc
             "NUM_NONNULLS", "NUM_NULLS", "HSTORE",
+            # MERGE ... RETURNING merge_action() (PostgreSQL 17): reports the arm, no column
+            "MERGE_ACTION",
         }
     ),
 }
