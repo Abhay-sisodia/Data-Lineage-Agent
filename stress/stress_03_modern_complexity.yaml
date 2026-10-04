@@ -609,9 +609,13 @@ edges:
     evidence: source_read
     note: WHERE c.signup_date < SYSDATE, inside the USING subquery.
 
+  # KEY CORRECTED 2026-10-04 (finding B10-06, D-6): the MATCHED arm's WHERE tests
+  # revenue_total, a correlated SUM, so this filter acts on an aggregated value:
+  # post-aggregation. The label predated D-6 and used the keyword test D-6 rejected.
   - source: {kind: column, name: FCT_REVENUE.NET_AMOUNT}
     target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
     flow: filter
+    phase: post-aggregation
     transform: identity
     band: 0
     origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
@@ -620,9 +624,13 @@ edges:
       PROPOSED CONVENTION (g). The MATCHED arm's `WHERE s.revenue_total > 0`. Not a
       HAVING, so the phase stays the default.
 
+  # KEY CORRECTED 2026-10-04 (finding B10-06, D-6): the MATCHED arm's WHERE tests
+  # revenue_total, a correlated SUM, so this filter acts on an aggregated value:
+  # post-aggregation. The label predated D-6 and used the keyword test D-6 rejected.
   - source: {kind: column, name: FCT_REVENUE.CUST_ID}
     target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
     flow: filter
+    phase: post-aggregation
     transform: identity
     band: 0
     origin: {unit: S3_INCREMENTAL_MERGE, line: 138}
@@ -647,9 +655,13 @@ edges:
       applied corpus-wide in 0b9a9e8 - and a stress key is not where a settled convention
       gets quietly reopened.
 
+  # KEY CORRECTED 2026-10-04 (finding B10-06, D-6): the MATCHED arm's WHERE tests
+  # revenue_total, a correlated SUM, so this filter acts on an aggregated value:
+  # post-aggregation. The label predated D-6 and used the keyword test D-6 rejected.
   - source: {kind: column, name: STG_CUSTOMER.CUST_ID}
     target: {kind: relation, name: DW_DIM_CUSTOMER_V2}
     flow: filter
+    phase: post-aggregation
     transform: identity
     band: 0
     origin: {unit: S3_INCREMENTAL_MERGE, line: 138}

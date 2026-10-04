@@ -166,6 +166,12 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B7-06 | `flow-classification` | **fixed** | CREATE TABLE AS ... WITH NO DATA emits edges though no rows move Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
 | B7-07 | `parse-failure` | **fixed** | INSERT ... OVERRIDING SYSTEM VALUE does not parse in SQLGlot Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
 | B7-08 | `silent-loss` | **fixed** | **REFRESH MATERIALIZED VIEW, ATTACH PARTITION and DETACH PARTITION are silent** - not counted, not refused, nothing declared Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
+| B10-01 | `silent-loss` | **fixed** | **the statement splitter does not know `E''` backslash escapes**: `E'it\'s'` inverts quote parity and glues a run of statements into one fragment; a fragment SQLGlot reads as a `Block` is skipped with nothing declared (T1: 16 statements silent). Fixed 2026-10-04; `stress/pg/b10_lexical/REPORT.md` section 6. |
+| B10-02 | `parse-failure` | **fixed** | the splitter does not nest block comments: `/* a /* b */ ... ; */` is cut at the `;` into unparseable fragments (R0 if a fragment parses). Fixed 2026-10-04; `stress/pg/b10_lexical/REPORT.md` section 6. |
+| B10-03 | `parse-failure` | **fixed** | psql meta-commands (`\set`, `\echo`, `\i`, `\copy`, ...) are glued onto the next statement, which fails to parse; `\i` is not declared; the `\copy` refusal is not local. Fixed 2026-10-04; `stress/pg/b10_lexical/REPORT.md` section 6. |
+| B10-04 | `silent-loss` | **fixed** | **PREPARE, EXECUTE and DEALLOCATE are dropped silently** (SQLGlot `Command` / `Alias`): not counted, not refused, nothing declared. Fixed 2026-10-04; `stress/pg/b10_lexical/REPORT.md` section 6. |
+| B10-05 | `parse-failure` | **fixed** | a `U&"..."` identifier is read as a column `u` and refused. Fixed 2026-10-04; `stress/pg/b10_lexical/REPORT.md` section 6. |
+| B10-06 | `flow-classification` | **fixed** | a MERGE arm condition on an aggregate of the USING source (`WHEN MATCHED AND s.amt > 100`, amt a SUM) is pre-aggregation; D-6 makes it post. Found by B10 T3, not lexical; six Oracle labels in stress_03 / stress_04 corrected to post-aggregation with it. Fixed 2026-10-04; `stress/pg/b10_lexical/REPORT.md` section 6. |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4614,3 +4620,20 @@ Taken by Abhay before batch B7's keys were written. Full statements in
   column gives derived edges, within the table, from the columns it reads; LIKE gives none.
 * **D-34** - PARTITION OF, ATTACH PARTITION and INHERITS give child.col -> parent.col
   identity for every shared column (the Oracle EXCHANGE PARTITION rule); DETACH gives none.
+
+## Decisions taken — 2026-10-04 (D-35 to D-38)
+
+Taken by Abhay before batch B10's keys were written. Full statements in
+`stress/pg/b10_lexical/OBJECTIVES.md`. All four implemented 2026-10-04 (B10 REPORT section 6).
+
+* **D-35** - PREPARE stores a statement and is counted with no edges; each EXECUTE emits its
+  lineage at the EXECUTE's line (as REFRESH does, D-32); CREATE TABLE ... AS EXECUTE is CTAS
+  over it; DEALLOCATE [ALL] forgets it; an EXECUTE of an unknown name is counted and declared
+  source_unavailable.
+* **D-36** - `$n` parameters and psql variables used as values read no column, like literals.
+  A psql variable used as an identifier is refused or declared, never guessed.
+* **D-37** - psql meta-commands are skipped and not counted, and never break the SQL around
+  them; `\i` / `\ir` are declared source_unavailable; `\copy` is refused by name, as COPY is;
+  `\gset` gives nothing.
+* **D-38** - a user-defined or extension operator is read like an unknown function: derived
+  from its operands; a filter from both in WHERE. `OPERATOR(pg_catalog.op)` is `op`.

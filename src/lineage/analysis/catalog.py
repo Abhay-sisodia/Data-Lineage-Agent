@@ -38,6 +38,7 @@ from sqlglot import exp
 from lineage.analysis.relations import SEARCH_PATH, identifier
 from lineage.analysis.transforms import transform_of_path
 from lineage.ir.model import Transform
+from lineage.parsing.sqlscript import skip_lexeme
 from lineage.resolution.dictionary import Dictionary, ObjectInfo, fold
 
 Fact = tuple[str, str, str, str, Transform]
@@ -47,6 +48,16 @@ _REFRESH = re.compile(
     r"^\s*REFRESH\s+MATERIALIZED\s+VIEW\s+(?:CONCURRENTLY\s+)?(?P<name>[\w.\"]+)",
     re.IGNORECASE,
 )
+_PREPARE = re.compile(
+    r"^\s*PREPARE\s+(?P<name>[\w\"]+)\s*(?:\([^)]*\))?\s+AS\s+(?P<body>.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_EXECUTE = re.compile(
+    r"^\s*(?P<create>CREATE\s+(?:(?:LOCAL|GLOBAL)\s+)?(?:(?:TEMP|TEMPORARY|UNLOGGED)\s+)?"
+    r"TABLE\s+.*?\s+AS\s+)?EXECUTE\s+(?P<name>[\w\"]+)\s*(?:\(.*\))?\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+_DEALLOCATE = re.compile(r"^\s*DEALLOCATE\s+(?:PREPARE\s+)?(?P<name>[\w\"]+)\s*$", re.IGNORECASE)
 _ATTACH = re.compile(
     r"^\s*ALTER\s+TABLE\s+(?:ONLY\s+)?(?P<parent>[\w.\"]+)\s+(?P<verb>ATTACH|DETACH)\s+"
     r"PARTITION\s+(?P<child>[\w.\"]+)",
@@ -67,7 +78,9 @@ class Effect:
     skip: bool = False
     """Catalog bookkeeping only (DROP): not counted, not analysed."""
     unknown: str | None = None
-    """A REFRESH of a materialized view whose definition is not known (D-32)."""
+    """A REFRESH (D-32) or EXECUTE (D-35) of a definition that is not known."""
+    unknown_detail: str = ""
+    """Why `unknown` is unknown, for the boundary's sentence."""
     finalize: Any = None
     """Run after the statement is analysed (a view becomes inlinable only afterwards)."""
 
@@ -78,10 +91,14 @@ class ScriptCatalog:
     def __init__(self, dictionary: Dictionary) -> None:
         self.dictionary = dictionary
         self._matviews: dict[str, tuple[list[str], str]] = {}
+        self._prepared: dict[str, str] = {}
 
     # --- the decision -------------------------------------------------------------------
 
     def effect(self, text: str) -> Effect | None:
+        prepared = self._prepared_statement(_lead(text))
+        if prepared is not None:
+            return prepared
         refresh = _REFRESH.match(_code(text))
         if refresh:
             return self._refresh(refresh.group("name"))
@@ -166,8 +183,13 @@ class ScriptCatalog:
         for column, expression in generated:
             for read in expression.find_all(exp.Column):
                 facts.append(
-                    (name, identifier(read.this, "postgres"), name, column,
-                     transform_of_path(expression, read))
+                    (
+                        name,
+                        identifier(read.this, "postgres"),
+                        name,
+                        column,
+                        transform_of_path(expression, read),
+                    )
                 )
         # D-34: a partition's or child's rows are its parent's.
         if parent is not None:
@@ -204,11 +226,51 @@ class ScriptCatalog:
 
         return Effect(finalize=finalize)
 
+    def _prepared_statement(self, code: str) -> Effect | None:
+        """D-35: PREPARE stores, EXECUTE re-analyses at its own line, DEALLOCATE forgets."""
+        prepare = _PREPARE.match(code)
+        if prepare:
+            self._prepared[_name(prepare.group("name"))] = prepare.group("body")
+            return Effect(count_only=True)
+        deallocate = _DEALLOCATE.match(code)
+        if deallocate:
+            name = _name(deallocate.group("name"))
+            if name == "all" and not deallocate.group("name").startswith('"'):
+                self._prepared.clear()
+            else:
+                self._prepared.pop(name, None)
+            return Effect(count_only=True)
+        execute = _EXECUTE.match(code)
+        if not execute:
+            return None
+        name = _name(execute.group("name"))
+        body = self._prepared.get(name)
+        if body is None:
+            return Effect(
+                count_only=True,
+                unknown=name,
+                unknown_detail=f"EXECUTE {name}: no PREPARE of it is in force at this point "
+                "of the script, so what it runs cannot be named (D-35)",
+            )
+        # CREATE TABLE t AS EXECUTE p is CREATE TABLE t AS <p's query>.
+        text = (execute.group("create") or "") + body
+        inner = self.effect(text)
+        if inner is None:
+            return Effect(rewrite=text)
+        if inner.rewrite is None and not (inner.count_only or inner.skip):
+            return Effect(rewrite=text, finalize=inner.finalize)
+        return inner
+
     def _refresh(self, written: str) -> Effect:
         name = self._key_from_text(written)
         known = self._matviews.get(name)
         if known is None:
-            return Effect(count_only=True, unknown=name)
+            return Effect(
+                count_only=True,
+                unknown=name,
+                unknown_detail=f"REFRESH MATERIALIZED VIEW {name}: its definition is not in "
+                "this analysis, so what it writes cannot be named (D-32)",
+            )
         columns, body = known
         target = f"{_quoted(name)} ({', '.join(_quoted_ident(c) for c in columns)})"
         return Effect(rewrite=f"INSERT INTO {target} {body}")
@@ -323,6 +385,22 @@ def _quoted(name: str) -> str:
 
 def _quoted_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
+
+
+def _name(text: str) -> str:
+    """A prepared statement's name, folded as PostgreSQL folds an identifier."""
+    return text[1:-1].replace('""', '"') if text.startswith('"') else text.lower()
+
+
+def _lead(text: str) -> str:
+    """The statement without the comments in front of it, block comments included."""
+    index = 0
+    while True:
+        while index < len(text) and text[index].isspace():
+            index += 1
+        if not text.startswith(("--", "/*"), index):
+            return text[index:]
+        index = skip_lexeme(text, index) or len(text)
 
 
 def _code(text: str) -> str:

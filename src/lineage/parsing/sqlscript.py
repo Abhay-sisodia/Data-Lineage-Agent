@@ -36,6 +36,7 @@ WHAT IT DOES NOT DO, AND SAYS SO
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import sqlglot
@@ -93,45 +94,13 @@ def split_statements(source: str) -> list[tuple[int, str]]:
 
     while index < length:
         char = source[index]
-        two = source[index : index + 2]
-
-        if two == "--":
-            end = source.find("\n", index)
-            end = length if end == -1 else end
-            buffer.append(source[index:end])
-            index = end
-            continue
-
-        if two == "/*":
-            end = source.find("*/", index + 2)
-            end = length if end == -1 else end + 2
-            chunk = source[index:end]
+        skipped = skip_lexeme(source, index)
+        if skipped is not None:
+            chunk = source[index:skipped]
             buffer.append(chunk)
             line += chunk.count("\n")
-            index = end
+            index = skipped
             continue
-
-        if char in ("'", '"'):
-            closing = source.find(char, index + 1)
-            while closing != -1 and source[closing : closing + 2] == char * 2:
-                closing = source.find(char, closing + 2)
-            end = length if closing == -1 else closing + 1
-            chunk = source[index:end]
-            buffer.append(chunk)
-            line += chunk.count("\n")
-            index = end
-            continue
-
-        if char == "$":
-            tag = _dollar_tag(source, index)
-            if tag is not None:
-                closing = source.find(tag, index + len(tag))
-                end = length if closing == -1 else closing + len(tag)
-                chunk = source[index:end]
-                buffer.append(chunk)
-                line += chunk.count("\n")
-                index = end
-                continue
 
         if char == ";":
             flush()
@@ -151,15 +120,66 @@ def split_statements(source: str) -> list[tuple[int, str]]:
     return statements
 
 
-def _dollar_tag(source: str, index: int) -> str | None:
-    """`$$` or `$tag$` starting at `index`, or None if this `$` opens neither."""
-    end = source.find("$", index + 1)
-    if end == -1:
-        return None
-    body = source[index + 1 : end]
-    if body and not body.replace("_", "").isalnum():
-        return None
-    return source[index : end + 1]
+_IDENT_CHAR = re.compile(r"[\w$]")
+_DOLLAR_TAG = re.compile(r"\$(?:[A-Za-z_\x80-\uffff][\w\x80-\uffff]*)?\$")
+
+
+def skip_lexeme(source: str, index: int) -> int | None:
+    """The end of the literal, quoted identifier or comment starting at `index`, or None.
+
+    One lexer for every pass that must not mistake text for code (B10). Each rule is
+    PostgreSQL's own, and each one missing cost a run of statements:
+
+    * `--` runs to the end of the line; `/* */` NESTS (B10-02);
+    * `'...'` doubles its quote and has no backslash escape (standard_conforming_strings),
+      but `E'...'` does: `E'it\\'s'` is one literal (B10-01). `U&'...'`, `B'...'`,
+      `X'...'` and `N'...'` are standard strings;
+    * `"..."` and `U&"..."` are identifiers, doubling their quote;
+    * `$tag$...$tag$` is a literal, but only where a token can start: `a$1` is a name, and
+      a tag never starts with a digit, so `$1` is a parameter.
+    """
+    char = source[index]
+    two = source[index : index + 2]
+    if two == "--":
+        end = source.find("\n", index)
+        return len(source) if end == -1 else end
+    if two == "/*":
+        depth, cursor = 1, index + 2
+        while depth and cursor < len(source):
+            pair = source[cursor : cursor + 2]
+            if pair == "/*":
+                depth, cursor = depth + 1, cursor + 2
+            elif pair == "*/":
+                depth, cursor = depth - 1, cursor + 2
+            else:
+                cursor += 1
+        return cursor
+    if char in ("'", '"'):
+        escaped = (
+            char == "'"
+            and index > 0
+            and source[index - 1] in "Ee"
+            and (index < 2 or not _IDENT_CHAR.match(source[index - 2]))
+        )
+        cursor = index + 1
+        while cursor < len(source):
+            current = source[cursor]
+            if escaped and current == "\\":
+                cursor += 2
+                continue
+            if current == char:
+                if source[cursor + 1 : cursor + 2] == char:
+                    cursor += 2
+                    continue
+                return cursor + 1
+            cursor += 1
+        return len(source)
+    if char == "$" and not (index > 0 and _IDENT_CHAR.match(source[index - 1])):
+        tag = _DOLLAR_TAG.match(source, index)
+        if tag is not None:
+            closing = source.find(tag.group(0), tag.end())
+            return len(source) if closing == -1 else closing + len(tag.group(0))
+    return None
 
 
 def statement_kind(text: str, dialect: str) -> str:

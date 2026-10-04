@@ -1004,6 +1004,9 @@ edges:
     unit: S4_MERGE_UPSERT
     line: 291
   evidence: source_read
+# KEY CORRECTED 2026-10-04 (finding B10-06, D-6): the MATCHED arm's WHERE tests
+# revenue_total, a correlated SUM, so this filter acts on an aggregated value:
+# post-aggregation. The label predated D-6 and used the keyword test D-6 rejected.
 - source:
     kind: column
     name: FCT_REVENUE.CUST_ID
@@ -1011,12 +1014,16 @@ edges:
     kind: relation
     name: DIM_CUSTOMER
   flow: filter
+  phase: post-aggregation
   transform: identity
   band: 0
   origin:
     unit: S4_MERGE_UPSERT
     line: 291
   evidence: source_read
+# KEY CORRECTED 2026-10-04 (finding B10-06, D-6): the MATCHED arm's WHERE tests
+# revenue_total, a correlated SUM, so this filter acts on an aggregated value:
+# post-aggregation. The label predated D-6 and used the keyword test D-6 rejected.
 - source:
     kind: column
     name: STG_CUSTOMER.CUST_ID
@@ -1024,12 +1031,16 @@ edges:
     kind: relation
     name: DIM_CUSTOMER
   flow: filter
+  phase: post-aggregation
   transform: identity
   band: 0
   origin:
     unit: S4_MERGE_UPSERT
     line: 291
   evidence: source_read
+# KEY CORRECTED 2026-10-04 (finding B10-06, D-6): the MATCHED arm's WHERE tests
+# revenue_total, a correlated SUM, so this filter acts on an aggregated value:
+# post-aggregation. The label predated D-6 and used the keyword test D-6 rejected.
 - source:
     kind: column
     name: FCT_REVENUE.NET_AMOUNT
@@ -1037,6 +1048,7 @@ edges:
     kind: relation
     name: DIM_CUSTOMER
   flow: filter
+  phase: post-aggregation
   transform: identity
   band: 0
   origin:

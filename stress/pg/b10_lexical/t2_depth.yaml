@@ -1,0 +1,458 @@
+# GENERATED from t2_depth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B10 t2_depth.sql - lexical robustness, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-35..D-38 (decided 2026-10-04, not
+# implemented). NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: S3 and S8 (PREPARE) are
+# counted with no edges; \set is not counted.
+package: pg/b10_lexical/t2_depth.sql
+dialect: postgres
+source_sha256: 309fd445ff26127a0c30a5f4e3c6137b55a9a85ba694a95bde334d336299ab9b
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: b.amt_text is projected but never reaches the target, so the tagged literal in it gives nothing.
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 36
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: relation
+    name: mart.sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+  note: $1 (depth 4) and $2 (depth 1) are external values (D-36).
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 74
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.status
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 104
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 104
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 104
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 104
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.carrier_id
+  target:
+    kind: column
+    name: mart.ship_pick.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 139
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.cost
+  target:
+    kind: column
+    name: mart.ship_pick.cost
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 139
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.status
+  target:
+    kind: relation
+    name: mart.ship_pick
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 139
+  evidence: source_read
+  note: 'Both CTE WHEREs read sh.status: one filter fact. E''LOST\''S'' and U&''DELIVERED'' are literals.'
+- source:
+    kind: column
+    name: mart.ship_pick.carrier_id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.ship_pick.cost
+  target:
+    kind: column
+    name: mart.carrier_scorecard.cost_per_kg
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.id
+  target:
+    kind: column
+    name: mart.product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 153
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.list_price
+  target:
+    kind: column
+    name: mart.product_performance.margin
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 153
+  evidence: source_read
+  note: 'D-12: the subquery''s WHERE (both operands of p2.id = p.id) feeds margin; a lookup is conditional,
+    and so is the CASE over two columns (D-19).'
+- source:
+    kind: column
+    name: staging.products.cost
+  target:
+    kind: column
+    name: mart.product_performance.margin
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 153
+  evidence: source_read
+  note: 'D-12: the subquery''s WHERE (both operands of p2.id = p.id) feeds margin; a lookup is conditional,
+    and so is the CASE over two columns (D-19).'
+- source:
+    kind: column
+    name: staging.products.id
+  target:
+    kind: column
+    name: mart.product_performance.margin
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 153
+  evidence: source_read
+  note: 'D-12: the subquery''s WHERE (both operands of p2.id = p.id) feeds margin; a lookup is conditional,
+    and so is the CASE over two columns (D-19).'
+- source:
+    kind: column
+    name: staging.events_log.id
+  target:
+    kind: column
+    name: mart.events_log.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 166
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.events_log.kind
+  target:
+    kind: column
+    name: mart.events_log.kind
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 167
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.account
+  target:
+    kind: column
+    name: core.ledger.account
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 168
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.amount
+  target:
+    kind: column
+    name: core.ledger.balance
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 169
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.currency
+  target:
+    kind: column
+    name: core.ledger.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 169
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.status
+  target:
+    kind: column
+    name: core.dim_carrier.name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 170
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  reason: c.email is inside a five-deep nested comment
+  transform: identity
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  reason: the WHERE is a line comment
+expected_boundaries: []

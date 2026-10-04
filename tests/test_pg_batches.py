@@ -163,6 +163,19 @@ EXPECTED = {
     ("b7_ddl_lineage/t5_metamorphic", Flow.VALUE): (29, 0, 0),
     ("b7_ddl_lineage/t5_metamorphic", Flow.FILTER): (3, 0, 0),
     ("b7_ddl_lineage/t5_metamorphic", Flow.INFLUENCE): (6, 0, 0),
+    ("b10_lexical/t1_breadth", Flow.VALUE): (29, 0, 0),
+    ("b10_lexical/t1_breadth", Flow.FILTER): (10, 0, 0),
+    ("b10_lexical/t2_depth", Flow.VALUE): (26, 0, 0),
+    ("b10_lexical/t2_depth", Flow.FILTER): (4, 0, 0),
+    ("b10_lexical/t2_depth", Flow.INFLUENCE): (2, 0, 0),
+    ("b10_lexical/t3_interaction", Flow.VALUE): (17, 0, 0),
+    ("b10_lexical/t3_interaction", Flow.FILTER): (11, 0, 0),
+    ("b10_lexical/t3_interaction", Flow.INFLUENCE): (1, 0, 0),
+    ("b10_lexical/t4_adversarial", Flow.VALUE): (15, 0, 0),
+    ("b10_lexical/t4_adversarial", Flow.FILTER): (8, 0, 0),
+    ("b10_lexical/t5_metamorphic", Flow.VALUE): (20, 0, 0),
+    ("b10_lexical/t5_metamorphic", Flow.FILTER): (8, 0, 0),
+    ("b10_lexical/t5_metamorphic", Flow.INFLUENCE): (8, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})
@@ -171,6 +184,8 @@ PINNED = sorted({name for name, _ in EXPECTED})
 REFUSED_ON_PURPOSE = {
     # TRUNCATE (no column has a source) and COPY (rows from outside the database).
     "b3_dml_writes/t1_breadth": ["SOURCE_UNAVAILABLE", "UNSUPPORTED_CONSTRUCT"],
+    # psql \copy, refused by name as COPY is (D-37).
+    "b10_lexical/t1_breadth": ["SOURCE_UNAVAILABLE"],
 }
 
 

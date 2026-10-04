@@ -41,6 +41,7 @@ from lineage.config import AnalysisConfig
 from lineage.dialects import resolve_dialect
 from lineage.evidence.witness import ExecutionWitness
 from lineage.ir.model import Boundary, BoundaryKind, IREdge, Node, NodeKind
+from lineage.parsing import psql
 from lineage.parsing.plsql import Program, parse_program, source_slice
 from lineage.resolution.dictionary import Dictionary
 from lineage.resolution.views import resolve_views
@@ -67,7 +68,12 @@ def analyse_source(
     settings = config or AnalysisConfig()
     dialect = resolve_dialect(settings, dictionary)
 
+    includes: list[psql.Include] = []
     if dialect.name == "postgres":
+        # D-36, D-37: a psql script restated as the SQL the server receives - meta-commands
+        # blanked, `:'v'` substituted, `U&""` decoded - before anything splits or parses
+        # it (B10-03, B10-05). Same lines, so every later line number holds.
+        source, includes = psql.restate(source)
         # D-30: JSON_TABLE / XMLTABLE restated as LATERAL subqueries in the SOURCE, before
         # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
         # (B5-04), and the refusal register scans the raw text. Line counts are kept.
@@ -107,6 +113,19 @@ def analyse_source(
     # `statements_seen`, a refusal spanning lineage that was legitimately produced, and a
     # `violations` contradiction for every recovered edge. Measured before it was fixed -
     # the ungated probe reported `seen 2, refusals 1, violations 1` on four correct edges.
+    # D-37: `\i` runs another file, whose lineage this analysis does not have.
+    for include in includes:
+        result.boundaries.append(
+            Boundary(
+                kind=BoundaryKind.SOURCE_UNAVAILABLE,
+                subject=include.path,
+                detail=f"\\i {include.path}: an included script's lineage is not in this "
+                "analysis (D-37)",
+                unit=band0.SCRIPT_UNIT,
+                line=include.line,
+            )
+        )
+
     already_refused = {(refusal.unit, refusal.line) for refusal in result.refusals}
     already_refused |= result.scoped_statements
     standing = list(result.refusals)

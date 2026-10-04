@@ -1,0 +1,69 @@
+# Answer key for B10 t2_depth.sql - lexical robustness, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-35..D-38 (decided 2026-10-04, not
+# implemented). NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: S3 and S8 (PREPARE) are
+# counted with no edges; \set is not counted.
+
+@ 15 S1 a tagged literal in the innermost of three CTEs
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.amount -> mart.channel_mix.revenue identity
+filter staging.orders.status -> mart.channel_mix
+note b.amt_text is projected but never reaches the target, so the tagged literal in it gives nothing.
+
+@ 36 S2 comments nested five deep
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+forbid value staging.customers.email -> mart.top_customers.full_name identity | c.email is inside a five-deep nested comment
+forbid filter staging.customers.status -> mart.top_customers | the WHERE is a line comment
+
+@ 68 S4 EXECUTE the chain (D-35)
+value staging.orders.store_id -> mart.sales_daily.store_id identity
+value staging.orders.amount -> mart.sales_daily.net_amount aggregated
+influence staging.orders.store_id -> mart.sales_daily.net_amount
+filter staging.orders.currency -> mart.sales_daily
+note $1 (depth 4) and $2 (depth 1) are external values (D-36).
+
+@ 74 S5 a nested dollar quote holding a statement, three levels down
+value staging.customers.segment -> mart.kpi_rollup.segment derived
+
+@ 89 S6 a psql variable three derived tables down
+value core.dim_store.region -> mart.kpi_rollup.region identity
+value core.dim_store.country_code -> mart.kpi_rollup.country_code identity
+filter core.dim_store.status -> mart.kpi_rollup
+
+@ 104 S7 a custom operator under an aggregate, two CTEs deep
+value staging.customers.segment -> mart.customer_summary.segment identity
+value staging.customers.full_name, staging.customers.email -> mart.customer_summary.avg_basket aggregated
+influence staging.customers.segment -> mart.customer_summary.avg_basket
+
+@ 139 S9 CREATE TABLE AS EXECUTE over the chain
+value staging.shipments.carrier_id -> mart.ship_pick.carrier_id identity
+value staging.shipments.cost -> mart.ship_pick.cost identity
+filter staging.shipments.status -> mart.ship_pick
+note Both CTE WHEREs read sh.status: one filter fact. E'LOST\'S' and U&'DELIVERED' are literals.
+
+@ 145 S10 reading the created table
+value mart.ship_pick.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value mart.ship_pick.cost -> mart.carrier_scorecard.cost_per_kg identity
+
+@ 153 S11 OPERATOR(pg_catalog.…) in a CASE in a scalar subquery
+value staging.products.id -> mart.product_performance.product_id identity
+value staging.products.list_price, staging.products.cost, staging.products.id -> mart.product_performance.margin conditional
+note D-12: the subquery's WHERE (both operands of p2.id = p.id) feeds margin; a lookup is conditional, and so is the CASE over two columns (D-19).
+
+@ 166 S12 a run of short statements
+value staging.events_log.id -> mart.events_log.id identity
+
+@ 167 S12 second line
+value staging.events_log.kind -> mart.events_log.kind identity
+
+@ 168 S12 third line
+value staging.ledger.account -> core.ledger.account identity
+
+@ 169 S12 fourth line, two statements
+value staging.ledger.amount -> core.ledger.balance identity
+value staging.ledger.currency -> core.ledger.status identity
+
+@ 170 S12 fifth line
+value staging.shipments.status -> core.dim_carrier.name identity

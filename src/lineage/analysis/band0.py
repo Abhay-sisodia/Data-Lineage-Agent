@@ -77,7 +77,7 @@ from lineage.dialects import fold, for_name
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
 from lineage.ir.model import Boundary, BoundaryKind, FilterPhase
-from lineage.parsing.sqlscript import SCRIPT_UNIT
+from lineage.parsing.sqlscript import SCRIPT_UNIT, statement_kind
 from lineage.parsing.plsql import ParsedStatement, Program, parse_program
 from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
@@ -3319,10 +3319,13 @@ def _analyse_merge(
         # writes or deletes: a filter, exactly like the arm's WHERE below. It gave nothing
         # (finding B3-09), so a MERGE that deletes closed customers reported no dependency
         # on `status` at all.
+        # A condition on an aggregate of the USING source (`s.amt > 100`, amt a SUM) acts on
+        # aggregated rows: post-aggregation, by D-6, as ON CONFLICT's DO UPDATE WHERE already
+        # was (finding B10-06).
         condition = when.args.get("condition")
         if condition is not None:
             for column in predicate_columns(condition):
-                for source_table, source_column, _ in _trace_in_merge(column):
+                for source_table, source_column, traced in _trace_in_merge(column):
                     edges.append(
                         _edge(
                             source_table,
@@ -3333,6 +3336,7 @@ def _analyse_merge(
                             band,
                             origin,
                             flow=Flow.FILTER,
+                            phase=_filter_phase(FilterPhase.PRE_AGGREGATION, traced),
                         )
                     )
         action = when.args.get("then")
@@ -3344,7 +3348,7 @@ def _analyse_merge(
             arm_where = action.args.get("where")
             if arm_where is not None:
                 for column in predicate_columns(arm_where):
-                    for source_table, source_column, _ in _trace_in_merge(column):
+                    for source_table, source_column, traced in _trace_in_merge(column):
                         edges.append(
                             _edge(
                                 source_table,
@@ -3355,6 +3359,7 @@ def _analyse_merge(
                                 band,
                                 origin,
                                 flow=Flow.FILTER,
+                                phase=_filter_phase(FilterPhase.PRE_AGGREGATION, traced),
                             )
                         )
 
@@ -3479,9 +3484,7 @@ def analyse_source(
             if effect.skip:
                 continue
             if effect.rewrite is not None:
-                kind = "insert_statement" if effect.rewrite.startswith("INSERT") else (
-                    "create_statement"
-                )
+                kind = statement_kind(effect.rewrite, program.dialect)
                 statement = dataclasses.replace(statement, text=effect.rewrite, kind=kind)
             elif effect.count_only:
                 # DDL whose lineage the catalog states itself (D-33, D-34), or none at all.
@@ -3497,16 +3500,28 @@ def analyse_source(
                         Boundary(
                             kind=BoundaryKind.SOURCE_UNAVAILABLE,
                             subject=effect.unknown,
-                            detail=(
-                                f"REFRESH MATERIALIZED VIEW {effect.unknown}: its definition "
-                                "is not in this analysis, so what it writes cannot be named "
-                                "(D-32)"
-                            ),
+                            detail=effect.unknown_detail,
                             unit=origin.unit,
                             line=statement.line,
                         )
                     )
                 continue
+        # B10-01: text SQLGlot reads as SEVERAL statements means the splitter cut in the
+        # wrong place. It was skipped below with nothing said - sixteen statements of one
+        # stress file, silently. Whatever the splitter gets wrong next, it is declared.
+        if statement.kind == "block_statement":
+            result.statements_seen += 1
+            result.boundaries.append(
+                Boundary(
+                    kind=BoundaryKind.PARSE_FAILURE,
+                    subject=f"{SCRIPT_UNIT}:{statement.line}",
+                    detail=f"{SCRIPT_UNIT}: line {statement.line}: the text holds several "
+                    "statements, so the script was split in the wrong place",
+                    unit=_enclosing_unit(program, statement),
+                    line=statement.line,
+                )
+            )
+            continue
         working = catalog.dictionary if catalog is not None else dictionary
         # DDL that moves data (T3.4b). Checked before the SUPPORTED gate because an
         # exchange is not a DML statement and never will be - and the failure it causes is
