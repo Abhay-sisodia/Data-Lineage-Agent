@@ -145,5 +145,7 @@ silent on REFRESH (B7-08).
 * **A defect of mine was caught on the way:** a heredoc turned `\b` into a backspace
   character in the OVERRIDING pattern, so it never matched. It was found because T1 S20
   still missed, and it was fixed before commit.
-* **Oracle:** see the commit. The view inliner change (schema-qualified names, targets
-  skipped) is the one part that reaches Oracle.
+* **Oracle:** unchanged. The view inliner change (schema-qualified names, targets
+  skipped) is the one part that reaches Oracle. Against `911d2a9`, the Oracle stress
+  packages' edges are identical and `run_stress.py` scores are identical; the only
+  output difference is where one SQLGlot parser warning is printed.
