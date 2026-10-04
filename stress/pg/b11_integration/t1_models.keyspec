@@ -1,0 +1,71 @@
+# Answer key for B11 t1_models.sql - integration: a dbt-style model set.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: every decision D-1..D-44. Views are inlined, tables and materialized views
+# are nodes (D-31). Transforms compose along the path (D-7) through views and CTEs.
+
+@ 17 S1 the orders cleaning view
+value staging.orders.id -> mart.v_orders_clean.order_id identity
+value staging.orders.customer_id -> mart.v_orders_clean.customer_id identity
+value staging.orders.store_id -> mart.v_orders_clean.store_id identity
+value staging.orders.order_ts -> mart.v_orders_clean.order_date derived
+value staging.orders.channel -> mart.v_orders_clean.channel derived
+value staging.orders.currency -> mart.v_orders_clean.currency identity
+value staging.orders.amount -> mart.v_orders_clean.amount identity
+filter staging.orders.status -> mart.v_orders_clean
+
+@ 32 S2 the order-lines cleaning view
+value staging.order_lines.order_id -> mart.v_lines_clean.order_id identity
+value staging.order_lines.product_id -> mart.v_lines_clean.product_id identity
+value staging.order_lines.quantity -> mart.v_lines_clean.quantity identity
+value staging.order_lines.unit_price -> mart.v_lines_clean.unit_price identity
+value staging.order_lines.quantity, staging.order_lines.unit_price -> mart.v_lines_clean.gross derived
+value staging.order_lines.quantity, staging.order_lines.unit_price, staging.order_lines.discount_pct -> mart.v_lines_clean.discount derived
+filter staging.order_lines.status -> mart.v_lines_clean
+note COALESCE(discount_pct, 0) reads one column: derived (D-19).
+
+@ 46 S3 the fact model over both views
+value staging.orders.id -> mart.fct_sales.order_id identity
+value staging.orders.order_ts -> mart.fct_sales.order_date derived
+value staging.orders.store_id -> mart.fct_sales.store_id identity
+value staging.orders.channel -> mart.fct_sales.channel derived
+value staging.order_lines.product_id -> mart.fct_sales.product_id identity
+value staging.order_lines.quantity -> mart.fct_sales.quantity identity
+value staging.order_lines.quantity, staging.order_lines.unit_price, staging.order_lines.discount_pct -> mart.fct_sales.net derived
+value staging.order_lines.quantity, staging.order_lines.unit_price, staging.order_lines.discount_pct, staging.fx_rates.rate_to_usd -> mart.fct_sales.net_usd derived
+filter staging.orders.status, staging.order_lines.status -> mart.fct_sales
+note Both views' WHEREs reach the table (D-31: a view is its query). Every ON is structural (D-5), the fx join's derived order_date included.
+
+@ 73 S4 the daily mart from the fact table
+value mart.fct_sales.order_date -> mart.sales_daily.sale_date identity
+value mart.fct_sales.store_id -> mart.sales_daily.store_id identity
+value core.dim_store.region -> mart.sales_daily.region identity
+value mart.fct_sales.order_id -> mart.sales_daily.orders aggregated
+value mart.fct_sales.quantity -> mart.sales_daily.units aggregated
+value mart.fct_sales.net -> mart.sales_daily.net_amount aggregated
+value mart.fct_sales.net, mart.fct_sales.order_id -> mart.sales_daily.avg_order_value aggregated
+influence mart.fct_sales.order_date, mart.fct_sales.store_id -> mart.sales_daily.orders, mart.sales_daily.units, mart.sales_daily.net_amount, mart.sales_daily.avg_order_value
+note fct_sales is a node (D-31). NULLIF(d.orders, 0) reads one column (D-19); the SUMs make the path aggregated.
+
+@ 97 S5 top ten customers per region
+value core.dim_customer.region -> mart.top_customers.region identity
+value staging.orders.customer_id -> mart.top_customers.customer_id identity
+value staging.orders.amount -> mart.top_customers.revenue aggregated
+influence core.dim_customer.region, staging.orders.customer_id -> mart.top_customers.revenue
+filter core.dim_customer.is_current, staging.orders.status -> mart.top_customers
+filter core.dim_customer.region, staging.orders.amount -> mart.top_customers post
+note rn <= 10 filters by a ranking partitioned by region and ordered by a SUM: post-aggregation (D-9, D-6). The view's WHERE reaches the target.
+
+@ 115 S6 a materialized view over the fact table
+value mart.fct_sales.channel -> mart.mv_channel.channel identity
+value mart.fct_sales.net_usd -> mart.mv_channel.revenue aggregated
+influence mart.fct_sales.channel -> mart.mv_channel.revenue
+
+@ 124 S7 its REFRESH
+repeat value mart.fct_sales.channel -> mart.mv_channel.channel identity
+repeat value mart.fct_sales.net_usd -> mart.mv_channel.revenue aggregated
+repeat influence mart.fct_sales.channel -> mart.mv_channel.revenue
+
+@ 130 S8 the channel mart from the materialized view
+value mart.mv_channel.channel -> mart.channel_mix.channel identity
+value mart.mv_channel.revenue -> mart.channel_mix.revenue identity

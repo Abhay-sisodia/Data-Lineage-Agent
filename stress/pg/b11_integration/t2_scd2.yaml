@@ -1,0 +1,390 @@
+# GENERATED from t2_scd2.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B11 t2_scd2.sql - integration: an SCD2 dimension.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: every decision D-1..D-44. The temp table is pg_temp.chg (D-31); variables
+# are `var:<name>`, bands per edge (B8 rule 5).
+package: pg/b11_integration/t2_scd2.sql
+dialect: postgres
+source_sha256: 6ecd9afebb2e49316257c5d6e598ecdae56e84196f8b5f5a7900f13e7e4c0363
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: pg_temp.chg.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: pg_temp.chg.email
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: pg_temp.chg.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: column
+    name: pg_temp.chg.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: pg_temp.chg.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: pg_temp.chg
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.created_at
+  target:
+    kind: relation
+    name: pg_temp.chg
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.valid_from
+  target:
+    kind: relation
+    name: pg_temp.chg
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+  note: 'A subquery compared in WHERE decides which rows land: its column is a filter (B2), and valid_from
+    reaches the comparison through MAX: post-aggregation, per column (D-6; B2 T1''s AVG precedent).'
+- source:
+    kind: column
+    name: core.dim_customer.is_current
+  target:
+    kind: relation
+    name: core.dim_customer
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+  note: 'd.customer_id = c.id joins the FROM relation to the target: structural (D-11, B3). SET writes
+    literals.'
+- source:
+    kind: column
+    name: pg_temp.chg.id
+  target:
+    kind: column
+    name: core.dim_customer.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.chg.email
+  target:
+    kind: column
+    name: core.dim_customer.email
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.chg.full_name
+  target:
+    kind: column
+    name: core.dim_customer.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.chg.country_code
+  target:
+    kind: column
+    name: core.dim_customer.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.chg.segment
+  target:
+    kind: column
+    name: core.dim_customer.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: core.dim_customer.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.country_code
+  target:
+    kind: column
+    name: core.dim_customer.region
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.chg.country_code
+  target:
+    kind: column
+    name: core.dim_customer.region
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.opened_on
+  target:
+    kind: column
+    name: core.dim_customer.region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 39
+  evidence: source_read
+  note: The lookup's projected column passes through (B2-01); its WHERE, both correlation operands, is
+    a conditional value (D-12); its ORDER BY ... LIMIT 1 is influence (D-13).
+- source:
+    kind: column
+    name: core.dim_customer.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_publish_customers
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.full_name
+  target:
+    kind: column
+    name: mart.customer_summary.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_publish_customers
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.segment
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_publish_customers
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.customer_summary.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_publish_customers
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.is_current
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_publish_customers
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.valid_from
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_publish_customers
+    line: 67
+  evidence: source_read
+- source:
+    kind: variable
+    name: p_since
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_publish_customers
+    line: 67
+  evidence: source_read
+  note: USING's WHERE filters the MERGE (S3-03); ON is structural (D-5); p_since is a parameter, band
+    1.
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_publish_customers
+    line: 85
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.customers
+  flow: influence
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_publish_customers
+    line: 85
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.is_current
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_publish_customers
+    line: 85
+  evidence: source_read
+  note: 'r.n is COUNT(*): no value source, but the loop query''s GROUP BY governs it (influence); the
+    loop''s WHERE filters the write (B8 rule 4).'
+forbidden: []
+expected_boundaries: []

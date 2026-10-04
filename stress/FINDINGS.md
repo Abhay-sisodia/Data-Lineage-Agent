@@ -177,6 +177,8 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B8-03 | `refusal-taxonomy` | **fixed** | a read of an in-script function in FROM is declared `dangling_reference`; D-40 inlines a RETURN QUERY body and declares a RETURN NEXT one `source_unavailable`. Fixed 2026-10-04 (option A); `stress/pg/b8_procedural/REPORT.md` section 6. |
 | B8-04 | `refusal-taxonomy` | **fixed** | a scalar function call is declared `source_unavailable` (body unread); a top-level `SELECT f()` should become a plain count once bodies are read (D-39). Fixed 2026-10-04 (option A); `stress/pg/b8_procedural/REPORT.md` section 6. |
 | B8-05 | `flow-classification` | **fixed** | a projection holding a user-defined call kept only the call's summary columns (`x - f(y)` lost `x`; `SUM(f(y))` lost its GROUP BY influence), and the expression around the call did not count toward the transform. Found by B8 T2. Fixed 2026-10-04 (option A); `stress/pg/b8_procedural/REPORT.md` section 6. |
+| B11-01 | `construct-coverage` | **fixed** | `jsonb_to_recordset(...) AS x(col type, ...)` under CROSS JOIN LATERAL loses its columns (declared unresolved); the comma-join form works. Fixed 2026-10-04; `stress/pg/b11_integration/REPORT.md` section 6. |
+| B11-02 | `refusal-taxonomy` | **fixed** | `nextval('seq')` is declared source_unavailable as an unsummarised call; it is a built-in that reads no column. Fixed 2026-10-04; `stress/pg/b11_integration/REPORT.md` section 6. |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4659,3 +4661,14 @@ with the PL/pgSQL reader (B8 REPORT section 6).
   the bound table's columns; an unbound trigger function gives nothing; WHEN is a filter.
 * **D-42** - dynamic SQL is analysed (band 2) when its text folds to a constant; otherwise
   declared dynamic_sql `EXECUTE:<line>`; USING values are external.
+
+## Decisions taken — 2026-10-04 (D-43, D-44)
+
+Taken by Abhay before batch B11's keys were written. Full statements in
+`stress/pg/b11_integration/OBJECTIVES.md`.
+
+* **D-43** - the integration pipelines avoid shapes whose convention is still open (semi-joins,
+  non-equality join conditions, single-relation ON predicates, the B8 loop-UPDATE WHERE,
+  GROUP BY influence onto a ranking over an aggregate); each avoidance is listed.
+* **D-44** - B11 is five production-shaped pipelines (models, SCD2, semi-structured, legacy
+  deploy, written-twice) rather than the T1-T5 gradient.

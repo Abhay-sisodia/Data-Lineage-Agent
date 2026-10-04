@@ -1,0 +1,80 @@
+# Answer key for B11 t5_twice.sql - integration: one pipeline written twice.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: every decision D-1..D-44. Pair facts are stated at A and restated at B,
+# scored in A's band.
+
+@ 16 S0 the view
+value staging.orders.customer_id -> mart.v_p1.customer_id identity
+value staging.orders.amount -> mart.v_p1.amt aggregated
+influence staging.orders.customer_id -> mart.v_p1.amt
+filter staging.orders.status -> mart.v_p1
+
+@ 24 P1A reading the view
+value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+value staging.orders.amount -> mart.customer_summary.lifetime_value aggregated
+influence staging.orders.customer_id -> mart.customer_summary.lifetime_value
+filter staging.orders.status -> mart.customer_summary
+@ 28 P1B the CTE
+repeat value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+repeat value staging.orders.amount -> mart.customer_summary.lifetime_value aggregated
+repeat influence staging.orders.customer_id -> mart.customer_summary.lifetime_value
+repeat filter staging.orders.status -> mart.customer_summary
+
+@ 40 P2A set-based
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+filter staging.customers.segment -> mart.top_customers
+@ 51 P2B the loop
+repeat value staging.customers.id -> mart.top_customers.customer_id identity
+repeat value staging.customers.full_name -> mart.top_customers.full_name identity
+repeat filter staging.customers.segment -> mart.top_customers
+
+@ 59 P3A a direct UPDATE
+value core.dim_store.region -> core.dim_store.region derived
+filter core.dim_store.country_code -> core.dim_store
+@ 65 P3B PREPARE + EXECUTE
+repeat value core.dim_store.region -> core.dim_store.region derived
+repeat filter core.dim_store.country_code -> core.dim_store
+
+@ 70 P4A ->>
+value staging.orders.payload -> mart.channel_mix.channel derived
+@ 73 P4B #>>
+repeat value staging.orders.payload -> mart.channel_mix.channel derived
+
+@ 78 P5A ->>
+value staging.orders.payload -> mart.channel_mix.region derived
+@ 81 P5B jsonb_extract_path_text
+repeat value staging.orders.payload -> mart.channel_mix.region derived
+
+@ 87 P6A CREATE TEMP TABLE AS
+value staging.payments.id -> pg_temp.t6.id identity
+value staging.payments.method -> pg_temp.t6.method identity
+filter staging.payments.status -> pg_temp.t6
+@ 93 P6B SELECT INTO TEMP
+repeat value staging.payments.id -> pg_temp.t6.id identity
+repeat value staging.payments.method -> pg_temp.t6.method identity
+repeat filter staging.payments.status -> pg_temp.t6
+
+@ 106 R1 the watermark
+origin mart.pr_load_payments 1
+value core.fct_payment.paid_date -> var:v_wm aggregated
+note COALESCE(MAX(x), literal) reads one column (D-19); the MAX makes the path aggregated.
+
+@ 108 R2 the incremental load
+origin mart.pr_load_payments 0
+value staging.payments.id -> core.fct_payment.payment_id identity
+value staging.payments.order_id -> core.fct_payment.order_id identity
+value staging.payments.method -> core.fct_payment.method identity
+value staging.payments.amount -> core.fct_payment.amount identity
+value staging.payments.amount, staging.fx_rates.rate_to_usd -> core.fct_payment.amount_usd derived
+value staging.payments.paid_at -> core.fct_payment.paid_date derived
+value staging.payments.status -> core.fct_payment.status identity
+filter staging.payments.paid_at, staging.payments.status -> core.fct_payment
+origin mart.pr_load_payments 1
+filter var:v_wm -> core.fct_payment
+note The fx join's ON is structural (D-5), its cast operand included.
+
+@ 115 R3 the run log
+origin mart.pr_load_payments 1
+value var:v_rows -> mart.events_log.id identity

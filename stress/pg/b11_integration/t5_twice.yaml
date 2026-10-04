@@ -1,0 +1,420 @@
+# GENERATED from t5_twice.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B11 t5_twice.sql - integration: one pipeline written twice.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: every decision D-1..D-44. Pair facts are stated at A and restated at B,
+# scored in A's band.
+package: pg/b11_integration/t5_twice.sql
+dialect: postgres
+source_sha256: 4ce31f9245ab4d81cad2a5fcc309e92ba16e6aa3dfde1c1645a797b3b5f90d3d
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.v_p1.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.v_p1.amt
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.v_p1.amt
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.v_p1
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 40
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 40
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 40
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: core.dim_store.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.country_code
+  target:
+    kind: relation
+    name: core.dim_store
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.id
+  target:
+    kind: column
+    name: pg_temp.t6.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.method
+  target:
+    kind: column
+    name: pg_temp.t6.method
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: relation
+    name: pg_temp.t6
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_payment.paid_date
+  target:
+    kind: variable
+    name: v_wm
+  flow: value
+  transform: aggregated
+  band: 1
+  origin:
+    unit: mart.pr_load_payments
+    line: 106
+  evidence: source_read
+  note: COALESCE(MAX(x), literal) reads one column (D-19); the MAX makes the path aggregated.
+- source:
+    kind: column
+    name: staging.payments.id
+  target:
+    kind: column
+    name: core.fct_payment.payment_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.order_id
+  target:
+    kind: column
+    name: core.fct_payment.order_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.method
+  target:
+    kind: column
+    name: core.fct_payment.method
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: core.fct_payment.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: core.fct_payment.amount_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.fx_rates.rate_to_usd
+  target:
+    kind: column
+    name: core.fct_payment.amount_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.paid_at
+  target:
+    kind: column
+    name: core.fct_payment.paid_date
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: column
+    name: core.fct_payment.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.paid_at
+  target:
+    kind: relation
+    name: core.fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: relation
+    name: core.fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+- source:
+    kind: variable
+    name: v_wm
+  target:
+    kind: relation
+    name: core.fct_payment
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_load_payments
+    line: 108
+  evidence: source_read
+  note: The fx join's ON is structural (D-5), its cast operand included.
+- source:
+    kind: variable
+    name: v_rows
+  target:
+    kind: column
+    name: mart.events_log.id
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_load_payments
+    line: 115
+  evidence: source_read
+forbidden: []
+expected_boundaries: []

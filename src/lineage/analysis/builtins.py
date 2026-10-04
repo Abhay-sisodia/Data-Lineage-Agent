@@ -64,6 +64,10 @@ SCALAR = {
             "JSONB_TO_RECORDSET", "JSONB_TO_RECORD", "JSON_TO_RECORDSET", "JSON_TO_RECORD",
             "EACH", "SKEYS", "SVALS", "AKEYS", "AVALS", "HSTORE_TO_JSONB", "HSTORE_TO_JSON",
             "XPATH", "XPATH_EXISTS", "ARRAY_TO_JSON",
+            # finding B11-02: sequence functions. Their argument names a sequence in a
+            # literal, so they read no column; read as user calls they were declared
+            # "could not be summarised", which was false.
+            "NEXTVAL", "CURRVAL", "SETVAL", "LASTVAL",
         }
     ),
 }

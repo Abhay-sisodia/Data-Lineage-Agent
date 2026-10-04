@@ -189,10 +189,26 @@ EXPECTED = {
     ("b8_procedural/t4_adversarial", Flow.VALUE): (6, 0, 0),
     ("b8_procedural/t5_metamorphic", Flow.FILTER): (5, 0, 0),
     ("b8_procedural/t5_metamorphic", Flow.VALUE): (12, 0, 0),
+    ("b11_integration/t1_models", Flow.FILTER): (8, 0, 0),
+    ("b11_integration/t1_models", Flow.INFLUENCE): (11, 0, 0),
+    ("b11_integration/t1_models", Flow.VALUE): (44, 0, 0),
+    ("b11_integration/t2_scd2", Flow.FILTER): (6, 0, 0),
+    ("b11_integration/t2_scd2", Flow.INFLUENCE): (1, 0, 0),
+    ("b11_integration/t2_scd2", Flow.VALUE): (17, 0, 0),
+    ("b11_integration/t3_semistructured", Flow.FILTER): (5, 0, 0),
+    ("b11_integration/t3_semistructured", Flow.INFLUENCE): (2, 0, 0),
+    ("b11_integration/t3_semistructured", Flow.VALUE): (22, 0, 0),
+    ("b11_integration/t4_legacy_deploy", Flow.FILTER): (5, 0, 0),
+    ("b11_integration/t4_legacy_deploy", Flow.INFLUENCE): (3, 0, 0),
+    ("b11_integration/t4_legacy_deploy", Flow.VALUE): (11, 0, 0),
+    ("b11_integration/t5_twice", Flow.FILTER): (7, 0, 0),
+    ("b11_integration/t5_twice", Flow.INFLUENCE): (2, 0, 0),
+    ("b11_integration/t5_twice", Flow.VALUE): (19, 0, 0),
 }
 
-# B8 is procedural: its facts sit in bands 1 and 2 as well, and a mis-banded edge scores as a
-# miss in its true band and a false positive in the claimed one. Every band is pinned.
+# B8, and B11's procedural pipelines, put facts in bands 1 and 2 as well, and a mis-banded
+# edge scores as a miss in its true band and a false positive in the claimed one. Every band
+# is pinned.
 EXPECTED_BANDS = {
     ("b8_procedural/t1_breadth", 0, Flow.FILTER): (8, 0, 0),
     ("b8_procedural/t1_breadth", 0, Flow.INFLUENCE): (2, 0, 0),
@@ -224,6 +240,29 @@ EXPECTED_BANDS = {
     ("b8_procedural/t5_metamorphic", 1, Flow.VALUE): (8, 0, 0),
     ("b8_procedural/t5_metamorphic", 2, Flow.FILTER): (1, 0, 0),
     ("b8_procedural/t5_metamorphic", 2, Flow.VALUE): (2, 0, 0),
+    ("b11_integration/t1_models", 0, Flow.FILTER): (8, 0, 0),
+    ("b11_integration/t1_models", 0, Flow.INFLUENCE): (11, 0, 0),
+    ("b11_integration/t1_models", 0, Flow.VALUE): (44, 0, 0),
+    ("b11_integration/t2_scd2", 0, Flow.FILTER): (6, 0, 0),
+    ("b11_integration/t2_scd2", 0, Flow.INFLUENCE): (1, 0, 0),
+    ("b11_integration/t2_scd2", 0, Flow.VALUE): (17, 0, 0),
+    ("b11_integration/t2_scd2", 1, Flow.FILTER): (2, 0, 0),
+    ("b11_integration/t2_scd2", 1, Flow.INFLUENCE): (1, 0, 0),
+    ("b11_integration/t2_scd2", 1, Flow.VALUE): (1, 0, 0),
+    ("b11_integration/t3_semistructured", 0, Flow.FILTER): (5, 0, 0),
+    ("b11_integration/t3_semistructured", 0, Flow.INFLUENCE): (2, 0, 0),
+    ("b11_integration/t3_semistructured", 0, Flow.VALUE): (22, 0, 0),
+    ("b11_integration/t3_semistructured", 2, Flow.VALUE): (1, 0, 0),
+    ("b11_integration/t4_legacy_deploy", 0, Flow.FILTER): (5, 0, 0),
+    ("b11_integration/t4_legacy_deploy", 0, Flow.INFLUENCE): (3, 0, 0),
+    ("b11_integration/t4_legacy_deploy", 0, Flow.VALUE): (11, 0, 0),
+    ("b11_integration/t4_legacy_deploy", 2, Flow.INFLUENCE): (1, 0, 0),
+    ("b11_integration/t4_legacy_deploy", 2, Flow.VALUE): (2, 0, 0),
+    ("b11_integration/t5_twice", 0, Flow.FILTER): (7, 0, 0),
+    ("b11_integration/t5_twice", 0, Flow.INFLUENCE): (2, 0, 0),
+    ("b11_integration/t5_twice", 0, Flow.VALUE): (19, 0, 0),
+    ("b11_integration/t5_twice", 1, Flow.FILTER): (1, 0, 0),
+    ("b11_integration/t5_twice", 1, Flow.VALUE): (2, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})
@@ -234,6 +273,8 @@ REFUSED_ON_PURPOSE = {
     "b3_dml_writes/t1_breadth": ["SOURCE_UNAVAILABLE", "UNSUPPORTED_CONSTRUCT"],
     # psql \copy, refused by name as COPY is (D-37).
     "b10_lexical/t1_breadth": ["SOURCE_UNAVAILABLE"],
+    # psql \copy in the legacy deploy script (D-37).
+    "b11_integration/t4_legacy_deploy": ["SOURCE_UNAVAILABLE"],
 }
 
 

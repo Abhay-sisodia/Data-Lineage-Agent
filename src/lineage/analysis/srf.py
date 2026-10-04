@@ -86,10 +86,17 @@ def _restated(node: Any, dialect: str, first: bool) -> Any:
     ordinal: str | None = None
     if isinstance(node, exp.Lateral):
         inner = node.this
-        if not isinstance(inner, exp.Unnest):
+        if isinstance(inner, exp.Unnest):
+            calls = _calls(inner)
+            offset = inner.args.get("offset")
+        elif isinstance(inner, (exp.Anonymous, exp.ExplodingGenerateSeries)):
+            # `CROSS JOIN LATERAL jsonb_to_recordset(...) AS x(a int)` (finding B11-01).
+            # LATERAL changes nothing for a function in FROM - PostgreSQL lets it read the
+            # items before it either way - so it is read as the comma-join form is.
+            calls = _table_calls(exp.Table(this=inner.copy()))
+            offset = node.args.get("ordinality")
+        else:
             return None
-        calls = _calls(inner)
-        offset = inner.args.get("offset")
     elif isinstance(node, exp.Unnest):
         calls = _calls(node)
         offset = node.args.get("offset")

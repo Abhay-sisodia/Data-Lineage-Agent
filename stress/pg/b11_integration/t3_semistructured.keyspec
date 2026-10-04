@@ -1,0 +1,51 @@
+# Answer key for B11 t3_semistructured.sql - integration: a fact build from documents.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: every decision D-1..D-44. A document column is the node (D-29); an
+# element is derived from its array; an ordinal used to select rows stands for its array
+# (B6).
+
+@ 17 S1 this year's partition
+value staging.web_events_2026.id -> staging.web_events.id identity
+value staging.web_events_2026.session_id -> staging.web_events.session_id identity
+value staging.web_events_2026.customer_id -> staging.web_events.customer_id identity
+value staging.web_events_2026.event_type -> staging.web_events.event_type identity
+value staging.web_events_2026.event_ts -> staging.web_events.event_ts identity
+value staging.web_events_2026.page -> staging.web_events.page identity
+value staging.web_events_2026.properties -> staging.web_events.properties identity
+note D-34: a partition's rows are its parent's.
+
+@ 24 S2 load the partition from the documents
+value staging.orders.id -> staging.web_events_2026.id identity
+value staging.orders.customer_id -> staging.web_events_2026.customer_id identity
+value staging.orders.payload -> staging.web_events_2026.event_type, staging.web_events_2026.page, staging.web_events_2026.properties derived
+value staging.orders.order_ts -> staging.web_events_2026.event_ts identity
+filter staging.orders.payload -> staging.web_events_2026
+
+@ 38 S3 the first three tags, counted
+value staging.orders.tags -> mart.kpi_rollup.segment derived
+influence staging.orders.tags -> mart.kpi_rollup.orders
+filter staging.orders.tags -> mart.kpi_rollup
+note t.pos <= 3 selects by the ordinal, which stands for its array (B6); GROUP BY t.tag is influence from the array onto the COUNT.
+
+@ 53 S4 the trigger body
+origin mart.trg_ship_score 2
+value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity
+
+@ 67 S5 the shipment fact from its tracking document
+value staging.shipments.id -> core.fct_shipment.shipment_id identity
+value staging.shipments.tracking -> core.fct_shipment.carrier_id, core.fct_shipment.weight_kg derived
+value staging.shipments.status -> core.fct_shipment.status identity
+filter staging.shipments.status -> core.fct_shipment
+note jsonb_to_recordset's columns are derived from the document (B5); the SRF itself is structural (D-27).
+
+@ 77 S6 read back through the partitioned parent
+value staging.web_events.event_type -> mart.kpi_rollup.level identity
+value staging.web_events.customer_id -> mart.kpi_rollup.customers aggregated
+influence staging.web_events.event_type -> mart.kpi_rollup.customers
+filter staging.web_events.event_ts -> mart.kpi_rollup
+
+@ 87 S7 the product feed
+value staging.products.id -> mart.product_performance.product_id identity
+value staging.products.dims -> mart.product_performance.category_name derived
+filter staging.products.dims -> mart.product_performance

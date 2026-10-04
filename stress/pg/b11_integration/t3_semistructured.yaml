@@ -1,0 +1,411 @@
+# GENERATED from t3_semistructured.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B11 t3_semistructured.sql - integration: a fact build from documents.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: every decision D-1..D-44. A document column is the node (D-29); an
+# element is derived from its array; an ordinal used to select rows stands for its array
+# (B6).
+package: pg/b11_integration/t3_semistructured.sql
+dialect: postgres
+source_sha256: 445b3dd63e727b68e9c43c60e1e5193bb3f293595d5019c35f0b1af80e7731b2
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.web_events_2026.id
+  target:
+    kind: column
+    name: staging.web_events.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2026.session_id
+  target:
+    kind: column
+    name: staging.web_events.session_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2026.customer_id
+  target:
+    kind: column
+    name: staging.web_events.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2026.event_type
+  target:
+    kind: column
+    name: staging.web_events.event_type
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2026.event_ts
+  target:
+    kind: column
+    name: staging.web_events.event_ts
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2026.page
+  target:
+    kind: column
+    name: staging.web_events.page
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2026.properties
+  target:
+    kind: column
+    name: staging.web_events.properties
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'D-34: a partition''s rows are its parent''s.'
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: staging.web_events_2026.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: staging.web_events_2026.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: staging.web_events_2026.event_type
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: staging.web_events_2026.page
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: staging.web_events_2026.properties
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: column
+    name: staging.web_events_2026.event_ts
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: relation
+    name: staging.web_events_2026
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 38
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.kpi_rollup.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 38
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 38
+  evidence: source_read
+  note: t.pos <= 3 selects by the ordinal, which stands for its array (B6); GROUP BY t.tag is influence
+    from the array onto the COUNT.
+- source:
+    kind: column
+    name: core.fct_shipment.carrier_id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: mart.trg_ship_score
+    line: 53
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.id
+  target:
+    kind: column
+    name: core.fct_shipment.shipment_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.tracking
+  target:
+    kind: column
+    name: core.fct_shipment.carrier_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.tracking
+  target:
+    kind: column
+    name: core.fct_shipment.weight_kg
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.status
+  target:
+    kind: column
+    name: core.fct_shipment.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.status
+  target:
+    kind: relation
+    name: core.fct_shipment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+  note: jsonb_to_recordset's columns are derived from the document (B5); the SRF itself is structural
+    (D-27).
+- source:
+    kind: column
+    name: staging.web_events.event_type
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.customer_id
+  target:
+    kind: column
+    name: mart.kpi_rollup.customers
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.event_type
+  target:
+    kind: column
+    name: mart.kpi_rollup.customers
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.event_ts
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.id
+  target:
+    kind: column
+    name: mart.product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.dims
+  target:
+    kind: column
+    name: mart.product_performance.category_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.dims
+  target:
+    kind: relation
+    name: mart.product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+forbidden: []
+expected_boundaries: []
