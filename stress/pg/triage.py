@@ -71,7 +71,7 @@ def _statement_spans(sql: str) -> list[tuple[int, int, int]]:
     for number, line in enumerate(sql.splitlines(), start=1):
         text = line.strip()
         if code is None and re.match(
-            r"(?i)^(insert|with|select|update|delete|merge|create)\b", text
+            r"(?i)^(insert|with|select|update|delete|merge|create|alter|refresh|drop)\b", text
         ):
             code = number
         if text.endswith(";") and not text.startswith("--"):

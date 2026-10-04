@@ -158,6 +158,14 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B5-02 | `construct-coverage` | **fixed** | built-ins declared `source_unavailable`: `JSON_VALUE`, `JSON_QUERY`, `jsonb_object_keys`, `jsonb_path_query(_first)`, `jsonb_array_elements_text` (select list), `xpath`, `array_to_json` Fixed 2026-10-03; `stress/pg/b5_semi_structured/REPORT.md` section 6. |
 | B5-03 | `flow-classification` | **fixed** | **an ordered aggregate SQLGlot does not type (`jsonb_agg`, `xmlagg`) reports its ORDER BY column as an aggregated VALUE** - B1's rule makes it influence; typed aggregates are right Fixed 2026-10-03; `stress/pg/b5_semi_structured/REPORT.md` section 6. |
 | B5-04 | `parse-failure` | **fixed** | a JSON_TABLE with a PASSING clause does not parse in SQLGlot Fixed 2026-10-03; `stress/pg/b5_semi_structured/REPORT.md` section 6. |
+| B7-01 | `identity` | **fixed** | **objects the dictionary does not know are named bare**: a CTAS / view / matview / temp table / partition created in the script is `ch_rev`, not `mart.ch_rev` (D-25 reaches only resolved relations). `stress/pg/b7_ddl_lineage/REPORT.md` Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
+| B7-02 | `flow-classification` | **fixed** | **SELECT ... INTO writes to `<result>`** - it is CREATE TABLE AS Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
+| B7-03 | `construct-coverage` | **fixed** | (D-31 not implemented) objects created in the script are invisible to later statements: views not inlined, tables / matviews / temp tables unreadable Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
+| B7-04 | `identity` | **fixed** | **a temp table's unqualified name binds to the REAL table of that name** - an INSERT into a temp `orders` is reported as a write into `staging.orders` Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
+| B7-05 | `flow-classification` | **fixed** | **CREATE TABLE IF NOT EXISTS ... AS on an existing table still emits its edges** Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
+| B7-06 | `flow-classification` | **fixed** | CREATE TABLE AS ... WITH NO DATA emits edges though no rows move Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
+| B7-07 | `parse-failure` | **fixed** | INSERT ... OVERRIDING SYSTEM VALUE does not parse in SQLGlot Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
+| B7-08 | `silent-loss` | **fixed** | **REFRESH MATERIALIZED VIEW, ATTACH PARTITION and DETACH PARTITION are silent** - not counted, not refused, nothing declared Fixed 2026-10-04; `stress/pg/b7_ddl_lineage/REPORT.md` section 6. |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4591,3 +4599,18 @@ Taken by Abhay before batch B5's keys were written. Full statements in
   (D-26). Their SHAPE_NOT_DECIDABLE refusal is retired once implemented.
 
 **Schema (B5-QC):** additive `staging.feed_xml` (xml) and `staging.device_attrs` (hstore).
+
+## Decisions taken — 2026-10-03 (D-31 to D-34)
+
+Taken by Abhay before batch B7's keys were written. Full statements in
+`stress/pg/b7_ddl_lineage/OBJECTIVES.md`. All four implemented 2026-10-04 (B7 REPORT section 6).
+
+* **D-31** - objects created in the script are registered for later statements, in script
+  order: a VIEW is inlined to its base columns; a TABLE, temp table or materialized view is
+  a node; a temp table (pg_temp) shadows a same-named table for unqualified names.
+* **D-32** - REFRESH MATERIALIZED VIEW re-emits the definition's lineage when it is known;
+  otherwise it is counted and declared source_unavailable.
+* **D-33** - a plain CREATE TABLE is counted with no lineage and no refusal; a GENERATED
+  column gives derived edges, within the table, from the columns it reads; LIKE gives none.
+* **D-34** - PARTITION OF, ATTACH PARTITION and INHERITS give child.col -> parent.col
+  identity for every shared column (the Oracle EXCHANGE PARTITION rule); DETACH gives none.

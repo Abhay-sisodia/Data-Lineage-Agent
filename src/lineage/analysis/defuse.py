@@ -657,6 +657,12 @@ def analyse_statement(
         # INSERT too: def-use's part of an INSERT is the VALUES list and variable
         # predicates, and PostgreSQL VALUES are restated as SELECTs in band 0 (B3-12).
         return result
+    if dictionary.dialect == "postgres" and isinstance(statement, exp.Select) and (
+        statement.args.get("into") is not None
+    ):
+        # A script-level PostgreSQL SELECT ... INTO creates a TABLE (B7-02); band 0 analyses
+        # it as CREATE TABLE AS. Read as PL/SQL's INTO-variables it raised "arity mismatch".
+        return result
 
     if isinstance(statement, exp.Select) and statement.args.get("into") is not None:
         result = _analyse_select_into(statement, scope, relations, dictionary, origin, guard)

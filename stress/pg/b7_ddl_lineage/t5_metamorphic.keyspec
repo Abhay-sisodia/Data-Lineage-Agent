@@ -1,0 +1,90 @@
+# Answer key for B7 t5_metamorphic.sql - DDL that creates lineage, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-31..D-34. Every node is schema-qualified;
+# a temp table is pg_temp.<name>. Pair facts are stated at A and restated at B.
+
+@ 18 P1A CREATE TABLE AS
+value staging.customers.id -> mart.p1.id identity
+value staging.customers.segment -> mart.p1.segment identity
+@ 25 P1B CREATE TABLE + INSERT
+repeat value staging.customers.id -> mart.p1.id identity
+repeat value staging.customers.segment -> mart.p1.segment identity
+
+@ 31 P2A SELECT INTO
+value staging.orders.id -> mart.p2.id identity
+value staging.orders.channel -> mart.p2.channel identity
+@ 36 P2B CREATE TABLE AS
+repeat value staging.orders.id -> mart.p2.id identity
+repeat value staging.orders.channel -> mart.p2.channel identity
+
+@ 41 P3 the view both spellings read
+# KEY CORRECTED after the first run: this CREATE VIEW writes lineage into the view and
+# was not keyed at all. Its two facts are added; nothing else in the key moved.
+value staging.customers.segment -> mart.v_seg.segment identity
+filter staging.customers.status -> mart.v_seg
+
+@ 45 P3A reading a view
+value staging.customers.segment -> mart.kpi_rollup.segment identity
+filter staging.customers.status -> mart.kpi_rollup
+@ 49 P3B the same query as a derived table
+repeat value staging.customers.segment -> mart.kpi_rollup.segment identity
+repeat filter staging.customers.status -> mart.kpi_rollup
+
+@ 56 P4A PARTITION OF
+value staging.web_events_p4.id -> staging.web_events.id identity
+value staging.web_events_p4.session_id -> staging.web_events.session_id identity
+value staging.web_events_p4.customer_id -> staging.web_events.customer_id identity
+value staging.web_events_p4.event_type -> staging.web_events.event_type identity
+value staging.web_events_p4.event_ts -> staging.web_events.event_ts identity
+value staging.web_events_p4.page -> staging.web_events.page identity
+value staging.web_events_p4.properties -> staging.web_events.properties identity
+@ 63 P4B CREATE TABLE (LIKE) + ATTACH
+repeat value staging.web_events_p4.id -> staging.web_events.id identity
+repeat value staging.web_events_p4.session_id -> staging.web_events.session_id identity
+repeat value staging.web_events_p4.customer_id -> staging.web_events.customer_id identity
+repeat value staging.web_events_p4.event_type -> staging.web_events.event_type identity
+repeat value staging.web_events_p4.event_ts -> staging.web_events.event_ts identity
+repeat value staging.web_events_p4.page -> staging.web_events.page identity
+repeat value staging.web_events_p4.properties -> staging.web_events.properties identity
+
+@ 69 P5A view column list
+value staging.orders.id -> mart.v_p5.k identity
+value staging.orders.amount -> mart.v_p5.v identity
+@ 75 P5B projection aliases
+repeat value staging.orders.id -> mart.v_p5.k identity
+repeat value staging.orders.amount -> mart.v_p5.v identity
+
+@ 82 R1a staging into a temp table
+value staging.orders.id -> pg_temp.stg_paid.id identity
+value staging.orders.customer_id -> pg_temp.stg_paid.customer_id identity
+value staging.orders.amount -> pg_temp.stg_paid.amount identity
+value staging.orders.order_ts -> pg_temp.stg_paid.order_ts identity
+filter staging.orders.status -> pg_temp.stg_paid
+
+@ 88 R1b a view over the temp table
+value pg_temp.stg_paid.customer_id -> mart.v_cust_month.customer_id identity
+value pg_temp.stg_paid.order_ts -> mart.v_cust_month.m derived
+value pg_temp.stg_paid.amount -> mart.v_cust_month.rev aggregated
+influence pg_temp.stg_paid.customer_id, pg_temp.stg_paid.order_ts -> mart.v_cust_month.rev
+
+@ 94 R1c a materialized view over the view, joined
+value pg_temp.stg_paid.customer_id -> mart.mv_cust_month.customer_id identity
+value pg_temp.stg_paid.order_ts -> mart.mv_cust_month.m derived
+value pg_temp.stg_paid.amount -> mart.mv_cust_month.rev aggregated
+influence pg_temp.stg_paid.customer_id, pg_temp.stg_paid.order_ts -> mart.mv_cust_month.rev
+value staging.customers.segment -> mart.mv_cust_month.segment identity
+forbid filter staging.customers.id -> mart.mv_cust_month | the ON is structural (D-5)
+
+@ 100 R1d the refresh (D-32)
+repeat value pg_temp.stg_paid.customer_id -> mart.mv_cust_month.customer_id identity
+repeat value pg_temp.stg_paid.order_ts -> mart.mv_cust_month.m derived
+repeat value pg_temp.stg_paid.amount -> mart.mv_cust_month.rev aggregated
+repeat influence pg_temp.stg_paid.customer_id, pg_temp.stg_paid.order_ts -> mart.mv_cust_month.rev
+repeat value staging.customers.segment -> mart.mv_cust_month.segment identity
+
+@ 103 R1e the mart load from the materialized view
+value mart.mv_cust_month.customer_id -> mart.customer_summary.customer_id identity
+value mart.mv_cust_month.segment -> mart.customer_summary.segment identity
+value mart.mv_cust_month.rev -> mart.customer_summary.lifetime_value aggregated
+influence mart.mv_cust_month.customer_id, mart.mv_cust_month.segment -> mart.customer_summary.lifetime_value

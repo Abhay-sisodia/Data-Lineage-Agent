@@ -1,0 +1,517 @@
+# GENERATED from t5_metamorphic.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B7 t5_metamorphic.sql - DDL that creates lineage, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-31..D-34. Every node is schema-qualified;
+# a temp table is pg_temp.<name>. Pair facts are stated at A and restated at B.
+package: pg/b7_ddl_lineage/t5_metamorphic.sql
+dialect: postgres
+source_sha256: 7a0c40a0123dc20f204e0d792ace6834e95a90e04a72e2460e8fd0ba91ddae8b
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.p1.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.p1.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.p2.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.p2.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.v_seg.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 41
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.v_seg
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 41
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 45
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 45
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_p4.id
+  target:
+    kind: column
+    name: staging.web_events.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_p4.session_id
+  target:
+    kind: column
+    name: staging.web_events.session_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_p4.customer_id
+  target:
+    kind: column
+    name: staging.web_events.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_p4.event_type
+  target:
+    kind: column
+    name: staging.web_events.event_type
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_p4.event_ts
+  target:
+    kind: column
+    name: staging.web_events.event_ts
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_p4.page
+  target:
+    kind: column
+    name: staging.web_events.page
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_p4.properties
+  target:
+    kind: column
+    name: staging.web_events.properties
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.v_p5.k
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 69
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.v_p5.v
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 69
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: pg_temp.stg_paid.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: pg_temp.stg_paid.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: pg_temp.stg_paid.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: column
+    name: pg_temp.stg_paid.order_ts
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: pg_temp.stg_paid
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.customer_id
+  target:
+    kind: column
+    name: mart.v_cust_month.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 88
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.order_ts
+  target:
+    kind: column
+    name: mart.v_cust_month.m
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 88
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.amount
+  target:
+    kind: column
+    name: mart.v_cust_month.rev
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 88
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.customer_id
+  target:
+    kind: column
+    name: mart.v_cust_month.rev
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 88
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.order_ts
+  target:
+    kind: column
+    name: mart.v_cust_month.rev
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 88
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.customer_id
+  target:
+    kind: column
+    name: mart.mv_cust_month.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.order_ts
+  target:
+    kind: column
+    name: mart.mv_cust_month.m
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.amount
+  target:
+    kind: column
+    name: mart.mv_cust_month.rev
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.customer_id
+  target:
+    kind: column
+    name: mart.mv_cust_month.rev
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.stg_paid.order_ts
+  target:
+    kind: column
+    name: mart.mv_cust_month.rev
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.mv_cust_month.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_cust_month.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_cust_month.segment
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_cust_month.rev
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_cust_month.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_cust_month.segment
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 103
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: relation
+    name: mart.mv_cust_month
+  flow: filter
+  reason: the ON is structural (D-5)
+expected_boundaries: []

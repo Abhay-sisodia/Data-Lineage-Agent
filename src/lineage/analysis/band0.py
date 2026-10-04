@@ -24,6 +24,8 @@ Three behaviours matter more than coverage here:
 
 from __future__ import annotations
 
+import dataclasses
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -34,6 +36,7 @@ from sqlglot.optimizer.scope import Scope, ScopeType, build_scope
 
 from lineage.analysis.builtins import is_builtin
 from lineage.analysis.pg_dml import expand as expand_postgres_writes
+from lineage.analysis.catalog import ScriptCatalog
 from lineage.analysis.relations import AMBIGUOUS, identifier
 from lineage.analysis.srf import restate as restate_srfs
 from lineage.analysis.relations import bind as bind_relations
@@ -262,6 +265,17 @@ def _inline_views(
             name = table.name
             if not name:
                 continue
+            # A write's TARGET is never a view to expand (D-31: a view registered in the
+            # script is briefly a table while its own CREATE is analysed).
+            holder = table.parent.parent if isinstance(table.parent, exp.Schema) else table.parent
+            if isinstance(holder, (exp.Insert, exp.Create)) and (
+                holder.this is table or holder.this is table.parent
+            ):
+                continue
+            # The schema is part of the name: a bare lookup sent `mart.v_paid` through the
+            # default schema and missed it (B7, D-31).
+            if table.args.get("db"):
+                name = f"{table.text('db')}.{name}"
             try:
                 resolved = dictionary.resolve(name)
             except Exception:
@@ -3451,6 +3465,8 @@ def analyse_source(
     ccflag_spans = conditional_compilation_spans(source, program.dialect)
 
     path_token = SEARCH_PATH.set(None)
+    # D-31: objects the script creates, visible to the statements after them (B7).
+    catalog = ScriptCatalog(dictionary) if program.dialect == "postgres" else None
     for statement, statement_band in static + recovered:
         # D-23: `SET search_path` / `RESET search_path` change how every later unqualified
         # name binds, in script order. They carry no lineage of their own.
@@ -3458,6 +3474,40 @@ def analyse_source(
         if is_path_change(change):
             SEARCH_PATH.set(change)
             continue
+        effect = catalog.effect(statement.text) if catalog is not None else None
+        if effect is not None:
+            if effect.skip:
+                continue
+            if effect.rewrite is not None:
+                kind = "insert_statement" if effect.rewrite.startswith("INSERT") else (
+                    "create_statement"
+                )
+                statement = dataclasses.replace(statement, text=effect.rewrite, kind=kind)
+            elif effect.count_only:
+                # DDL whose lineage the catalog states itself (D-33, D-34), or none at all.
+                result.statements_seen += 1
+                origin = Origin(unit=_enclosing_unit(program, statement), line=statement.line)
+                for source_table, source_column, target, target_column, transform in effect.facts:
+                    result.edges.append(
+                        _edge(source_table, source_column, target, target_column, transform,
+                              statement_band, origin)
+                    )
+                if effect.unknown is not None:
+                    result.boundaries.append(
+                        Boundary(
+                            kind=BoundaryKind.SOURCE_UNAVAILABLE,
+                            subject=effect.unknown,
+                            detail=(
+                                f"REFRESH MATERIALIZED VIEW {effect.unknown}: its definition "
+                                "is not in this analysis, so what it writes cannot be named "
+                                "(D-32)"
+                            ),
+                            unit=origin.unit,
+                            line=statement.line,
+                        )
+                    )
+                continue
+        working = catalog.dictionary if catalog is not None else dictionary
         # DDL that moves data (T3.4b). Checked before the SUPPORTED gate because an
         # exchange is not a DML statement and never will be - and the failure it causes is
         # the worst-shaped one there is: `fct_revenue_part` acquires its entire contents
@@ -3572,7 +3622,7 @@ def analyse_source(
 
         edges, refusal, unresolved = _analyse_statement(
             statement,
-            dictionary,
+            working,
             settings,
             statement_band,
             origin,
@@ -3580,6 +3630,8 @@ def analyse_source(
             result_target,
             drop_ctes,
         )
+        if effect is not None and effect.finalize is not None:
+            effect.finalize()  # a view becomes inlinable only after its own CREATE
         # Declared, counted, and never silent. An identifier the analyser could not
         # resolve is a stated boundary - which is what makes the coverage number
         # defensible rather than decorative.

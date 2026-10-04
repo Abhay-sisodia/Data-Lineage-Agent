@@ -148,6 +148,21 @@ EXPECTED = {
     ("b5_semi_structured/t5_metamorphic", Flow.VALUE): (14, 0, 0),
     ("b5_semi_structured/t5_metamorphic", Flow.FILTER): (3, 0, 0),
     ("b5_semi_structured/t5_metamorphic", Flow.INFLUENCE): (7, 0, 0),
+    # B7 DDL lineage - agreed 2026-10-04 after every fix in REPORT.md section 6. No false
+    # positive, no miss, none hidden; all five pairs equal. T4 has only value facts.
+    ("b7_ddl_lineage/t1_breadth", Flow.VALUE): (56, 0, 0),
+    ("b7_ddl_lineage/t1_breadth", Flow.FILTER): (4, 0, 0),
+    ("b7_ddl_lineage/t1_breadth", Flow.INFLUENCE): (3, 0, 0),
+    ("b7_ddl_lineage/t2_depth", Flow.VALUE): (18, 0, 0),
+    ("b7_ddl_lineage/t2_depth", Flow.FILTER): (10, 0, 0),
+    ("b7_ddl_lineage/t2_depth", Flow.INFLUENCE): (5, 0, 0),
+    ("b7_ddl_lineage/t3_interaction", Flow.VALUE): (20, 0, 0),
+    ("b7_ddl_lineage/t3_interaction", Flow.FILTER): (3, 0, 0),
+    ("b7_ddl_lineage/t3_interaction", Flow.INFLUENCE): (2, 0, 0),
+    ("b7_ddl_lineage/t4_adversarial", Flow.VALUE): (17, 0, 0),
+    ("b7_ddl_lineage/t5_metamorphic", Flow.VALUE): (29, 0, 0),
+    ("b7_ddl_lineage/t5_metamorphic", Flow.FILTER): (3, 0, 0),
+    ("b7_ddl_lineage/t5_metamorphic", Flow.INFLUENCE): (6, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})

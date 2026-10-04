@@ -72,6 +72,15 @@ def analyse_source(
         # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
         # (B5-04), and the refusal register scans the raw text. Line counts are kept.
         source = restate_document_tables(source)
+        # B7-07: SQLGlot cannot parse OVERRIDING {SYSTEM|USER} VALUE. It decides whether an
+        # identity column takes the supplied value and changes nothing about lineage, so it
+        # is blanked - same length, so every line and column stays where it was.
+        source = re.sub(
+            r"\bOVERRIDING\s+(?:SYSTEM|USER)\s+VALUE\b",
+            lambda m: re.sub(r"\S", " ", m.group(0)),
+            source,
+            flags=re.IGNORECASE,
+        )
 
     program = dialect.frontend.parse(source)
 
@@ -391,6 +400,12 @@ def _suppressed_errors(program: Program) -> list[Boundary]:
     return found
 
 
+_TEMP_TABLE = re.compile(
+    r"(?i)(?:CREATE\s+(?:LOCAL\s+|GLOBAL\s+)?TEMP(?:ORARY)?\s+TABLE|INTO\s+TEMP(?:ORARY)?(?:\s+TABLE)?)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)"
+)
+"""A temp table's name where a statement creates one (D-31)."""
+
+
 def _context_dependent_names(
     program: Program, result: AnalysisResult, dialect: str
 ) -> list[Boundary]:
@@ -407,7 +422,14 @@ def _context_dependent_names(
     """
     seen: dict[str, int] = {}
     path: list[str] | None = None
+    temps: set[str] = set()
     for statement in program.statements:
+        # D-31: a temp table lives in pg_temp, which is searched first - an unqualified name
+        # that a temp table holds binds with certainty, so it assumes nothing.
+        if dialect == "postgres":
+            temps |= {
+                name.upper() for name in _TEMP_TABLE.findall(statement.text)
+            }
         # D-23: under a `SET search_path` the binding is certain, so nothing is assumed.
         change = search_path_change(statement.text, dialect)
         if is_path_change(change):
@@ -428,7 +450,7 @@ def _context_dependent_names(
         # search-path warning about names that never touch the search path (finding B1-06).
         local = {(cte.alias_or_name or "").upper() for cte in parsed.find_all(exp.CTE)}
         for table in parsed.find_all(exp.Table):
-            if table.text("db") or not table.name or table.name.upper() in local:
+            if table.text("db") or not table.name or table.name.upper() in local | temps:
                 continue
             unit = enclosing_unit_at(program, statement.line)
             seen.setdefault(unit, statement.line)

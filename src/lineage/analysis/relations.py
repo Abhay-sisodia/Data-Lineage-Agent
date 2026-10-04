@@ -67,6 +67,8 @@ def _owners_by_name(dictionary: Dictionary) -> dict[str, tuple[str, ...]]:
 def schema_for(name: str, dictionary: Dictionary, path: list[str] | None) -> str | None:
     """The schema an unqualified `name` means, `AMBIGUOUS`, or None if no schema has it."""
     owners = _owners_by_name(dictionary).get(name, ())
+    if "pg_temp" in owners:
+        return "pg_temp"  # a temp table shadows every schema on any path (D-31, B7-04)
     if path is not None:
         for schema in path:
             if schema in owners:
