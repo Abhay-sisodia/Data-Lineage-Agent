@@ -83,7 +83,9 @@ def test_the_scope_has_not_quietly_shrunk(book) -> None:
         verdict, _detail = bucket(sql.strip(), book)
         counts[verdict] = counts.get(verdict, 0) + 1
 
-    assert counts == {"EDGES": 36, "NO-SOURCE": 3, "REFUSED": 6}
+    # Grown deliberately by batch B8: a PL/pgSQL body is read (one construct to EDGES, two
+    # that move only literals to NO-SOURCE), so three fewer are refused.
+    assert counts == {"EDGES": 37, "NO-SOURCE": 5, "REFUSED": 3}
 
 
 def test_out_of_scope_refusals_are_postgresql_only(book) -> None:

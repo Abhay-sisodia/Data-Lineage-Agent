@@ -23,6 +23,8 @@ Keyspec grammar, one directive per line (`#` starts a comment, copied into the Y
     expect    <boundary kind> <subject> | <reason>
     note      <text>                       attached to the facts on the line above
     repeat    <value|filter|influence line>  this statement states a fact again (B4-04)
+    origin    <unit> <band>                the facts after it, until the next `@`, come from
+                                           this unit, in this band (B8: routine bodies)
 
 `src` and `tgt` are `table.column`, written exactly as the analyser names nodes: bare table
 name, lower case. A filter's target is a relation name. Lists expand to every
@@ -53,7 +55,16 @@ def _names(text: str) -> list[str]:
 
 
 def _node(name: str, kind: str = "column") -> dict[str, str]:
+    """A node; `var:<name>` is a procedural variable or parameter (B8), as Oracle keys it."""
+    if name.startswith("var:"):
+        return {"kind": "variable", "name": name[len("var:") :]}
     return {"kind": kind, "name": name}
+
+
+def node_id(name: str, kind: str = "column") -> str:
+    """The node as the analyser prints it: `column:a.b.c`, `variable:v_total`."""
+    node = _node(name, kind)
+    return f"{node['kind']}:{node['name']}"
 
 
 def parse_facts(directive: str, rest: str, where: str) -> list[tuple[str, ...]]:
@@ -112,6 +123,7 @@ def compile_spec(spec: Path) -> str:
     expected: list[dict[str, str]] = []
     header: list[str] = []
     line: int | None = None
+    unit, band = "<script>", 0
     last: list[dict[str, object]] = []
     restated: list[tuple[str, tuple[str, ...]]] = []
 
@@ -131,7 +143,14 @@ def compile_spec(spec: Path) -> str:
         if directive == "@":
             number_text, _, _title = rest.partition(" ")
             line = int(number_text)
+            unit, band = "<script>", 0
             last = []
+            continue
+        if directive == "origin":
+            parts = rest.split()
+            if line is None or len(parts) != 2 or parts[1] not in {"0", "1", "2"}:
+                raise SystemExit(f"{where}: origin needs '<unit> <band 0|1|2>' after an '@'")
+            unit, band = parts[0], int(parts[1])
             continue
         if directive == "note":
             if not last:
@@ -166,7 +185,10 @@ def compile_spec(spec: Path) -> str:
             raise SystemExit(f"{where}: a fact before any '@ <line>'")
         if directive == "repeat":
             flow, _, body = rest.partition(" ")
-            restated.extend((where, fact[:5]) for fact in parse_facts(flow, body.strip(), where))
+            restated.extend(
+                (where, (node_id(f[0]), node_id(f[1], f[5]), *f[2:5]))
+                for f in parse_facts(flow, body.strip(), where)
+            )
             last = []
             continue
         last = []
@@ -182,18 +204,22 @@ def compile_spec(spec: Path) -> str:
             if phase != "pre-aggregation":
                 edge["phase"] = phase
             edge.update(
-                {"band": 0, "origin": {"unit": "<script>", "line": line}, "evidence": "source_read"}
+                {"band": band, "origin": {"unit": unit, "line": line}, "evidence": "source_read"}
             )
             edges.append(edge)
             last.append(edge)
 
-    stated = {
-        (
-            e["source"]["name"], e["target"]["name"], e["flow"], e["transform"],  # type: ignore[index]
+    def identity(e: dict[str, object]) -> tuple[object, ...]:
+        source, target = e["source"], e["target"]
+        return (
+            f"{source['kind']}:{source['name']}",  # type: ignore[index]
+            f"{target['kind']}:{target['name']}",  # type: ignore[index]
+            e["flow"],
+            e["transform"],
             e.get("phase", "pre-aggregation"),
         )
-        for e in edges
-    }
+
+    stated = {identity(e) for e in edges}
     for where, fact in restated:
         if fact not in stated:
             raise SystemExit(f"{where}: repeat of a fact no statement states: {fact}")
@@ -201,10 +227,7 @@ def compile_spec(spec: Path) -> str:
         # The harness rejects a key that states one match key twice; say which line to fix.
         seen: set[tuple[object, ...]] = set()
         for e in edges:
-            fact = (
-                e["source"]["name"], e["target"]["name"], e["flow"], e["transform"],  # type: ignore[index]
-                e.get("phase", "pre-aggregation"),
-            )
+            fact = identity(e)
             if fact in seen:
                 line = e["origin"]["line"]  # type: ignore[index]
                 raise SystemExit(f"{spec.name}: @ {line} states {fact} again - use `repeat`")

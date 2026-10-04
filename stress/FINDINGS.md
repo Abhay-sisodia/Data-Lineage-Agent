@@ -172,6 +172,11 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B10-04 | `silent-loss` | **fixed** | **PREPARE, EXECUTE and DEALLOCATE are dropped silently** (SQLGlot `Command` / `Alias`): not counted, not refused, nothing declared. Fixed 2026-10-04; `stress/pg/b10_lexical/REPORT.md` section 6. |
 | B10-05 | `parse-failure` | **fixed** | a `U&"..."` identifier is read as a column `u` and refused. Fixed 2026-10-04; `stress/pg/b10_lexical/REPORT.md` section 6. |
 | B10-06 | `flow-classification` | **fixed** | a MERGE arm condition on an aggregate of the USING source (`WHEN MATCHED AND s.amt > 100`, amt a SUM) is pre-aggregation; D-6 makes it post. Found by B10 T3, not lexical; six Oracle labels in stress_03 / stress_04 corrected to post-aggregation with it. Fixed 2026-10-04; `stress/pg/b10_lexical/REPORT.md` section 6. |
+| B8-01 | `construct-coverage` | **fixed** | **no PL/pgSQL body is read**: every function, procedure, DO block and CREATE TRIGGER is refused by name (honest, local, no partial edges). 151 of B8's 169 facts wait on a PL/pgSQL front end - a design decision first (REPORT section 3). Fixed 2026-10-04 (option A); `stress/pg/b8_procedural/REPORT.md` section 6. |
+| B8-02 | `silent-loss` | **fixed** | a top-level CALL is not counted, refused or declared. Fixed 2026-10-04 (option A); `stress/pg/b8_procedural/REPORT.md` section 6. |
+| B8-03 | `refusal-taxonomy` | **fixed** | a read of an in-script function in FROM is declared `dangling_reference`; D-40 inlines a RETURN QUERY body and declares a RETURN NEXT one `source_unavailable`. Fixed 2026-10-04 (option A); `stress/pg/b8_procedural/REPORT.md` section 6. |
+| B8-04 | `refusal-taxonomy` | **fixed** | a scalar function call is declared `source_unavailable` (body unread); a top-level `SELECT f()` should become a plain count once bodies are read (D-39). Fixed 2026-10-04 (option A); `stress/pg/b8_procedural/REPORT.md` section 6. |
+| B8-05 | `flow-classification` | **fixed** | a projection holding a user-defined call kept only the call's summary columns (`x - f(y)` lost `x`; `SUM(f(y))` lost its GROUP BY influence), and the expression around the call did not count toward the transform. Found by B8 T2. Fixed 2026-10-04 (option A); `stress/pg/b8_procedural/REPORT.md` section 6. |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
@@ -4637,3 +4642,20 @@ Taken by Abhay before batch B10's keys were written. Full statements in
   `\gset` gives nothing.
 * **D-38** - a user-defined or extension operator is read like an unknown function: derived
   from its operands; a filter from both in WHERE. `OPERATOR(pg_catalog.op)` is `op`.
+
+## Decisions taken — 2026-10-04 (D-39 to D-42)
+
+Taken by Abhay before batch B8's keys were written. Full statements in
+`stress/pg/b8_procedural/OBJECTIVES.md`, with the Oracle procedural conventions they rest
+on (variables and parameters are nodes; bands per edge). All four implemented 2026-10-04
+with the PL/pgSQL reader (B8 REPORT section 6).
+
+* **D-39** - a routine's lineage is emitted at its definition, unit = the routine; CALL,
+  PERFORM and `SELECT f()` add no edges and are counted; a DO block is analysed in place; a
+  scalar function reaches its caller through its summary.
+* **D-40** - a RETURN QUERY function read in FROM is inlined like a view (band 0, its
+  arguments external); a RETURN NEXT body is declared source_unavailable at the read.
+* **D-41** - a trigger's edges are emitted once, at its binding, band 2: NEW.x / OLD.x are
+  the bound table's columns; an unbound trigger function gives nothing; WHEN is a filter.
+* **D-42** - dynamic SQL is analysed (band 2) when its text folds to a constant; otherwise
+  declared dynamic_sql `EXECUTE:<line>`; USING values are external.

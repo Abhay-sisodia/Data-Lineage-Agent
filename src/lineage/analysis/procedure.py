@@ -30,6 +30,7 @@ from lineage.analysis.defuse import (
     definitions_and_uses,
 )
 from lineage.analysis.document_tables import restate as restate_document_tables
+from lineage.analysis import plpgsql
 from lineage.analysis.dynamic import Resolution, resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
@@ -69,6 +70,7 @@ def analyse_source(
     dialect = resolve_dialect(settings, dictionary)
 
     includes: list[psql.Include] = []
+    desugared: plpgsql.Desugared | None = None
     if dialect.name == "postgres":
         # D-36, D-37: a psql script restated as the SQL the server receives - meta-commands
         # blanked, `:'v'` substituted, `U&""` decoded - before anything splits or parses
@@ -87,6 +89,11 @@ def analyse_source(
             source,
             flags=re.IGNORECASE,
         )
+        # B8 (D-39..D-42): every PL/pgSQL routine and DO block the reader can read becomes
+        # the SQL its body runs, at its own lines; what it cannot read stays as written and
+        # is refused by name, as before. `plpgsql.finish` restates the result afterwards.
+        desugared = plpgsql.desugar(source, dictionary)
+        source = desugared.source
 
     program = dialect.frontend.parse(source)
 
@@ -98,6 +105,24 @@ def analyse_source(
     result = band0.analyse_source(
         source, dictionary, settings, summaries=summaries, result_target=result_target
     )
+    if desugared is not None:
+        # Rule 6: a scalar PL/pgSQL function's summary comes from its own body, which band
+        # 0 has just traced. A function calling a function needs its callee's summary first,
+        # so band 0 runs again until the summaries stop changing (bounded by the depth cap).
+        result = plpgsql.finish(result, desugared, dictionary)
+        known = dict(summaries)
+        for _ in range(settings.budgets.interprocedural_depth_cap):
+            found = plpgsql.summaries(result, desugared)
+            if not found or all(known.get(name) == summary for name, summary in found.items()):
+                break
+            known.update(found)
+            result = plpgsql.finish(
+                band0.analyse_source(
+                    source, dictionary, settings, summaries=known, result_target=result_target
+                ),
+                desugared,
+                dictionary,
+            )
 
     # The unanalysable-construct classifier (T3.1), run over the whole program rather than
     # over one module's statement list. A `MODEL` clause is refused whether it appears in a

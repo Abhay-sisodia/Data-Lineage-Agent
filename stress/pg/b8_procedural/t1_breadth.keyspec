@@ -1,0 +1,134 @@
+# Answer key for B8 t1_breadth.sql - procedural PL/pgSQL, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, the Oracle procedural conventions (OBJECTIVES.md
+# rules 1-9), plus D-39..D-42 (decided 2026-10-04, not implemented). Variables are
+# `var:<name>`. Bands per edge (rule 5). Origin unit = the routine.
+# NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: every CREATE FUNCTION / PROCEDURE /
+# TRIGGER, S2 and S4 and S21 (calls), and the R11 definition give no edge of their own and
+# are not refused for being procedural; a routine the analyser cannot read is refused or
+# declared, never partially analysed.
+
+@ 22 S1 a function body's static INSERT
+origin mart.fn_load_channel 0
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.amount -> mart.channel_mix.revenue aggregated
+influence staging.orders.channel -> mart.channel_mix.revenue
+filter staging.orders.status -> mart.channel_mix
+
+@ 41 S3 a parameter in WHERE
+origin mart.pr_region 0
+value core.dim_store.region -> mart.kpi_rollup.region identity
+value staging.orders.amount -> mart.kpi_rollup.revenue aggregated
+influence core.dim_store.region -> mart.kpi_rollup.revenue
+filter core.dim_store.region -> mart.kpi_rollup
+origin mart.pr_region 1
+filter var:p_region -> mart.kpi_rollup
+note A parameter on the path is band 1 (Oracle: stress_merge_upsert's P_REGION).
+
+@ 62 S5 SELECT ... INTO a variable
+origin mart.fn_pay_total 1
+value staging.payments.amount -> var:v_total aggregated
+filter staging.payments.status -> staging.payments
+note The statement writes a variable, so its filter targets the relation read (rule 2).
+
+@ 66 S6 an assignment
+origin mart.fn_pay_total 1
+value var:v_total -> var:v_rate derived
+
+@ 68 S7 the variables as values
+origin mart.fn_pay_total 1
+value var:v_rate -> mart.kpi_rollup.revenue identity
+value var:v_total -> mart.kpi_rollup.orders identity
+
+@ 85 S8 the loop body: the record is transparent
+origin mart.fn_loop_cust 1
+value staging.customers.full_name -> mart.customer_summary.full_name identity
+filter staging.customers.status -> mart.customer_summary
+filter staging.customers.id -> mart.customer_summary
+filter mart.customer_summary.customer_id -> mart.customer_summary
+note The loop query's WHERE decides which rows the body ever sees (rule 4); r.id is c.id.
+
+@ 103 S9 FETCH into variables
+origin mart.fn_cursor_store 1
+value core.dim_store.id -> var:v_store_id identity
+value core.dim_store.name -> var:v_store_name identity
+filter core.dim_store.status -> core.dim_store
+
+@ 105 S10 the fetched variables as values
+origin mart.fn_cursor_store 1
+value var:v_store_id -> mart.sales_daily.store_id identity
+value var:v_store_name -> mart.sales_daily.region identity
+
+@ 127 S11 reading a RETURN QUERY function: inlined (D-40)
+value staging.orders.channel -> mart.top_customers.full_name identity
+value staging.orders.amount -> mart.top_customers.revenue identity
+filter staging.orders.status, staging.orders.channel -> mart.top_customers
+note p_ch takes the literal 'web': no edge. o.channel = p_ch still filters.
+
+@ 139 S12 SELECT INTO inside a scalar function
+origin mart.fn_cust_value 1
+value staging.orders.amount -> var:v_value aggregated
+filter staging.orders.customer_id -> staging.orders
+filter var:p_cust -> staging.orders
+
+@ 147 S13 a scalar function in a query
+value staging.customers.id -> mart.customer_summary.customer_id identity
+origin <script> 1
+value staging.orders.amount -> mart.customer_summary.lifetime_value aggregated
+note Rule 6: the columns the return value depends on, band 1.
+forbid value staging.customers.id -> mart.customer_summary.lifetime_value | c.id is only the function's argument (Oracle: fn_stress_net)
+
+@ 158 S14 a DO block
+origin <do> 0
+value staging.events_log.id -> mart.events_log.id identity
+value staging.events_log.kind -> mart.events_log.kind identity
+filter staging.events_log.payload_size -> mart.events_log
+
+@ 172 S15 constant dynamic SQL
+origin <do> 2
+value staging.customers.segment -> mart.kpi_rollup.segment identity
+filter staging.customers.country_code -> mart.kpi_rollup
+
+@ 183 S16 format() of constants
+origin <do> 2
+value staging.customers.country_code -> mart.kpi_rollup.country_code identity
+
+@ 195 S17 EXECUTE of a parameter
+expect dynamic_sql EXECUTE:195 | the table name is p_table, a parameter: undecidable (D-42)
+
+@ 207 S18 a trigger on INSERT: NEW
+origin mart.trg_order_audit 2
+value staging.orders.id -> mart.events_log.id identity
+value staging.orders.status -> mart.events_log.kind identity
+
+@ 225 S19 a trigger on UPDATE: OLD
+origin mart.trg_pay_history 2
+value staging.payments.order_id -> mart.top_customers.customer_id identity
+value staging.payments.amount -> mart.top_customers.revenue identity
+
+@ 243 S20 an UPDATE then COMMIT in a procedure
+origin mart.pr_close_stores 0
+filter core.dim_store.opened_on -> core.dim_store
+
+@ 268 S22 reading a RETURN NEXT function
+expect source_unavailable mart.fn_gen_regions | its rows are built by RETURN NEXT in a loop (D-40)
+
+@ 280 S23 the protected statement
+origin mart.fn_upsert_ledger 0
+value staging.ledger.id -> core.ledger.id identity
+value staging.ledger.account -> core.ledger.account identity
+
+@ 284 S24 the handler's statement
+origin mart.fn_upsert_ledger 0
+value core.ledger.balance -> core.ledger.balance derived
+filter core.ledger.status -> core.ledger
+
+@ 298 S25 a write, then GET DIAGNOSTICS
+origin mart.fn_count_rows 0
+filter staging.events_log.kind -> mart.events_log
+
+@ 302 S26 the count as a value
+origin mart.fn_count_rows 1
+value var:v_rows -> mart.kpi_rollup.customers identity
+note GET DIAGNOSTICS gives v_rows no column source; the variable still reaches the column (rule 3).

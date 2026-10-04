@@ -1,0 +1,81 @@
+# Answer key for B8 t2_depth.sql - procedural PL/pgSQL, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, OBJECTIVES.md rules 1-9, D-39..D-42 (decided
+# 2026-10-04, not implemented). Variables are `var:<name>`; bands per edge (rule 5).
+# NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: the CALLs (inside pr_outer and at the
+# end) give no edge and are counted.
+
+@ 20 S1 depth 1: SELECT INTO
+origin mart.fn_nested 1
+value staging.orders.amount -> var:v_a aggregated
+filter staging.orders.currency -> staging.orders
+
+@ 25 S2 depth 2
+origin mart.fn_nested 1
+value var:v_a -> var:v_b derived
+
+@ 31 S3 depth 3
+origin mart.fn_nested 1
+value var:v_b -> var:v_c derived
+
+@ 33 S4 depth 3
+origin mart.fn_nested 1
+value var:v_c -> var:v_d derived
+
+@ 35 S5 depth 3: the last variable as a value
+origin mart.fn_nested 1
+value var:v_d -> mart.kpi_rollup.revenue identity
+
+@ 55 S6 two records, from two loops
+origin mart.fn_loop2 1
+value core.dim_store.region -> mart.sales_daily.region identity
+value staging.orders.amount -> mart.sales_daily.gross_amount identity
+filter core.dim_store.status, staging.orders.store_id, core.dim_store.id -> mart.sales_daily
+note Both loop queries' WHEREs filter what the body writes; r_store.id is s.id (rule 4).
+
+@ 70 S7 the inner function
+origin mart.fn_unit_cost 1
+value staging.products.cost -> var:v_cost identity
+filter staging.products.id -> staging.products
+filter var:p_prod -> staging.products
+
+@ 81 S8 the outer function
+origin mart.fn_line_margin 1
+value staging.order_lines.unit_price, staging.products.cost -> var:v_margin derived
+filter staging.order_lines.id -> staging.order_lines
+filter var:p_line -> staging.order_lines
+note fn_unit_cost contributes products.cost, the column its return value depends on - not ol.product_id, its argument (rule 6).
+forbid value staging.order_lines.product_id -> var:v_margin derived | only fn_unit_cost's argument
+
+@ 89 S9 the outer function in a grouped query
+value staging.order_lines.product_id -> mart.product_performance.product_id identity
+influence staging.order_lines.product_id -> mart.product_performance.margin
+origin <script> 1
+value staging.order_lines.unit_price, staging.products.cost -> mart.product_performance.margin aggregated
+note Two functions deep: fn_line_margin's return depends on unit_price and, through fn_unit_cost, products.cost.
+forbid value staging.order_lines.id -> mart.product_performance.margin aggregated | only fn_line_margin's argument
+
+@ 97 S10 the view
+value staging.orders.customer_id -> mart.v_paid_orders.customer_id identity
+value staging.orders.amount -> mart.v_paid_orders.amount identity
+filter staging.orders.status -> mart.v_paid_orders
+
+@ 117 S11 reading the function: function, view, CTE chain inlined
+value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+value staging.orders.amount -> mart.customer_summary.lifetime_value aggregated
+influence staging.orders.customer_id -> mart.customer_summary.lifetime_value
+filter staging.orders.status -> mart.customer_summary
+filter staging.orders.amount -> mart.customer_summary post
+note The HAVING compares a SUM with p_min, bound to the literal 100: post-aggregation, no parameter edge (D-40).
+
+@ 130 S12 constant text inside a loop
+origin <do> 2
+value staging.shipments.status -> core.dim_carrier.name identity
+
+@ 144 S13 text from the loop variable
+expect dynamic_sql EXECUTE:144 | built from v_tab, a different statement on every pass (D-42; Oracle EXECUTE IMMEDIATE:581)
+
+@ 157 S14 the inner procedure's write
+origin mart.pr_inner 0
+value staging.ledger.currency -> core.ledger.status identity

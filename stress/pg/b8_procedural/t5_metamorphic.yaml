@@ -1,0 +1,510 @@
+# GENERATED from t5_metamorphic.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B8 t5_metamorphic.sql - procedural PL/pgSQL, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, OBJECTIVES.md rules 1-9, D-39..D-42 (decided
+# 2026-10-04, not implemented). Pair facts are stated at A and restated at B; a fact is
+# scored in the band stated here, the A half's.
+# NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: the handler re-raises (RAISE), so it
+# suppresses nothing and declares no suppressed_error; the CALL gives no edge.
+package: pg/b8_procedural/t5_metamorphic.sql
+dialect: postgres
+source_sha256: 2b5397a5ea3607474ada9b22f99bf8b63236c93e32afbe74d065ec8a526384ee
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_p1
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_p1
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_p2
+    line: 41
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_p2
+    line: 41
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_p2
+    line: 41
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: <do>
+    line: 57
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 2
+  origin:
+    unit: <do>
+    line: 57
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.sales_daily.orders
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: relation
+    name: mart.sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.method
+  target:
+    kind: column
+    name: core.dim_carrier.name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <do>
+    line: 93
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.currency
+  target:
+    kind: column
+    name: core.dim_carrier.mode
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <do>
+    line: 93
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: relation
+    name: core.dim_carrier
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <do>
+    line: 93
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: <do>
+    line: 109
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.fx_rates.rate_to_usd
+  target:
+    kind: variable
+    name: v_fx
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.fx_rates.currency
+  target:
+    kind: relation
+    name: staging.fx_rates
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.fx_rates.rate_date
+  target:
+    kind: relation
+    name: staging.fx_rates
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 128
+  evidence: source_read
+- source:
+    kind: variable
+    name: p_day
+  target:
+    kind: relation
+    name: staging.fx_rates
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 128
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.id
+  target:
+    kind: column
+    name: core.fct_payment.payment_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.order_id
+  target:
+    kind: column
+    name: core.fct_payment.order_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.method
+  target:
+    kind: column
+    name: core.fct_payment.method
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: core.fct_payment.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: core.fct_payment.amount_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.paid_at
+  target:
+    kind: column
+    name: core.fct_payment.paid_date
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: column
+    name: core.fct_payment.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.paid_at
+  target:
+    kind: relation
+    name: core.fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.currency
+  target:
+    kind: relation
+    name: core.fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: variable
+    name: v_fx
+  target:
+    kind: column
+    name: core.fct_payment.amount_usd
+  flow: value
+  transform: derived
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: variable
+    name: p_day
+  target:
+    kind: relation
+    name: core.fct_payment
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 143
+  evidence: source_read
+- source:
+    kind: variable
+    name: p_day
+  target:
+    kind: column
+    name: mart.customer_summary.last_order_date
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 143
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 143
+  evidence: source_read
+  note: The loop query's WHERE (o.order_ts::date = p_day) filters the body's write (rule 4); its JOIN
+    is structural (D-5).
+- source:
+    kind: variable
+    name: p_day
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 143
+  evidence: source_read
+  note: The loop query's WHERE (o.order_ts::date = p_day) filters the body's write (rule 4); its JOIN
+    is structural (D-5).
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 143
+  evidence: source_read
+  note: The loop query's WHERE (o.order_ts::date = p_day) filters the body's write (rule 4); its JOIN
+    is structural (D-5).
+- source:
+    kind: column
+    name: mart.customer_summary.customer_id
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 143
+  evidence: source_read
+  note: The loop query's WHERE (o.order_ts::date = p_day) filters the body's write (rule 4); its JOIN
+    is structural (D-5).
+- source:
+    kind: variable
+    name: p_day
+  target:
+    kind: variable
+    name: v_part
+  flow: value
+  transform: derived
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 148
+  evidence: source_read
+- source:
+    kind: variable
+    name: v_rows
+  target:
+    kind: column
+    name: mart.events_log.id
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_nightly_load
+    line: 152
+  evidence: source_read
+forbidden: []
+expected_boundaries:
+- kind: dynamic_sql
+  subject: EXECUTE:150
+  reason: the target is v_part, built from p_day (D-42)

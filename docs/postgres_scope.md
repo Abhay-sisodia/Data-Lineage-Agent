@@ -102,18 +102,19 @@ measured: the probe asks per statement and cannot see a per-column silence (PG-0
 
 | construct | code | why |
 |---|---|---|
-| PL/pgSQL routine body (`AS $$ … $$`) | `UNSUPPORTED_CONSTRUCT` | the body is a dollar-quoted string literal, not part of the SQL parse tree; no grammar chosen yet (ADR-0002 §5) |
-| `DO $$ … $$` anonymous block | `UNSUPPORTED_CONSTRUCT` | same body, no name |
-| `CREATE TRIGGER` | `UNSUPPORTED_CONSTRUCT` | a PostgreSQL trigger names a FUNCTION that holds the body — so the lineage is in a routine we cannot parse. **Oracle triggers are handled and deliberately not refused**, which is why this refusal is scoped to one dialect |
+| a PL/pgSQL routine or DO block the reader cannot read | `UNSUPPORTED_CONSTRUCT` | since batch B8 a body is read by `parsing/plpgsql` (D-39..D-42). A form it does not know - a CASE statement, `RETURN QUERY EXECUTE`, OUT parameters, `FOR … IN EXECUTE`, and the others it names - keeps the WHOLE routine refused by name, never half-read |
+| `CREATE TRIGGER` naming a function the script does not define | `UNSUPPORTED_CONSTRUCT` | the lineage is in that function's body, which is not in the analysis. A trigger whose function is in the script is analysed (D-41) |
 | `COPY … FROM/TO` | `SOURCE_UNAVAILABLE` | moves rows between a relation and something outside the database; the contents depend on data no static analysis can see |
 | `TRUNCATE` | `UNSUPPORTED_CONSTRUCT` | empties a relation unconditionally — no column has a source to name, but the statement decides what the table contains afterwards, so it is recorded rather than skipped |
 
 ## What this scope does NOT cover, by construction
 
-**Bands 1 and 2.** A PL/pgSQL body is refused, so there is no variable def-use, no cursor
-analysis and no trigger inheritance for PostgreSQL. Everything above is band 0. This is the
-cost recorded in ADR-0002 §5 while the grammar decision is parked, and it is the single
-largest thing a second phase would buy.
+**Bands 1 and 2, since batch B8.** PL/pgSQL bodies are read by a hand-written statement
+reader (`parsing/plpgsql`, option A of `stress/pg/b8_procedural/REPORT.md` section 3), and
+every embedded SQL statement goes through SQLGlot and band 0 like any other. Variables,
+cursors, loop records, constant dynamic SQL and in-script triggers have lineage (bands 1
+and 2); anything the reader does not know is refused whole. This settles ADR-0002 §5 for
+PL/pgSQL without a second grammar.
 
 **Identifier case.** PostgreSQL folds unquoted identifiers to lower case and the analyser
 follows (`dialects.fold`). A *quoted* mixed-case identifier — `"MyTable"` — is a different

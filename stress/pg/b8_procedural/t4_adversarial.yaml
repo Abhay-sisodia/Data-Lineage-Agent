@@ -1,0 +1,209 @@
+# GENERATED from t4_adversarial.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B8 t4_adversarial.sql - procedural PL/pgSQL, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, OBJECTIVES.md rules 1-9, D-39..D-42 (decided
+# 2026-10-04, not implemented). Variables are `var:<name>`; bands per edge (rule 5).
+package: pg/b8_procedural/t4_adversarial.sql
+dialect: postgres
+source_sha256: 2e35c44e58e0f7851257ca07e43290a1e4f78672e90c7fa6300411f9aa8fbc08
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_never_called
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.returns.id
+  target:
+    kind: column
+    name: mart.events_log.id
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: mart.trg_stamp
+    line: 44
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.id
+  target:
+    kind: column
+    name: mart.events_log.id
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: mart.trg_stamp
+    line: 44
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.account
+  target:
+    kind: column
+    name: core.ledger.account
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_pathed
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_noisy
+    line: 80
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_noisy
+    line: 80
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_swallow
+    line: 104
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 145
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: variable
+    name: amount
+  flow: value
+  transform: aggregated
+  band: 1
+  origin:
+    unit: mart.fn_shadow
+    line: 155
+  evidence: source_read
+- source:
+    kind: variable
+    name: amount
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_shadow
+    line: 157
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_tagged
+    line: 169
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: column
+    name: mart.events_log.kind
+  flow: value
+  reason: NEW has no table until CREATE TRIGGER binds one (D-41); no table may be guessed
+  transform: identity
+- source:
+    kind: column
+    name: staging.ledger.account
+  target:
+    kind: column
+    name: staging.ledger.account
+  flow: value
+  reason: the function's SET search_path = core decides `ledger`, not the script's path (D-23)
+  transform: identity
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  reason: the INSERT before it is the text of a RAISE
+  transform: identity
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: <result>.amount
+  flow: value
+  reason: PERFORM discards its query's rows
+  transform: identity
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  reason: that body was dropped before the read (D-31)
+  transform: identity
+expected_boundaries:
+- kind: dynamic_sql
+  subject: EXECUTE:92
+  reason: the whole statement is p_sql (D-42; Oracle EXECUTE IMMEDIATE:267)
+- kind: suppressed_error
+  subject: mart.fn_swallow:105
+  reason: 'WHEN OTHERS THEN NULL: the absence of a write below proves nothing (rule 7)'

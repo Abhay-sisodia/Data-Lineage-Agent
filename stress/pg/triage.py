@@ -35,7 +35,7 @@ from lineage.harness.scoring import score  # noqa: E402
 from lineage.resolution.dictionary import Dictionary  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from keygen import repeats_of  # noqa: E402
+from keygen import node_id, repeats_of  # noqa: E402
 
 STRESS = ROOT / "stress"
 HERE = Path(__file__).resolve().parent
@@ -71,7 +71,9 @@ def _statement_spans(sql: str) -> list[tuple[int, int, int]]:
     for number, line in enumerate(sql.splitlines(), start=1):
         text = line.strip()
         if code is None and re.match(
-            r"(?i)^(insert|with|select|update|delete|merge|create|alter|refresh|drop|prepare|execute|deallocate)\b", text
+            r"(?i)^(insert|with|select|update|delete|merge|create|alter|refresh|drop"
+            r"|prepare|execute|deallocate)\b",
+            text,
         ):
             code = number
         if text.endswith(";") and not text.startswith("--"):
@@ -108,14 +110,17 @@ def triage(key_path: Path, book: Dictionary, config: AnalysisConfig) -> None:
         f"boundaries {len(result.boundaries)}"
     )
     print("=" * 96)
-    for flow in (Flow.VALUE, Flow.FILTER, Flow.INFLUENCE):
-        cell = report.cells.get((0, flow.value))
-        if cell is None:
-            continue
-        print(
-            f"  {flow.value:9}  TP {cell.true_positives:4}  FP {cell.false_positives:4}  "
-            f"FN {cell.false_negatives:4}"
-        )
+    for band in sorted({band for band, _ in report.cells}):
+        for flow in (Flow.VALUE, Flow.FILTER, Flow.INFLUENCE):
+            cell = report.cells.get((band, flow.value))
+            if cell is None:
+                continue
+            # Band 0 keeps the shape every earlier batch's report quotes; B8 adds bands 1, 2.
+            label = flow.value if band == 0 else f"b{band} {flow.value}"
+            print(
+                f"  {label:12}  TP {cell.true_positives:4}  FP {cell.false_positives:4}  "
+                f"FN {cell.false_negatives:4}"
+            )
 
     for refusal in result.refusals:
         print(f"  REFUSED  line {refusal.line}  {refusal.code.value}: {refusal.reason[:150]}")
@@ -162,7 +167,7 @@ def _per_statement(
     if spec.exists():
         for line, facts in repeats_of(spec).items():
             for source, target, flow, transform, phase, kind in facts:
-                expected[line].add((f"column:{source}", f"{kind}:{target}", flow, transform, phase))
+                expected[line].add((node_id(source), node_id(target, kind), flow, transform, phase))
     produced: dict[int, set[tuple[str, ...]]] = defaultdict(set)
     for edge in edges:
         produced[_owner(edge.origin.line, spans)].add(_fact(edge))

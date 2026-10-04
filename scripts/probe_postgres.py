@@ -229,26 +229,30 @@ CONSTRUCTS: list[tuple[str, str, str]] = [
         INSERT INTO gtt_stage (cust_id, amount)
         SELECT o.cust_id, g FROM stg_orders o CROSS JOIN generate_series(1, 3) AS g;"""),
 
-    # ---- expected to be OUT of scope -------------------------------------------------
-    (OUT_OF_SCOPE, "PL/pgSQL function body", """
+    # ---- PL/pgSQL: IN scope since batch B8 (D-39..D-42) --------------------------------
+    # A body the reader can read is analysed statement by statement; one it cannot stays
+    # refused by name. A trigger is analysed only with the function it binds, so a CREATE
+    # TRIGGER naming a function this script does not define is still refused.
+    (IN_SCOPE, "PL/pgSQL function body", """
         CREATE OR REPLACE FUNCTION recalc(p_id int) RETURNS void AS $$
         BEGIN
           UPDATE fct_revenue SET order_count = 0 WHERE cust_id = p_id;
         END;
         $$ LANGUAGE plpgsql;"""),
-    (OUT_OF_SCOPE, "PL/pgSQL body with a $tag$", """
+    (NO_LINEAGE, "PL/pgSQL body with a $tag$", """
         CREATE FUNCTION f2() RETURNS void AS $fn$
         BEGIN
           INSERT INTO gtt_stage (cust_id, amount) VALUES (1, 2);
         END;
         $fn$ LANGUAGE plpgsql;"""),
-    (OUT_OF_SCOPE, "DO anonymous block", """
+    (NO_LINEAGE, "DO anonymous block", """
         DO $$
         BEGIN
           UPDATE fct_revenue SET order_count = 0;
         END;
         $$;"""),
-    (OUT_OF_SCOPE, "CREATE TRIGGER", """
+    # ---- expected to be OUT of scope -------------------------------------------------
+    (OUT_OF_SCOPE, "CREATE TRIGGER of a function not in the script", """
         CREATE TRIGGER trg_audit AFTER INSERT ON fct_revenue
         FOR EACH ROW EXECUTE FUNCTION audit_fn();"""),
     (OUT_OF_SCOPE, "TRUNCATE", "TRUNCATE TABLE gtt_stage;"),

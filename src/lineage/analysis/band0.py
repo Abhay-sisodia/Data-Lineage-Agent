@@ -1542,6 +1542,16 @@ def _edge(
     )
 
 
+def _without_user_calls(projection: Any, summaries: dict[str, Any], dialect: str) -> Any:
+    """The projection with every user-defined call read as NULL."""
+    reduced = projection.copy()
+    for node in list(reduced.find_all(exp.Anonymous)):
+        name = (getattr(node, "name", "") or "").upper()
+        if name and (name in summaries or not is_builtin(name, dialect)):
+            node.replace(exp.Null())
+    return reduced
+
+
 def _target_of(insert: exp.Insert, dictionary: Dictionary) -> tuple[str, list[str] | None]:
     """Target relation and explicit column list, both dictionary-resolved."""
     target = insert.this
@@ -1925,7 +1935,13 @@ def _analyse_select_into(
         )
         if consumed:
             edges.extend(call_edges)
-            continue
+            # The call supplies its summary; the REST of the projection still supplies its
+            # own columns. `ol.unit_price - fn_unit_cost(ol.product_id)` lost unit_price,
+            # because the whole projection was taken as handled (B8). With the user calls
+            # read as NULL, what remains is traced as any projection is. A projection that
+            # was nothing but the call has no column left to give a value, but still gets
+            # its GROUP BY influence (`SUM(f(x)) ... GROUP BY k`).
+            projection = _without_user_calls(projection, summaries, dictionary.dialect)
 
         # `constraining` collects what an INTERSECT / MINUS arm reached on the way down
         # (stress finding S4-04). Those columns decide which rows survive and supply none
@@ -2189,7 +2205,7 @@ def _call_site_edges(
     ]
 
     called = [
-        summaries[name]
+        (summaries[name], node)
         for node in projection.find_all(exp.Anonymous, exp.Func)
         if (name := (getattr(node, "name", "") or "").upper()) in summaries
     ]
@@ -2211,16 +2227,25 @@ def _call_site_edges(
         return [], False
 
     edges: list[PredictedEdge] = []
-    for summary in called:
+    for summary, call in called:
+        # What the caller's expression does to the call's VALUE counts too (D-7):
+        # `x - f(y)` is derived from f's columns, `SUM(f(y))` aggregated (B8).
+        # SQLGlot wraps a schema-qualified call `mart.f(x)` in a Dot, which is not a
+        # computation: the path starts outside it.
+        while isinstance(call.parent, exp.Dot) and call.parent.expression is call:
+            call = call.parent
+        around = _transform_of_path(projection, call)
         for item in summary.consolidated():
-            source_table, _, source_column = item.column.partition(".")
+            # The LAST dot: a PostgreSQL column is `schema.table.column` (B8); an Oracle one
+            # `TABLE.COLUMN` splits the same either way.
+            source_table, _, source_column = item.column.rpartition(".")
             edges.append(
                 _edge(
                     source_table,
                     source_column,
                     target_name,
                     target_column,
-                    item.transform,
+                    _combine(item.transform, around),
                     1,  # the path goes through a call, so it is band 1
                     origin,
                 )

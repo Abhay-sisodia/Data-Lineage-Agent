@@ -99,6 +99,10 @@ class ScriptCatalog:
         prepared = self._prepared_statement(_lead(text))
         if prepared is not None:
             return prepared
+        if re.match(r"(?i)^CALL\b", _lead(text)):
+            # D-39: a routine's lineage is at its definition, so a CALL adds none - but it
+            # is a statement, and it was absent from coverage (B8-02).
+            return Effect(count_only=True)
         refresh = _REFRESH.match(_code(text))
         if refresh:
             return self._refresh(refresh.group("name"))

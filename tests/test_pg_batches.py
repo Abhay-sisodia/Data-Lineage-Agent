@@ -176,6 +176,54 @@ EXPECTED = {
     ("b10_lexical/t5_metamorphic", Flow.VALUE): (20, 0, 0),
     ("b10_lexical/t5_metamorphic", Flow.FILTER): (8, 0, 0),
     ("b10_lexical/t5_metamorphic", Flow.INFLUENCE): (8, 0, 0),
+    ("b8_procedural/t1_breadth", Flow.FILTER): (8, 0, 0),
+    ("b8_procedural/t1_breadth", Flow.INFLUENCE): (2, 0, 0),
+    ("b8_procedural/t1_breadth", Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t2_depth", Flow.FILTER): (3, 0, 0),
+    ("b8_procedural/t2_depth", Flow.INFLUENCE): (2, 0, 0),
+    ("b8_procedural/t2_depth", Flow.VALUE): (6, 0, 0),
+    ("b8_procedural/t3_interaction", Flow.FILTER): (1, 0, 0),
+    ("b8_procedural/t3_interaction", Flow.INFLUENCE): (2, 0, 0),
+    ("b8_procedural/t3_interaction", Flow.VALUE): (4, 0, 0),
+    ("b8_procedural/t4_adversarial", Flow.FILTER): (1, 0, 0),
+    ("b8_procedural/t4_adversarial", Flow.VALUE): (6, 0, 0),
+    ("b8_procedural/t5_metamorphic", Flow.FILTER): (5, 0, 0),
+    ("b8_procedural/t5_metamorphic", Flow.VALUE): (12, 0, 0),
+}
+
+# B8 is procedural: its facts sit in bands 1 and 2 as well, and a mis-banded edge scores as a
+# miss in its true band and a false positive in the claimed one. Every band is pinned.
+EXPECTED_BANDS = {
+    ("b8_procedural/t1_breadth", 0, Flow.FILTER): (8, 0, 0),
+    ("b8_procedural/t1_breadth", 0, Flow.INFLUENCE): (2, 0, 0),
+    ("b8_procedural/t1_breadth", 0, Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t1_breadth", 1, Flow.FILTER): (8, 0, 0),
+    ("b8_procedural/t1_breadth", 1, Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t1_breadth", 2, Flow.FILTER): (1, 0, 0),
+    ("b8_procedural/t1_breadth", 2, Flow.VALUE): (6, 0, 0),
+    ("b8_procedural/t2_depth", 0, Flow.FILTER): (3, 0, 0),
+    ("b8_procedural/t2_depth", 0, Flow.INFLUENCE): (2, 0, 0),
+    ("b8_procedural/t2_depth", 0, Flow.VALUE): (6, 0, 0),
+    ("b8_procedural/t2_depth", 1, Flow.FILTER): (8, 0, 0),
+    ("b8_procedural/t2_depth", 1, Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t2_depth", 2, Flow.VALUE): (1, 0, 0),
+    ("b8_procedural/t3_interaction", 0, Flow.FILTER): (1, 0, 0),
+    ("b8_procedural/t3_interaction", 0, Flow.INFLUENCE): (2, 0, 0),
+    ("b8_procedural/t3_interaction", 0, Flow.VALUE): (4, 0, 0),
+    ("b8_procedural/t3_interaction", 1, Flow.FILTER): (9, 0, 0),
+    ("b8_procedural/t3_interaction", 1, Flow.VALUE): (4, 0, 0),
+    ("b8_procedural/t3_interaction", 2, Flow.FILTER): (2, 0, 0),
+    ("b8_procedural/t3_interaction", 2, Flow.VALUE): (4, 0, 0),
+    ("b8_procedural/t4_adversarial", 0, Flow.FILTER): (1, 0, 0),
+    ("b8_procedural/t4_adversarial", 0, Flow.VALUE): (6, 0, 0),
+    ("b8_procedural/t4_adversarial", 1, Flow.VALUE): (2, 0, 0),
+    ("b8_procedural/t4_adversarial", 2, Flow.VALUE): (2, 0, 0),
+    ("b8_procedural/t5_metamorphic", 0, Flow.FILTER): (5, 0, 0),
+    ("b8_procedural/t5_metamorphic", 0, Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t5_metamorphic", 1, Flow.FILTER): (9, 0, 0),
+    ("b8_procedural/t5_metamorphic", 1, Flow.VALUE): (8, 0, 0),
+    ("b8_procedural/t5_metamorphic", 2, Flow.FILTER): (1, 0, 0),
+    ("b8_procedural/t5_metamorphic", 2, Flow.VALUE): (2, 0, 0),
 }
 
 PINNED = sorted({name for name, _ in EXPECTED})
@@ -217,3 +265,19 @@ def test_no_forbidden_edge_and_no_refusal(name: str, runs: dict) -> None:
     assert report.forbidden_violations == []
     refused = sorted(r.code.value for r in result.refusals)
     assert refused == REFUSED_ON_PURPOSE.get(name, [])
+
+
+@pytest.mark.parametrize(
+    ("name", "band", "flow"), sorted(EXPECTED_BANDS, key=lambda k: (k[0], k[1], k[2].value))
+)
+def test_every_band_has_not_moved(name: str, band: int, flow: Flow, runs: dict) -> None:
+    cell = runs[name][1].cells[(band, flow.value)]
+    actual = (cell.true_positives, cell.false_positives, cell.false_negatives)
+    assert actual == EXPECTED_BANDS[(name, band, flow)], f"{name} band {band} {flow.value} moved"
+
+
+def test_no_procedural_cell_is_unpinned(runs: dict) -> None:
+    """A band-1 or band-2 cell B8 does not pin would be a fact nobody checks."""
+    for name in {key[0] for key in EXPECTED_BANDS}:
+        for band, flow in runs[name][1].cells:
+            assert (name, band, Flow(flow)) in EXPECTED_BANDS, f"{name} band {band} {flow}"
