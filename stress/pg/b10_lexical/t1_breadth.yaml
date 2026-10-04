@@ -10,7 +10,7 @@
 # counted; no statement is lost to a lexing error.
 package: pg/b10_lexical/t1_breadth.sql
 dialect: postgres
-source_sha256: 51ae05656591770ebbe72c6204a5c5e27f5e5bff9e828d4f03a8619c2c62f69c
+source_sha256: 9a02105225ec9d52a420fe1d8aed600b0fba8ad94d4a8dad6306d63a6b6fa75f
 labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
 labelled_at: '2026-10-01'
 edges:

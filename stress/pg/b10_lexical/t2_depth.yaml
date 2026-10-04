@@ -8,7 +8,7 @@
 # counted with no edges; \set is not counted.
 package: pg/b10_lexical/t2_depth.sql
 dialect: postgres
-source_sha256: 309fd445ff26127a0c30a5f4e3c6137b55a9a85ba694a95bde334d336299ab9b
+source_sha256: 1a16bd00f7cbe233b6a494e6ebd2f83a6f200c70c2edc8a636913628204e39f8
 labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
 labelled_at: '2026-10-01'
 edges:
