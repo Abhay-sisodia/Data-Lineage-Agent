@@ -229,6 +229,10 @@ def _schema_for(dictionary: Dictionary) -> dict[str, Any]:
     return schema
 
 
+_SCHEMA_QUALIFIED_DIALECTS = frozenset({"postgres", "spark", "databricks"})
+"""Dialects whose relation nodes are `schema.table` (D-25; Spark and Databricks by PO-0)."""
+
+
 def _relation_name(resolved: Any, fallback: str, dictionary: Dictionary) -> str:
     """How a relation is named in the lineage graph.
 
@@ -236,10 +240,15 @@ def _relation_name(resolved: Any, fallback: str, dictionary: Dictionary) -> str:
     `staging.ledger` and `core.ledger` into one node, so a copy from one to the other read
     as a self-edge and their lineage ran together. Oracle keeps the bare name its keys and
     corpus were written against.
+
+    Spark and Databricks follow PostgreSQL (finding PO-0): a lakehouse model reads
+    `silver_s2p.x` and `gold_common.x` side by side, which is exactly the merge D-25 exists
+    to prevent. Named rather than "everything but Oracle", so a dialect nobody has measured
+    does not acquire a naming rule by default.
     """
     if resolved.name is None:
         return fallback
-    if dictionary.dialect == "postgres" and resolved.owner:
+    if dictionary.dialect in _SCHEMA_QUALIFIED_DIALECTS and resolved.owner:
         return f"{resolved.owner}.{resolved.name}"
     return resolved.name
 
@@ -351,33 +360,55 @@ def _resolve_named_windows(expression: Any) -> Any:
 
     **A no-op for any statement without a `WINDOW` clause**, which is every Oracle package
     in the corpus and every statement in the four Oracle stress files.
+
+    **Inheritance (finding TT-2).** A window may name another as its base -
+    `WINDOW b AS (a ORDER BY d)`, or inline `OVER (a ORDER BY y)` - and SQLGlot carries the
+    base's name in `alias` exactly as it does for `OVER a`. PostgreSQL copies the base's
+    PARTITION BY, and its ORDER BY when the new window gives none. Only the plain `OVER a`
+    form used to be resolved: a definition's own base was never followed, and a window
+    carrying an ORDER BY of its own was skipped, so in the shipment torture query `lag`
+    over `w_cust_ship AS (w_cust ORDER BY ...)` lost w_cust's partition influence.
     """
     for window in list(expression.find_all(exp.Window)):
-        alias = window.args.get("alias")
-        if alias is None:
-            continue  # an inline OVER (...), or the definition node itself
-        if window.args.get("partition_by") or window.args.get("order") is not None:
-            continue  # already resolved, or an inline window that also carries a name
-
-        name = (alias.name if isinstance(alias, exp.Identifier) else str(alias)).upper()
-
-        # A window name is visible in its own select, so resolution walks outwards. It
-        # stops at the first select that defines the name - an inner definition shadows an
-        # outer one, exactly as a column alias does.
-        scope = window.parent_select
-        while scope is not None:
-            definition = _named_window_definitions(scope).get(name)
-            if definition is not None:
-                partition = definition.args.get("partition_by")
-                if partition:
-                    window.set("partition_by", [part.copy() for part in partition])
-                order = definition.args.get("order")
-                if order is not None:
-                    window.set("order", order.copy())
-                break
-            scope = scope.parent_select
-
+        _inherit_window(window, frozenset())
     return expression
+
+
+def _inherit_window(window: Any, resolving: frozenset[str]) -> None:
+    """Fill a window's missing PARTITION BY / ORDER BY from the window its `alias` names.
+
+    The base is resolved first, so a chain `c AS (b ...)`, `b AS (a ...)` arrives whole.
+    `resolving` guards a cycle in malformed SQL. Only absent parts are filled: what a
+    window states itself always wins, which is also what makes this safe to run twice.
+    """
+    alias = window.args.get("alias")
+    if alias is None:
+        return  # an inline OVER (...) with no base, or a definition with none
+    name = (alias.name if isinstance(alias, exp.Identifier) else str(alias)).upper()
+    if name in resolving:
+        return
+
+    # A window name is visible in its own select, so resolution walks outwards. It stops
+    # at the first select that defines the name - an inner definition shadows an outer
+    # one, exactly as a column alias does.
+    definition = None
+    scope = window.parent_select
+    while scope is not None:
+        definition = _named_window_definitions(scope).get(name)
+        if definition is not None and definition is not window:
+            break
+        definition = None
+        scope = scope.parent_select
+    if definition is None:
+        return
+
+    _inherit_window(definition, resolving | {name})
+    partition = definition.args.get("partition_by")
+    if partition and not window.args.get("partition_by"):
+        window.set("partition_by", [part.copy() for part in partition])
+    order = definition.args.get("order")
+    if order is not None and window.args.get("order") is None:
+        window.set("order", order.copy())
 
 
 def _correlated_filter_columns(expression: Any) -> list[Any]:
@@ -524,6 +555,25 @@ def _scope_index(scope: Scope) -> dict[int, Scope]:
     return index
 
 
+def _is_recursive_anchor_shell(scope: Scope) -> bool:
+    """Is this SQLGlot's source-less scope for a recursive CTE's self-reference? (TT-3)
+
+    It covers the anchor arm - the left side of the UNION that is the body of a CTE in a
+    RECURSIVE WITH - and has no sources, while the anchor's real scope (a union arm) does.
+    """
+    if scope.sources:
+        return False
+    union = scope.expression.parent
+    if not isinstance(union, exp.Union) or union.this is not scope.expression:
+        return False
+    cte = union.parent
+    return (
+        isinstance(cte, exp.CTE)
+        and isinstance(cte.parent, exp.With)
+        and bool(cte.parent.args.get("recursive"))
+    )
+
+
 def _home_scope(column: Any, fallback: Scope, index: dict[int, Scope]) -> Scope:
     """The scope a column was WRITTEN in: the innermost query that contains it.
 
@@ -589,6 +639,7 @@ def _qualify(parsed: Any, dictionary: Dictionary, search_path: list[str] | None 
     if dictionary.dialect == "postgres":
         parsed = session_keywords(parsed)
         parsed = restate_system_columns(parsed)
+        parsed = _return_types_as_types(parsed)
     parsed = expand_qualified_stars(parsed, dictionary)
     parsed = qualify(
         parsed,
@@ -600,6 +651,23 @@ def _qualify(parsed: Any, dictionary: Dictionary, search_path: list[str] | None 
     # A whole-row reference comes out of `qualify` as `TableColumn`, which no column walk
     # sees; restated here as columns so it is traced or declared, never dropped (B4-01).
     return restate_whole_rows(_merged_join_columns(parsed), dictionary)
+
+
+def _return_types_as_types(parsed: Any) -> Any:
+    """`JSON_OBJECT(... RETURNING jsonb)`: the return type as a type, not a column (TT-3).
+
+    SQLGlot parses the type after RETURNING as a `Column` named `jsonb`, which then reached
+    the trace as a column reference and was declared `unresolved_identifier` - a type
+    named as missing data. It carries no lineage, so it is restated as the type it names.
+    """
+    for node in list(parsed.find_all(exp.Expression)):
+        written = node.args.get("return_type") if node.args else None
+        if isinstance(written, exp.Column):
+            try:
+                node.set("return_type", exp.DataType.build(written.sql(dialect="postgres")))
+            except Exception:
+                node.set("return_type", None)
+    return parsed
 
 
 def _merged_join_columns(parsed: Any) -> Any:
@@ -1038,13 +1106,27 @@ def _follow(
         # ENCLOSING query, so it is in neither this scope nor any scope below it. Searching
         # only downward left it unresolved, and the fallback below then bound it to
         # whichever relation this subquery happened to select from.
+        #
+        # The scope that SELECTS the alias is preferred over one that only lists it (finding
+        # TT-3). A LATERAL's own scope lists the relations to its left without selecting
+        # them, so a correlation from inside it to a recursive CTE's self-reference
+        # (`CROSS JOIN LATERAL (... WHERE x.parent = be.child)` in the recursive arm) landed
+        # there, where the self-reference test - which reads selected sources - could not
+        # see it, and was declared unresolved. The first scope that lists it stays the
+        # fallback, which is what every other correlation already resolved through.
         outer = getattr(scope, "parent", None)
         climbed = 0
+        listing: Scope | None = None
         while outer is not None and climbed < 20:
             if column.table in outer.sources:
-                return _trace(column, outer, dictionary, unresolved, depth + 1, constraining)
+                if column.table in (getattr(outer, "selected_sources", None) or {}):
+                    listing = outer
+                    break
+                listing = listing or outer
             outer = getattr(outer, "parent", None)
             climbed += 1
+        if listing is not None:
+            return _trace(column, listing, dictionary, unresolved, depth + 1, constraining)
 
     # THE FALLBACK IS FOR UNQUALIFIED NAMES ONLY (S3-10). With one relation in scope,
     # `amount` can only mean that relation's column and binding it is right. `s.sid` is a
@@ -1061,6 +1143,12 @@ def _follow(
     # this same arm, and both are traced through the anchor. SQLGlot does not map the
     # self-reference to a scope, so it used to be declared unresolved (finding B2-10).
     if column.table and _is_recursive_self_reference(column, scope):
+        return []
+    # The same self-reference reached from a scope that does not select it - a correlation
+    # inside a LATERAL in the recursive arm (finding TT-3) - lands on SQLGlot's source-less
+    # shell over the anchor, where the anchor's projection could only be declared
+    # unresolved.
+    if isinstance(source, Scope) and _is_recursive_anchor_shell(source):
         return []
 
     if source is None and len(scope.sources) == 1 and not column.table:
@@ -1174,6 +1262,13 @@ def _follow(
                 column, source, scope, dictionary, unresolved, depth, constraining
             )
 
+        if isinstance(_query_of_scope(source.expression), exp.Values):
+            traced_values = _trace_through_values(
+                column, source, scope, dictionary, unresolved, depth, constraining
+            )
+            if traced_values is not None:
+                return traced_values
+
         projection = _projection_named(source, column.name)
         if projection is None:
             unresolved.append(
@@ -1215,6 +1310,50 @@ def _follow(
         )
     )
     return []
+
+
+def _trace_through_values(
+    column: exp.Column,
+    source: Scope,
+    scope: Scope,
+    dictionary: Dictionary,
+    unresolved: list[Boundary],
+    depth: int,
+    constraining: list[tuple[str, str, Transform]] | None,
+) -> list[tuple[str, str, Transform]] | None:
+    """A column of `(VALUES (...), (...)) AS v(a, b)` is that position of every row.
+
+    **Finding TT-3.** Under LATERAL the alias list sits on the `Lateral`, not on the
+    `Values`, so `_projection_named` found no name and `u.rev` in the unpivot
+    `CROSS JOIN LATERAL (VALUES ('Q1', p.q1_rev), ('Q2', p.q2_rev)) AS u (qtr, rev)` was
+    declared unresolved. PostgreSQL binds the alias columns BY POSITION, and every row
+    feeds the column the way every arm of a UNION ALL does. The elements are traced in the
+    scope that references the VALUES, because a LATERAL row reads its outer relation
+    (`p.q1_rev`) and a plain one reads nothing but literals.
+
+    Returns None when the column cannot be bound by position (no alias list, or a name not
+    in it), so the caller declares it as before.
+    """
+    wrapper = source.expression
+    values = _query_of_scope(wrapper)
+    alias = wrapper.args.get("alias") or values.args.get("alias")
+    names = [part.name.upper() for part in (alias.columns if alias is not None else [])]
+    wanted = column.name.upper()
+    if wanted not in names:
+        return None
+    index = names.index(wanted)
+    traced: list[tuple[str, str, Transform]] = []
+    for row in values.expressions:
+        elements = row.expressions if isinstance(row, exp.Tuple) else [row]
+        if index >= len(elements):
+            continue
+        element = elements[index]
+        for inner in _value_columns(element):
+            for table, name, transform in _trace(
+                inner, scope, dictionary, unresolved, depth + 1, constraining
+            ):
+                traced.append((table, name, _combine(_transform_of_path(element, inner), transform)))
+    return traced
 
 
 def _trace_through_unnest(
@@ -1342,6 +1481,13 @@ def _scalar_predicate_values(
         pending = [root]
         while pending:
             current = pending.pop()
+            # Finding TT-3: a recursive CTE's self-reference (`JOIN tree t` in its recursive
+            # arm) binds to a shell scope over the ANCHOR SELECT with no sources. Swept, the
+            # anchor's WHERE was traced where no relation is visible - `o.is_active`
+            # declared "could not resolve" - beside the edge the anchor arm, reached through
+            # `union_scopes`, had already given. The shell adds nothing (B2-10).
+            if _is_recursive_anchor_shell(current):
+                continue
             if id(current) in seen:
                 continue
             seen.add(id(current))

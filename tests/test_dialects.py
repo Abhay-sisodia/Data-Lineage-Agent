@@ -85,8 +85,12 @@ def test_the_registry_holds_only_what_has_been_measured() -> None:
     nothing from a dialect but its name (ADR-0002 section 1), while bands 1 and 2 need a
     PL/pgSQL grammar that has not been chosen. Its routine bodies are refused by name, so
     the gap is counted rather than silent.
+
+    Spark and Databricks were added on 2026-10-05 (finding PO-0), measured on the consolidated
+    purchase-order model: 164 of 164 stratified facts under `databricks`. Band 0 only, with
+    no procedural front end and no live catalogue (`dialects/spark.py`).
     """
-    assert set(SUPPORTED) == {"oracle", "postgres"}
+    assert set(SUPPORTED) == {"oracle", "postgres", "spark", "databricks"}
 
 
 def test_config_and_dictionary_must_agree() -> None:

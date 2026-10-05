@@ -37,7 +37,14 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
-_BUILTIN_SRFS = {"UNNEST", "GENERATE_SERIES", "STRING_TO_TABLE", "REGEXP_SPLIT_TO_TABLE"}
+_BUILTIN_SRFS = {
+    "UNNEST", "GENERATE_SERIES", "STRING_TO_TABLE", "REGEXP_SPLIT_TO_TABLE",
+    # Finding TT-3: two more one-column built-ins, declared unresolved in FROM -
+    # `regexp_matches(s, re, 'g') AS rm(m)` (a text[] per match) and
+    # `generate_subscripts(arr, 1) WITH ORDINALITY AS g(idx, n)` (derived from the array, as a
+    # series is from its bounds, D-28).
+    "REGEXP_MATCHES", "GENERATE_SUBSCRIPTS",
+}
 
 # Batch B5 (finding B5-01): the JSON and hstore set-returning functions, by output shape.
 # One column, named as PostgreSQL names it when no alias says otherwise:

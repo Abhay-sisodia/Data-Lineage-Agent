@@ -42,7 +42,7 @@ from lineage.config import AnalysisConfig
 from lineage.dialects import resolve_dialect
 from lineage.evidence.witness import ExecutionWitness
 from lineage.ir.model import Boundary, BoundaryKind, IREdge, Node, NodeKind
-from lineage.parsing import psql
+from lineage.parsing import pg_grammar, psql
 from lineage.parsing.plsql import Program, parse_program, source_slice
 from lineage.resolution.dictionary import Dictionary
 from lineage.resolution.views import resolve_views
@@ -89,6 +89,10 @@ def analyse_source(
             source,
             flags=re.IGNORECASE,
         )
+        # TT-5: PostgreSQL grammar SQLGlot has no rule for (SEARCH / CYCLE, SQL/JSON and XML
+        # keyword forms, typed and radix literals, geometric operators ...), restated as SQL
+        # that reads the same columns. Same lines, so every later line number holds.
+        source = pg_grammar.restate(source)
         # B8 (D-39..D-42): every PL/pgSQL routine and DO block the reader can read becomes
         # the SQL its body runs, at its own lines; what it cannot read stays as written and
         # is refused by name, as before. `plpgsql.finish` restates the result afterwards.

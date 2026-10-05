@@ -68,6 +68,11 @@ SCALAR = {
             # literal, so they read no column; read as user calls they were declared
             # "could not be summarised", which was false.
             "NEXTVAL", "CURRVAL", "SETVAL", "LASTVAL",
+            # finding TT-5: the XML functions, and the plain forms `parsing.pg_grammar`
+            # restates the keyword syntax into (XMLPI, XMLEXISTS, XMLSERIALIZE, XMLROOT as
+            # xmlconcat, COLLATION FOR as pg_collation_for). A document is read whole (D-29).
+            "XMLPI", "XMLEXISTS", "XMLSERIALIZE", "XMLCONCAT", "XMLCOMMENT", "XMLFOREST",
+            "PG_COLLATION_FOR",
         }
     ),
 }
