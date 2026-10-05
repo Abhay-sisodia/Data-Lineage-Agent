@@ -76,6 +76,11 @@ AGGREGATE = {
     "postgres": frozenset(
         {"JSONB_AGG", "JSON_AGG", "JSONB_OBJECT_AGG", "JSON_OBJECT_AGG", "EVERY", "XMLAGG"}
     ),
+    # Finding PO-1: Spark / Databricks aggregates that arrive as Anonymous. A Spark model is
+    # analysed through the PostgreSQL path (there is no Spark dialect, PO-0), and
+    # `SIZE(COLLECT_SET(x) OVER (...))` read `x` as derived. FIRST, ANY_VALUE, MAX_BY,
+    # COUNT_IF and APPROX_COUNT_DISTINCT need nothing: SQLGlot types them as aggregates.
+    "spark": frozenset({"COLLECT_SET", "COLLECT_LIST", "PERCENTILE_APPROX", "APPROX_PERCENTILE"}),
 }
 
 ALL_AGGREGATES = frozenset().union(*AGGREGATE.values())
@@ -84,6 +89,11 @@ and an aggregate's name means the same thing wherever it parses."""
 
 
 def is_builtin(name: str, dialect: str) -> bool:
-    """Is this unqualified, upper-cased function name a built-in of `dialect`?"""
+    """Is this unqualified, upper-cased function name a built-in of `dialect`?
+
+    Aggregates are checked across every dialect, as `transforms.is_aggregate` checks them:
+    a Spark model runs through the PostgreSQL path (PO-0), and a `COLLECT_SET` read as an
+    unknown user routine lost its argument entirely (PO-1).
+    """
     key = (dialect or "").lower()
-    return name in SCALAR.get(key, frozenset()) or name in AGGREGATE.get(key, frozenset())
+    return name in SCALAR.get(key, frozenset()) or name in ALL_AGGREGATES

@@ -215,6 +215,14 @@ def analyse_source(
         dataflow = analyse_unit(cfg, scope, dictionary, dynamic)
         result.edges.extend(dataflow.edges)
         for item in dataflow.unresolved:
+            # TT-4: band 0 now counts and refuses a script statement SQLGlot cannot parse,
+            # so def-use's parse failure for the same statement would declare it twice.
+            if (
+                isinstance(item, Boundary)
+                and item.kind is BoundaryKind.PARSE_FAILURE
+                and (unit.upper(), item.line) in _refused_at(result)
+            ):
+                continue
             unresolved = _in_unit(unit, item, BoundaryKind.UNRESOLVED_IDENTIFIER)
             if unresolved not in result.boundaries:
                 result.boundaries.append(unresolved)
@@ -334,6 +342,15 @@ def analyse_source(
             result.boundaries.append(entry)
 
     return result
+
+
+def _refused_at(result: AnalysisResult) -> set[tuple[str, int]]:
+    """`(UNIT, line)` of every statement refused whole, units upper-cased to compare."""
+    return {
+        ((refusal.unit or "").upper(), refusal.line)
+        for refusal in result.refusals
+        if refusal.scope == "statement"
+    }
 
 
 def _in_unit(unit: str, item: Boundary | str, default: BoundaryKind) -> Boundary:
@@ -481,8 +498,12 @@ def _context_dependent_names(
             continue
         if path is not None:
             continue
-        if statement.kind not in band0.SUPPORTED and not (
-            dialect == "postgres" and statement.kind == "update_statement"
+        # TE-2: a top-level bare SELECT is analysed into `<result>` (D-8), so its unqualified
+        # names bind through the search path like any write's and the assumption is declared.
+        if (
+            statement.kind not in band0.SUPPORTED
+            and not (dialect == "postgres" and statement.kind == "update_statement")
+            and not band0._is_standalone_query(program, statement)
         ):
             continue
         try:

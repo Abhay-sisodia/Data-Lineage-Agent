@@ -47,6 +47,7 @@ from lineage.analysis.relations import (
     search_path_change,
     session_keywords,
 )
+from lineage.analysis.system_columns import restate as restate_system_columns
 from lineage.analysis.whole_rows import restate as restate_whole_rows
 from lineage.analysis.ddl import exchange_partition_edges
 from lineage.analysis.dynamic import resolve_dynamic_sql
@@ -587,6 +588,7 @@ def _qualify(parsed: Any, dictionary: Dictionary, search_path: list[str] | None 
     parsed = bind_relations(parsed, dictionary, search_path)
     if dictionary.dialect == "postgres":
         parsed = session_keywords(parsed)
+        parsed = restate_system_columns(parsed)
     parsed = expand_qualified_stars(parsed, dictionary)
     parsed = qualify(
         parsed,
@@ -892,7 +894,115 @@ def _is_recursive_self_reference(column: Any, scope: Scope) -> bool:
     return False
 
 
+TRACE_DEPTH_CAP = 256
+"""How many relations deep a column is followed before the trace declares a `depth_cap`.
+
+**Finding TE-1.** This was a literal `20` in three walkers, and exceeding it returned `[]`:
+no edge, no boundary, the statement counted clean. A 112-stage CTE pipeline (the entity
+torture test) traces about 117 levels from its output to its base table, and lost every
+spine fact with a clean report - the R1 shape exactly. A chain of CTEs is ordinary in
+generated models, so the cap is set far above any real pipeline, and reaching it is now
+declared. It stays well inside Python's recursion limit; `_analyse_parsed` refuses the
+statement if the stack runs out anyway.
+"""
+
+_TRACE_MEMO = "_lineage_trace_memo"
+"""The attribute a scope keeps its traced columns under; it lives and dies with the scope."""
+
+
+def _depth_cap(subject: str, unresolved: list[Boundary]) -> list[tuple[str, str, Transform]]:
+    """Declare that a trace stopped at `TRACE_DEPTH_CAP`, and give it no edge (TE-1)."""
+    unresolved.append(
+        Boundary(
+            kind=BoundaryKind.DEPTH_CAP,
+            subject=subject,
+            detail=(
+                f"{subject} (traced more than {TRACE_DEPTH_CAP} relations deep; the "
+                "lineage below that depth is not followed)"
+            ),
+        )
+    )
+    return []
+
+
+def _recall(
+    scope: Scope, key: tuple[Any, ...], unresolved: list[Boundary]
+) -> list[tuple[str, str, Transform]] | None:
+    """An influence walk already made from this scope, its boundaries replayed; else None.
+
+    The influence walkers' half of `_trace`'s memo (TE-1): they descend through every value
+    column exactly as `_trace` does, so they fan out the same way. Two helpers rather than
+    a wrapper, so a walker still costs ONE stack frame per level: a wrapper made it four,
+    and the stack ran out before `TRACE_DEPTH_CAP` was reached.
+    """
+    stored = scope.__dict__.get(_TRACE_MEMO, {}).get(key)
+    if stored is None:
+        return None
+    found, declared = stored
+    unresolved.extend(declared)
+    return list(found)
+
+
+def _remember(
+    scope: Scope,
+    key: tuple[Any, ...],
+    unresolved: list[Boundary],
+    first_declared: int,
+    found: list[tuple[str, str, Transform]],
+) -> list[tuple[str, str, Transform]]:
+    """Store a finished influence walk (once per source), unless it hit the depth cap."""
+    found = list(dict.fromkeys(found))
+    declared = unresolved[first_declared:]
+    if not any(boundary.kind is BoundaryKind.DEPTH_CAP for boundary in declared):
+        memo = scope.__dict__.setdefault(_TRACE_MEMO, {})
+        memo[key] = (tuple(found), tuple(declared))
+    return found
+
+
 def _trace(
+    column: exp.Column,
+    scope: Scope,
+    dictionary: Dictionary,
+    unresolved: list[Boundary],
+    depth: int = 0,
+    constraining: list[tuple[str, str, Transform]] | None = None,
+) -> list[tuple[str, str, Transform]]:
+    """`_follow`, memoised per scope and column (finding TE-1).
+
+    A column of a CTE is traced once however many projections read it. Without this, a
+    chain of CTEs whose columns each read two columns of the stage before costs 2^depth;
+    the old cap of 20 was what bounded it. A trace appends boundaries (and, for a set
+    operation's constraining arm, sources) as it goes, so a hit replays exactly what the
+    first trace appended. A trace that hit the depth cap is not stored: from a shallower
+    depth the same column may resolve in full.
+    """
+    if depth > TRACE_DEPTH_CAP:
+        return _depth_cap(column.name.upper(), unresolved)
+    memo = scope.__dict__.setdefault(_TRACE_MEMO, {})
+    key = (column.table, column.name, constraining is not None)
+    stored = memo.get(key)
+    if stored is not None:
+        traced, declared, constrained = stored
+        unresolved.extend(declared)
+        if constraining is not None:
+            constraining.extend(constrained)
+        return list(traced)
+
+    first_declared = len(unresolved)
+    first_constrained = len(constraining) if constraining is not None else 0
+    # Once per source, in first-found order: two paths to the same column with the same
+    # transform are one fact, and keeping both doubles the list at every fanning stage.
+    traced = list(
+        dict.fromkeys(_follow(column, scope, dictionary, unresolved, depth, constraining))
+    )
+    declared = unresolved[first_declared:]
+    if not any(boundary.kind is BoundaryKind.DEPTH_CAP for boundary in declared):
+        constrained = constraining[first_constrained:] if constraining is not None else []
+        memo[key] = (tuple(traced), tuple(declared), tuple(constrained))
+    return traced
+
+
+def _follow(
     column: exp.Column,
     scope: Scope,
     dictionary: Dictionary,
@@ -912,9 +1022,6 @@ def _trace(
     shape this project exists to prevent. If the name is not a real column of the
     relation it resolved to, no edge is emitted and the reference is declared instead.
     """
-    if depth > 20:  # pathological nesting; refuse rather than recurse forever
-        return []
-
     source = scope.sources.get(column.table) if column.table else None
 
     if source is None and column.table:
@@ -1288,8 +1395,13 @@ def _window_influence(
     column resolves to a base table and would stop there anyway, but descending through it
     would mean re-deriving, at every level, the exclusion this function exists to apply.
     """
-    if depth > 20:
-        return []
+    if depth > TRACE_DEPTH_CAP:
+        return _depth_cap(str(projection.alias_or_name).upper(), unresolved)
+    key = ("window", id(projection))
+    recalled = _recall(scope, key, unresolved)
+    if recalled is not None:
+        return recalled
+    first_declared = len(unresolved)
 
     found: list[tuple[str, str, Transform]] = []
     for column in _window_influence_columns(projection):
@@ -1311,7 +1423,7 @@ def _window_influence(
         if inner is None:
             continue
         found.extend(_window_influence(inner, source, dictionary, unresolved, depth + 1))
-    return found
+    return _remember(scope, key, unresolved, first_declared, found)
 
 
 def _projection_behind(column: Any, scope: Scope) -> tuple[Any, Scope] | None:
@@ -1362,8 +1474,13 @@ def _grouping_influence(
     views, CTEs and alias chains - and a grouping two levels down is a real dependency of
     the value that comes out.
     """
-    if depth > 20:
-        return []
+    if depth > TRACE_DEPTH_CAP:
+        return _depth_cap(str(projection.alias_or_name).upper(), unresolved)
+    key = ("grouping", id(projection))
+    recalled = _recall(scope, key, unresolved)
+    if recalled is not None:
+        return recalled
+    first_declared = len(unresolved)
 
     found: list[tuple[str, str, Transform]] = []
     group = _query_of_scope(scope.expression).args.get("group")
@@ -1394,7 +1511,7 @@ def _grouping_influence(
         if inner is None:
             continue
         found.extend(_grouping_influence(inner, source, dictionary, unresolved, depth + 1))
-    return found
+    return _remember(scope, key, unresolved, first_declared, found)
 
 
 def _flatten_arms(arms: list[Any]) -> list[Any]:
@@ -3577,9 +3694,18 @@ def analyse_source(
         postgres_update = (
             program.dialect == "postgres" and statement.kind == "update_statement"
         )
+        # TT-4: a script statement SQLGlot cannot parse at all has no kind to dispatch on,
+        # and was skipped here uncounted - a 2,963-line query read as an empty file
+        # (statements seen 0). It goes on, so `_analyse_statement` counts it and refuses it
+        # PARSE_FAILED like any other statement it cannot read.
+        unparsed = (
+            statement.kind == "unparsed_statement"
+            and _enclosing_unit(program, statement).strip().lower() == SCRIPT_UNIT
+        )
         if (
             statement.kind not in SUPPORTED
             and not postgres_update
+            and not unparsed
             and not _is_standalone_query(program, statement)
         ):
             continue
@@ -3897,9 +4023,22 @@ def _analyse_statement(
     parts = expand_postgres_writes(parsed, dictionary)
     edges: list[PredictedEdge] = []
     for part in parts:
-        part_edges, refusal = _analyse_parsed(
-            part, dictionary, config, band, origin, summaries, result_target, unresolved
-        )
+        try:
+            part_edges, refusal = _analyse_parsed(
+                part, dictionary, config, band, origin, summaries, result_target, unresolved
+            )
+        except RecursionError:
+            # TE-1's backstop. The walkers stop at TRACE_DEPTH_CAP, far inside the stack;
+            # if some other recursion runs out first, this statement is refused by name
+            # rather than the exception taking every other statement in the file with it.
+            return (
+                [],
+                (
+                    RefusalCode.BUDGET_EXCEEDED,
+                    "the statement nests deeper than the analyser's stack allows",
+                ),
+                unresolved,
+            )
         if refusal is not None:
             return [], refusal, unresolved
         edges.extend(part_edges)

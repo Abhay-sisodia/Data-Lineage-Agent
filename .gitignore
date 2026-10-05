@@ -36,3 +36,6 @@ out/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Torture tests over user-supplied SQL: run locally, kept out of git (decided 2026-10-05).
+stress/pg/torture*/
