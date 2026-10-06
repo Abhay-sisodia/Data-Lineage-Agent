@@ -143,3 +143,29 @@ def test_a_distinct_on_key_in_a_two_relation_scope_is_bound() -> None:
     )
     assert result.boundaries == []
     assert ("filter", "staging.orders.customer_id", "identity") in _edges(result)
+
+
+# --- D-47 (B4-Q1) ---------------------------------------------------------------------------
+
+
+def test_one_column_can_be_both_value_and_influence_of_one_target() -> None:
+    """orders.customer_id is the scalar subquery's correlation (a value, D-12) and the
+    GROUP BY key (an influence, D-2) of the same column: both facts stand (D-47)."""
+    result = _result(
+        "SELECT o.customer_id, sum((SELECT count(*) FROM staging.payments AS p "
+        "WHERE p.order_id = o.id AND p.method = o.channel)) AS paid_count "
+        "FROM staging.orders AS o GROUP BY o.customer_id;"
+    )
+    edges = _edges(result, "paid_count")
+    assert ("influence", "staging.orders.customer_id", "identity") in edges
+    assert ("value", "staging.orders.channel", "aggregated") in edges
+
+
+def test_string_agg_ordered_by_its_own_column_is_both() -> None:
+    result = _result(
+        "SELECT o.customer_id, string_agg(o.status, ',' ORDER BY o.status) AS statuses "
+        "FROM staging.orders AS o GROUP BY o.customer_id;"
+    )
+    edges = _edges(result, "statuses")
+    assert ("value", "staging.orders.status", "aggregated") in edges
+    assert ("influence", "staging.orders.status", "identity") in edges

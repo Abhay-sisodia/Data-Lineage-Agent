@@ -4707,3 +4707,13 @@ close TQ-1, TQ-4 and TQ-5.
 * **D-46 (TQ-5)** - a GROUP BY behind an aggregate also INFLUENCES a window ordered (or
   partitioned) by that aggregate: the grouping decides the aggregate, which decides the
   order. Closes the D-43 avoidance "GROUP BY influence onto a ranking over an aggregate".
+
+## Decision taken — 2026-10-06 (D-47)
+
+Taken by Abhay; closes B4-Q1, open since batch B4.
+
+* **D-47 (B4-Q1)** - one source column can be BOTH a value and an influence of the same
+  target: two facts, scored separately, nothing suppressed. Value says the column supplies
+  part of the number; influence says it decides which rows collapse together, or in what
+  order they are taken. `orchid_events.entity_id` is a correlation operand (a value, D-12)
+  and the GROUP BY key (an influence, D-2) of one aggregated column, and both are true.
