@@ -11,10 +11,9 @@
 # expected. All facts are band 0: no PL/pgSQL in this file.
 #
 # FLAGGED, NOT LABELLED (a convention question for the batch report, not a key decision):
-#   * S10a - GROUPING(region, country_code) inside the CASE that writes `level`. It reports
-#     which grouping set a row belongs to and carries no column's value. Nothing is labelled
-#     for `level` and nothing is forbidden, so whatever the analyser emits there is
-#     reported, not scored as right or wrong by fiat.
+#   * S10a - GROUPING(region, country_code) inside the CASE that writes `level`. DECIDED
+#     2026-10-06 (D-50): grouping() carries no lineage, so `level` gets nothing - pinned by
+#     the forbids at S10a.
 #   * S8a / S8b - the merged column of USING / NATURAL is labelled from the LEFT input only,
 #     which is PostgreSQL's definition for an inner join. The right input's equal column is
 #     neither labelled nor forbidden: equal by construction, so an edge from it is
@@ -50,7 +49,8 @@ value core.dim_store.region -> mart.channel_mix.region identity
 value staging.order_lines.order_id -> mart.channel_mix.orders identity
 value staging.order_lines.quantity, staging.order_lines.unit_price -> mart.channel_mix.revenue derived
 value staging.order_lines.discount_pct -> mart.channel_mix.share_of_region derived
-forbid filter staging.orders.status -> mart.channel_mix | a literal predicate inside ON is still part of the join, structural under D-5
+filter staging.orders.status -> mart.channel_mix
+note RELABELLED UNDER D-48 (2026-10-06): a non-key condition in an INNER join's ON removes rows as WHERE would - a filter. It was forbidden under D-5, which made a whole ON structural.
 forbid filter staging.orders.id -> mart.channel_mix | a join key in ON is structural (D-5)
 
 @ 89 S4a LEFT JOIN, right-side predicate in ON
@@ -58,6 +58,8 @@ value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
 value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name identity
 value staging.shipments.id -> mart.carrier_scorecard.shipments identity
 forbid filter staging.shipments.status -> mart.carrier_scorecard | in a LEFT JOIN's ON it decides which shipments match; every carrier is kept
+value staging.shipments.status -> mart.carrier_scorecard.shipments conditional
+note ADDED UNDER D-48 (2026-10-06): on a LEFT join's null side the ON condition decides which shipment supplies `shipments` - a conditional value of what that side feeds, never a filter.
 
 @ 106 S4b LEFT JOIN, the same predicate in WHERE
 value core.dim_carrier.mode -> mart.kpi_rollup.region identity
@@ -118,6 +120,9 @@ value core.dim_store.country_code -> mart.kpi_rollup.country_code identity
 value core.fct_order_line.order_id -> mart.kpi_rollup.orders aggregated
 value core.fct_order_line.amount_usd -> mart.kpi_rollup.revenue aggregated
 influence core.dim_store.region, core.dim_store.country_code -> mart.kpi_rollup.orders, mart.kpi_rollup.revenue
+forbid value core.dim_store.region -> mart.kpi_rollup.level | grouping() carries no lineage (D-50)
+forbid influence core.dim_store.region -> mart.kpi_rollup.level | grouping() is not an aggregate of data, so the GROUP BY does not reach it (D-50)
+forbid influence core.dim_store.country_code -> mart.kpi_rollup.level | as above (D-50)
 
 @ 255 S10b CUBE
 value staging.payments.method -> mart.channel_mix.channel identity

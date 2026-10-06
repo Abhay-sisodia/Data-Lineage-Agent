@@ -113,8 +113,8 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B1-04 | `construct-coverage` | **fixed** | `cardinality()` treated as an unknown routine (`source_unavailable`); a built-in-catalogue gap, the same shape as PG-04 Fixed 2026-10-01 with PG-04: `analysis/builtins.py`, a per-dialect built-in catalogue. |
 | B1-05 | `identity` | **fixed** | **a quoted mixed-case identifier is matched case-insensitively** — `x.region` resolves to the `"Region"` projection, a silent wrong edge Fixed 2026-10-01: `band0._position_named` - exact first, case-blind only if unique. |
 | B1-06 | `measurement-error` | **fixed** | every CTE-using statement gets a spurious `context_dependent_binding` boundary naming the CTE as an unqualified schema object Fixed 2026-10-01: `procedure._context_dependent_names` skips the statement's own CTE names. |
-| B1-Q1 | `convention` | open, needs a decision | what `GROUPING(a, b)` produces — today `a, b` come out as an aggregated value of the column and as a filter when it is compared in WHERE |
-| B1-Q2 | `convention` | open, needs a decision | is a NON-equality join condition written in WHERE (`a.d > b.d` between two inner-joined relations) structural, as it would be in ON (D-5)? D-11 decided equalities only; `stress_01`'s self-join labels `child.signup_date > parent.signup_date` a real filter |
+| B1-Q1 | `convention` | **decided as D-50** | what `GROUPING(a, b)` produces — today `a, b` come out as an aggregated value of the column and as a filter when it is compared in WHERE |
+| B1-Q2 | `convention` | **decided as D-49** | is a NON-equality join condition written in WHERE (`a.d > b.d` between two inner-joined relations) structural, as it would be in ON (D-5)? D-11 decided equalities only; `stress_01`'s self-join labels `child.signup_date > parent.signup_date` a real filter |
 | B2-01 | `transform-classification` | **fixed** | a column a scalar subquery passes through unchanged is reported `derived`, not `identity` - the subquery wrapper counted as a computation. `stress/pg/b2_subqueries_ctes_setops/REPORT.md` Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
 | B2-02 | `flow-classification` | **fixed** | **a scalar subquery's ORDER BY column is reported as a VALUE source** - S2-12's defect in a new position Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
 | B2-03 | `flow-classification` | **fixed** | **a join inside a scalar subquery leaks its keys as VALUE sources**, and B1's D-9 code does the same when ordering by such a subquery Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
@@ -4717,3 +4717,40 @@ Taken by Abhay; closes B4-Q1, open since batch B4.
   part of the number; influence says it decides which rows collapse together, or in what
   order they are taken. `orchid_events.entity_id` is a correlation operand (a value, D-12)
   and the GROUP BY key (an influence, D-2) of one aggregated column, and both are true.
+
+## Decisions taken — 2026-10-06 (D-48, D-49, D-50)
+
+Taken by Abhay; they close B1-Q2, the D-43 avoidance "single-relation ON predicates", and
+the grouping() question raised by torture D2. Together with D-45 to D-47 they leave no
+PostgreSQL torture column excluded for want of a convention.
+
+* **D-48** - a predicate inside an ON clause that is not the join's key equality - a
+  condition on one relation (`JOIN d ON d.id = c.id AND d.is_current`), or a literal test -
+  follows the join's side. On an INNER join it removes rows exactly as it would in WHERE:
+  a FILTER. On an outer join it cannot remove a result row: a VALUE of the columns fed
+  from the null-supplying side (`conditional`), as D-14 and D-45 already make that side's
+  own WHERE. The key equality stays structural (D-5, D-11).
+* **D-49 (B1-Q2)** - a NON-equality condition between two relations (a range join
+  `f.d >= v.valid_from AND f.d < v.valid_to`, `child.signup > parent.signup`) is a FILTER
+  with both operands as sources, in ON or WHERE alike; on an outer join's null-supplying
+  side, a value (D-48). Unlike a key equality it is a business condition deciding which
+  pairs survive. stress_01's label `child.signup_date > parent.signup_date` stands.
+* **D-50** - `grouping(a, b)` carries no lineage, like a literal: its bitmask reports the
+  query's GROUPING SETS shape, and no part of `a` or `b` is in it. A predicate on it
+  filters on nothing traceable.
+
+## Decision taken — 2026-10-06 (D-51)
+
+Taken by Abhay; closes TQ-6, raised by the entity torture test's `final_payload`.
+
+* **D-51 (TQ-6)** - when one source reaches one target along several paths with different
+  transforms (directly, through a CASE, through an aggregate), that is ONE value fact per
+  (source, target) within a statement, carrying the hardest transform over all its paths -
+  D-7's ladder applied across paths. The answer does not depend on how many ways the query
+  happens to reach the column. Collapsed in `band0._hardest_per_path`.
+
+**D-48 reached one Oracle key** (2026-10-06): `stress_04` S4_DEEP_ALIAS_CHAIN's
+`JOIN ref_policy p ON p.region = 'EU'` is an inner join whose ON condition reads one
+relation, so `REF_POLICY.REGION` is now a filter label on `GTT_STAGE` (relabelled, with a
+comment in the YAML). Every other Oracle edge and score is unchanged. D-50 and D-48 also
+moved four pinned PostgreSQL batch cells (B1 T1, B1 T2, B4 T4), relabelled the same way.

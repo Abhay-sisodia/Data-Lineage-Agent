@@ -13,10 +13,9 @@
 # expected. All facts are band 0: no PL/pgSQL in this file.
 #
 # FLAGGED, NOT LABELLED (a convention question for the batch report, not a key decision):
-# * S10a - GROUPING(region, country_code) inside the CASE that writes `level`. It reports
-# which grouping set a row belongs to and carries no column's value. Nothing is labelled
-# for `level` and nothing is forbidden, so whatever the analyser emits there is
-# reported, not scored as right or wrong by fiat.
+# * S10a - GROUPING(region, country_code) inside the CASE that writes `level`. DECIDED
+# 2026-10-06 (D-50): grouping() carries no lineage, so `level` gets nothing - pinned by
+# the forbids at S10a.
 # * S8a / S8b - the merged column of USING / NATURAL is labelled from the LEFT input only,
 # which is PostgreSQL's definition for an inner join. The right input's equal column is
 # neither labelled nor forbidden: equal by construction, so an edge from it is
@@ -456,6 +455,21 @@ edges:
   evidence: source_read
 - source:
     kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+  note: 'RELABELLED UNDER D-48 (2026-10-06): a non-key condition in an INNER join''s ON removes rows as
+    WHERE would - a filter. It was forbidden under D-5, which made a whole ON structural.'
+- source:
+    kind: column
     name: core.dim_carrier.id
   target:
     kind: column
@@ -493,6 +507,21 @@ edges:
     unit: <script>
     line: 89
   evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.status
+  target:
+    kind: column
+    name: mart.carrier_scorecard.shipments
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+  note: 'ADDED UNDER D-48 (2026-10-06): on a LEFT join''s null side the ON condition decides which shipment
+    supplies `shipments` - a conditional value of what that side feeds, never a filter.'
 - source:
     kind: column
     name: core.dim_carrier.mode
@@ -2381,14 +2410,6 @@ forbidden:
   transform: conditional
 - source:
     kind: column
-    name: staging.orders.status
-  target:
-    kind: relation
-    name: mart.channel_mix
-  flow: filter
-  reason: a literal predicate inside ON is still part of the join, structural under D-5
-- source:
-    kind: column
     name: staging.orders.id
   target:
     kind: relation
@@ -2419,6 +2440,30 @@ forbidden:
     name: mart.sales_daily.sale_date
   flow: influence
   reason: a grouping key is copied through unchanged; it does not influence itself (D-2)
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  reason: grouping() carries no lineage (D-50)
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: influence
+  reason: grouping() is not an aggregate of data, so the GROUP BY does not reach it (D-50)
+- source:
+    kind: column
+    name: core.dim_store.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: influence
+  reason: as above (D-50)
 - source:
     kind: column
     name: core.fct_shipment.warehouse_id

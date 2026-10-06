@@ -51,7 +51,12 @@ from lineage.analysis.system_columns import restate as restate_system_columns
 from lineage.analysis.whole_rows import restate as restate_whole_rows
 from lineage.analysis.ddl import exchange_partition_edges
 from lineage.analysis.dynamic import resolve_dynamic_sql
-from lineage.analysis.predicates import predicate_columns
+from lineage.analysis.predicates import (
+    in_grouping_function,
+    is_outer_join,
+    on_condition_columns,
+    predicate_columns,
+)
 from lineage.analysis.transforms import (
     AGGREGATE_FUNCTIONS,
     CONDITIONAL_EXPRESSIONS,
@@ -538,7 +543,9 @@ def _value_columns(expression: Any) -> list[Any]:
     return [
         c
         for c in expression.find_all(exp.Column)
-        if id(c) not in excluded and not _in_non_value_clause(c, expression)
+        if id(c) not in excluded
+        and not _in_non_value_clause(c, expression)
+        and not in_grouping_function(c)  # D-50: grouping(a) carries no lineage
     ]
 
 
@@ -1465,6 +1472,7 @@ def _scalar_predicate_values(
     for root in _value_deciding_roots(projection, scope):
         values, _ = _value_deciding_sweep(root, _statement_deciding(scope), dictionary, unresolved)
         found.extend(values)
+    found.extend(_null_side_on_values(projection, scope, dictionary, unresolved))
     return found
 
 
@@ -1481,6 +1489,39 @@ def _outermost_subqueries(projection: Any) -> list[Any]:
         for nested in projection.find_all(exp.Select)
         if nested is not owner and nested.find_ancestor(exp.Select) is owner
     ]
+
+
+def _hardest_per_path(edges: list[PredictedEdge]) -> list[PredictedEdge]:
+    """One value fact per (source, target) within a statement, at its hardest transform (D-51).
+
+    A source can reach one target along several paths - `jsonb_build_object(f.id, CASE WHEN
+    f.flag ..., f.total)` reads `id` directly, through a CASE and through an aggregate - and
+    each path used to give its own edge. D-51 (2026-10-06): the fact is the column reaching
+    the target, and its transform is the hardest over every path (D-7's ladder, applied
+    across paths), so the answer does not depend on how many ways the query gets there.
+    """
+    hardest: dict[tuple[Any, ...], Transform] = {}
+    for edge in edges:
+        if edge.flow is Flow.VALUE:
+            key = (str(edge.source), str(edge.target), edge.band, edge.guard)
+            held = hardest.get(key)
+            if held is None or TRANSFORM_RANK[edge.transform] > TRANSFORM_RANK[held]:
+                hardest[key] = edge.transform
+    collapsed: list[PredictedEdge] = []
+    emitted: set[tuple[Any, ...]] = set()
+    for edge in edges:
+        if edge.flow is not Flow.VALUE:
+            collapsed.append(edge)
+            continue
+        key = (str(edge.source), str(edge.target), edge.band, edge.guard)
+        if key in emitted:
+            continue
+        emitted.add(key)
+        transform = hardest[key]
+        if edge.transform != transform:
+            edge = edge.model_copy(update={"transform": transform})
+        collapsed.append(edge)
+    return collapsed
 
 
 def _statement_root(scope: Scope) -> Scope:
@@ -1572,9 +1613,73 @@ def _value_deciding_sweep(
                     values.append((table, name, _combine(base, traced)))
                 if clause == "where":
                     influence.extend(_window_filter_sources(column, home, dictionary, unresolved))
+        # D-48 / D-49: an inner join's non-key ON conditions filter `current` as its WHERE
+        # does, so below a value-deciding scope they are values too.
+        for join in query.args.get("joins") or []:
+            if is_outer_join(join):
+                continue
+            for column in on_condition_columns(join):
+                home = _home_scope(column, current, index)
+                for table, name, traced in _trace(column, home, dictionary, unresolved):
+                    values.append((table, name, _combine(base, traced)))
         chosen = _row_choosing_expressions(query)
         influence.extend(_ordered_sources(chosen, current, dictionary, unresolved))
     return values, influence
+
+
+def _outer_join_conditions(select: Any) -> dict[str, list[Any]]:
+    """Each null-supplying alias of this SELECT, with the non-key ON columns that govern it.
+
+    A LEFT join's condition governs its own table; a RIGHT join's, everything to its left;
+    a FULL join's, both. Upper-cased aliases, as `_null_side_aliases` keys them.
+    """
+    source = select.args.get("from_") or select.args.get("from")
+    order = [source.this.alias_or_name] if source is not None else []
+    found: dict[str, list[Any]] = {}
+    for join in select.args.get("joins") or []:
+        name = join.this.alias_or_name
+        side = (join.side or "").upper()
+        nulled = list(order) if side in ("RIGHT", "FULL") else []
+        if side in ("LEFT", "FULL"):
+            nulled.append(name)
+        if nulled:
+            columns = on_condition_columns(join)
+            for alias in nulled:
+                if alias:
+                    found.setdefault(alias.upper(), []).extend(columns)
+        order.append(name)
+    return found
+
+
+def _null_side_on_values(
+    projection: Any, scope: Scope, dictionary: Dictionary, unresolved: list[Boundary]
+) -> list[tuple[str, str, Transform]]:
+    """D-48 / D-49: the outer-join ON conditions that decide a value this projection reads.
+
+    `LEFT JOIN g ON g.k = w.k AND g.rollup = 0` cannot remove a result row; `g.rollup` decides
+    which g row - if any - supplies the columns read from g, so it is a `conditional` value of
+    every column fed from g, as g's own WHERE is (D-14). Both operands of a range condition
+    are. The key equality stays structural. A null-supplying base table counts as well as a
+    derived one: the condition is on the join, not inside the relation.
+    """
+    query = _query_of_scope(scope.expression)
+    if not isinstance(query, exp.Select):
+        return []
+    conditions = _outer_join_conditions(query)
+    if not conditions:
+        return []
+    index = _scope_index(_statement_root(scope))
+    found: list[tuple[str, str, Transform]] = []
+    read: set[str] = set()
+    for column in projection.find_all(exp.Column):
+        alias = (column.table or "").upper()
+        if alias in conditions and alias not in read:
+            read.add(alias)
+            for condition in conditions[alias]:
+                home = _home_scope(condition, scope, index)
+                for table, name, traced in _trace(condition, home, dictionary, unresolved):
+                    found.append((table, name, _combine(Transform.CONDITIONAL, traced)))
+    return found
 
 
 def _window_influence(
@@ -2461,6 +2566,8 @@ def _value_only_edges(
             roots.append(source)
 
     edges: list[PredictedEdge] = []
+    for table, name, transform in _null_side_on_values(projection, scope, dictionary, unresolved):
+        edges.append(_edge(table, name, target_name, target_column, transform, band, origin))
     for root in {id(root): root for root in roots}.values():
         values, influence = _value_deciding_sweep(root, deciding, dictionary, unresolved)
         for table, name, transform in values:
@@ -2660,6 +2767,18 @@ def _filter_edges(
                 # ORDER BY decide which row survives, though neither is in `rn`'s value.
                 found = _window_filter_sources(column, home, dictionary, unresolved)
                 emit(found, _selection_phase(found))
+
+        # D-48 / D-49: a condition in an INNER join's ON that is not its key equality - a
+        # test on one relation, or a range between two - removes rows exactly as the same
+        # condition in WHERE would. An outer join's is a value of its null side instead
+        # (`_null_side_on_values`).
+        if isinstance(query, exp.Select):
+            for join in query.args.get("joins") or []:
+                if is_outer_join(join):
+                    continue
+                for column in on_condition_columns(join):
+                    home = _home_scope(column, current, index)
+                    emit(_trace(column, home, dictionary, unresolved))
 
         # D-9: DISTINCT ON and an ORDER BY under a row limit choose which rows land.
         found = _row_selection_sources(current, dictionary, unresolved)
@@ -4009,6 +4128,7 @@ def analyse_source(
             result_target,
             drop_ctes,
         )
+        edges = _hardest_per_path(edges)
         if effect is not None and effect.finalize is not None:
             effect.finalize()  # a view becomes inlinable only after its own CREATE
         # Declared, counted, and never silent. An identifier the analyser could not

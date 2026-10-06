@@ -96,6 +96,10 @@ def is_aggregate(node: Any) -> bool:
     """
     if isinstance(node, VALUE_SELECTING_WINDOW_FUNCTIONS):
         return False
+    # D-50: grouping(a, b) reports the GROUPING SETS shape. SQLGlot types it as an aggregate,
+    # which attached the GROUP BY keys to it as influence; it aggregates no data.
+    if isinstance(node, exp.Grouping):
+        return False
     # The two clauses that hang BESIDE an aggregate rather than under it: the aggregate is
     # their `this`, and the columns they carry are its siblings, not its descendants. A path
     # walked upward from such a column meets the clause and never the aggregate, so without

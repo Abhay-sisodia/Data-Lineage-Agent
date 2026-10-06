@@ -168,6 +168,21 @@ edges:
   evidence: source_read
 - source:
     kind: column
+    name: core.dim_product.product_key
+  target:
+    kind: relation
+    name: mart.product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 52
+  evidence: source_read
+  note: 'RELABELLED UNDER D-49 (2026-10-06): a NON-equality between two relations is a filter, in ON or
+    WHERE; both operands are the one node product_key. The equality product_id = product_id stays structural.'
+- source:
+    kind: column
     name: core.dim_date.year
   target:
     kind: column
@@ -831,14 +846,6 @@ forbidden:
   flow: value
   reason: a CASE over one column and constants is derived (D-19)
   transform: conditional
-- source:
-    kind: column
-    name: core.dim_product.product_key
-  target:
-    kind: relation
-    name: mart.product_performance
-  flow: filter
-  reason: an ON inequality is still structural (D-5)
 - source:
     kind: column
     name: core.dim_date.year

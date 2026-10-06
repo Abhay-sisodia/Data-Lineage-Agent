@@ -13,21 +13,71 @@ from sqlglot import exp
 
 
 def _structural_column_ids(node: Any) -> set[int]:
-    """Identities of columns that appear only in a join's `ON` clause."""
+    """Identities of the ON-clause columns inside `node` that are join plumbing.
+
+    Until D-48 every column of every ON was plumbing. Now only the key equality is (D-5):
+    another condition in an INNER join's ON removes rows exactly as it would in WHERE, so
+    it is a filter (D-48, and D-49 for a non-equality). An OUTER join's ON cannot remove a
+    row of the query it sits in; inside a predicate it feeds no column, so it adds nothing.
+    """
     found: set[int] = set()
     for join in node.find_all(exp.Join):
         on = join.args.get("on")
         if on is None:
             continue
-        found.update(id(column) for column in on.find_all(exp.Column))
+        if is_outer_join(join):
+            found.update(id(column) for column in on.find_all(exp.Column))
+            continue
+        for conjunct in _conjuncts(on):
+            if _is_key_equality(conjunct):
+                found.update(id(column) for column in conjunct.find_all(exp.Column))
+    return found
+
+
+def is_outer_join(join: Any) -> bool:
+    """LEFT, RIGHT or FULL: a join with a null-supplying side."""
+    return (join.side or "").upper() in ("LEFT", "RIGHT", "FULL")
+
+
+def _is_key_equality(conjunct: Any) -> bool:
+    """`a.k = b.k`: an equality whose two sides read two different relations (D-5, D-11)."""
+    if not isinstance(conjunct, exp.EQ):
+        return False
+    left, right = _exact_relation(conjunct.this), _exact_relation(conjunct.expression)
+    return bool(left and right and left != right)
+
+
+def _exact_relation(operand: Any) -> str | None:
+    """`_side_relation` without case folding: after `qualify`, `o` and `"O"` are two aliases
+    (B9 T4's trap, `JOIN staging.payments AS o ON o.order_id = "O".id`)."""
+    qualifiers = {column.table for column in operand.find_all(exp.Column)}
+    if len(qualifiers) != 1 or "" in qualifiers:
+        return None
+    return qualifiers.pop()
+
+
+def on_condition_columns(join: Any) -> list[Any]:
+    """The columns of a join's ON that are NOT its key equality (D-48, D-49).
+
+    `JOIN d ON d.id = c.id AND d.is_current` gives `d.is_current`; a range join's bounds
+    give both operands of each inequality. What they mean follows the join's side: on an
+    inner join a filter, on an outer join a value of the null-supplying side's columns.
+    """
+    on = join.args.get("on")
+    if on is None:
+        return []
+    found: list[Any] = []
+    for conjunct in _conjuncts(on):
+        if not _is_key_equality(conjunct):
+            found.extend(predicate_columns(conjunct))
     return found
 
 
 # EQUALITY ONLY, which is what D-11 decided: "a column-equals-column condition in WHERE".
 # The first implementation took every comparison operator and so read a self-join's
 # `child.signup_date > parent.signup_date` as plumbing - `stress_01`'s key labels it a real
-# predicate, and nothing decided otherwise. Whether a NON-equality join condition is
-# structural is an open question; widening this tuple is that decision, not a tidy-up.
+# predicate. D-49 (2026-10-06) decided it: a NON-equality join condition is a filter with
+# both operands as sources, in ON or WHERE alike - so this tuple stays as it is.
 _COMPARISONS = (exp.EQ,)
 
 
@@ -136,4 +186,14 @@ def predicate_columns(node: Any) -> list[Any]:
     if node is None:
         return []
     structural = _structural_column_ids(node) | _implicit_join_column_ids(node)
-    return [column for column in node.find_all(exp.Column) if id(column) not in structural]
+    return [
+        column
+        for column in node.find_all(exp.Column)
+        if id(column) not in structural and not in_grouping_function(column)
+    ]
+
+
+def in_grouping_function(column: Any) -> bool:
+    """Is this column an argument of `grouping(...)`? It carries no lineage there (D-50):
+    the bitmask reports the GROUPING SETS shape, and no part of the column is in it."""
+    return column.find_ancestor(exp.Grouping) is not None

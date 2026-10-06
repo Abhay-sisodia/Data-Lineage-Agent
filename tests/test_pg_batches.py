@@ -27,13 +27,14 @@ PG = STRESS / "pg"
 # (batch/test, flow) -> (true positives, false positives, false negatives), band 0.
 EXPECTED = {
     # B1 core SELECT - agreed 2026-10-01 after every fix in REPORT.md section 8.
-    # The only false positives are GROUPING() (B1-Q1, open by decision): 4 in T1 S10a,
-    # 2 in T2 S5. They move when B1-Q1 is decided, and that move is expected.
-    ("b1_core_select/t1_breadth", Flow.VALUE): (109, 2, 0),
-    ("b1_core_select/t1_breadth", Flow.FILTER): (21, 0, 0),
-    ("b1_core_select/t1_breadth", Flow.INFLUENCE): (47, 2, 0),
+    # GROUPING() was B1-Q1: its 4 false positives in T1 S10a and 2 in T2 S5 went when D-50
+    # decided it (2026-10-06: no lineage). T1 S3 and S4a moved under D-48 (an inner join's
+    # ON condition is a filter; a LEFT join's, a value of its null side).
+    ("b1_core_select/t1_breadth", Flow.VALUE): (110, 0, 0),
+    ("b1_core_select/t1_breadth", Flow.FILTER): (22, 0, 0),
+    ("b1_core_select/t1_breadth", Flow.INFLUENCE): (47, 0, 0),
     ("b1_core_select/t2_depth", Flow.VALUE): (42, 0, 0),
-    ("b1_core_select/t2_depth", Flow.FILTER): (9, 2, 0),
+    ("b1_core_select/t2_depth", Flow.FILTER): (9, 0, 0),
     ("b1_core_select/t2_depth", Flow.INFLUENCE): (26, 0, 0),
     ("b1_core_select/t3_interaction", Flow.VALUE): (51, 0, 0),
     ("b1_core_select/t3_interaction", Flow.FILTER): (10, 0, 0),
@@ -93,7 +94,8 @@ EXPECTED = {
     ("b4_expressions_types/t3_interaction", Flow.FILTER): (10, 0, 0),
     ("b4_expressions_types/t3_interaction", Flow.INFLUENCE): (30, 0, 0),
     ("b4_expressions_types/t4_adversarial", Flow.VALUE): (48, 0, 0),
-    ("b4_expressions_types/t4_adversarial", Flow.FILTER): (13, 0, 0),
+    # T4 S3's self-join inequality is a filter under D-49 (2026-10-06).
+    ("b4_expressions_types/t4_adversarial", Flow.FILTER): (14, 0, 0),
     ("b4_expressions_types/t5_metamorphic", Flow.VALUE): (42, 0, 0),
     ("b4_expressions_types/t5_metamorphic", Flow.FILTER): (7, 0, 0),
     ("b4_expressions_types/t5_metamorphic", Flow.INFLUENCE): (18, 0, 0),

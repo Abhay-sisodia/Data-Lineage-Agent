@@ -3033,6 +3033,23 @@ edges:
     unit: S4_DEEP_ALIAS_CHAIN
     line: 1360
   evidence: source_read
+# RELABELLED UNDER D-48 (2026-10-06): lvl4's `JOIN ref_policy p ON p.region = 'EU'` is an
+# INNER join whose ON condition reads one relation: it removes rows exactly as
+# `WHERE p.region = 'EU'` would, so region is a filter. Absent while D-5 made a whole ON
+# structural.
+- source:
+    kind: column
+    name: REF_POLICY.REGION
+  target:
+    kind: relation
+    name: GTT_STAGE
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: S4_DEEP_ALIAS_CHAIN
+    line: 1360
+  evidence: source_read
 - source:
     kind: column
     name: STG_ORDER_LINES.LINE_ID
