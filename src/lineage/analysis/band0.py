@@ -1352,7 +1352,8 @@ def _trace_through_values(
             for table, name, transform in _trace(
                 inner, scope, dictionary, unresolved, depth + 1, constraining
             ):
-                traced.append((table, name, _combine(_transform_of_path(element, inner), transform)))
+                path = _transform_of_path(element, inner)
+                traced.append((table, name, _combine(path, transform)))
     return traced
 
 
@@ -1456,60 +1457,124 @@ def _scalar_predicate_values(
     directly: a derived table's column, a CTE's, a MERGE's USING source. Without it the
     D-14 side of `MERGE ... USING (... LEFT JOIN (... WHERE status = 'A') b ...)` lost its
     predicate entirely once it stopped being a filter - a silent loss found by diffing the
-    Oracle stress packages (stress_04 s4_staged_upsert). The target-level case, which also
-    carries D-13's influence, is `_value_only_edges`.
+    Oracle stress packages (stress_04 s4_staged_upsert). The target-level case is
+    `_value_only_edges`; both go through `_value_deciding_sweep`, so the rule has one home,
+    and the influence half (D-13) reaches the target through `_window_influence`.
+    """
+    found: list[tuple[str, str, Transform]] = []
+    for root in _value_deciding_roots(projection, scope):
+        values, _ = _value_deciding_sweep(root, _statement_deciding(scope), dictionary, unresolved)
+        found.extend(values)
+    return found
+
+
+def _outermost_subqueries(projection: Any) -> list[Any]:
+    """The subqueries written directly in a projection, not those nested inside them.
+
+    A nested one - the IN inside a scalar subquery's WHERE - is reached by its parent's
+    sweep, under its parent's transform. Taken as a root of its own it was swept again
+    with its own, and `aggregated` facts came back a second time as `conditional`.
+    """
+    owner = projection.find_ancestor(exp.Select)
+    return [
+        nested
+        for nested in projection.find_all(exp.Select)
+        if nested is not owner and nested.find_ancestor(exp.Select) is owner
+    ]
+
+
+def _statement_root(scope: Scope) -> Scope:
+    """The root scope of the statement `scope` belongs to."""
+    root = scope
+    while getattr(root, "parent", None) is not None:
+        root = root.parent
+    return root
+
+
+def _statement_deciding(scope: Scope) -> set[int]:
+    """The row-deciding scopes of the statement `scope` belongs to, cached on its root."""
+    root = _statement_root(scope)
+    cached = root.__dict__.get("_lineage_deciding")
+    if cached is None:
+        cached = _row_deciding_scopes(root)
+        root.__dict__["_lineage_deciding"] = cached
+    return cached
+
+
+def _value_deciding_roots(projection: Any, scope: Scope) -> list[Scope]:
+    """The scopes that decide this projection's value without being able to remove a row.
+
+    A scalar subquery in the projection (D-12), and a source the projection reads that sits
+    on an outer join's null-supplying side or is a one-row LATERAL (D-14).
     """
     index = _scope_index(scope)
     query = _query_of_scope(scope.expression)
-    roots: list[tuple[Scope, Any]] = []
-    for nested in projection.find_all(exp.Select):
+    roots: list[Scope] = []
+    for nested in _outermost_subqueries(projection):
         home = index.get(id(nested))
-        if home is not None:
-            roots.append((home, nested))
+        if home is not None and home is not scope:
+            roots.append(home)
     for column in projection.find_all(exp.Column):
         source = scope.sources.get(column.table) if column.table else None
         if isinstance(source, Scope) and _cannot_remove_rows(column.table, source, query):
-            roots.append((source, _query_of_scope(source.expression)))
+            roots.append(source)
+    return list({id(root): root for root in roots}.values())
 
-    found: list[tuple[str, str, Transform]] = []
-    seen: set[int] = set()
-    for root, root_query in roots:
-        aggregates = isinstance(root_query, exp.Select) and any(
-            _is_aggregate(n) for item in root_query.selects for n in item.walk()
-        )
-        base = Transform.AGGREGATED if aggregates else Transform.CONDITIONAL
-        pending = [root]
-        while pending:
-            current = pending.pop()
-            # Finding TT-3: a recursive CTE's self-reference (`JOIN tree t` in its recursive
-            # arm) binds to a shell scope over the ANCHOR SELECT with no sources. Swept, the
-            # anchor's WHERE was traced where no relation is visible - `o.is_active`
-            # declared "could not resolve" - beside the edge the anchor arm, reached through
-            # `union_scopes`, had already given. The shell adds nothing (B2-10).
-            if _is_recursive_anchor_shell(current):
+
+def _value_deciding_sweep(
+    root: Scope, statement: set[int], dictionary: Dictionary, unresolved: list[Boundary]
+) -> tuple[list[tuple[str, str, Transform]], list[tuple[str, str, Transform]]]:
+    """What a scope that cannot remove a result row decides, ALL THE WAY DOWN (D-45).
+
+    Returns (values, influence). The scopes swept are the ones that can remove rows from
+    `root` - itself, what it inner-joins, its set-operation arms, the subqueries in its
+    WHERE - at any depth (`_row_deciding_scopes`): exactly what the main path reads for
+    filters, applied below a scope whose rows decide a value instead. In each:
+
+    * WHERE and HAVING columns are VALUES - `aggregated` when `root` aggregates, else
+      `conditional` (D-12);
+    * a ranking cut (`WHERE rn = 1`), DISTINCT ON keys and the ordering of a LIMIT are
+      INFLUENCE: they decide which value arrives without supplying it (D-13).
+
+    Not swept: a scope the statement also reads where it CAN remove rows - its predicates
+    are filters there, and only there - and what cannot remove rows of `root` itself (a
+    scalar subquery in a projection, a nested null-supplying side or one-row LATERAL):
+    their predicates are not filters of anything, and decide a value only if that value is
+    traced into the target, where they are found in their own right. The entity torture
+    test carried every nested LATERAL's correlation into an unrelated column because the
+    sweep followed those too (finding TE-3).
+    """
+    root_query = _query_of_scope(root.expression)
+    aggregates = isinstance(root_query, exp.Select) and any(
+        _is_aggregate(n) for item in root_query.selects for n in item.walk()
+    )
+    base = Transform.AGGREGATED if aggregates else Transform.CONDITIONAL
+    index = _scope_index(_statement_root(root))
+    values: list[tuple[str, str, Transform]] = []
+    influence: list[tuple[str, str, Transform]] = []
+    for current in _row_deciding_list(root):
+        if id(current) in statement:
+            continue
+        query = _query_of_scope(current.expression)
+        if not isinstance(query, exp.Select):
+            continue
+        for clause in ("where", "having"):
+            predicate = query.args.get(clause)
+            if predicate is None:
                 continue
-            if id(current) in seen:
-                continue
-            seen.add(id(current))
-            pending.extend(_read_scopes(current))
-            pending.extend(getattr(current, "union_scopes", None) or [])
-            pending.extend(getattr(current, "subquery_scopes", None) or [])
-            inner = _query_of_scope(current.expression)
-            if not isinstance(inner, exp.Select):
-                continue
-            for clause in ("where", "having"):
-                predicate = inner.args.get(clause)
-                if predicate is None:
+            for column in predicate_columns(predicate):
+                if _in_unlimited_nested_order(column, predicate) or _in_nested_grouping(
+                    column, predicate
+                ):
                     continue
-                for column in predicate_columns(predicate):
-                    if _in_unlimited_nested_order(column, predicate) or _in_nested_grouping(
-                        column, predicate
-                    ):
-                        continue
-                    at = _home_scope(column, current, index)
-                    for table, name, traced in _trace(column, at, dictionary, unresolved):
-                        found.append((table, name, _combine(base, traced)))
-    return found
+                home = _home_scope(column, current, index)
+                for table, name, traced in _trace(column, home, dictionary, unresolved):
+                    values.append((table, name, _combine(base, traced)))
+                if clause == "where":
+                    influence.extend(_window_filter_sources(column, home, dictionary, unresolved))
+        chosen = _row_choosing_expressions(query)
+        influence.extend(_ordered_sources(chosen, current, dictionary, unresolved))
+    return values, influence
 
 
 def _window_influence(
@@ -1569,6 +1634,19 @@ def _window_influence(
         if inner is None:
             continue
         found.extend(_window_influence(inner, source, dictionary, unresolved, depth + 1))
+    # Finding TS-1, the window half: a scalar subquery's own windows decide its value.
+    for nested_scope, nested in _scalar_subquery_projections(projection, scope):
+        found.extend(_window_influence(nested, nested_scope, dictionary, unresolved, depth + 1))
+    # D-45, the influence half at a TRACED level: a scope that cannot remove a row (a
+    # null-supplying side, a one-row LATERAL, a scalar subquery) reached through a CTE or
+    # derived table decides this value by its orderings too. The target level is
+    # `_value_only_edges`, which also carries its values.
+    if depth > 0:
+        for root in _value_deciding_roots(projection, scope):
+            _, influence = _value_deciding_sweep(
+                root, _statement_deciding(scope), dictionary, unresolved
+            )
+            found.extend(influence)
     return _remember(scope, key, unresolved, first_declared, found)
 
 
@@ -1657,7 +1735,23 @@ def _grouping_influence(
         if inner is None:
             continue
         found.extend(_grouping_influence(inner, source, dictionary, unresolved, depth + 1))
+    # Finding TS-1: a scalar subquery's grouping decides the value it returns, as a CTE's
+    # does. `(SELECT max(margin) FROM brand_stats)` lost brand_stats' GROUP BY brand, because
+    # the walk above follows only columns of THIS scope.
+    for nested_scope, nested in _scalar_subquery_projections(projection, scope):
+        found.extend(_grouping_influence(nested, nested_scope, dictionary, unresolved, depth + 1))
     return _remember(scope, key, unresolved, first_declared, found)
+
+
+def _scalar_subquery_projections(projection: Any, scope: Scope) -> list[tuple[Scope, Any]]:
+    """The projections of each subquery written directly in this projection, with scopes."""
+    index = _scope_index(scope)
+    found: list[tuple[Scope, Any]] = []
+    for nested in _outermost_subqueries(projection):
+        home = index.get(id(nested))
+        if home is not None and home is not scope:
+            found.extend((home, item) for item in nested.selects)
+    return found
 
 
 def _flatten_arms(arms: list[Any]) -> list[Any]:
@@ -2357,7 +2451,7 @@ def _value_only_edges(
     decide which value without supplying it.
     """
     roots: list[Scope] = []
-    for nested in projection.find_all(exp.Select):
+    for nested in _outermost_subqueries(projection):
         found = index.get(id(nested))
         if found is not None and id(found) not in deciding:
             roots.append(found)
@@ -2367,70 +2461,23 @@ def _value_only_edges(
             roots.append(source)
 
     edges: list[PredictedEdge] = []
-    seen: set[int] = set()
-    for root in roots:
-        root_query = _query_of_scope(root.expression)
-        aggregates = isinstance(root_query, exp.Select) and any(
-            _is_aggregate(node) for item in root_query.selects for node in item.walk()
-        )
-        base = Transform.AGGREGATED if aggregates else Transform.CONDITIONAL
-        pending = [root]
-        while pending:
-            current = pending.pop()
-            if id(current) in seen or id(current) in deciding:
-                continue
-            seen.add(id(current))
-            pending.extend(_read_scopes(current))
-            pending.extend(getattr(current, "union_scopes", None) or [])
-            pending.extend(getattr(current, "subquery_scopes", None) or [])
-            query = _query_of_scope(current.expression)
-            if not isinstance(query, exp.Select):
-                continue
-            for clause in ("where", "having"):
-                predicate = query.args.get(clause)
-                if predicate is None:
-                    continue
-                for column in predicate_columns(predicate):
-                    if _in_unlimited_nested_order(column, predicate) or _in_nested_grouping(
-                        column, predicate
-                    ):
-                        continue
-                    home = _home_scope(column, current, index)
-                    for table, name, traced in _trace(column, home, dictionary, unresolved):
-                        edges.append(
-                            _edge(
-                                table,
-                                name,
-                                target_name,
-                                target_column,
-                                _combine(base, traced),
-                                band,
-                                origin,
-                            )
-                        )
-            chosen: list[Any] = []
-            distinct = query.args.get("distinct")
-            distinct_on = distinct.args.get("on") if distinct is not None else None
-            limited = any(query.args.get(arg) is not None for arg in ("limit", "fetch", "offset"))
-            if distinct_on is not None:
-                chosen.extend(
-                    distinct_on.expressions if isinstance(distinct_on, exp.Tuple) else [distinct_on]
+    for root in {id(root): root for root in roots}.values():
+        values, influence = _value_deciding_sweep(root, deciding, dictionary, unresolved)
+        for table, name, transform in values:
+            edges.append(_edge(table, name, target_name, target_column, transform, band, origin))
+        for table, name, _ in influence:
+            edges.append(
+                _edge(
+                    table,
+                    name,
+                    target_name,
+                    target_column,
+                    Transform.IDENTITY,
+                    band,
+                    origin,
+                    flow=Flow.INFLUENCE,
                 )
-            if distinct_on is not None or limited:
-                chosen.extend(_ordering_expressions(query))
-            for table, name, _ in _ordered_sources(chosen, current, dictionary, unresolved):
-                edges.append(
-                    _edge(
-                        table,
-                        name,
-                        target_name,
-                        target_column,
-                        Transform.IDENTITY,
-                        band,
-                        origin,
-                        flow=Flow.INFLUENCE,
-                    )
-                )
+            )
     return edges
 
 
@@ -2740,12 +2787,21 @@ def _row_deciding_scopes(root: Scope) -> set[int]:
     one-row LATERAL (D-14). Those decide the VALUE of the columns they feed and are handled
     as such by `_value_only_edges`.
     """
-    deciding: set[int] = set()
+    return {id(current) for current in _row_deciding_list(root)}
+
+
+def _row_deciding_list(root: Scope) -> list[Scope]:
+    """`_row_deciding_scopes` as the scopes themselves, in visiting order.
+
+    SQLGlot's source-less shell over a recursive CTE's anchor is never visited: it is what
+    the recursive arm's self-reference binds to, and it adds nothing (B2-10, TT-3).
+    """
+    found: dict[int, Scope] = {}
 
     def visit(current: Scope) -> None:
-        if id(current) in deciding:
+        if id(current) in found or _is_recursive_anchor_shell(current):
             return
-        deciding.add(id(current))
+        found[id(current)] = current
         query = _query_of_scope(current.expression)
         # `selected_sources`, not `sources`: SQLGlot lists every CTE in WITH as a source of
         # the root, including one read ONLY inside a scalar subquery - and such a CTE
@@ -2763,7 +2819,7 @@ def _row_deciding_scopes(root: Scope) -> set[int]:
                 visit(sub)
 
     visit(root)
-    return deciding
+    return list(found.values())
 
 
 # UDTF is a LATERAL (finding B2-05): a row source like a derived table, wrapped.
@@ -2794,21 +2850,42 @@ def _ordering_expressions(select: Any) -> list[Any]:
     order = select.args.get("order")
     if order is None:
         return []
+    return [_as_projection(ordered.this, select) for ordered in order.expressions]
+
+
+def _as_projection(expression: Any, select: Any) -> Any:
+    """An ordinal or a bare output name read as the projection it names, else itself."""
     projections = select.selects or []
-    names = [p.alias_or_name or "" for p in projections]
-    resolved: list[Any] = []
-    for ordered in order.expressions:
-        expression = ordered.this
-        if isinstance(expression, exp.Literal) and not expression.is_string:
-            index = int(expression.name) - 1
-            if 0 <= index < len(projections):
-                expression = projections[index]
-        elif isinstance(expression, exp.Column) and not expression.table:
-            index = _position_named(names, expression.name)
-            if index is not None:
-                expression = projections[index]
-        resolved.append(expression.this if isinstance(expression, exp.Alias) else expression)
-    return resolved
+    if isinstance(expression, exp.Literal) and not expression.is_string:
+        index = int(expression.name) - 1
+        if 0 <= index < len(projections):
+            expression = projections[index]
+    elif isinstance(expression, exp.Column) and not expression.table:
+        index = _position_named([p.alias_or_name or "" for p in projections], expression.name)
+        if index is not None:
+            expression = projections[index]
+    return expression.this if isinstance(expression, exp.Alias) else expression
+
+
+def _row_choosing_expressions(select: Any) -> list[Any]:
+    """What chooses WHICH rows a query keeps by ordering them (D-9): DISTINCT ON keys and
+    tie-breakers, and the ORDER BY of a LIMIT / FETCH / OFFSET.
+
+    A DISTINCT ON key is read through the select list like an ORDER BY name (finding TS-2):
+    `qualify` rewrites `DISTINCT ON (o.customer_key)` as `DISTINCT ON ("customer_key")`, the
+    output name, and in a scope with two relations the bare name bound to neither - the key
+    was declared unresolved and dropped from the row selection.
+    """
+    chosen: list[Any] = []
+    distinct = select.args.get("distinct")
+    distinct_on = distinct.args.get("on") if distinct is not None else None
+    limited = any(select.args.get(arg) is not None for arg in ("limit", "fetch", "offset"))
+    if distinct_on is not None:
+        keys = distinct_on.expressions if isinstance(distinct_on, exp.Tuple) else [distinct_on]
+        chosen.extend(_as_projection(key, select) for key in keys)
+    if distinct_on is not None or limited:
+        chosen.extend(_ordering_expressions(select))
+    return chosen
 
 
 def _ordered_sources(
@@ -2851,17 +2928,7 @@ def _row_selection_sources(
     select = _query_of_scope(scope.expression)
     if not isinstance(select, exp.Select):
         return []
-
-    chosen: list[Any] = []
-    distinct = select.args.get("distinct")
-    distinct_on = distinct.args.get("on") if distinct is not None else None
-    limited = any(select.args.get(arg) is not None for arg in ("limit", "fetch", "offset"))
-    if distinct_on is not None:
-        keys = distinct_on.expressions if isinstance(distinct_on, exp.Tuple) else [distinct_on]
-        chosen.extend(keys)
-    if distinct_on is not None or limited:
-        chosen.extend(_ordering_expressions(select))
-    return _ordered_sources(chosen, scope, dictionary, unresolved)
+    return _ordered_sources(_row_choosing_expressions(select), scope, dictionary, unresolved)
 
 
 def _window_filter_sources(
