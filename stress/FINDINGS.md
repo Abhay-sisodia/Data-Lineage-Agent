@@ -143,7 +143,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B4-02 | `transform-classification` | **fixed** | D-19 not implemented: a one-column GREATEST / LEAST / NULLIF / CASE is `conditional`, so equivalent spellings disagree (13 false positives; pairs P1, P2, P3) Fixed 2026-10-02; `stress/pg/b4_expressions_types/REPORT.md` section 6. |
 | B4-03 | `construct-coverage` | **fixed** | `ROW(...)`, `regexp_match`, `tstzrange` (and probably the other range constructors) declared `source_unavailable`; values lost. The same call inside a CTE passes with no boundary Fixed 2026-10-02; `stress/pg/b4_expressions_types/REPORT.md` section 6. |
 | B4-04 | `measurement-error` | **fixed** | the per-file score has no origin in its match key, so a fact repeated by a later statement hides that statement's miss; 7 such misses in B4, 3 of them flagged by nothing Fixed 2026-10-02; `stress/pg/b4_expressions_types/REPORT.md` section 6. |
-| B4-05 | `silent-loss` | open | **a user-defined function is declared at the top level and passed silently one level down**: `myschema.calc(o.amount)` in a CTE or derived table gives a `derived` edge with no boundary, while at the top level it is `source_unavailable` with no edge. Exposed by B4-03; may move Oracle numbers, so held for a decision. `stress/pg/b4_expressions_types/REPORT.md` section 6 |
+| B4-05 | `silent-loss` | **fixed (D-53)** | **a user-defined function is declared at the top level and passed silently one level down**: `myschema.calc(o.amount)` in a CTE or derived table gives a `derived` edge with no boundary, while at the top level it is `source_unavailable` with no edge. Exposed by B4-03; may move Oracle numbers, so held for a decision. `stress/pg/b4_expressions_types/REPORT.md` section 6 | Fixed 2026-10-07 under D-53: arguments derived and the call declared, at every depth; `tests/test_unknown_calls.py`.
 | B9-01 | `identity` | **fixed** | **the SQLGlot schema is keyed by bare table name, so the last same-named table wins**: core.ledger replaces staging.ledger's columns, refusing valid statements ("Unknown column") and binding shared column names to the wrong table invisibly. A second `orders` refused 79 B1-B4 tests. `stress/pg/b9_names_resolution/REPORT.md` Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
 | B9-02 | `construct-coverage` | **fixed** | a quoted mixed-case relation (`staging."LegacyFeed"`) is declared "not in dictionary": lookup folds the name after the quote is lost Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
 | B9-03 | `refusal-taxonomy` | **fixed** | `INSERT INTO t SELECT * ...` with no column list is refused for arity: B3's omitted-list width counts `*` as one projection (a B3 regression) Fixed 2026-10-03; `stress/pg/b9_names_resolution/REPORT.md` section 6. |
@@ -4769,3 +4769,16 @@ scoped, and the D-43 avoidance "semi- / anti-join match keys".
   join key plumbing: P5 and P6 are accepted divergences, not defects. This was already
   the analyser's behaviour; `tests/test_semi_joins.py` pins every spelling and the
   divergence.
+
+## Decision taken — 2026-10-07 (D-53)
+
+Taken by Abhay; closes B4-05, held for a decision since batch B4.
+
+* **D-53 (B4-05)** - a call to a function whose body is not in the analysis (no
+  definition in the script, no summary) gives its ARGUMENTS as derived values of the
+  result, AND is declared `source_unavailable`: the edge rests on a body that was not read,
+  and the boundary says so (the D-23 pattern - emit, and declare what it rests on). The
+  same everywhere: before, the top level withheld the arguments (and lost `y` from
+  `x + f(y)`), while the same call inside a CTE or derived table claimed them silently. A
+  SUMMARISED call is unchanged: its arguments only select the row the callee reads.
+  No Oracle stress edge or score moved (their package functions are summarised).

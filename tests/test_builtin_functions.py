@@ -71,11 +71,18 @@ def test_a_builtin_aggregate_is_an_aggregate() -> None:
 
 
 def test_a_user_function_is_still_declared() -> None:
-    """The control that keeps the catalogue honest: an unknown name is not a built-in."""
+    """The control that keeps the catalogue honest: an unknown name is not a built-in.
+
+    It is DECLARED, which a built-in never is. Since D-53 (2026-10-07) its argument is also
+    a derived value - the edge rests on the body nobody read, which is what the boundary
+    says; before, the argument was withheld here while the same call in a CTE claimed it.
+    """
     result = _result(
         "INSERT INTO mart.kpi_rollup (level) SELECT my_udf(s.name) FROM core.dim_store AS s"
     )
-    assert result.edges == []
+    assert {(str(e.source), str(e.target), e.transform.value) for e in result.edges} == {
+        ("column:core.dim_store.name", "column:mart.kpi_rollup.level", "derived")
+    }
     assert [(b.kind.value, b.subject) for b in result.boundaries] == [
         ("source_unavailable", "MY_UDF")
     ]

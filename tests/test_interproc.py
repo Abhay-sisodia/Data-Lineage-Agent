@@ -146,8 +146,11 @@ def test_recursion_terminates(dictionary: Dictionary) -> None:
     assert summaries["FN_RECURSIVE"].truncated, "recursion was not declared"
 
 
-def test_unknown_callee_is_truncated_not_guessed(dictionary: Dictionary) -> None:
-    """A call to something outside this source is a boundary, not an invented edge."""
+def test_unknown_callee_is_declared_and_its_argument_derived(dictionary: Dictionary) -> None:
+    """A call to something outside this source is a DECLARED boundary, and its argument a
+    derived value (D-53, 2026-10-07: the edge rests on a body that was not read, and the
+    boundary says so). Before D-53 the argument was withheld at the top level while the
+    same call inside a CTE claimed it, silently - B4-05."""
     source = """
     CREATE OR REPLACE PROCEDURE t_external IS
     BEGIN
@@ -156,10 +159,13 @@ def test_unknown_callee_is_truncated_not_guessed(dictionary: Dictionary) -> None
     END;
     """
     result = analyse_source(source, dictionary, AnalysisConfig())
-    invented = [
+    argument = [
         e
         for e in result.edges
         if str(e.target) == "column:FCT_REVENUE.NET_AMOUNT"
         and str(e.source) == "column:STG_ORDERS.ORDER_ID"
     ]
-    assert not invented, "an unknown callee's argument was treated as a value source"
+    assert [e.transform.value for e in argument] == ["derived"]
+    assert any(
+        b.kind.value == "source_unavailable" and "COMPUTE" in b.subject for b in result.boundaries
+    ), "the call the edge rests on was not declared"

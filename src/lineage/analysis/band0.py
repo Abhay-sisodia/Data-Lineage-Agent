@@ -1287,6 +1287,10 @@ def _follow(
             )
             return []
         traced: list[tuple[str, str, Transform]] = []
+        # D-53 (B4-05): a call whose body is not in the analysis gives its arguments as
+        # derived values here as at the top level, and is declared here as there.
+        for name in _unknown_calls(projection, scope, dictionary.dialect):
+            unresolved.append(_unsummarised_call(name))
         # `_value_columns`, NOT `find_all` (stress finding S3-02). A window's PARTITION BY
         # and ORDER BY columns supply no value, and the caller already excludes them - but
         # only from the projection IT can see. One level of nesting put the window inside a
@@ -2005,13 +2009,42 @@ def _edge(
 
 
 def _without_user_calls(projection: Any, summaries: dict[str, Any], dialect: str) -> Any:
-    """The projection with every user-defined call read as NULL."""
+    """The projection with every SUMMARISED call read as NULL.
+
+    A summarised call supplies its summary instead of its arguments, which only select the
+    row the callee reads. An unknown call keeps its arguments as derived values (D-53).
+    """
     reduced = projection.copy()
     for node in list(reduced.find_all(exp.Anonymous)):
         name = (getattr(node, "name", "") or "").upper()
-        if name and (name in summaries or not is_builtin(name, dialect)):
+        if name and name in summaries:
             node.replace(exp.Null())
     return reduced
+
+
+def _unsummarised_call(name: str) -> Boundary:
+    """The declaration D-53 puts beside the edges an unknown call's arguments give."""
+    return Boundary(
+        kind=BoundaryKind.SOURCE_UNAVAILABLE,
+        subject=name,
+        detail=f"call to {name} could not be summarised - its source is not in this "
+        f"analysis, so its arguments are taken as derived values of the result (D-53): an "
+        f"assumption about a body that was not read",
+    )
+
+
+def _unknown_calls(projection: Any, scope: Scope, dialect: str) -> list[str]:
+    """Names of user-defined calls in this projection that no summary covers (D-53)."""
+    summaries = _statement_root(scope).__dict__.get("_lineage_summaries") or {}
+    return list(
+        dict.fromkeys(
+            name
+            for node in projection.find_all(exp.Anonymous)
+            if (name := (getattr(node, "name", "") or "").upper())
+            and name not in summaries
+            and not is_builtin(name, dialect)
+        )
+    )
 
 
 def _target_of(insert: exp.Insert, dictionary: Dictionary) -> tuple[str, list[str] | None]:
@@ -2355,6 +2388,8 @@ def _analyse_select_into(
     pivot_map, pivot_for_columns = _pivot_columns(select)
     index = _scope_index(scope)
     deciding = _row_deciding_scopes(scope)
+    # What the traced path needs to tell an unknown call from a summarised one (D-53).
+    _statement_root(scope).__dict__["_lineage_summaries"] = summaries
 
     edges: list[PredictedEdge] = []
     for target_column, projection in zip(target_columns, projections, strict=True):
@@ -2627,18 +2662,12 @@ def _call_site_edges(
         if (name := (getattr(node, "name", "") or "").upper()) in summaries
     ]
 
-    if unknown and not called:
-        for name in dict.fromkeys(unknown):
-            unresolved.append(
-                Boundary(
-                    kind=BoundaryKind.SOURCE_UNAVAILABLE,
-                    subject=name,
-                    detail=f"call to {name} could not be summarised - its source is not "
-                    f"in this analysis, so the value it supplies is out of coverage "
-                    f"rather than derived from the arguments at the call site",
-                )
-            )
-        return [], True
+    # D-53 (B4-05): its arguments are taken as derived values of the result - the ordinary
+    # value rule, which `_without_user_calls` now leaves them to - AND the call is declared,
+    # because that edge rests on a body this analysis did not read. Before D-53 the top
+    # level withheld the arguments while the same call inside a CTE claimed them silently.
+    for name in dict.fromkeys(unknown):
+        unresolved.append(_unsummarised_call(name))
 
     if not called:
         return [], False
