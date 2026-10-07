@@ -30,6 +30,28 @@ from lineage.resolution.dictionary import Dictionary, UnknownObjectError, fold
 _HIDDEN = "{row}.{field}"  # a projection name no SQL text can collide with unquoted
 
 
+def star_rows(parsed: Any) -> Any:
+    """`a.*` used as a VALUE is the whole row `a` (finding F0-02); run before `qualify`.
+
+    `row_to_json(a.*)`, `(a.*)::text`, `ROW(a.*)`: PostgreSQL reads `a.*` in an expression
+    as the row itself, exactly as `row_to_json(a)`. SQLGlot keeps it a column named `*`,
+    which nothing resolves, so it was declared unresolved with no edge while the spelling
+    without the star was traced (D-20). Only a select-list or RETURNING item expands into
+    columns; everywhere else it becomes the `TableColumn` `qualify` makes of a whole-row
+    reference - directly, not as a bare `a`, which would bind to a COLUMN named `a` where
+    one exists, while `a.*` is always the row.
+    """
+    for column in list(parsed.find_all(exp.Column)):
+        if not isinstance(column.this, exp.Star) or not column.table:
+            continue
+        if column.arg_key == "expressions" and isinstance(
+            column.parent, (exp.Select, exp.Returning)
+        ):
+            continue
+        column.replace(exp.TableColumn(this=column.args["table"].copy()))
+    return parsed
+
+
 def restate(parsed: Any, dictionary: Dictionary) -> Any:
     """Rewrite every whole-row reference and field access in a qualified tree."""
     if not any(True for _ in parsed.find_all(exp.TableColumn)):

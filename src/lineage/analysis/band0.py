@@ -50,6 +50,7 @@ from lineage.analysis.relations import (
 )
 from lineage.analysis.system_columns import restate as restate_system_columns
 from lineage.analysis.whole_rows import restate as restate_whole_rows
+from lineage.analysis.whole_rows import star_rows
 from lineage.analysis.ddl import exchange_partition_edges
 from lineage.analysis.dynamic import resolve_dynamic_sql
 from lineage.analysis.predicates import (
@@ -648,6 +649,7 @@ def _qualify(parsed: Any, dictionary: Dictionary, search_path: list[str] | None 
         parsed = session_keywords(parsed)
         parsed = restate_system_columns(parsed)
         parsed = _return_types_as_types(parsed)
+        parsed = star_rows(parsed)
     parsed = expand_qualified_stars(parsed, dictionary)
     parsed = qualify(
         parsed,
