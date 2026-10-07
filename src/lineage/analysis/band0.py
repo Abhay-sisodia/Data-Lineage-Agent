@@ -3914,8 +3914,20 @@ def _analyse_merge(
                 items = list(values.expressions[0].expressions)
             else:
                 items = list(getattr(values, "expressions", []) or [])
-            if not target_columns or len(target_columns) != len(items):
-                continue
+            # FH-02: no column list means the target's own columns in declared order - the
+            # first N for N values, as for a plain INSERT. The arm was skipped instead, so
+            # every column only the INSERT arm writes vanished with nothing declared.
+            if not target_columns:
+                try:
+                    target_columns = list(dictionary.columns_of(target_name))[: len(items)]
+                except UnknownObjectError as exc:
+                    return [], (RefusalCode.NAME_NOT_RESOLVED, str(exc))
+            if len(target_columns) != len(items):
+                return [], (
+                    RefusalCode.SHAPE_NOT_DECIDABLE,
+                    f"MERGE insert arm writes {len(items)} values into "
+                    f"{len(target_columns)} columns",
+                )
             for target_column, item in zip(target_columns, items, strict=True):
                 edges.extend(_influence_edges(item, target_column))
                 for column in item.find_all(exp.Column):
