@@ -1632,6 +1632,7 @@ def _value_deciding_sweep(
                 home = _home_scope(column, current, index)
                 for table, name, traced in _trace(column, home, dictionary, unresolved):
                     values.append((table, name, _combine(base, traced)))
+                influence.extend(_window_filter_sources(column, home, dictionary, unresolved))
         chosen = _row_choosing_expressions(query)
         influence.extend(_ordered_sources(chosen, current, dictionary, unresolved))
     return values, influence
@@ -2824,6 +2825,10 @@ def _filter_edges(
                 for column in on_condition_columns(join):
                     home = _home_scope(column, current, index)
                     emit(_trace(column, home, dictionary, unresolved))
+                    # D-9 as in WHERE: `JOIN r ON ... AND r.rn = 1` keeps the first row per
+                    # partition just the same (finding FH-03).
+                    found = _window_filter_sources(column, home, dictionary, unresolved)
+                    emit(found, _selection_phase(found))
 
         # D-9: DISTINCT ON and an ORDER BY under a row limit choose which rows land.
         found = _row_selection_sources(current, dictionary, unresolved)
