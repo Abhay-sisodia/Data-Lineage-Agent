@@ -30,14 +30,14 @@ value core.dim_product.product_key -> mart.product_performance.product_id identi
 value core.dim_product.category_name -> mart.product_performance.category_name identity
 filter core.fct_order_line.quantity -> mart.product_performance
 filter core.dim_product.product_key, core.fct_order_line.product_key -> mart.product_performance
-note Spelling A only: the IN's match columns are filters. In B they are a join key, structural under D-5.
+note Spelling A only: the IN's match columns are filters. In B they are a join key, structural under D-5. DECIDED 2026-10-07 (D-52): a semi-join's key is a filter, and this divergence is by design.
 
 @ 122 P6 SEAM anti-join: EXCEPT vs NOT EXISTS
 value staging.customers.id -> mart.customer_summary.customer_id identity
 filter staging.orders.customer_id, staging.orders.status -> mart.customer_summary
 @ 128 P6 B (spelling B's own facts, at its line - B4-04)
 filter staging.customers.id -> mart.customer_summary
-note Spelling B only: the correlation's outer operand. In A, customers.id is the first arm and supplies only a value (convention (a)).
+note Spelling B only: the correlation's outer operand. In A, customers.id is the first arm and supplies only a value (convention (a)). DECIDED 2026-10-07 (D-52): an anti-join's key is a filter; the EXCEPT spelling differs by design.
 
 @ 143 P7 SEAM scalar subquery vs LEFT JOIN LATERAL
 value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
@@ -54,7 +54,7 @@ influence staging.payments.paid_at -> mart.sales_daily.net_amount
 note Spelling A only (D-12, D-13).
 @ 176 P8 B (spelling B's own facts, at its line - B4-04)
 influence staging.payments.order_id -> mart.sales_daily.net_amount
-note RELABELLED UNDER D-14: under the LEFT JOIN the DISTINCT ON removes no order, so its key and tie-breaker decide WHICH amount arrives - influence, as D-13 says of the ordered pick. paid_at now agrees across the pair. payments.order_id still differs (influence in B, a conditional value in A): that is the match-key seam of P5/P6, left open by decision.
+note RELABELLED UNDER D-14: under the LEFT JOIN the DISTINCT ON removes no order, so its key and tie-breaker decide WHICH amount arrives - influence, as D-13 says of the ordered pick. paid_at now agrees across the pair. payments.order_id still differs (influence in B, a conditional value in A): that is the match-key seam of P5/P6, decided as D-52 (2026-10-07): a divergence by design.
 
 @ 196 R1 the monthly carrier scorecard
 value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity

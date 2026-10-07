@@ -125,7 +125,7 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | B2-08 | `identity` | **fixed** | **an inner alias that shadows an outer one is resolved OUTWARD** - a silent wrong edge Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
 | B2-09 | `flow-classification` | **fixed** | an EXISTS subquery's ORDER BY is swept into the outer WHERE's filters Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
 | B2-10 | `measurement-error` | **fixed** | `unresolved_identifier` boundaries on columns that WERE traced - recursive CTEs, nested subqueries, set operations in subqueries; 22 in B2 Fixed 2026-10-02; `stress/pg/b2_subqueries_ctes_setops/REPORT.md` section 6. |
-| B2-Q1 | `convention` | **decided as D-14, scoped** | a predicate that cannot remove a result row - inside an outer join's null-supplying side, or a one-row LATERAL - is a value/influence of the columns it feeds, not a filter. Settles the P7 and P8 seams. Semi-join and anti-join match keys (P5, P6) deliberately left open: labelling them consistently reverses D-5 or the correlation rule |
+| B2-Q1 | `convention` | **decided as D-14, scoped** | a predicate that cannot remove a result row - inside an outer join's null-supplying side, or a one-row LATERAL - is a value/influence of the columns it feeds, not a filter. Settles the P7 and P8 seams. Semi-join and anti-join match keys (P5, P6) were left open; decided 2026-10-07 as D-52 (filters; the JOIN spelling differs by design) |
 | B3-01 | `construct-coverage` | **fixed** | an INSERT target with an alias (`AS x`) or no column list loses its schema and the statement is refused NAME_NOT_RESOLVED. `stress/pg/b3_dml_writes/REPORT.md` Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
 | B3-02 | `refusal-taxonomy` | **fixed** | `INSERT ... DEFAULT VALUES` refused ("INSERT from NoneType"); the right answer is nothing, not a refusal Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
 | B3-03 | `silent-loss` | **fixed** | **data-modifying CTEs not understood** - the CTE is "dangling" or the statement refused, the DML inside never analysed; a writable CTE nothing reads produces NOTHING, silently Fixed 2026-10-02; `stress/pg/b3_dml_writes/REPORT.md` section 6. |
@@ -4539,7 +4539,7 @@ Taken by Abhay before batch B2's keys were written. Full statements in
   inside the null-supplying side of an outer join, or a LATERAL returning one row per outer
   row, WHERE columns are values (D-12) and DISTINCT ON / LIMIT orderings influence (D-13)
   of the columns fed from that side. Not applied to semi-/anti-join match keys, which can
-  remove rows; those seams (B2 P5, P6) stay open.
+  remove rows; those seams (B2 P5, P6) stayed open until D-52 (2026-10-07).
 
 ## Phase 0 must be re-measured — owed since 2026-10-02
 
@@ -4754,3 +4754,18 @@ Taken by Abhay; closes TQ-6, raised by the entity torture test's `final_payload`
 relation, so `REF_POLICY.REGION` is now a filter label on `GTT_STAGE` (relabelled, with a
 comment in the YAML). Every other Oracle edge and score is unchanged. D-50 and D-48 also
 moved four pinned PostgreSQL batch cells (B1 T1, B1 T2, B4 T4), relabelled the same way.
+
+## Decision taken — 2026-10-07 (D-52)
+
+Taken by Abhay; closes the semi- / anti-join seams B2 P5 and P6, left open when D-14 was
+scoped, and the D-43 avoidance "semi- / anti-join match keys".
+
+* **D-52** - a semi- or anti-join's match key is a FILTER, both columns: `IN` / `= ANY`,
+  `EXISTS`, `NOT IN` / `<> ALL`, `NOT EXISTS`, in WHERE, at any depth of the row-deciding
+  path. It removes outer rows, and keeping it visible is what shows that `vip` governs
+  which orders land in `o.customer_id IN (SELECT v.id FROM vip v)`. Under a scope that
+  cannot remove a result row the same keys are values (D-45). The JOIN + DISTINCT and
+  EXCEPT spellings of the same rows differ BY DESIGN, because D-5 deliberately calls a
+  join key plumbing: P5 and P6 are accepted divergences, not defects. This was already
+  the analyser's behaviour; `tests/test_semi_joins.py` pins every spelling and the
+  divergence.

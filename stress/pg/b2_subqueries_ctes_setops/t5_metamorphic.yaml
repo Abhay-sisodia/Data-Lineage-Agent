@@ -263,7 +263,7 @@ edges:
     line: 100
   evidence: source_read
   note: 'Spelling A only: the IN''s match columns are filters. In B they are a join key, structural under
-    D-5.'
+    D-5. DECIDED 2026-10-07 (D-52): a semi-join''s key is a filter, and this divergence is by design.'
 - source:
     kind: column
     name: core.fct_order_line.product_key
@@ -278,7 +278,7 @@ edges:
     line: 100
   evidence: source_read
   note: 'Spelling A only: the IN''s match columns are filters. In B they are a join key, structural under
-    D-5.'
+    D-5. DECIDED 2026-10-07 (D-52): a semi-join''s key is a filter, and this divergence is by design.'
 - source:
     kind: column
     name: staging.customers.id
@@ -332,7 +332,8 @@ edges:
     line: 128
   evidence: source_read
   note: 'Spelling B only: the correlation''s outer operand. In A, customers.id is the first arm and supplies
-    only a value (convention (a)).'
+    only a value (convention (a)). DECIDED 2026-10-07 (D-52): an anti-join''s key is a filter; the EXCEPT
+    spelling differs by design.'
 - source:
     kind: column
     name: core.dim_carrier.id
@@ -471,7 +472,7 @@ edges:
   note: 'RELABELLED UNDER D-14: under the LEFT JOIN the DISTINCT ON removes no order, so its key and tie-breaker
     decide WHICH amount arrives - influence, as D-13 says of the ordered pick. paid_at now agrees across
     the pair. payments.order_id still differs (influence in B, a conditional value in A): that is the
-    match-key seam of P5/P6, left open by decision.'
+    match-key seam of P5/P6, decided as D-52 (2026-10-07): a divergence by design.'
 - source:
     kind: column
     name: core.fct_shipment.carrier_id
