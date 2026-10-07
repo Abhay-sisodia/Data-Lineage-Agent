@@ -85,13 +85,18 @@ def split_statements(source: str) -> list[tuple[int, str]]:
     buffer: list[str] = []
     index = 0
     line = 1
-    start_line = 1
+    # A statement starts at its first CODE token, line and text alike (finding F0-08).
+    # Starting at the comments in front put a refusal on the first line of a comment
+    # block, which can be far above the statement it describes. The text starts there too,
+    # because everything that turns an offset in the text into a line - `last_line`, a
+    # CTE's refusal - counts from the statement's line.
+    start_line: int | None = None
     length = len(source)
 
     def flush() -> None:
         text = "".join(buffer).strip()
         if text:
-            statements.append((start_line, text))
+            statements.append((start_line if start_line is not None else line, text))
         buffer.clear()
 
     while index < length:
@@ -99,7 +104,10 @@ def split_statements(source: str) -> list[tuple[int, str]]:
         skipped = skip_lexeme(source, index)
         if skipped is not None:
             chunk = source[index:skipped]
-            buffer.append(chunk)
+            if start_line is None and not chunk.startswith(("--", "/*")):
+                start_line = line
+            if start_line is not None:
+                buffer.append(chunk)
             line += chunk.count("\n")
             index = skipped
             continue
@@ -107,15 +115,15 @@ def split_statements(source: str) -> list[tuple[int, str]]:
         if char == ";":
             flush()
             index += 1
-            # A statement starts at the first line with content after the separator.
-            start_line = line
+            start_line = None
             continue
 
         if char == "\n":
             line += 1
-            if not "".join(buffer).strip():
-                start_line = line
-        buffer.append(char)
+        elif start_line is None and not char.isspace():
+            start_line = line
+        if start_line is not None:
+            buffer.append(char)
         index += 1
 
     flush()
