@@ -194,14 +194,25 @@ def _cte_query(node: Any, name: str, dialect: str) -> exp.Select | None:
 # PostgreSQL keywords that read like a column when written bare. SQLGlot types most of them
 # (`current_user`, `session_user`, `current_schema`), but leaves `user` and `current_role`
 # as columns - and `qualify` then binds `user` to any column called "user".
-_SESSION_KEYWORDS = {"user": exp.CurrentUser, "current_role": exp.CurrentUser}
+_SESSION_KEYWORDS = {
+    "user": exp.CurrentUser,
+    "current_role": exp.CurrentUser,
+    "system_user": exp.CurrentUser,  # finding F0-05: PostgreSQL 16's authenticated identity
+}
 
 
 def session_keywords(parsed: Any) -> Any:
     """Unquoted, unqualified `user` / `current_role` are functions, not columns (B9 T4 S4).
 
     Only the unquoted spelling: `f."user"` IS a column, and PostgreSQL agrees.
+
+    A collation is a name, not a column: `x COLLATE pg_catalog."default"` came out of the
+    parser as the column `pg_catalog.default` and was declared unresolved (finding F0-05).
     """
+    for collate in list(parsed.find_all(exp.Collate)):
+        name = collate.expression
+        if isinstance(name, exp.Column):
+            name.replace(exp.Var(this=".".join(part.name for part in name.parts)))
     for column in list(parsed.find_all(exp.Column)):
         ident = column.this
         if column.table or not isinstance(ident, exp.Identifier) or ident.quoted:
