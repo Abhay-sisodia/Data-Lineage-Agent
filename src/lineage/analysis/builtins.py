@@ -73,13 +73,58 @@ SCALAR = {
             # xmlconcat, COLLATION FOR as pg_collation_for). A document is read whole (D-29).
             "XMLPI", "XMLEXISTS", "XMLSERIALIZE", "XMLCONCAT", "XMLCOMMENT", "XMLFOREST",
             "PG_COLLATION_FOR",
+            # finding F0-03: every PostgreSQL 17 built-in measured to arrive as Anonymous and
+            # not listed above - full text, geometry, network, math in degrees, catalogue,
+            # session and size functions among them. Read as user calls they were declared
+            # source_unavailable (D-53): the edges were right, the declaration false.
+            "ABBREV", "ACOSD", "AREA", "ARRAY_FILL", "ARRAY_SAMPLE", "ARRAY_SHUFFLE",
+            "ARRAY_TO_TSVECTOR", "ASIND", "ATAN2D", "ATAND", "BIT_COUNT", "BOUND_BOX", "BOX",
+            "BROADCAST", "CENTER", "CIRCLE", "CONVERT_FROM", "CONVERT_TO", "COSD", "COTD", "CRC32",
+            "CRC32C", "CURRENT_QUERY", "CURRENT_SETTING", "DATE_SUBTRACT", "DIAGONAL", "DIAMETER",
+            "ENUM_FIRST", "ENUM_LAST", "ENUM_RANGE", "ERF", "ERFC", "FAMILY", "FORMAT_TYPE",
+            "GET_BYTE", "GET_CURRENT_TS_CONFIG", "HAS_COLUMN_PRIVILEGE", "HAS_SCHEMA_PRIVILEGE",
+            "HAS_TABLE_PRIVILEGE", "HEIGHT", "HOSTMASK", "INET_CLIENT_ADDR", "INET_CLIENT_PORT",
+            "INET_MERGE", "INET_SAME_FAMILY", "INET_SERVER_ADDR", "INET_SERVER_PORT", "ISCLOSED",
+            "ISOPEN", "JSON_ARRAY_LENGTH", "JSON_POPULATE_RECORD", "JSON_POPULATE_RECORDSET",
+            "JSON_TO_TSVECTOR", "JSONB_ARRAY_LENGTH", "JSONB_OBJECT", "JSONB_PATH_EXISTS_TZ",
+            "JSONB_PATH_MATCH_TZ", "JSONB_PATH_QUERY_ARRAY_TZ", "JSONB_PATH_QUERY_FIRST_TZ",
+            "JSONB_PATH_QUERY_TZ", "JSONB_POPULATE_RECORD", "JSONB_POPULATE_RECORD_VALID",
+            "JSONB_POPULATE_RECORDSET", "JSONB_SET_LAX", "JSONB_TO_TSVECTOR", "LINE", "LSEG",
+            "MACADDR8_SET7BIT", "MASKLEN", "NETMASK", "NETWORK", "NPOINTS", "NUMNODE",
+            "PARSE_IDENT", "PATH", "PCLOSE", "PG_ADVISORY_LOCK", "PG_ADVISORY_XACT_LOCK",
+            "PG_BACKEND_PID", "PG_BLOCKING_PIDS", "PG_CANCEL_BACKEND", "PG_COLUMN_COMPRESSION",
+            "PG_COLUMN_SIZE", "PG_CONF_LOAD_TIME", "PG_CURRENT_LOGFILE", "PG_CURRENT_XACT_ID",
+            "PG_CURRENT_XACT_ID_IF_ASSIGNED", "PG_GET_VIEWDEF", "PG_HAS_ROLE",
+            "PG_INPUT_ERROR_INFO", "PG_INPUT_IS_VALID", "PG_IS_OTHER_TEMP_SCHEMA",
+            "PG_JIT_AVAILABLE", "PG_LISTENING_CHANNELS", "PG_MY_TEMP_SCHEMA",
+            "PG_NOTIFICATION_QUEUE_USAGE", "PG_NOTIFY", "PG_POSTMASTER_START_TIME",
+            "PG_RELATION_SIZE", "PG_SAFE_SNAPSHOT_BLOCKING_PIDS", "PG_SIZE_BYTES", "PG_SIZE_PRETTY",
+            "PG_SLEEP", "PG_TABLE_SIZE", "PG_TERMINATE_BACKEND", "PG_TOTAL_RELATION_SIZE",
+            "PG_TRIGGER_DEPTH", "PG_TRY_ADVISORY_LOCK", "PG_TYPEOF", "PG_XACT_STATUS",
+            "PHRASETO_TSQUERY", "PLAINTO_TSQUERY", "POINT", "POLYGON", "POPEN", "QUERY_TO_XML",
+            "QUERYTREE", "RADIUS", "RANDOM_NORMAL", "SET_BIT", "SET_BYTE", "SET_CONFIG",
+            "SET_MASKLEN", "SETSEED", "SETWEIGHT", "SHA224", "SIND", "SLOPE", "STATEMENT_TIMESTAMP",
+            "STRIP", "TABLE_TO_XML", "TAND", "TEXT", "TIMEOFDAY", "TO_ASCII", "TO_BIN", "TO_OCT",
+            "TO_REGCLASS", "TO_REGPROC", "TO_REGTYPE", "TO_TSQUERY", "TO_TSVECTOR",
+            "TRANSACTION_TIMESTAMP", "TRIM_ARRAY", "TS_DELETE", "TS_FILTER", "TS_HEADLINE",
+            "TS_RANK", "TS_RANK_CD", "TS_REWRITE", "TSQUERY_PHRASE", "TSVECTOR_TO_ARRAY",
+            "TXID_CURRENT", "TXID_CURRENT_IF_ASSIGNED", "TXID_SNAPSHOT_XMAX", "UNISTR",
+            "UUID_EXTRACT_TIMESTAMP", "UUID_EXTRACT_VERSION", "UUIDV4", "WEBSEARCH_TO_TSQUERY",
+            "WIDTH", "XML_IS_WELL_FORMED", "XML_IS_WELL_FORMED_CONTENT",
+            "XML_IS_WELL_FORMED_DOCUMENT", "XMLATTRIBUTES", "XMLROOT", "XMLTEXT",
         }
     ),
 }
 
 AGGREGATE = {
     "postgres": frozenset(
-        {"JSONB_AGG", "JSON_AGG", "JSONB_OBJECT_AGG", "JSON_OBJECT_AGG", "EVERY", "XMLAGG"}
+        {
+            "JSONB_AGG", "JSON_AGG", "JSONB_OBJECT_AGG", "JSON_OBJECT_AGG", "EVERY", "XMLAGG",
+            # finding F0-03: the strict / unique variants and the range aggregates.
+            "JSON_AGG_STRICT", "JSONB_AGG_STRICT", "JSON_OBJECT_AGG_STRICT",
+            "JSONB_OBJECT_AGG_STRICT", "JSON_OBJECT_AGG_UNIQUE", "JSONB_OBJECT_AGG_UNIQUE",
+            "RANGE_AGG", "RANGE_INTERSECT_AGG",
+        }
     ),
     # Finding PO-1: Spark / Databricks aggregates that arrive as Anonymous. A Spark model is
     # analysed through the PostgreSQL path (there is no Spark dialect, PO-0), and
