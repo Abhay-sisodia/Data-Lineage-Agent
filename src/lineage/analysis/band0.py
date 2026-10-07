@@ -1733,7 +1733,13 @@ def _window_influence(
     first_declared = len(unresolved)
 
     found: list[tuple[str, str, Transform]] = []
+    own = _query_of_scope(scope.expression)
     for column in _window_influence_columns(projection):
+        # Finding FH-06: only this query's own windows. One inside a nested subquery - a
+        # derived table a scalar subquery reads - was traced HERE, where its columns do
+        # not resolve, and declared unresolved; its own scope is reached below (TS-1).
+        if column.find_ancestor(exp.Select) is not own:
+            continue
         found.extend(_trace(column, scope, dictionary, unresolved, depth + 1))
         # An ordering column that is itself a window - a ROW_NUMBER one level down, or an
         # SRF's ordinal (D-26) - has no value to trace, only the ordering behind it. That
