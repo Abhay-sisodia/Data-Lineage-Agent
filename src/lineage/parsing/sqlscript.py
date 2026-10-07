@@ -63,7 +63,9 @@ _KINDS: tuple[tuple[type[exp.Expression], str], ...] = (
     (exp.Delete, "delete_statement"),
     (exp.Merge, "merge_statement"),
     (exp.Select, "query_block"),
-    (exp.Union, "query_block"),
+    # Every set operation, not `Union` alone: a bare EXCEPT or INTERSECT was no kind band 0
+    # knows, so it was skipped before it was counted (finding FH-05).
+    (exp.SetOperation, "query_block"),
 )
 
 SCRIPT_UNIT = "<script>"
