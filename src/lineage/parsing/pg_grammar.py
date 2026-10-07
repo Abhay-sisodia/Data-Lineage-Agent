@@ -25,8 +25,12 @@ Written -> restated as (why it is lineage-neutral):
 * `XMLPI`, `XMLEXISTS`, `XMLSERIALIZE`, `XMLPARSE`, `XMLROOT` keyword forms -> the plain
   call over the same expressions (D-29);
 * `SUBSTRING(x SIMILAR p ESCAPE e)` -> `SUBSTRING(x, p, e)` (the same operands);
-* `TABLE name` -> `SELECT * FROM name` (its definition), and a bare `VALUES ... ORDER BY 1`
-  -> `SELECT * FROM (VALUES ...) AS v ORDER BY 1`;
+* `TABLE name` -> `SELECT * FROM name` (its definition; also after `CREATE ... AS`), and a
+  bare `VALUES ... ORDER BY 1` -> `SELECT * FROM (VALUES ...) AS v ORDER BY 1`;
+* CREATE options SQLGlot cannot read (finding F0-01) - `CREATE RECURSIVE VIEW` -> its
+  documented `CREATE VIEW ... AS WITH RECURSIVE` equivalent; a materialized view's `WITH
+  [NO] DATA`, `WITH ... CHECK OPTION`, a view's `WITH (options)`, `TABLESPACE`,
+  `ON COMMIT DROP`, `WITHOUT OIDS` -> blanked, `WITH NO DATA` leaving a marker (no rows);
 * `x AT LOCAL` -> `x AT TIME ZONE 'localtime'`;
 * `0o17`, `0x1F`, `0b101`, `1_000` -> `15`, `31`, `5`, `1000`;
 * `national character(5)`, `nchar varying(5)`, `bit varying` -> plain type names, and
@@ -654,7 +658,7 @@ def _substring_similar(source: str) -> str:
 
 
 _TABLE = re.compile(rf"\bTABLE\s+({_QUALIFIED})", re.IGNORECASE)
-_TABLE_CONTEXT = re.compile(r"(?:\(|\bUNION|\bINTERSECT|\bEXCEPT|\bALL|\bDISTINCT)\s*$", re.I)
+_TABLE_CONTEXT = re.compile(r"(?:\(|\bUNION|\bINTERSECT|\bEXCEPT|\bALL|\bDISTINCT|\bAS)\s*$", re.I)
 
 
 def _table_command(source: str) -> str:
@@ -905,7 +909,107 @@ def _collation_for(source: str) -> str:
     return _apply(source, edits)
 
 
+# --- DDL options SQLGlot keeps as a raw Command (finding F0-01) -----------------------------
+#
+# A CREATE that SQLGlot cannot read whole is kept as an opaque `Command`, which carried no
+# kind band 0 handles: the statement was not even counted, and a whole view's or temp
+# table's lineage vanished. Each clause below names no column, so it is blanked; the two
+# with a meaning of their own are restated instead.
+
+NO_DATA_MARKER = "/*lineage:with-no-data*/"
+"""Left where `WITH NO DATA` stood on a materialized view: it holds no rows until REFRESH
+(B7-06, D-32), which the catalog reads from this marker."""
+
+_QUERY_START = r"(?:\(|SELECT\b|WITH\b|VALUES\b|TABLE\b)"
+_RECURSIVE_VIEW = re.compile(
+    rf"^CREATE\s+(?:OR\s+REPLACE\s+)?(?:(?:TEMP|TEMPORARY)\s+)?(?P<recursive>RECURSIVE\s+)VIEW\s+"
+    rf"(?P<name>{_QUALIFIED})\s*\((?P<columns>[^()]*)\)\s*AS\s+",
+    re.IGNORECASE,
+)
+_TRAILING_DATA = re.compile(r"\bWITH\s+(?P<no>NO\s+)?DATA\s*$", re.IGNORECASE)
+_CHECK_OPTION = re.compile(r"\bWITH\s+(?:CASCADED\s+|LOCAL\s+)?CHECK\s+OPTION\s*$", re.I)
+_TABLESPACE = re.compile(rf"\bTABLESPACE\s+{_NAME}", re.IGNORECASE)
+_ON_COMMIT_DROP = re.compile(r"\bON\s+COMMIT\s+DROP\b", re.IGNORECASE)
+_WITHOUT_OIDS = re.compile(r"\bWITHOUT\s+OIDS\b", re.IGNORECASE)
+_VIEW_OPTIONS = re.compile(r"\bWITH\s*\(", re.IGNORECASE)
+
+
+def _create_options(source: str) -> str:
+    """Restate, per CREATE statement, the options that make SQLGlot give up.
+
+    * `CREATE RECURSIVE VIEW v (cols) AS q` -> `CREATE VIEW v AS WITH RECURSIVE v (cols) AS
+      (q) SELECT cols FROM v`, PostgreSQL's documented equivalent;
+    * a materialized view's `WITH DATA` (the default) is blanked, `WITH NO DATA` becomes
+      `NO_DATA_MARKER`;
+    * `WITH [CASCADED | LOCAL] CHECK OPTION`, a view's `WITH (options)`, `TABLESPACE t`,
+      `ON COMMIT DROP` and `WITHOUT OIDS` in a CREATE header are blanked.
+    """
+    masked = _mask(source)
+    edits: list[tuple[int, int, str]] = []
+    start = 0
+    for end in [i for i, char in enumerate(masked) if char == ";"] + [len(masked)]:
+        _create_statement(source, masked, start, end, edits)
+        start = end + 1
+    return _apply(source, edits)
+
+
+def _create_statement(
+    source: str, masked: str, start: int, end: int, edits: list[tuple[int, int, str]]
+) -> None:
+    lead = len(masked[start:end]) - len(masked[start:end].lstrip(" \t\r\n\x00"))
+    begin = start + lead
+    text = masked[begin:end].rstrip()
+    stop = begin + len(text)
+    head = re.match(
+        r"CREATE\s+(?:OR\s+REPLACE\s+)?(?:(?:GLOBAL|LOCAL)\s+)?"
+        r"(?:(?:TEMP|TEMPORARY|UNLOGGED)\s+)?(?:RECURSIVE\s+)?(?P<kind>MATERIALIZED\s+VIEW|VIEW|TABLE)\b",
+        text,
+        re.IGNORECASE,
+    )
+    if head is None:
+        return
+    kind = " ".join(head.group("kind").upper().split())
+    body = re.search(rf"\bAS\s+{_QUERY_START}", text[head.end() :], re.IGNORECASE)
+    if body is None:
+        return  # not CREATE ... AS <query>: nothing of this rewrite's concern
+    header_end = head.end() + body.start()
+
+    for pattern in (_TABLESPACE, _ON_COMMIT_DROP, _WITHOUT_OIDS):
+        for match in pattern.finditer(text, head.end(), header_end):
+            edits.append((begin + match.start(), begin + match.end(), ""))
+    if kind == "VIEW":
+        options = _VIEW_OPTIONS.search(text, head.end(), header_end)
+        if options is not None:
+            closing = _closing(masked, begin + options.end() - 1)
+            if closing is not None and closing < begin + header_end:
+                edits.append((begin + options.start(), closing + 1, ""))
+        check = _CHECK_OPTION.search(text)
+        if check is not None:
+            edits.append((begin + check.start(), begin + check.end(), ""))
+    if kind == "MATERIALIZED VIEW":
+        data = _TRAILING_DATA.search(text)
+        if data is not None:
+            marker = NO_DATA_MARKER if data.group("no") else ""
+            edits.append((begin + data.start(), begin + data.end(), marker))
+
+    recursive = _RECURSIVE_VIEW.match(text)
+    if recursive is not None:
+        written = source[begin + recursive.start("name") : begin + recursive.end("name")]
+        name = written.rsplit(".", 1)[-1].strip()  # a CTE name is never qualified
+        columns = source[begin + recursive.start("columns") : begin + recursive.end("columns")]
+        edits.append((begin + recursive.start("recursive"), begin + recursive.end("recursive"), ""))
+        edits.append(
+            (
+                begin + recursive.end("name"),
+                begin + recursive.end(),
+                f" AS WITH RECURSIVE {name} ({columns}) AS (",
+            )
+        )
+        edits.append((stop, stop, f") SELECT {columns} FROM {name}"))
+
+
 _REWRITES: list[Callable[[str], str]] = [
+    _create_options,
     _search_cycle,
     _order_using,
     _join_using_alias,

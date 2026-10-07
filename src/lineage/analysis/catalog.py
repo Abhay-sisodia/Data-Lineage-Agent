@@ -38,6 +38,7 @@ from sqlglot import exp
 from lineage.analysis.relations import SEARCH_PATH, identifier
 from lineage.analysis.transforms import transform_of_path
 from lineage.ir.model import Transform
+from lineage.parsing.pg_grammar import NO_DATA_MARKER
 from lineage.parsing.sqlscript import skip_lexeme
 from lineage.resolution.dictionary import Dictionary, ObjectInfo, fold
 
@@ -123,7 +124,7 @@ class ScriptCatalog:
             if kind == "TABLE":
                 return self._create_table(parsed)
             if kind == "VIEW":
-                return self._create_view(parsed)
+                return self._create_view(parsed, NO_DATA_MARKER in text)
         return None
 
     # --- the forms ----------------------------------------------------------------------
@@ -200,7 +201,7 @@ class ScriptCatalog:
             facts.extend((name, c, parent, c, Transform.IDENTITY) for c in parent_columns)
         return Effect(facts=facts, count_only=True)
 
-    def _create_view(self, create: exp.Create) -> Effect | None:
+    def _create_view(self, create: exp.Create, no_data: bool = False) -> Effect | None:
         target = create.this
         schema = target if isinstance(target, exp.Schema) else None
         table = schema.this if schema is not None else target
@@ -215,8 +216,11 @@ class ScriptCatalog:
         self._register(name, columns, "TABLE", False)
         if _has(create, exp.MaterializedProperty):
             self._matviews[name] = (columns, query.sql(dialect="postgres"))
-            no_data = _property(create, exp.WithDataProperty)
-            if no_data is not None and no_data.args.get("no"):
+            # WITH NO DATA: SQLGlot cannot read it on a materialized view, so pg_grammar
+            # leaves a marker in its place (F0-01); the parsed property is kept for a reader
+            # that one day can.
+            parsed_no_data = _property(create, exp.WithDataProperty)
+            if no_data or (parsed_no_data is not None and parsed_no_data.args.get("no")):
                 return Effect(count_only=True)
             return None
 

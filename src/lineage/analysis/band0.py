@@ -25,6 +25,7 @@ Three behaviours matter more than coverage here:
 from __future__ import annotations
 
 import dataclasses
+import re
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -83,7 +84,7 @@ from lineage.dialects import fold, for_name
 from lineage.harness.labels import Flow, Node, NodeKind, Origin, Transform
 from lineage.harness.scoring import Mechanism, PredictedEdge, Tier
 from lineage.ir.model import Boundary, BoundaryKind, FilterPhase
-from lineage.parsing.sqlscript import SCRIPT_UNIT, statement_kind
+from lineage.parsing.sqlscript import SCRIPT_UNIT, skip_lexeme, statement_kind
 from lineage.parsing.plsql import ParsedStatement, Program, parse_program
 from lineage.parsing.rewrite import strip_unparseable_clauses
 from lineage.resolution.dictionary import Dictionary, UnknownObjectError
@@ -4063,16 +4064,38 @@ def analyse_source(
             statement.kind == "unparsed_statement"
             and _enclosing_unit(program, statement).strip().lower() == SCRIPT_UNIT
         )
+        # F0-01: a CREATE ... AS <query> that SQLGlot kept as an opaque Command (an option
+        # `pg_grammar` does not restate) carries a whole object's lineage. It was skipped
+        # here uncounted; it is counted and refused instead, never dropped.
+        opaque_create = statement.kind == "command_statement" and _creates_from_query(
+            statement.text
+        )
         if (
             statement.kind not in SUPPORTED
             and not postgres_update
             and not unparsed
+            and not opaque_create
             and not _is_standalone_query(program, statement)
         ):
             continue
         result.statements_seen += 1
         unit = _enclosing_unit(program, statement)
         origin = Origin(unit=unit, line=statement.line)
+        if opaque_create:
+            result.refusals.append(
+                Refusal(
+                    kind=statement.kind,
+                    line=statement.line,
+                    reason="SQLGlot kept this CREATE ... AS <query> as an unparsed command "
+                    "(an option it cannot read), so the lineage of what it creates cannot be "
+                    "named",
+                    excerpt=" ".join(statement.text.split())[:80],
+                    code=RefusalCode.PARSE_FAILED,
+                    unit=unit,
+                    end_line=last_line(statement),
+                )
+            )
+            continue
 
         # The classifier gates the analyser rather than auditing it (T3.1). Checking
         # afterwards would mean the guessed edge had already been built, and something
@@ -4292,6 +4315,23 @@ def _node_depth(node: Any) -> int:
         depth += 1
         parent = parent.parent
     return depth
+
+
+_CREATE_AS_QUERY = re.compile(
+    r"^\s*CREATE\b.*?\bAS\s*(?:\(|SELECT\b|WITH\b|VALUES\b|TABLE\b)", re.IGNORECASE | re.DOTALL
+)
+
+
+def _creates_from_query(text: str) -> bool:
+    """True for `CREATE ... AS <query>` text, comments in front of it set aside (F0-01)."""
+    index = 0
+    while True:
+        while index < len(text) and text[index].isspace():
+            index += 1
+        if not text.startswith(("--", "/*"), index):
+            break
+        index = skip_lexeme(text, index) or len(text)
+    return _CREATE_AS_QUERY.match(text[index:]) is not None
 
 
 def _analyse_statement(
