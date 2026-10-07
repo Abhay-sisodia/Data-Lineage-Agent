@@ -29,7 +29,8 @@ EXPECTED = {
     # B1 core SELECT - agreed 2026-10-01 after every fix in REPORT.md section 8.
     # GROUPING() was B1-Q1: its 4 false positives in T1 S10a and 2 in T2 S5 went when D-50
     # decided it (2026-10-06: no lineage). T1 S3 and S4a moved under D-48 (an inner join's
-    # ON condition is a filter; a LEFT join's, a value of its null side).
+    # ON condition is a filter; a LEFT join's, a value of its null side). T5 R1 moved under
+    # D-55 (2026-10-07, FM-03): COUNT(*) over order_facts inherits its GROUP BY order_id.
     ("b1_core_select/t1_breadth", Flow.VALUE): (110, 0, 0),
     ("b1_core_select/t1_breadth", Flow.FILTER): (22, 0, 0),
     ("b1_core_select/t1_breadth", Flow.INFLUENCE): (47, 0, 0),
@@ -44,7 +45,7 @@ EXPECTED = {
     ("b1_core_select/t4_adversarial", Flow.INFLUENCE): (11, 0, 0),
     ("b1_core_select/t5_metamorphic", Flow.VALUE): (34, 0, 0),
     ("b1_core_select/t5_metamorphic", Flow.FILTER): (8, 0, 0),
-    ("b1_core_select/t5_metamorphic", Flow.INFLUENCE): (29, 0, 0),
+    ("b1_core_select/t5_metamorphic", Flow.INFLUENCE): (30, 0, 0),
     # B2 subqueries, CTEs, set operations - agreed 2026-10-02 after the fixes in REPORT.md
     # section 6, under D-12, D-13 and D-14. Every cell 100%. Three T5 pairs (P5, P6, P8's
     # match key) still DIFFER by decision - the semi-join / anti-join seam left open - and

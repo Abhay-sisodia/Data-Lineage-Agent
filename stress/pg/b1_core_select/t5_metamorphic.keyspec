@@ -78,7 +78,8 @@ note status is a CASE over last_order = MAX(MIN(order_date)); the hardest constr
 note lifetime_orders is COUNT(*) over order_facts: no value source. value_rank and value_decile are ranks: no value source.
 influence core.fct_order_line.customer_key, core.fct_order_line.order_id -> mart.customer_summary.first_order_date, mart.customer_summary.last_order_date, mart.customer_summary.lifetime_value, mart.customer_summary.avg_basket, mart.customer_summary.status
 note order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again. Both apply on every path through an aggregate of order_facts.
-influence core.fct_order_line.customer_key -> mart.customer_summary.lifetime_orders
+influence core.fct_order_line.customer_key, core.fct_order_line.order_id -> mart.customer_summary.lifetime_orders
+note D-55 (2026-10-07): COUNT(*) counts order_facts' groups, so its GROUP BY order_id decides the count, as it decides every other aggregate here; relabelled from customer_key alone (FM-03).
 influence core.dim_customer.region, core.fct_order_line.amount_usd, core.fct_order_line.customer_key, core.fct_order_line.order_id -> mart.customer_summary.value_rank
 influence core.fct_order_line.amount_usd, core.fct_order_line.customer_key, core.fct_order_line.order_id -> mart.customer_summary.value_decile
 filter core.fct_order_line.status -> mart.customer_summary

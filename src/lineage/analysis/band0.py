@@ -1861,12 +1861,94 @@ def _grouping_influence(
     for column in projection.find_all(exp.Column):
         for inner, home in _projections_behind(column, scope):
             found.extend(_grouping_influence(inner, home, dictionary, unresolved, depth + 1))
+    # D-55 (finding FM-03): an aggregate over an already-grouped source is decided by that
+    # grouping - it fixes how many group rows there are. `MAX(i.days)` carries it through
+    # `days`; a column-less `COUNT(*)` reads no column, so the walk above never left this
+    # scope and the inner GROUP BY was lost.
+    if _counts_rows_here(projection, scope):
+        for source in _query_sources(scope):
+            found.extend(_counted_grouping(source, dictionary, unresolved, depth + 1))
     # Finding TS-1: a scalar subquery's grouping decides the value it returns, as a CTE's
     # does. `(SELECT max(margin) FROM brand_stats)` lost brand_stats' GROUP BY brand, because
     # the walk above follows only columns of THIS scope.
     for nested_scope, nested in _scalar_subquery_projections(projection, scope):
         found.extend(_grouping_influence(nested, nested_scope, dictionary, unresolved, depth + 1))
     return _remember(scope, key, unresolved, first_declared, found)
+
+
+def _counts_rows_here(projection: Any, scope: Scope) -> bool:
+    """Whether the projection holds a column-less aggregate (`COUNT(*)`) of THIS query.
+
+    Not a window function - `RANK() OVER (...)`, `COUNT(*) OVER (...)` read their window's
+    columns, already influence (D-4) - and not one inside a nested subquery, whose rows are
+    its own sources' rather than this scope's.
+    """
+    query = _query_of_scope(scope.expression)
+    return any(
+        _is_aggregate(node)
+        and not _reads_a_column(node)
+        and node.find_ancestor(exp.Window, exp.Select) is query
+        for node in projection.walk()
+    )
+
+
+def _reads_a_column(aggregate: Any) -> bool:
+    """Whether an aggregate's argument names a column (`COUNT(*)`, `COUNT(1)` do not)."""
+    arguments = [aggregate.this, *(aggregate.expressions or [])]
+    return any(
+        isinstance(argument, exp.Expression) and argument.find(exp.Column) is not None
+        for argument in arguments
+    )
+
+
+def _query_sources(scope: Scope) -> list[Scope]:
+    """The derived tables, CTEs and LATERALs this scope reads rows from.
+
+    `selected_sources`, not `sources`: the latter also lists every CTE merely in view.
+    """
+    return [
+        source for _, source in scope.selected_sources.values() if isinstance(source, Scope)
+    ]
+
+
+def _counted_grouping(
+    source: Scope,
+    dictionary: Dictionary,
+    unresolved: list[Boundary],
+    depth: int,
+    seen: set[int] | None = None,
+) -> list[tuple[str, str, Transform]]:
+    """The GROUP BY that decides the rows a column-less aggregate counts in `source` (D-55).
+
+    A source that groups contributes its grouping columns. One that passes rows through
+    (a filter, a join, a projection) is looked through to the grouping beneath it, since
+    its rows are still those groups; each arm of a set operation likewise. `seen` stops a
+    recursive CTE from being entered twice.
+    """
+    seen = set() if seen is None else seen
+    if id(source) in seen:
+        return []
+    seen.add(id(source))
+    if depth > TRACE_DEPTH_CAP:
+        return _depth_cap("COUNT(*)", unresolved)
+    arms = _arm_roles(source) if getattr(source, "union_scopes", None) else [(source, True)]
+    found: list[tuple[str, str, Transform]] = []
+    for arm, supplies_values in arms:
+        if not supplies_values:
+            continue
+        query = _query_of_scope(arm.expression)
+        group = query.args.get("group") if isinstance(query, exp.Select) else None
+        if group is not None:
+            for column in group.find_all(exp.Column):
+                found.extend(_trace(column, arm, dictionary, unresolved, depth + 1))
+            continue
+        aggregates = isinstance(query, exp.Select) and any(
+            _is_aggregate(node) for item in query.selects for node in item.walk()
+        )
+        if not aggregates:
+            for inner in _query_sources(arm):
+                found.extend(_counted_grouping(inner, dictionary, unresolved, depth + 1, seen))
+    return found
 
 
 def _scalar_subquery_projections(projection: Any, scope: Scope) -> list[tuple[Scope, Any]]:

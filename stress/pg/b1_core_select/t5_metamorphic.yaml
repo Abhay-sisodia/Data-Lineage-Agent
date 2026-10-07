@@ -811,6 +811,23 @@ edges:
     unit: <script>
     line: 212
   evidence: source_read
+  note: 'D-55 (2026-10-07): COUNT(*) counts order_facts'' groups, so its GROUP BY order_id decides the
+    count, as it decides every other aggregate here; relabelled from customer_key alone (FM-03).'
+- source:
+    kind: column
+    name: core.fct_order_line.order_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: 'D-55 (2026-10-07): COUNT(*) counts order_facts'' groups, so its GROUP BY order_id decides the
+    count, as it decides every other aggregate here; relabelled from customer_key alone (FM-03).'
 - source:
     kind: column
     name: core.dim_customer.region
