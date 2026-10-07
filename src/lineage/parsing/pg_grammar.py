@@ -19,7 +19,8 @@ Written -> restated as (why it is lineage-neutral):
 * `JOIN t USING (k) AS j` with `j.k` -> `JOIN t USING (k)` with `k` (`j.k` IS the merged
   column);
 * `SEARCH ... SET s`, `CYCLE ... SET m USING p` -> `s`, `m`, `p` added to every arm, built
-  from the BY / CYCLE columns as PostgreSQL builds them;
+  from the BY / CYCLE columns as PostgreSQL builds them; CYCLE's implicit guard -> a
+  predicate on the CYCLE columns in every recursive arm (D-54: it stops rows, a filter);
 * SQL/JSON constructors and queries -> `jsonb_build_array`, `jsonb_agg`, ... over the same
   arguments, an aggregate staying an aggregate (D-29);
 * `XMLPI`, `XMLEXISTS`, `XMLSERIALIZE`, `XMLPARSE`, `XMLROOT` keyword forms -> the plain
@@ -254,8 +255,20 @@ def _restate_search_cycle(source, masked, closing, search, cycle) -> str | None:
 
     anchor_names = names or [_output_name(source, s, e) for s, e in arms[0][1]]
     edits: list[tuple[int, int, str]] = []
-    for select_end, items in arms:
+    for position, (select_end, items, arm_end) in enumerate(arms):
         expressions = [_without_alias(source[s:e]).strip() for s, e in items]
+        if cycle and position > 0:
+            # D-54 (finding FM-02): the recursive term stops extending a row whose CYCLE
+            # columns are already on its path, so those columns decide which rows the CTE
+            # holds. Restated as a predicate reading them as this arm computes them, as the
+            # mark above reads them; the cycle test itself has no other operand.
+            try:
+                guarded = [expressions[anchor_names.index(c)] for c in _names(group(cycle, "cyc"))]
+            except ValueError:
+                return None
+            edits.extend(
+                _guard(masked, select_end, arm_end, f"ROW({', '.join(guarded)}) IS NOT NULL")
+            )
         pieces = []
         for name, columns, kind in added:
             try:
@@ -302,8 +315,23 @@ def _names(text: str) -> list[str]:
     return [part.strip().strip('"').lower() for part in text.split(",") if part.strip()]
 
 
-def _arms(masked: str, start: int, end: int) -> list[tuple[int, list[tuple[int, int]]]]:
-    """Each top-level SELECT arm of a CTE body: where its select list ends, and its items."""
+_ARM_TAIL = ("GROUP", "HAVING", "WINDOW", "ORDER", "LIMIT", "OFFSET", "FETCH")
+
+
+def _guard(masked: str, list_end: int, arm_end: int, predicate: str) -> list[tuple[int, int, str]]:
+    """Edits that AND `predicate` into one arm's WHERE, or give the arm one."""
+    tails = [_top_keyword(masked, list_end, arm_end, word) for word in _ARM_TAIL]
+    at = min((tail for tail in tails if tail is not None), default=arm_end)
+    where = _top_keyword(masked, list_end, at, "WHERE")
+    if where is None:
+        return [(at, at, f" WHERE {predicate} ")]
+    after = where + len("WHERE")
+    return [(after, after, " ("), (at, at, f") AND {predicate} ")]
+
+
+def _arms(masked: str, start: int, end: int) -> list[tuple[int, list[tuple[int, int]], int]]:
+    """Each top-level SELECT arm of a CTE body: where its select list ends, its items, and
+    where the arm ends."""
     bounds, depth, begin = [], 0, start
     index = start
     while index < end:
@@ -329,7 +357,7 @@ def _arms(masked: str, start: int, end: int) -> list[tuple[int, list[tuple[int, 
         if select is None:
             return []
         list_end = _top_keyword(masked, select.end(), arm_end, "FROM") or arm_end
-        arms.append((list_end, _split_top(masked, select.end(), list_end)))
+        arms.append((list_end, _split_top(masked, select.end(), list_end), arm_end))
     return arms
 
 
