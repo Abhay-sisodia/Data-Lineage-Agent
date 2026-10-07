@@ -1866,7 +1866,7 @@ def _grouping_influence(
     # `days`; a column-less `COUNT(*)` reads no column, so the walk above never left this
     # scope and the inner GROUP BY was lost.
     if _counts_rows_here(projection, scope):
-        for source in _query_sources(scope):
+        for source in _read_scopes(scope):
             found.extend(_counted_grouping(source, dictionary, unresolved, depth + 1))
     # Finding TS-1: a scalar subquery's grouping decides the value it returns, as a CTE's
     # does. `(SELECT max(margin) FROM brand_stats)` lost brand_stats' GROUP BY brand, because
@@ -1899,16 +1899,6 @@ def _reads_a_column(aggregate: Any) -> bool:
         isinstance(argument, exp.Expression) and argument.find(exp.Column) is not None
         for argument in arguments
     )
-
-
-def _query_sources(scope: Scope) -> list[Scope]:
-    """The derived tables, CTEs and LATERALs this scope reads rows from.
-
-    `selected_sources`, not `sources`: the latter also lists every CTE merely in view.
-    """
-    return [
-        source for _, source in scope.selected_sources.values() if isinstance(source, Scope)
-    ]
 
 
 def _counted_grouping(
@@ -1946,7 +1936,7 @@ def _counted_grouping(
             _is_aggregate(node) for item in query.selects for node in item.walk()
         )
         if not aggregates:
-            for inner in _query_sources(arm):
+            for inner in _read_scopes(arm):
                 found.extend(_counted_grouping(inner, dictionary, unresolved, depth + 1, seen))
     return found
 
@@ -3157,6 +3147,10 @@ def _ordered_sources(
             for table, name, traced in _trace(column, home, dictionary, unresolved):
                 path = _transform_of_path(expression, column)
                 found.append((table, name, _combine(path, traced)))
+            # An ordering column with no value of its own - a rank or an SRF's ordinal one
+            # level down (D-26) - orders by what orders IT, as the same column cut in a
+            # WHERE already did (finding FM-01: `ORDER BY u.n LIMIT 5` gave nothing).
+            found.extend(_window_filter_sources(column, home, dictionary, unresolved))
     return found
 
 
