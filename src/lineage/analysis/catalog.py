@@ -45,6 +45,9 @@ from lineage.resolution.dictionary import Dictionary, ObjectInfo, fold
 Fact = tuple[str, str, str, str, Transform]
 """(source relation, source column, target relation, target column, transform)."""
 
+# CREATE kinds that define something holding no rows of its own (finding F0-04).
+_NO_ROWS = frozenset({"INDEX", "SEQUENCE", "SCHEMA", "TYPE"})
+
 _REFRESH = re.compile(
     r"^\s*REFRESH\s+MATERIALIZED\s+VIEW\s+(?:CONCURRENTLY\s+)?(?P<name>[\w.\"]+)",
     re.IGNORECASE,
@@ -121,6 +124,11 @@ class ScriptCatalog:
             return Effect(skip=True)
         if isinstance(parsed, exp.Create):
             kind = (parsed.args.get("kind") or "").upper()
+            if kind in _NO_ROWS:
+                # Finding F0-04: these move no data, as a plain CREATE TABLE does not (D-33),
+                # and were refused as "CREATE TABLE without AS SELECT". Counted, no lineage -
+                # a partial index's WHERE chooses which rows are INDEXED, not which exist.
+                return Effect(count_only=True)
             if kind == "TABLE":
                 return self._create_table(parsed)
             if kind == "VIEW":
