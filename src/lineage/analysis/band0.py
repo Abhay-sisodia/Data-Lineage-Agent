@@ -950,11 +950,16 @@ def _is_recursive_self_reference(column: Any, scope: Scope) -> bool:
     True only when the alias names a table whose NAME is the enclosing CTE's own name, and
     that WITH is RECURSIVE. Anything looser matches every CTE reference: a CTE's query is
     always inside the statement it belongs to.
+
+    A schema-qualified table is never the self-reference (finding FH-01): a CTE name cannot
+    be qualified, so `item_master AS (... FROM lgx.item_master)` in a RECURSIVE WITH reads the
+    base table. Matching the name alone took it for the CTE and dropped every column read
+    through it, silently.
     """
     selected = getattr(scope, "selected_sources", None) or {}
     entry = selected.get(column.table)
     node = entry[0] if isinstance(entry, tuple) and entry else None
-    if not isinstance(node, exp.Table):
+    if not isinstance(node, exp.Table) or node.args.get("db") or node.args.get("catalog"):
         return False
     name = node.name.upper()
     walk = getattr(_query_of_scope(scope.expression), "parent", None)
