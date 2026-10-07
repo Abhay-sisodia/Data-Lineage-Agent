@@ -2923,9 +2923,14 @@ def _filter_edges(
                     found = _window_filter_sources(column, home, dictionary, unresolved)
                     emit(found, _selection_phase(found))
 
-        # D-9: DISTINCT ON and an ORDER BY under a row limit choose which rows land.
+        # D-9: DISTINCT ON and an ORDER BY under a row limit choose which rows land. Over an
+        # aggregated query they count and remove GROUPS, so every sort key is post - a
+        # grouping key too (D-56, finding FE-01: alone it read pre).
         found = _row_selection_sources(current, dictionary, unresolved)
-        emit(found, _selection_phase(found))
+        emit(
+            found,
+            FilterPhase.POST_AGGREGATION if _groups_rows(query) else _selection_phase(found),
+        )
 
         # A HAVING removes GROUPS, after every row has been counted (S1-03, decision D-2).
         # It is a filter - rows do disappear - but `WHERE amount > 100` and
@@ -3086,6 +3091,22 @@ def _row_deciding_list(root: Scope) -> list[Scope]:
 
 # UDTF is a LATERAL (finding B2-05): a row source like a derived table, wrapped.
 _ROW_SELECTING_SCOPES = (ScopeType.ROOT, ScopeType.DERIVED_TABLE, ScopeType.CTE, ScopeType.UDTF)
+
+
+def _groups_rows(query: Any) -> bool:
+    """Whether this query's rows are groups: a GROUP BY, a HAVING, or an aggregate of its own.
+
+    A window aggregate (`SUM(x) OVER ()`) does not count - it keeps every row.
+    """
+    if not isinstance(query, exp.Select):
+        return False
+    if query.args.get("group") is not None or query.args.get("having") is not None:
+        return True
+    return any(
+        _is_aggregate(node) and node.find_ancestor(exp.Window, exp.Select) is query
+        for item in query.selects
+        for node in item.walk()
+    )
 
 
 def _selection_phase(found: list[tuple[str, str, Transform]]) -> FilterPhase:
