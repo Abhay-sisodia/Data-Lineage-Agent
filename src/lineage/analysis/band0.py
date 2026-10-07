@@ -2025,6 +2025,8 @@ def _trace_through_set_operation(
 
     traced: list[tuple[str, str, Transform]] = []
     for arm, supplies_values in roles:
+        if isinstance(arm.expression, exp.Values) and arm.expression.find(exp.Column) is None:
+            continue  # literal rows: no source to name, and no position to miss (F0-07)
         projections = getattr(arm.expression, "selects", []) or []
         if position >= len(projections):
             unresolved.append(
@@ -2185,10 +2187,18 @@ def _set_operation_arms(node: Any) -> list[tuple[Any, bool]]:
 
     sqlglot nests these left-associatively - `A UNION B UNION C` is `Union(Union(A,B),C)` -
     so the left side recurses and keeps its own flags.
+
+    A parenthesised arm - `(SELECT ...) UNION ALL (SELECT ...)`, `(VALUES ...)` - is the
+    arm inside the parentheses (finding F0-07); it was refused as "arm is Subquery". A
+    parenthesised set operation on the RIGHT is flattened too, its arms constraining when
+    the operator joining it does: in `A EXCEPT (B UNION C)` neither B nor C supplies a value.
     """
+    while isinstance(node, exp.Subquery) and not node.alias:
+        node = node.this
     if isinstance(node, exp.SetOperation):
         adds_rows = isinstance(node, exp.Union)
-        return [*_set_operation_arms(node.this), (node.expression, adds_rows)]
+        right = [(arm, adds_rows and own) for arm, own in _set_operation_arms(node.expression)]
+        return [*_set_operation_arms(node.this), *right]
     return [(node, True)]
 
 
@@ -2340,6 +2350,9 @@ def _analyse_insert(
             if inherits_ctes:
                 arm = arm.copy()
                 arm.set("with_", shared.copy())
+            if isinstance(arm, exp.Values) and arm.find(exp.Column) is None:
+                # Literal rows: no column is the source of anything they add (F0-07).
+                continue
             if not isinstance(arm, exp.Select):
                 return [], (
                     RefusalCode.UNSUPPORTED_CONSTRUCT,
