@@ -39,7 +39,12 @@ def _option(name: str, default: str) -> str:
     return default
 
 
-def build(schema_sql: Path = SCHEMA, default_schema: str = DEFAULT_SCHEMA) -> dict[str, object]:
+def build(
+    schema_sql: Path | None = None, default_schema: str = DEFAULT_SCHEMA
+) -> dict[str, object]:
+    # `SCHEMA` read at CALL time: the torture runners point it at their own schema.sql
+    # before calling, and a default bound at definition time silently ignored that.
+    schema_sql = schema_sql or SCHEMA
     objects: dict[str, dict[str, str]] = {}
     columns: dict[str, list[str]] = {}
 
