@@ -1735,20 +1735,12 @@ def _window_influence(
         # An ordering column that is itself a window - a ROW_NUMBER one level down, or an
         # SRF's ordinal (D-26) - has no value to trace, only the ordering behind it. That
         # ordering decides this window's order too, so it is carried up (D-4, composed).
-        inner = _projection_behind(column, scope)
-        if inner is not None:
-            found.extend(_window_influence(inner[0], inner[1], dictionary, unresolved, depth + 1))
+        for inner, home in _projections_behind(column, scope):
+            found.extend(_window_influence(inner, home, dictionary, unresolved, depth + 1))
 
     for column in _value_columns(projection):
-        source = scope.sources.get(column.table) if column.table else None
-        if source is None and len(scope.sources) == 1:
-            source = next(iter(scope.sources.values()))
-        if not isinstance(source, Scope):
-            continue
-        inner = _projection_named(source, column.name)
-        if inner is None:
-            continue
-        found.extend(_window_influence(inner, source, dictionary, unresolved, depth + 1))
+        for inner, home in _projections_behind(column, scope):
+            found.extend(_window_influence(inner, home, dictionary, unresolved, depth + 1))
     # Finding TS-1, the window half: a scalar subquery's own windows decide its value.
     for nested_scope, nested in _scalar_subquery_projections(projection, scope):
         found.extend(_window_influence(nested, nested_scope, dictionary, unresolved, depth + 1))
@@ -1765,15 +1757,40 @@ def _window_influence(
     return _remember(scope, key, unresolved, first_declared, found)
 
 
-def _projection_behind(column: Any, scope: Scope) -> tuple[Any, Scope] | None:
-    """The projection a column reads from a derived table, CTE or LATERAL, with its scope."""
+def _projections_behind(column: Any, scope: Scope) -> list[tuple[Any, Scope]]:
+    """The projection(s) a column reads from a derived table, CTE or LATERAL, with scopes."""
     source = scope.sources.get(column.table) if column.table else None
     if source is None and len(scope.sources) == 1:
         source = next(iter(scope.sources.values()))
     if not isinstance(source, Scope):
-        return None
-    inner = _projection_named(source, column.name)
-    return (inner, source) if inner is not None else None
+        return []
+    return _projections_in(source, column.name)
+
+
+def _projections_in(source: Scope, name: str) -> list[tuple[Any, Scope]]:
+    """The projection named `name` in `source`, with the scope that computes it.
+
+    For a set operation that is one projection per arm that supplies values, bound by
+    POSITION as `_trace_through_set_operation` binds them (finding FH-04). `_projection_named`
+    alone returned the first arm's projection with the SET OPERATION's scope - which has no
+    GROUP BY or window of its own - so every arm's grouping and ordering influence was lost
+    once the union sat in a CTE or derived table, silently. At the top level the arms were
+    walked directly and kept it.
+    """
+    if not getattr(source, "union_scopes", None):
+        inner = _projection_named(source, name)
+        return [(inner, source)] if inner is not None else []
+    roles = _arm_roles(source)
+    first = getattr(roles[0][0].expression, "selects", []) or []
+    position = _position_named([item.alias_or_name or "" for item in first], name)
+    if position is None:
+        return []
+    found: list[tuple[Any, Scope]] = []
+    for arm, supplies_values in roles:
+        projections = getattr(arm.expression, "selects", []) or []
+        if supplies_values and position < len(projections):
+            found.append((projections[position], arm))
+    return found
 
 
 def _grouping_influence(
@@ -1841,15 +1858,8 @@ def _grouping_influence(
             found.extend(_trace(column, scope, dictionary, unresolved, depth + 1))
 
     for column in projection.find_all(exp.Column):
-        source = scope.sources.get(column.table) if column.table else None
-        if source is None and len(scope.sources) == 1:
-            source = next(iter(scope.sources.values()))
-        if not isinstance(source, Scope):
-            continue
-        inner = _projection_named(source, column.name)
-        if inner is None:
-            continue
-        found.extend(_grouping_influence(inner, source, dictionary, unresolved, depth + 1))
+        for inner, home in _projections_behind(column, scope):
+            found.extend(_grouping_influence(inner, home, dictionary, unresolved, depth + 1))
     # Finding TS-1: a scalar subquery's grouping decides the value it returns, as a CTE's
     # does. `(SELECT max(margin) FROM brand_stats)` lost brand_stats' GROUP BY brand, because
     # the walk above follows only columns of THIS scope.
