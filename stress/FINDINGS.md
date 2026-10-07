@@ -192,10 +192,28 @@ its own scope. See the GL-002 note below for the one that most tempts an excepti
 | TS-1 | `silent-loss` | **fixed** | a GROUP BY inside the CTE an uncorrelated scalar subquery reads gave no influence: `(SELECT max(margin) FROM brand_stats)` lost `dim_product.brand` (torture D1). The grouping and window walkers now descend into a projection's scalar subqueries. Fixed 2026-10-06; `tests/test_value_deciding.py`. |
 | TS-2 | `construct-coverage` | **fixed** | with a GROUP BY, SQLGlot's `qualify` rewrites `DISTINCT ON (o.k)` as the bare output name, which bound to neither of two relations and was declared, dropping that filter source (torture D1). DISTINCT ON keys are now read through the select list, as ORDER BY names are. Fixed 2026-10-06; `tests/test_value_deciding.py`. |
 | TS-3 | `silent-loss` | open, parked | Databricks `GROUP BY ALL` (`Group(all=True)`) gives no grouping influence (torture D3). Parked 2026-10-06: PostgreSQL is the dialect in focus. |
+| F0-01 | `silent-loss` | open | statements SQLGlot keeps as a raw `Command` vanish - seen 0, nothing declared: `CREATE MATERIALIZED VIEW ... WITH [NO] DATA` / `TABLESPACE`, `CREATE RECURSIVE VIEW`, `CREATE VIEW ... WITH CHECK OPTION`, `CREATE TEMP TABLE ... ON COMMIT DROP AS`. Final-suite Step 0 probe, 2026-10-07; `stress/pg/final/LIMITATIONS.md`. |
+| F0-02 | `construct-coverage` | open | `t.*` as a whole-row value (`row_to_json(o.*)`, `(o.*)::text`) is declared `unresolved_identifier` with no edges; `to_jsonb(o)` works (D-20). Step 0 probe. |
+| F0-03 | `refusal-taxonomy` | open | ~24 built-ins are declared `source_unavailable` as unread user functions (`to_tsvector`, `xmlattributes`, `jsonb_array_length`, `pg_typeof`, `current_setting`, `array_fill`, `unistr`, `cosd`, `point`, ...); the edges are right, the declaration false. Step 0 probe. |
+| F0-04 | `refusal-taxonomy` | open | `CREATE [UNIQUE] INDEX` is refused UNSUPPORTED_CONSTRUCT; it moves no data and should be counted with no lineage (D-33's rule). Step 0 probe. |
+| F0-05 | `refusal-taxonomy` | open | spurious `unresolved_identifier` for `SYSTEM_USER`, and for `"default"` in `COLLATE pg_catalog."default"`. Step 0 probe. |
+| F0-06 | `flow-classification` | open | `UPDATE ... SET (a, no_such_col) = (...)` emits edges into a column the target lacks, undeclared (invalid SQL - suspect-SQL hygiene). Step 0 probe. |
+| F0-07 | `construct-coverage` | open | a parenthesised `(VALUES ...)` set-operation arm is refused ("arm is Subquery"); the unparenthesised arm works. Step 0 probe. |
+| F0-08 | `measurement-error` | open | a refusal is located at the first comment line above its statement, not at the statement keyword. Step 0 probe. |
+| FE-01 | `flow-classification` | open | a grouping-key sort key of a row limit over an aggregated query is reported pre-aggregation when it is the only sort key, post beside an aggregate one. D-56 (2026-10-07): post in every case - the single-key reading is the defect. Final suite E2; `stress/pg/final/easy/REPORT.md`. |
+| FM-01 | `silent-loss` | open | an ordinality column used as a DISTINCT ON or LIMIT ordering is dropped - no filter on the main path (`ORDER BY u.n LIMIT 5` over unnest gives none), no influence on a null side; a WHERE cut on the same ordinal works. Final suite M4; `stress/pg/final/medium/REPORT.md`. |
+| FM-02 | `silent-loss` | open | CYCLE's implicit recursion guard gives no filter on the cycle column; `pg_grammar._restate_search_cycle` adds the mark and path columns, not the guard (D-54). Final suite M3. |
+| FM-03 | `silent-loss` | open | `COUNT(*)` over an already-grouped CTE does not inherit the inner GROUP BY's influence; `MAX(x)` over the same CTE does, through `x` (D-55). Final suite M3. |
+| FH-01 | `silent-loss` | open | under WITH RECURSIVE, a CTE named like the base table it reads (`item_master AS (... FROM lgx.item_master)`) is taken for a self-reference and loses all lineage; without RECURSIVE or under another name it is right. Final suite H1 (7 facts); `stress/pg/final/hard/REPORT.md`. |
+| FH-02 | `silent-loss` | open | `MERGE ... WHEN NOT MATCHED THEN INSERT VALUES (...)` with no column list produces nothing (positional mapping to the target's columns). Final suite H4. |
+| FH-03 | `silent-loss` | open | a ranking cut (`rn = 1`) in an INNER JOIN's ON gives no filter, in SELECT and UPDATE ... FROM; in WHERE it gives both (D-9, D-48). Final suite H2. |
+| FH-04 | `silent-loss` | open | GROUP BY influence of set-operation arms is dropped when the set operation is a derived table or CTE; at top level, or as an INSERT source, it is kept. Final suite H1. |
 
 **`B<n>-` is the PostgreSQL batch programme** (`stress/pg/`, from 2026-10-01): the batch number, then the finding. Each batch's REPORT.md carries the evidence; the register carries the row.
 
 **`TT-`, `TE-` and `PO-` are the torture tests** (from 2026-10-04): stratified keys over three large queries Abhay supplied - the shipment-margin parser fixture (`TT-`), a repaired 112-stage entity pipeline (`TE-`) and a consolidated Spark purchase-order model (`PO-`). Their folders, `stress/pg/torture*/`, are kept out of git by decision (2026-10-05); each fix is pinned by its own test, so the register row and the test are the committed record. `TS-` are the three self-written bare-SELECT torture tests of 2026-10-05 (D1 `torture_dag`, D2 `torture_names`, D3 `torture_lakehouse`).
+
+**`F0-`, `FE-`, `FM-` and `FH-` are the final PostgreSQL acceptance suite** (2026-10-07): `F0-` the Step 0 construct probes, then the easy, medium and hard tiers - 15 tests, 1,369 closed-world facts written blind; after D-56 relabelled one disputed phase, 1,355 found, 0 false positives, 14 missed - every miss silent and isolated to a finding below. The suite lives in `stress/pg/final/` (kept out of git like the torture tests); `stress/pg/final/FINDINGS.md` ranks the fixes and records the three convention questions it raised, decided the same day as D-54 (CYCLE's guard is a filter), D-55 (an inner GROUP BY influences a COUNT(*) of its groups) and D-56 (a row limit over an aggregated query is post-aggregation for every sort key).
 
 **Convention questions the torture tests raised, undecided:** TQ-1 - how far D-14 reaches into filters nested inside a null-supplying side (the entity test carried nested lateral correlations; D2 did not reach a nested WHERE); TQ-2 - is a field of a named_struct / key of a map built in the query only its own expression (D-20) or the whole value (D-29)?; TQ-3 - is `max_by(x, y)`'s `y` a value or influence (D-13's argument)?; TQ-4 - does D-12 reach the WHEREs of the CTEs a scalar subquery reads, or only its own?; TQ-5 - does a GROUP BY behind an aggregate also influence a window ORDERED BY that aggregate?
 
@@ -4782,3 +4800,25 @@ Taken by Abhay; closes B4-05, held for a decision since batch B4.
   `x + f(y)`), while the same call inside a CTE or derived table claimed them silently. A
   SUMMARISED call is unchanged: its arguments only select the row the callee reads.
   No Oracle stress edge or score moved (their package functions are summarised).
+
+## Decisions taken — 2026-10-07 (D-54, D-55, D-56)
+
+Taken by Abhay after the final acceptance suite (`stress/pg/final/`); they close FM-Q1, FM-Q2
+and FE-01's alternative reading. None is implemented yet.
+
+* **D-54 (FM-Q1)** - CYCLE's implicit guard is a FILTER on the cycle column(s), exactly as
+  an explicit `WHERE NOT x = ANY (path)` in the recursive arm is: it stops the recursion
+  extending a row that closed a cycle, so it decides which rows land. Its mark and path
+  columns stay derived values of the cycle columns. Makes FM-02 (below) a defect:
+  `pg_grammar._restate_search_cycle` adds the columns but not the guard.
+* **D-55 (FM-Q2)** - an inner GROUP BY INFLUENCES an aggregate taken over its groups one
+  level up, `COUNT(*)` included: the grouping decides how many group rows exist and what
+  they hold (D-2's "the grouping decides the aggregate", carried one level). `MAX(x)` over
+  the same CTE already carries it through `x`; a column-less `COUNT(*)` must too. Makes
+  FM-03 a defect.
+* **D-56 (FE-01)** - a ROW LIMIT over an aggregated query - LIMIT / FETCH / OFFSET, and a
+  DISTINCT ON - is POST-aggregation for EVERY sort key, grouping keys included: it counts
+  and removes groups, and no filter on the raw rows reproduces it (as HAVING, which is
+  always post). A WHERE stays per column (D-6): a WHERE on a grouping key can be moved
+  before the GROUP BY unchanged, so it is pre. Makes the single-key case the defect
+  (`ORDER BY spend_year LIMIT n` alone reports pre); the final suite's E2 key was relabelled.

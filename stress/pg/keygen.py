@@ -234,7 +234,12 @@ def compile_spec(spec: Path) -> str:
             seen.add(fact)
 
     key = {
-        "package": f"pg/{spec.parent.name}/{sql.name}",
+        # Relative to stress/, so a test nested deeper (final/easy/, 2026-10-07) hash-checks too.
+        "package": (
+            sql.resolve().relative_to(HERE.parent).as_posix()
+            if sql.resolve().is_relative_to(HERE.parent)
+            else f"pg/{spec.parent.name}/{sql.name}"
+        ),
         "dialect": "postgres",
         "source_sha256": hashlib.sha256(sql.read_bytes()).hexdigest(),
         "labelled_by": (

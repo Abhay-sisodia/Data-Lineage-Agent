@@ -1,6 +1,8 @@
 """Generate `dictionary.json` from `schema.sql`. Run after any change to the schema.
 
     .\\.venv\\Scripts\\python.exe stress/pg/build_dictionary.py
+    .\\.venv\\Scripts\\python.exe stress/pg/build_dictionary.py --schema <schema.sql> \\
+        --out <dictionary.json> [--default-schema <name>] [--check]
 
 `schema.sql` is the single source of truth. A hand-maintained dictionary beside it would
 drift, and a dictionary that is wrong rather than thin produces confident edges to the
@@ -30,11 +32,18 @@ DEFAULT_SCHEMA = "core"
 CAPTURED_AT = "2026-10-01T00:00:00Z"
 
 
-def build() -> dict[str, object]:
+def _option(name: str, default: str) -> str:
+    """`--name value` from the command line; the shared warehouse's paths when absent."""
+    if name in sys.argv:
+        return sys.argv[sys.argv.index(name) + 1]
+    return default
+
+
+def build(schema_sql: Path = SCHEMA, default_schema: str = DEFAULT_SCHEMA) -> dict[str, object]:
     objects: dict[str, dict[str, str]] = {}
     columns: dict[str, list[str]] = {}
 
-    for statement in sqlglot.parse(SCHEMA.read_text(encoding="utf-8"), dialect="postgres"):
+    for statement in sqlglot.parse(schema_sql.read_text(encoding="utf-8"), dialect="postgres"):
         if not isinstance(statement, exp.Create) or statement.kind != "TABLE":
             continue
         schema = statement.this
@@ -52,7 +61,7 @@ def build() -> dict[str, object]:
 
     return {
         "captured_at": CAPTURED_AT,
-        "default_schema": DEFAULT_SCHEMA,
+        "default_schema": default_schema,
         "dialect": "postgres",
         "objects": objects,
         "columns": columns,
@@ -61,16 +70,21 @@ def build() -> dict[str, object]:
 
 
 def main() -> int:
-    rendered = json.dumps(build(), indent=2) + "\n"
+    # Another schema (the final suite's, 2026-10-07) is built the same way; the defaults are
+    # the shared warehouse, so the plain command is unchanged.
+    schema_sql = Path(_option("--schema", str(SCHEMA)))
+    output = Path(_option("--out", str(OUTPUT)))
+    rendered = json.dumps(build(schema_sql, _option("--default-schema", DEFAULT_SCHEMA)), indent=2)
+    rendered += "\n"
     if "--check" in sys.argv:
-        current = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
+        current = output.read_text(encoding="utf-8") if output.exists() else ""
         if current != rendered:
-            print("dictionary.json is stale - rebuild it from schema.sql")
+            print(f"{output.name} is stale - rebuild it from {schema_sql.name}")
             return 1
         return 0
     # LF on every platform: .gitattributes pins eol=lf, and a generated file that differs
     # from its committed form only in line endings would read as drift.
-    OUTPUT.write_text(rendered, encoding="utf-8", newline="\n")
+    output.write_text(rendered, encoding="utf-8", newline="\n")
     return 0
 
 

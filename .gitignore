@@ -39,3 +39,5 @@ Thumbs.db
 
 # Torture tests over user-supplied SQL: run locally, kept out of git (decided 2026-10-05).
 stress/pg/torture*/
+# The final PostgreSQL acceptance suite (decided 2026-10-07): local, like the torture tests.
+stress/pg/final/
