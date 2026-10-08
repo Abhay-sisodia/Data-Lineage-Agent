@@ -1,0 +1,71 @@
+{
+  "question": "Which columns filter the rows that land in mart.po_supplier_summary?",
+  "seconds": 16.7,
+  "stage": "agent",
+  "cost_usd": 0.030169599999999998,
+  "turns": 4,
+  "notes": [],
+  "answer": {
+    "question_id": "B3",
+    "status": "answered",
+    "text": "One column filters which rows land in mart.po_supplier_summary: mart.fact_po_line.status_code.\n- Edge: e9a392e6bd79b47dcc85ae48 (FILTERS, Tier A, band 0, identity).\n- Phase: pre-aggregation. It removes raw fact_po_line rows before any grouping.\n- Where: hard/h2_po_fact_load.sql line 345. This is the only statement that writes the table.\n- Gaps: no boundaries or refusals are recorded on this table.",
+    "cited_edges": [
+      "e9a392e6bd79b47dcc85ae48"
+    ],
+    "cited_nodes": [
+      "mart.fact_po_line.status_code"
+    ],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.po_supplier_summary"
+      },
+      "result": [
+        {
+          "id": "mart.po_supplier_summary",
+          "label": "Table"
+        }
+      ]
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "mart.po_supplier_summary"
+      },
+      "result": {
+        "id": "mart.po_supplier_summary",
+        "columns": 6,
+        "columns_with_lineage": 6,
+        "columns_without_lineage": [],
+        "written_by": [
+          "hard/h2_po_fact_load.sql#<script>:345"
+        ],
+        "found": true,
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h2_po_fact_load.sql",
+            "tier": "A",
+            "line": 345,
+            "guard": null,
+            "statement": "hard/h2_po_fact_load.sql#<script>:345",
+            "source": "mart.fact_po_line.status_code",
+            "id": "e9a392e6bd79b47dcc85ae48",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.po_supplier_summary"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    }
+  ]
+}

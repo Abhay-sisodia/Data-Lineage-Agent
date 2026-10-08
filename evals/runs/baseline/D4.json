@@ -1,0 +1,165 @@
+{
+  "question": "What is directly affected if mart.fact_po_line.status_code changes?",
+  "seconds": 20.4,
+  "stage": "agent",
+  "cost_usd": 0.0446589,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "D4",
+    "status": "answered",
+    "text": "mart.fact_po_line.status_code has 8 direct (one-hop) downstream effects, all in hard/h2_po_fact_load.sql:\n\nValue (FEEDS):\n- <result:hard/h2_po_fact_load.sql>.status_code: copied unchanged (identity), line 436 [18986e75b567fbc6197a5da6].\n\nInfluence (it decides the value but is not part of it, such as a GROUP BY key), line 436:\n- <result>.avg_overdue [03a1a2933748b1bec225010b]\n- <result>.line_amt [8b6feb8601a4e618856085fb]\n- <result>.lines [8fdad7058831eddc6eac59a6]\n- <result>.overdue_savings [c94da1ccffa9a700b8e30efc]\n\nFilter (it decides which rows land, before aggregation):\n- mart.fact_po_line, line 31 [82899d8501b754bd29b34604]\n- mart.po_supplier_summary, line 345 [e9a392e6bd79b47dcc85ae48]\n\nA filter applies to the whole table, so it affects every column of mart.fact_po_line and mart.po_supplier_summary. No boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "18986e75b567fbc6197a5da6",
+      "03a1a2933748b1bec225010b",
+      "8b6feb8601a4e618856085fb",
+      "8fdad7058831eddc6eac59a6",
+      "c94da1ccffa9a700b8e30efc",
+      "82899d8501b754bd29b34604",
+      "e9a392e6bd79b47dcc85ae48"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.fact_po_line.status_code"
+      },
+      "result": [
+        {
+          "id": "mart.fact_po_line.status_code",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "mart.fact_po_line.status_code",
+        "depth": 1
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "18986e75b567fbc6197a5da6",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:hard/h2_po_fact_load.sql>.status_code",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 31,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:31",
+          "source": "mart.fact_po_line.status_code",
+          "id": "82899d8501b754bd29b34604",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.fact_po_line",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 345,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:345",
+          "source": "mart.fact_po_line.status_code",
+          "id": "e9a392e6bd79b47dcc85ae48",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.po_supplier_summary",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "03a1a2933748b1bec225010b",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:hard/h2_po_fact_load.sql>.avg_overdue",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "8b6feb8601a4e618856085fb",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:hard/h2_po_fact_load.sql>.line_amt",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "8fdad7058831eddc6eac59a6",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:hard/h2_po_fact_load.sql>.lines",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "c94da1ccffa9a700b8e30efc",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:hard/h2_po_fact_load.sql>.overdue_savings",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "mart.fact_po_line.status_code"
+      },
+      "result": {
+        "scope": "lineage of mart.fact_po_line.status_code",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "refusals are listed per file: a refused statement has no edges to tie it to one column"
+      }
+    }
+  ]
+}

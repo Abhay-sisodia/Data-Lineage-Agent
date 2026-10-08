@@ -1,0 +1,73 @@
+{
+  "question": "How does s2p.po_distribution.amount_cancelled reach mart.po_supplier_summary.total_spend?",
+  "seconds": 16.8,
+  "stage": "agent",
+  "cost_usd": 0.0306554,
+  "turns": 4,
+  "notes": [],
+  "answer": {
+    "question_id": "E1",
+    "status": "answered",
+    "text": "It takes two value (FEEDS) hops, both in hard/h2_po_fact_load.sql:\n1. s2p.po_distribution.amount_cancelled \u2192 mart.fact_po_line.line_amt (line 31). The transform is conditional, so amount_cancelled is chosen by a condition such as CASE or COALESCE. Phase is pre-aggregation, band 0, tier A. Edge e0a43e243183aaf24d0436b3.\n2. mart.fact_po_line.line_amt \u2192 mart.po_supplier_summary.total_spend (line 345). The transform is aggregated, so the values are summed up over many rows. Phase is pre-aggregation, band 0, tier A. Edge bdfa0cdbea618eeb3f02b1f8.\nThe full path carries the strongest transform along the way, which is aggregated. No boundaries or refusals were found on total_spend's lineage.",
+    "cited_edges": [
+      "e0a43e243183aaf24d0436b3",
+      "bdfa0cdbea618eeb3f02b1f8"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "path",
+      "args": {
+        "source": "s2p.po_distribution.amount_cancelled",
+        "target": "mart.po_supplier_summary.total_spend"
+      },
+      "result": [
+        [
+          {
+            "phase": "pre-aggregation",
+            "transform": "conditional",
+            "file": "hard/h2_po_fact_load.sql",
+            "tier": "A",
+            "line": 31,
+            "guard": null,
+            "statement": "hard/h2_po_fact_load.sql#<script>:31",
+            "source": "s2p.po_distribution.amount_cancelled",
+            "id": "e0a43e243183aaf24d0436b3",
+            "band": 0,
+            "type": "FEEDS",
+            "target": "mart.fact_po_line.line_amt"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "aggregated",
+            "file": "hard/h2_po_fact_load.sql",
+            "tier": "A",
+            "line": 345,
+            "guard": null,
+            "statement": "hard/h2_po_fact_load.sql#<script>:345",
+            "source": "mart.fact_po_line.line_amt",
+            "id": "bdfa0cdbea618eeb3f02b1f8",
+            "band": 0,
+            "type": "FEEDS",
+            "target": "mart.po_supplier_summary.total_spend"
+          }
+        ]
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "mart.po_supplier_summary.total_spend"
+      },
+      "result": {
+        "scope": "lineage of mart.po_supplier_summary.total_spend",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "refusals are listed per file: a refused statement has no edges to tie it to one column"
+      }
+    }
+  ]
+}

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -63,6 +63,126 @@ def graph_build(
     typer.echo(f"snapshot {report.snapshot}: {report.files} files")
     for name, count in stored.items():
         typer.echo(f"  {name:<12} {count}")
+
+
+@app.command("ask")
+def ask(question: Annotated[str, typer.Argument(help="A lineage question.")]) -> None:
+    """Answer one lineage question from the graph, through the agent harness."""
+    import asyncio
+
+    from lineage.agent.harness import Harness
+    from lineage.graph.neo4j_conn import Neo4jSettings, connect
+    from lineage.graph.tools import GraphTools
+
+    settings = Neo4jSettings.from_env()
+    with connect(settings) as driver:
+        result = asyncio.run(Harness(GraphTools(driver, settings)).ask(question))
+    typer.echo(result.answer.text)
+    for label, ids in (
+        ("edges", result.answer.cited_edges),
+        ("nodes", result.answer.cited_nodes),
+        ("unknowns", result.answer.unknowns),
+        ("candidates", result.answer.candidates),
+    ):
+        if ids:
+            typer.echo(f"  {label}: {', '.join(ids)}")
+    typer.echo(
+        f"  [{result.stage}; {len(result.tool_calls)} tool calls; {'; '.join(result.notes)}]"
+    )
+
+
+@app.command("eval")
+def eval_answers(
+    answers: Annotated[
+        Path | None, typer.Option("--answers", help="Score an answers JSON (a list).")
+    ] = None,
+    run: Annotated[
+        Path | None,
+        typer.Option(
+            "--run",
+            help="Ask every golden question through the agent; write answers and traces "
+            "into this folder, then score.",
+        ),
+    ] = None,
+    concurrency: Annotated[int, typer.Option("--concurrency")] = 4,
+    questions: Annotated[Path, typer.Option("--questions", help="Golden questions YAML.")] = Path(
+        "evals/golden_questions.yaml"
+    ),
+) -> None:
+    """Score answers to the golden questions against the graph, by what they cite."""
+    from lineage.evals.golden import Answer, load_questions, score_all
+    from lineage.graph.neo4j_conn import Neo4jSettings, connect
+    from lineage.graph.tools import GraphTools
+
+    golden = load_questions(questions)
+    settings = Neo4jSettings.from_env()
+    with connect(settings) as driver:
+        tools = GraphTools(driver, settings)
+        if run is not None:
+            given = _run_agent(tools, golden, run, concurrency)
+        elif answers is not None:
+            given = [Answer.model_validate(r) for r in json.loads(answers.read_text("utf-8"))]
+        else:
+            raise typer.BadParameter("give --answers or --run")
+        verdicts = score_all(golden, given, tools.resolve_edges)
+    if run is not None:
+        (run / "verdicts.json").write_text(
+            json.dumps([v.__dict__ for v in verdicts], indent=2), encoding="utf-8"
+        )
+    for verdict in verdicts:
+        mark = "PASS" if verdict.correct else "FAIL"
+        typer.echo(f"{mark}  {verdict.question_id:<4} {'; '.join(verdict.reasons)}")
+    wrong = sum(not v.correct for v in verdicts)
+    typer.echo(f"\n{len(verdicts) - wrong}/{len(verdicts)} correct, {wrong} wrong")
+    raise typer.Exit(1 if wrong else 0)
+
+
+def _run_agent(tools: Any, golden: list[Any], out: Path, concurrency: int) -> list[Any]:
+    """Every golden question through the harness, `concurrency` at a time; traces kept."""
+    import asyncio
+    import time
+
+    from lineage.agent.harness import Harness
+
+    out.mkdir(parents=True, exist_ok=True)
+    harness = Harness(tools)
+    gate = asyncio.Semaphore(max(1, concurrency))
+
+    async def one(q: Any) -> Any:
+        async with gate:
+            started = time.monotonic()
+            try:
+                result = await harness.ask(q.question, q.id)
+            except Exception as error:  # a crash is a wrong answer, recorded
+                typer.echo(f"  {q.id} crashed: {error}")
+                return None
+            seconds = round(time.monotonic() - started, 1)
+            trace = {
+                "question": q.question,
+                "seconds": seconds,
+                "stage": result.stage,
+                "cost_usd": result.cost_usd,
+                "turns": result.turns,
+                "notes": result.notes,
+                "answer": result.answer.model_dump(),
+                "tool_calls": result.tool_calls,
+            }
+            (out / f"{q.id}.json").write_text(
+                json.dumps(trace, indent=2, default=str), encoding="utf-8"
+            )
+            typer.echo(
+                f"  {q.id} done in {seconds}s ({result.stage}, {len(result.tool_calls)} calls)"
+            )
+            return result.answer
+
+    async def main() -> list[Any]:
+        return [a for a in await asyncio.gather(*(one(q) for q in golden)) if a is not None]
+
+    answers = asyncio.run(main())
+    (out / "answers.json").write_text(
+        json.dumps([a.model_dump() for a in answers], indent=2), encoding="utf-8"
+    )
+    return answers
 
 
 @graph_app.command("trace")

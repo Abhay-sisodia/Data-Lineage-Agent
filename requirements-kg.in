@@ -20,3 +20,6 @@ anthropic
 
 # Model Context Protocol server exposing the typed graph tools.
 mcp
+
+# Agent loop on Claude Code credentials (no API key needed for development).
+claude-agent-sdk

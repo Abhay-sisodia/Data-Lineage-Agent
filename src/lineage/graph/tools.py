@@ -215,6 +215,36 @@ class GraphTools:
         }
         return found
 
+    def graph_query(self, cypher: str) -> dict[str, Any]:
+        """The fallback for questions no typed tool fits: model-written, validated Cypher.
+
+        Rejected unless it passes every check in `agent.cypher_guard`, then Neo4j's
+        `EXPLAIN`; it runs read-only with a row limit. Returns rows, or why it was refused.
+        """
+        from lineage.agent.cypher_guard import check
+
+        checked = check(cypher)
+        if not checked.ok:
+            return {"rejected": True, "reason": checked.reason}
+        try:
+            self._read(f"EXPLAIN {checked.query}")
+            rows = self._read(checked.query)
+        except Exception as error:  # the database's own refusal, reported to the model
+            return {"rejected": True, "reason": f"Neo4j: {str(error)[:300]}"}
+        return {"rejected": False, "query": checked.query, "rows": rows}
+
+    def resolve_edges(self, ids: list[str]) -> dict[str, tuple[str, str, str]]:
+        """Lineage edge id -> (type, source, target). Ids not in the graph are absent."""
+        rows = self._read(
+            """
+            MATCH (a)-[r]->(b) WHERE r.id IN $ids AND type(r) IN $types
+            RETURN r.id AS id, type(r) AS type, a.id AS source, b.id AS target
+            """,
+            ids=list(ids),
+            types=list(LINEAGE),
+        )
+        return {row["id"]: (row["type"], row["source"], row["target"]) for row in rows}
+
     # --- internals ---------------------------------------------------------------------
 
     def _walk(

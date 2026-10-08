@@ -1,0 +1,114 @@
+{
+  "question": "What influences mart.po_supplier_summary.total_spend without being part of its value?",
+  "seconds": 22.5,
+  "stage": "agent",
+  "cost_usd": 0.0394621,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "C2",
+    "status": "answered",
+    "text": "Two columns influence mart.po_supplier_summary.total_spend without being part of its value. Both come from the statement at hard/h2_po_fact_load.sql:345, and both act as group-by keys for the aggregate:\n- mart.fact_po_line.supplier_id: influence, identity (edge 8f3b9737a5714c3420301c31)\n- s2p.supplier.vendor_name: influence, identity (edge ea49d6b0e7f7bab51b01d5b3)\n\nThe same statement has two other edges that aren't influences:\n- mart.fact_po_line.line_amt is part of the value (aggregated, edge bdfa0cdbea618eeb3f02b1f8).\n- mart.fact_po_line.status_code is a pre-aggregation filter on the table (edge e9a392e6bd79b47dcc85ae48). It decides which rows land, not the value itself.\n\nNo boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "8f3b9737a5714c3420301c31",
+      "ea49d6b0e7f7bab51b01d5b3"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.po_supplier_summary.total_spend"
+      },
+      "result": [
+        {
+          "id": "mart.po_supplier_summary.total_spend",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "upstream",
+      "args": {
+        "node": "mart.po_supplier_summary.total_spend"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 345,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:345",
+          "source": "mart.fact_po_line.line_amt",
+          "id": "bdfa0cdbea618eeb3f02b1f8",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.po_supplier_summary.total_spend",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 345,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:345",
+          "source": "mart.fact_po_line.status_code",
+          "id": "e9a392e6bd79b47dcc85ae48",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.po_supplier_summary",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 345,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:345",
+          "source": "mart.fact_po_line.supplier_id",
+          "id": "8f3b9737a5714c3420301c31",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "mart.po_supplier_summary.total_spend",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 345,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:345",
+          "source": "s2p.supplier.vendor_name",
+          "id": "ea49d6b0e7f7bab51b01d5b3",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "mart.po_supplier_summary.total_spend",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "mart.po_supplier_summary.total_spend"
+      },
+      "result": {
+        "scope": "lineage of mart.po_supplier_summary.total_spend",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "refusals are listed per file: a refused statement has no edges to tie it to one column"
+      }
+    }
+  ]
+}

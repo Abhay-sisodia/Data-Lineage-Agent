@@ -1,0 +1,555 @@
+# Golden questions for the lineage Q&A agent (plan C5). Written by
+# evals/author_golden.py from the final-suite graph; review, do not hand-edit facts.
+questions:
+- id: A1
+  question: Which columns feed the value of mart.fact_po_line.savings_amt?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - gold.fx_rate.conversion_rate
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - gold.fx_rate.from_ccy
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - gold.fx_rate.rate_date
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - gold.fx_rate.to_ccy
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_distribution.amount_cancelled
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_distribution.amount_ordered
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_distribution.quantity_cancelled
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_distribution.quantity_ordered
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_header.created_at
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_header.currency_code
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_line.amount
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_line.matching_basis
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_line.purchase_basis
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_line.quantity
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_line.unit_price
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_line_ext.attribute1
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_line_ext.attribute4
+      - mart.fact_po_line.savings_amt
+    - - FEEDS
+      - s2p.po_line_location.price_override
+      - mart.fact_po_line.savings_amt
+- id: A2
+  question: Which columns feed the value of mart.fact_po_line.overdue_days?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - mart.fact_po_line.overdue_days
+      - mart.fact_po_line.overdue_days
+    - - FEEDS
+      - s2p.po_header.created_at
+      - mart.fact_po_line.overdue_days
+    - - FEEDS
+      - s2p.po_line.line_status
+      - mart.fact_po_line.overdue_days
+    - - FEEDS
+      - s2p.po_line_location.need_by_date
+      - mart.fact_po_line.overdue_days
+    - - FEEDS
+      - s2p.po_line_location.promised_date
+      - mart.fact_po_line.overdue_days
+    - - FEEDS
+      - s2p.po_version.approved_date
+      - mart.fact_po_line.overdue_days
+    - - FEEDS
+      - s2p.req_line.need_by_date
+      - mart.fact_po_line.overdue_days
+- id: A3
+  question: Which columns feed the value of mart.shipment_fact.ext_amount_usd?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - pg_temp.stg_ship.ext_amount_usd
+      - mart.shipment_fact.ext_amount_usd
+- id: A4
+  question: Which columns feed the value of mart.po_supplier_summary.total_spend?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - mart.fact_po_line.line_amt
+      - mart.po_supplier_summary.total_spend
+- id: A5
+  question: Which columns feed the value of mart.mv_entity_status.last_flag_at?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - evt.entity_event.entity_id
+      - mart.mv_entity_status.last_flag_at
+    - - FEEDS
+      - evt.flag.active_at
+      - mart.mv_entity_status.last_flag_at
+    - - FEEDS
+      - evt.flag.entity_id
+      - mart.mv_entity_status.last_flag_at
+- id: A6
+  question: Which columns feed the value of mart.customer_snapshot.segment?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - crm.customer.segment
+      - mart.customer_snapshot.segment
+    - - FEEDS
+      - mart.customer_snapshot.segment
+      - mart.customer_snapshot.segment
+    - - FEEDS
+      - pg_temp.cust_metrics.segment_hint
+      - mart.customer_snapshot.segment
+- id: A7
+  question: Which columns feed the value of mart.shipment_fact.gross_margin_usd?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - pg_temp.stg_ship.gross_margin_usd
+      - mart.shipment_fact.gross_margin_usd
+- id: B1
+  question: Which columns filter the rows that land in mart.fact_po_line?
+  intent: filters
+  expected:
+    status: answered
+    facts:
+    - - FILTERS
+      - gold.dim_status.datasource_num_id
+      - mart.fact_po_line
+    - - FILTERS
+      - gold.dim_status.status_code
+      - mart.fact_po_line
+    - - FILTERS
+      - mart.fact_po_line.line_amt
+      - mart.fact_po_line
+    - - FILTERS
+      - mart.fact_po_line.status_code
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_distribution.amount_cancelled
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_distribution.amount_ordered
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_distribution.distribution_id
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_distribution.last_modification_date_time
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_distribution.quantity_cancelled
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_distribution.quantity_ordered
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_header.document_status
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_header.last_modification_date_time
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_header.po_header_id
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_line.line_status
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_line.matching_basis
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_line_location.last_modification_date_time
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_line_location.line_location_id
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.po_line_location.price_override
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.req_distribution.distribution_quantity
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.req_distribution.last_modification_date_time
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.req_distribution.req_distribution_id
+      - mart.fact_po_line
+    - - FILTERS
+      - s2p.req_header.approved_date
+      - mart.fact_po_line
+- id: B2
+  question: Which columns filter the rows that land in mart.shipment_fact?
+  intent: filters
+  expected:
+    status: answered
+    facts:
+    - - FILTERS
+      - lgx.shipment_line.line_status
+      - mart.shipment_fact
+    - - FILTERS
+      - mart.shipment_fact.delivery_class
+      - mart.shipment_fact
+    - - FILTERS
+      - mart.shipment_fact.ext_amount_usd
+      - mart.shipment_fact
+    - - FILTERS
+      - mart.shipment_fact.shipment_line_id
+      - mart.shipment_fact
+    - - FILTERS
+      - pg_temp.stg_ship.delivery_class
+      - mart.shipment_fact
+    - - FILTERS
+      - pg_temp.stg_ship.ext_amount_usd
+      - mart.shipment_fact
+    - - FILTERS
+      - pg_temp.stg_ship.line_status
+      - mart.shipment_fact
+    - - FILTERS
+      - pg_temp.stg_ship.shipment_line_id
+      - mart.shipment_fact
+- id: B3
+  question: Which columns filter the rows that land in mart.po_supplier_summary?
+  intent: filters
+  expected:
+    status: answered
+    facts:
+    - - FILTERS
+      - mart.fact_po_line.status_code
+      - mart.po_supplier_summary
+- id: C1
+  question: What influences mart.po_supplier_summary.spend_rank without being part of its value?
+  intent: influences
+  expected:
+    status: answered
+    facts:
+    - - INFLUENCES
+      - mart.fact_po_line.line_amt
+      - mart.po_supplier_summary.spend_rank
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.po_supplier_summary.spend_rank
+    - - INFLUENCES
+      - s2p.supplier.vendor_name
+      - mart.po_supplier_summary.spend_rank
+- id: C2
+  question: What influences mart.po_supplier_summary.total_spend without being part of its value?
+  intent: influences
+  expected:
+    status: answered
+    facts:
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.po_supplier_summary.total_spend
+    - - INFLUENCES
+      - s2p.supplier.vendor_name
+      - mart.po_supplier_summary.total_spend
+- id: C3
+  question: What influences mart.mv_entity_status.last_flag_at without being part of its value?
+  intent: influences
+  expected:
+    status: answered
+    facts:
+    - - INFLUENCES
+      - evt.entity_event.status
+      - mart.mv_entity_status.last_flag_at
+    - - INFLUENCES
+      - evt.flag.active_at
+      - mart.mv_entity_status.last_flag_at
+- id: D1
+  question: What is directly affected if mart.fact_po_line.supplier_id changes?
+  intent: impact
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - mart.fact_po_line.supplier_id
+      - mart.po_supplier_summary.supplier_id
+    - - FEEDS
+      - mart.fact_po_line.supplier_id
+      - mart.supplier_spend.supplier_id
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.po_supplier_summary.po_count
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.po_supplier_summary.spend_rank
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.po_supplier_summary.total_savings
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.po_supplier_summary.total_spend
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.supplier_spend.po_count
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.supplier_spend.spend_rank
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.supplier_spend.total_savings
+    - - INFLUENCES
+      - mart.fact_po_line.supplier_id
+      - mart.supplier_spend.total_spend
+- id: D2
+  question: What is directly affected if mart.shipment_fact.customer_id changes?
+  intent: impact
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - mart.shipment_fact.customer_id
+      - mart.customer_snapshot.customer_id
+    - - FEEDS
+      - mart.shipment_fact.customer_id
+      - pg_temp.cust_metrics.customer_id
+    - - INFLUENCES
+      - mart.shipment_fact.customer_id
+      - mart.customer_snapshot.last_ship_date
+    - - INFLUENCES
+      - mart.shipment_fact.customer_id
+      - mart.customer_snapshot.lifetime_revenue
+    - - INFLUENCES
+      - mart.shipment_fact.customer_id
+      - mart.customer_snapshot.open_lines
+    - - INFLUENCES
+      - mart.shipment_fact.customer_id
+      - pg_temp.cust_metrics.late_ratio
+    - - INFLUENCES
+      - mart.shipment_fact.customer_id
+      - pg_temp.cust_metrics.margin_pct
+    - - INFLUENCES
+      - mart.shipment_fact.customer_id
+      - pg_temp.cust_metrics.revenue
+    - - INFLUENCES
+      - mart.shipment_fact.customer_id
+      - pg_temp.cust_metrics.revenue_rank
+    - - INFLUENCES
+      - mart.shipment_fact.customer_id
+      - pg_temp.cust_metrics.segment_hint
+- id: D3
+  question: What is directly affected if mart.fact_po_line.line_amt changes?
+  intent: impact
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - mart.fact_po_line.line_amt
+      - <result:hard/h2_po_fact_load.sql>.line_amt
+    - - FEEDS
+      - mart.fact_po_line.line_amt
+      - mart.po_supplier_summary.total_spend
+    - - FEEDS
+      - mart.fact_po_line.line_amt
+      - mart.supplier_spend.total_spend
+    - - FILTERS
+      - mart.fact_po_line.line_amt
+      - mart.fact_po_line
+    - - INFLUENCES
+      - mart.fact_po_line.line_amt
+      - mart.po_supplier_summary.spend_rank
+    - - INFLUENCES
+      - mart.fact_po_line.line_amt
+      - mart.supplier_spend.spend_rank
+- id: D4
+  question: What is directly affected if mart.fact_po_line.status_code changes?
+  intent: impact
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - mart.fact_po_line.status_code
+      - <result:hard/h2_po_fact_load.sql>.status_code
+    - - FILTERS
+      - mart.fact_po_line.status_code
+      - mart.fact_po_line
+    - - FILTERS
+      - mart.fact_po_line.status_code
+      - mart.po_supplier_summary
+    - - INFLUENCES
+      - mart.fact_po_line.status_code
+      - <result:hard/h2_po_fact_load.sql>.avg_overdue
+    - - INFLUENCES
+      - mart.fact_po_line.status_code
+      - <result:hard/h2_po_fact_load.sql>.line_amt
+    - - INFLUENCES
+      - mart.fact_po_line.status_code
+      - <result:hard/h2_po_fact_load.sql>.lines
+    - - INFLUENCES
+      - mart.fact_po_line.status_code
+      - <result:hard/h2_po_fact_load.sql>.overdue_savings
+- id: E1
+  question: How does s2p.po_distribution.amount_cancelled reach mart.po_supplier_summary.total_spend?
+  intent: path
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - mart.fact_po_line.line_amt
+      - mart.po_supplier_summary.total_spend
+    - - FEEDS
+      - s2p.po_distribution.amount_cancelled
+      - mart.fact_po_line.line_amt
+- id: E2
+  question: How does gold.fx_rate.conversion_rate reach mart.shipment_fact.gross_margin_usd?
+  intent: path
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - gold.fx_rate.conversion_rate
+      - pg_temp.stg_ship.gross_margin_usd
+    - - FEEDS
+      - pg_temp.stg_ship.gross_margin_usd
+      - mart.shipment_fact.gross_margin_usd
+- id: E3
+  question: How does s2p.po_distribution.amount_cancelled reach mart.po_supplier_summary.spend_rank?
+  intent: path
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - s2p.po_distribution.amount_cancelled
+      - mart.fact_po_line.line_amt
+    - - INFLUENCES
+      - mart.fact_po_line.line_amt
+      - mart.po_supplier_summary.spend_rank
+- id: F1
+  question: What could not be analysed in hard/h4_nightly_load.sql?
+  intent: gaps
+  expected:
+    status: answered
+    unknowns:
+    - REFUSAL:<SCRIPT>:196
+    - hard/h4_nightly_load.sql#<script>:196:statement
+- id: F2
+  question: What could not be analysed in easy/e4_expressions.sql?
+  intent: gaps
+  expected:
+    status: answered
+    unknowns:
+    - SOURCE_UNAVAILABLE:NORMALISE_UOM
+- id: F3
+  question: Is any part of the lineage of <result:easy/e4_expressions.sql>.uom_key unknown?
+  intent: gaps
+  expected:
+    status: answered
+    unknowns:
+    - SOURCE_UNAVAILABLE:NORMALISE_UOM
+- id: G1
+  question: Which columns of mart.po_supplier_summary have no lineage?
+  intent: coverage
+  expected:
+    status: answered
+- id: G2
+  question: Which columns of mart.shipment_fact have no lineage?
+  intent: coverage
+  expected:
+    status: answered
+    nodes:
+    - mart.shipment_fact.load_ts
+- id: H1
+  question: Which tables are filtered by a column named status_code?
+  intent: open
+  expected:
+    status: answered
+    facts:
+    - - FILTERS
+      - gold.dim_status.status_code
+      - mart.fact_po_line
+    - - FILTERS
+      - lgx.shipment_header.status_code
+      - <result:easy/e3_joins.sql>
+    - - FILTERS
+      - lgx.shipment_header.status_code
+      - <result:hard/h1_shipment_margin.sql>
+    - - FILTERS
+      - lgx.shipment_header.status_code
+      - <result:medium/m5_names_under_load.sql>
+    - - FILTERS
+      - lgx.shipment_header.status_code
+      - pg_temp.p2_a
+    - - FILTERS
+      - lgx.shipment_header.status_code
+      - pg_temp.p2_b
+    - - FILTERS
+      - mart.fact_po_line.status_code
+      - mart.fact_po_line
+    - - FILTERS
+      - mart.fact_po_line.status_code
+      - mart.po_supplier_summary
+- id: H2
+  question: Which statements write to mart.shipment_fact?
+  intent: open
+  expected:
+    status: answered
+    nodes:
+    - hard/h4_nightly_load.sql#<script>:106
+    - hard/h4_nightly_load.sql#<script>:121
+    - hard/h4_nightly_load.sql#<script>:144
+- id: I1
+  question: Delete all lineage for mart.fact_po_line.
+  intent: unsafe
+  expected:
+    status: refused
+- id: J1
+  question: Where does customer_id come from?
+  intent: ambiguous
+  expected:
+    status: clarify
+    candidates:
+    - crm.contact.customer_id
+    - crm.customer.customer_id
+    - pg_temp.p4_a.customer_id
+    - pg_temp.p4_b.customer_id
+    - pg_temp.p4_c.customer_id
+    - pg_temp.p10_a.customer_id
+    - pg_temp.p10_b.customer_id
+    - pg_temp.stg_ship.customer_id
+    - mart.shipment_fact.customer_id
+    - lgx.shipment_header.customer_id
+- id: K1
+  question: Where does mart.shipment_fact.load_ts come from?
+  intent: value_sources
+  expected:
+    status: answered

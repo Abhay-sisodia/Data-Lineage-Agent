@@ -1,0 +1,23 @@
+{
+  "question": "Which tables are filtered by a column named status_code?",
+  "seconds": 0.0,
+  "stage": "name resolver",
+  "cost_usd": 0.0,
+  "turns": 0,
+  "notes": [],
+  "answer": {
+    "question_id": "H1",
+    "status": "clarify",
+    "text": "'status_code' matches 4 columns - which one?",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": [
+      "gold.dim_status.status_code",
+      "mart.fact_po_line.status_code",
+      "lgx.shipment_header.status_code",
+      "<result:hard/h2_po_fact_load.sql>.status_code"
+    ]
+  },
+  "tool_calls": []
+}
