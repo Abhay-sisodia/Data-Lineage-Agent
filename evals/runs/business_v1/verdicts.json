@@ -1,0 +1,37 @@
+[
+  {
+    "question_id": "X1",
+    "correct": false,
+    "reasons": [
+      "facts: missing [], extra [('FEEDS', 'gold.fx_rate.conversion_rate', 'mart.fact_po_line.savings_amt'), ('FEEDS', 'mart.customer_snapshot.segment', 'mart.customer_snapshot.segment'), ('FEEDS', 'mart.fact_po_line.savings_amt', 'mart.po_supplier_summary.total_savings'), ('FEEDS', 'mart.fact_po_line.savings_amt', 'mart.supplier_spend.total_savings'), ('FEEDS', 'mart.po_supplier_summary.total_savings', 'mart.supplier_spend.total_savings')]..."
+    ]
+  },
+  {
+    "question_id": "X2",
+    "correct": false,
+    "reasons": [
+      "facts: missing [], extra [('FEEDS', 'mart.fact_po_line.line_amt', 'mart.po_supplier_summary.total_spend'), ('FEEDS', 'mart.fact_po_line.line_amt', 'mart.supplier_spend.total_spend'), ('FEEDS', 'mart.fact_po_line.savings_amt', 'mart.po_supplier_summary.total_savings'), ('FEEDS', 'mart.fact_po_line.savings_amt', 'mart.supplier_spend.total_savings'), ('FEEDS', 'mart.po_supplier_summary.spend_rank', 'mart.supplier_spend.spend_rank')]..."
+    ]
+  },
+  {
+    "question_id": "X3",
+    "correct": false,
+    "reasons": [
+      "facts: missing [], extra [('FEEDS', 'mart.fact_po_line.line_amt', 'mart.po_supplier_summary.total_spend'), ('FEEDS', 's2p.po_distribution.amount_cancelled', 'mart.fact_po_line.line_amt'), ('FEEDS', 's2p.po_distribution.amount_ordered', 'mart.fact_po_line.line_amt'), ('FEEDS', 's2p.po_distribution.quantity_cancelled', 'mart.fact_po_line.line_amt'), ('FEEDS', 's2p.po_distribution.quantity_ordered', 'mart.fact_po_line.line_amt')]..."
+    ]
+  },
+  {
+    "question_id": "X4",
+    "correct": false,
+    "reasons": [
+      "facts: missing [], extra [('FILTERS', 'gold.dim_status.datasource_num_id', 'mart.fact_po_line'), ('FILTERS', 'gold.dim_status.status_code', 'mart.fact_po_line'), ('FILTERS', 'mart.fact_po_line.line_amt', 'mart.fact_po_line'), ('FILTERS', 'mart.fact_po_line.status_code', 'mart.fact_po_line'), ('FILTERS', 'mart.fact_po_line.status_code', 'mart.po_supplier_summary')]..."
+    ]
+  },
+  {
+    "question_id": "X5",
+    "correct": false,
+    "reasons": [
+      "facts: missing [], extra [('FEEDS', 'gold.fx_rate.conversion_rate', 'pg_temp.stg_ship.gross_margin_usd'), ('FEEDS', 'gold.fx_rate.to_ccy', 'pg_temp.stg_ship.gross_margin_usd'), ('FEEDS', 'lgx.item_master.std_cost', 'pg_temp.stg_ship.gross_margin_usd'), ('FEEDS', 'lgx.shipment_line.shipped_qty', 'pg_temp.stg_ship.gross_margin_usd'), ('FEEDS', 'lgx.shipment_line.unit_selling_price', 'pg_temp.stg_ship.gross_margin_usd')]..."
+    ]
+  }
+]
