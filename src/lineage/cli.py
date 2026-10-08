@@ -119,6 +119,13 @@ def eval_answers(
     with connect(settings) as driver:
         tools = GraphTools(driver, settings)
         if run is not None:
+            missing = _missing_golden_nodes(tools, golden)
+            if missing:  # e.g. the tests replaced the graph: a run would score nothing real
+                typer.echo(
+                    f"the graph lacks {len(missing)} node(s) the golden questions expect, "
+                    f"e.g. {missing[:3]} - rebuild it (lineage graph build ...) first"
+                )
+                raise typer.Exit(2)
             given = _run_agent(tools, golden, run, concurrency)
         elif answers is not None:
             given = [Answer.model_validate(r) for r in json.loads(answers.read_text("utf-8"))]
@@ -135,6 +142,19 @@ def eval_answers(
     wrong = sum(not v.correct for v in verdicts)
     typer.echo(f"\n{len(verdicts) - wrong}/{len(verdicts)} correct, {wrong} wrong")
     raise typer.Exit(1 if wrong else 0)
+
+
+def _missing_golden_nodes(tools: Any, golden: list[Any]) -> list[str]:
+    """Node ids the golden expectations name that the current graph does not hold."""
+    wanted = sorted(
+        {n for q in golden for f in q.expected.facts for n in f[1:]}
+        | {n for q in golden for n in q.expected.candidates}
+    )
+    rows = tools._read(
+        "UNWIND $ids AS id OPTIONAL MATCH (n {id: id}) WITH id, n WHERE n IS NULL RETURN id",
+        ids=wanted,
+    )
+    return [row["id"] for row in rows]
 
 
 def _run_agent(tools: Any, golden: list[Any], out: Path, concurrency: int) -> list[Any]:

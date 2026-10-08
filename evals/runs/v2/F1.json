@@ -1,0 +1,55 @@
+{
+  "question": "What could not be analysed in hard/h4_nightly_load.sql?",
+  "seconds": 17.8,
+  "stage": "agent",
+  "cost_usd": 0.008782700000000001,
+  "turns": 3,
+  "notes": [],
+  "answer": {
+    "question_id": "F1",
+    "status": "answered",
+    "text": "One statement was not analysed: line 196 is a TRUNCATE of mart.load_audit. It was refused as UNSUPPORTED_CONSTRUCT, so it has zero edges. It empties the table unconditionally, so it decides what the table holds afterwards, but no column has a source to name. No other boundaries or refusals were declared for this file.",
+    "cited_edges": [],
+    "cited_nodes": [
+      "mart.load_audit"
+    ],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement",
+      "REFUSAL:<SCRIPT>:196"
+    ],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "gaps",
+      "args": {
+        "file": "hard/h4_nightly_load.sql"
+      },
+      "result": {
+        "scope": "file hard/h4_nightly_load.sql",
+        "boundaries": [
+          {
+            "id": "REFUSAL:<SCRIPT>:196",
+            "kind": "refusal",
+            "subject": "<SCRIPT>:196",
+            "detail": "<script>: line 196 refused [UNSUPPORTED_CONSTRUCT] - TRUNCATE empties a relation unconditionally. No column has a source to name - the same shape as a DELETE with no predicate - but the statement decides what the table contains afterwards, so it is recorded rather than skipped",
+            "line": 196
+          }
+        ],
+        "refusals": [
+          {
+            "id": "hard/h4_nightly_load.sql#<script>:196:statement",
+            "code": "UNSUPPORTED_CONSTRUCT",
+            "file": "hard/h4_nightly_load.sql",
+            "line": 196,
+            "statement_kind": "truncatetable_statement",
+            "reason": "TRUNCATE empties a relation unconditionally. No column has a source to name - the same shape as a DELETE with no predicate - but the statement decides what the table contains afterwards, so it is recorded rather than skipped",
+            "tables": [
+              "mart.load_audit"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

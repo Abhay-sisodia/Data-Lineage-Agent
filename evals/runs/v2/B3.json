@@ -1,0 +1,88 @@
+{
+  "question": "Which columns filter the rows that land in mart.po_supplier_summary?",
+  "seconds": 18.8,
+  "stage": "agent",
+  "cost_usd": 0.0158488,
+  "turns": 6,
+  "notes": [],
+  "answer": {
+    "question_id": "B3",
+    "status": "answered",
+    "text": "One column filters rows into mart.po_supplier_summary: mart.fact_po_line.status_code (filter, pre-aggregation, identity), written by hard/h2_po_fact_load.sql:345. No other filters, boundaries or refusals found.",
+    "cited_edges": [
+      "e9a392e6bd79b47dcc85ae48"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.po_supplier_summary"
+      },
+      "result": [
+        {
+          "id": "mart.po_supplier_summary",
+          "label": "Table"
+        }
+      ]
+    },
+    {
+      "tool": "upstream",
+      "args": {
+        "node": "mart.po_supplier_summary"
+      },
+      "result": []
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "mart.po_supplier_summary"
+      },
+      "result": {
+        "scope": "lineage of mart.po_supplier_summary",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "a refused statement has no edges: it is listed when its SQL names a table on this lineage, or when it names no table at all (then per file)"
+      }
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "mart.po_supplier_summary"
+      },
+      "result": {
+        "id": "mart.po_supplier_summary",
+        "columns": 6,
+        "columns_with_lineage": 6,
+        "columns_without_lineage": [],
+        "written_by": [
+          "hard/h2_po_fact_load.sql#<script>:345"
+        ],
+        "found": true,
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h2_po_fact_load.sql",
+            "tier": "A",
+            "line": 345,
+            "guard": null,
+            "statement": "hard/h2_po_fact_load.sql#<script>:345",
+            "source": "mart.fact_po_line.status_code",
+            "id": "e9a392e6bd79b47dcc85ae48",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.po_supplier_summary"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    }
+  ]
+}

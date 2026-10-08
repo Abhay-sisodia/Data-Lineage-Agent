@@ -1,0 +1,281 @@
+{
+  "question": "Which columns feed the value of mart.customer_snapshot.segment?",
+  "seconds": 17.4,
+  "stage": "agent",
+  "cost_usd": 0.0224993,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "A6",
+    "status": "answered",
+    "text": "Three columns feed the value of mart.customer_snapshot.segment directly (one hop):\n- crm.customer.segment: identity copy, in hard/h4_nightly_load.sql:168 and hard/h5_adversarial.sql:382.\n- pg_temp.cust_metrics.segment_hint: conditional, in hard/h4_nightly_load.sql:246.\n- mart.customer_snapshot.segment: conditional, a self-reference in the same statement at h4_nightly_load.sql:246. The existing value is kept or replaced depending on a condition.\n\nThe graph shows no boundaries or refusals on this column. Filter edges into the table (for example crm.customer.status) decide which rows land. They are not part of the value, so I left them out.",
+    "cited_edges": [
+      "60d4cc18bf8f58c6c409d92d",
+      "e502acc532f08e92a944b196",
+      "6e2d957656482c9c2a85c45a",
+      "610dc557886090d180a2bbe7"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.customer_snapshot.segment"
+      },
+      "result": [
+        {
+          "id": "mart.customer_snapshot.segment",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "upstream",
+      "args": {
+        "node": "mart.customer_snapshot.segment"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 168,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:168",
+          "source": "crm.customer.segment",
+          "id": "60d4cc18bf8f58c6c409d92d",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.customer_snapshot.segment",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h5_adversarial.sql",
+          "tier": "A",
+          "line": 382,
+          "guard": null,
+          "statement": "hard/h5_adversarial.sql#<script>:382",
+          "source": "crm.customer.segment",
+          "id": "e502acc532f08e92a944b196",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.customer_snapshot.segment",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 246,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:246",
+          "source": "mart.customer_snapshot.segment",
+          "id": "6e2d957656482c9c2a85c45a",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.customer_snapshot.segment",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 246,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:246",
+          "source": "pg_temp.cust_metrics.segment_hint",
+          "id": "610dc557886090d180a2bbe7",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.customer_snapshot.segment",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 152,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:152",
+          "source": "crm.customer.customer_id",
+          "id": "308c9dd4d649d519f3ee9d14",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h5_adversarial.sql",
+          "tier": "A",
+          "line": 382,
+          "guard": null,
+          "statement": "hard/h5_adversarial.sql#<script>:382",
+          "source": "crm.customer.customer_name",
+          "id": "5e19628fda6812b11e75710d",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h5_adversarial.sql",
+          "tier": "A",
+          "line": 382,
+          "guard": null,
+          "statement": "hard/h5_adversarial.sql#<script>:382",
+          "source": "crm.customer.segment",
+          "id": "3da8e3fe828d225c346e71c8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 152,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:152",
+          "source": "crm.customer.status",
+          "id": "a4b7b286d2a1bf31ca6aae27",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 168,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:168",
+          "source": "crm.customer.status",
+          "id": "acceaebb9a97c9b867830616",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h5_adversarial.sql",
+          "tier": "A",
+          "line": 382,
+          "guard": null,
+          "statement": "hard/h5_adversarial.sql#<script>:382",
+          "source": "crm.customer.status",
+          "id": "dacfb7f0735a0e2b303aa7e6",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 152,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:152",
+          "source": "mart.customer_snapshot.customer_id",
+          "id": "7680f975b352a6e4d09779e2",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 168,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:168",
+          "source": "mart.customer_snapshot.lifetime_revenue",
+          "id": "a6cd09f8e10cb1a2bdb7a607",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 246,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:246",
+          "source": "mart.customer_snapshot.status",
+          "id": "b63a817a292cef8d05dcac29",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 168,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:168",
+          "source": "mart.customer_snapshot.status",
+          "id": "e00349bd7bcdb6f46c848aaf",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        },
+        {
+          "phase": "post-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 168,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:168",
+          "source": "mart.shipment_fact.ext_amount_usd",
+          "id": "ae4bb34843cb74fa7668c50e",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.customer_snapshot",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "mart.customer_snapshot.segment"
+      },
+      "result": {
+        "scope": "lineage of mart.customer_snapshot.segment",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "a refused statement has no edges: it is listed when its SQL names a table on this lineage, or when it names no table at all (then per file)"
+      }
+    }
+  ]
+}
