@@ -35,6 +35,7 @@ Node labels: `Table`, `Column`, `Variable`, `File`, `Statement`, `Boundary`, `Re
 | `BLOCKED_BY` | Statement → Boundary | the boundary sits on that statement |
 | `BOUNDS` | Boundary → Column/Table | the node whose lineage stops there |
 | `REFUSED` | Statement → Refusal | the statement was refused |
+| `MENTIONS` | Refusal → Table | a table the refused statement's SQL names (what the refusal may affect) |
 
 Lineage relationship properties: `id`, `transform`, `phase`, `band`, `tier`, `mechanism`, `guard`, `file`, `unit`, `line`, `statement`.
 
@@ -99,7 +100,7 @@ The statement was analysed; one part of it could not be proven. Edges may still 
 
 ## 9. Refusals: statements not analysed at all
 
-A refused statement has **zero edges**; never guess what it does. It is tied to its file and line, not to a column.
+A refused statement has **zero edges**; never guess what it does. It is tied to its file and line, and through `MENTIONS` to the tables its SQL names - report it for a question only when it names a table on that lineage.
 
 | Code | Meaning |
 |---|---|

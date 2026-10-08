@@ -64,6 +64,7 @@ STRUCTURAL_TYPES = (
     "BLOCKED_BY",
     "BOUNDS",
     "REFUSED",
+    "MENTIONS",
 )
 """Every non-lineage relationship type the build writes."""
 
@@ -108,6 +109,65 @@ def build_batch(results: list[ExportedResult]) -> GraphBatch:
     for result in results:
         _add_file(batch, result)
     return batch
+
+
+def add_refusal_mentions(
+    batch: GraphBatch, results: list[ExportedResult], sources: dict[str, str]
+) -> None:
+    """`MENTIONS` (Refusal -> Table) for each table a refused statement's own SQL names.
+
+    A refused statement has no edges, so nothing ties it to the lineage it might affect.
+    Its text still names its tables - `TRUNCATE mart.load_audit` - and that is what lets a
+    question about `mart.shipment_fact` leave out a refusal that touches only
+    `mart.load_audit`, instead of reporting every refusal in the same file. A refusal whose
+    text names no table stays linked to its file only, and is still reported per file.
+    """
+    for result in results:
+        text = sources.get(result.source.path)
+        if text is None:
+            continue
+        lines = text.splitlines()
+        for refusal in result.refusals:
+            span = lines[refusal.line - 1 : (refusal.end_line or refusal.line)]
+            statement = "\n".join(span)
+            refusal_id = f"{result.source.path}#{refusal.unit}:{refusal.line}:{refusal.scope}"
+            for table in sorted(statement_tables(statement)):
+                _table(batch, table)
+                batch.relationship(
+                    "MENTIONS",
+                    _hash("MENTIONS", refusal_id, table),
+                    ("Refusal", refusal_id),
+                    ("Table", table),
+                )
+
+
+def statement_tables(statement: str) -> set[str]:
+    """`schema.table` names a statement's SQL refers to, lower-cased (PostgreSQL folding).
+
+    Parsed with SQLGlot when it can; a statement it cannot read (often why it was refused)
+    falls back to the qualified names in its text.
+    """
+    import re
+
+    import sqlglot
+    from sqlglot import exp
+
+    try:
+        parsed = sqlglot.parse_one(statement, read="postgres")
+        found = {
+            f"{table.db}.{table.name}".lower()
+            for table in parsed.find_all(exp.Table)
+            if table.db and table.name
+        }
+        if found:
+            return found
+    except Exception:  # unreadable SQL: use the text
+        pass
+    return {
+        match.lower()
+        for match in re.findall(r"\b([A-Za-z_]\w*\.[A-Za-z_]\w*)\b", statement)
+        if not re.match(r"^\d", match)
+    }
 
 
 def snapshot_id(results: list[ExportedResult]) -> str:

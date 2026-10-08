@@ -93,6 +93,37 @@ def test_gaps_name_the_boundary_and_the_refusal(small: GraphTools) -> None:
     assert "SOURCE_UNAVAILABLE:CALC_MARGIN" in {b["id"] for b in by_node["boundaries"]}
 
 
+def test_a_refusal_is_reported_only_for_lineage_it_names(small: GraphTools) -> None:
+    """Baseline finding: `TRUNCATE mart.events_log` was reported for every column of c.sql.
+
+    It names only mart.events_log, so it is no unknown for `m` (read from staging.orders);
+    the file still declares it, and a question about mart.events_log still gets it.
+    """
+    assert small.gaps(node="<result:c.sql>.m")["refusals"] == []
+    refused = small.gaps(file="c.sql")["refusals"]
+    assert [r["tables"] for r in refused] == [["mart.events_log"]]
+
+
+def test_the_tables_a_refused_statement_names() -> None:
+    from lineage.graph.model import statement_tables
+
+    assert statement_tables("TRUNCATE mart.load_audit") == {"mart.load_audit"}
+    assert statement_tables("COPY staging.orders FROM STDIN") == {"staging.orders"}
+    # unreadable SQL falls back to the qualified names in the text
+    assert "mart.x" in statement_tables("FROBNICATE mart.x WITH ((")
+
+
+def test_the_resolver_asks_only_about_bare_ambiguous_names(small: GraphTools) -> None:
+    from lineage.agent.harness import Harness
+
+    harness = Harness(small)
+    assert harness._ambiguous_names("Where does customer_id come from?") is not None
+    assert (
+        harness._ambiguous_names("Which tables are filtered by a column named customer_id?") is None
+    )
+    assert harness._ambiguous_names("Where does mart.top_customers.customer_id come from?") is None
+
+
 def test_coverage_counts_columns_and_writers(small: GraphTools) -> None:
     found = small.coverage("mart.top_customers")
     assert found["found"] and found["columns_with_lineage"] == found["columns"] == 2

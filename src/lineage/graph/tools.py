@@ -145,6 +145,12 @@ class GraphTools:
         statements = sorted({edge["statement"] for edge in edges})
         files = sorted({edge["file"] for edge in edges})
         nodes = sorted({node} | {edge["source"] for edge in edges})
+        tables = sorted(
+            {
+                _table_id(n)
+                for n in {node, *(e["source"] for e in edges), *(e["target"] for e in edges)}
+            }
+        )
         boundaries = self._read(
             """
             MATCH (s:Statement)-[:BLOCKED_BY]->(b:Boundary) WHERE s.id IN $statements
@@ -162,9 +168,9 @@ class GraphTools:
         return {
             "scope": f"lineage of {node}",
             "boundaries": boundaries,
-            "refusals": self._refusals(files),
-            "refusals_note": "refusals are listed per file: a refused statement has no edges "
-            "to tie it to one column",
+            "refusals": self._refusals(files, tables),
+            "refusals_note": "a refused statement has no edges: it is listed when its SQL names "
+            "a table on this lineage, or when it names no table at all (then per file)",
         }
 
     def coverage(self, table: str) -> dict[str, Any]:
@@ -211,7 +217,7 @@ class GraphTools:
                 """,
                 statements=found["written_by"],
             ),
-            "refusals": self._refusals(files),
+            "refusals": self._refusals(files, [table]),
         }
         return found
 
@@ -306,15 +312,24 @@ class GraphTools:
         )
         return [row["edge"] for row in rows]
 
-    def _refusals(self, files: list[str]) -> list[dict[str, Any]]:
+    def _refusals(self, files: list[str], tables: list[str] | None = None) -> list[dict[str, Any]]:
+        """Refusals in `files`. With `tables`: only those whose SQL names one of them, or
+        names no table at all (unlinkable, so kept - a refusal is never silently dropped)."""
         return self._read(
             """
             MATCH (x:Refusal) WHERE x.file IN $files
+              AND ($tables IS NULL
+                   OR EXISTS { (x)-[:MENTIONS]->(t:Table) WHERE t.id IN $tables }
+                   OR NOT EXISTS { (x)-[:MENTIONS]->(:Table) })
+            OPTIONAL MATCH (x)-[:MENTIONS]->(m:Table)
+            WITH x, collect(m.id) AS mentions
             RETURN x.id AS id, x.code AS code, x.file AS file, x.line AS line,
-                   x.statement_kind AS statement_kind, x.reason AS reason
+                   x.statement_kind AS statement_kind, x.reason AS reason,
+                   mentions AS tables
             ORDER BY file, line
             """,
             files=files,
+            tables=tables,
         )
 
     def _read(self, query: str, **parameters: Any) -> list[dict[str, Any]]:
@@ -323,6 +338,14 @@ class GraphTools:
                 lambda tx: [record.data() for record in tx.run(query, **parameters)]
             )
             return rows
+
+
+def _table_id(node: str) -> str:
+    """The table a node id belongs to: a column's table, or the id itself."""
+    if node.startswith("<result:"):
+        return node.split(">", 1)[0] + ">"
+    head, _, _ = node.rpartition(".")
+    return head if head.count(".") >= 1 else node
 
 
 def _snippet(text: str | None, line: int | None) -> str | None:

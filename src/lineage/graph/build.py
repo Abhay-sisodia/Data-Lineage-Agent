@@ -19,7 +19,13 @@ from typing import Any
 from lineage.analysis.procedure import analyse_source
 from lineage.config import AnalysisConfig
 from lineage.export import ExportedResult, from_document, sha256_of, to_document
-from lineage.graph.model import SCHEMA_VERSION, GraphBatch, build_batch, snapshot_id
+from lineage.graph.model import (
+    SCHEMA_VERSION,
+    GraphBatch,
+    add_refusal_mentions,
+    build_batch,
+    snapshot_id,
+)
 from lineage.resolution.dictionary import Dictionary
 
 _BATCH = 500
@@ -98,6 +104,8 @@ def load(
         if sha256_of(text) != result.source.sha256:
             raise ValueError(f"{result.source.path} changed since it was analysed")
         batch.node("File", result.source.path, text=text)
+    if sources:
+        add_refusal_mentions(batch, results, sources)
     snapshot = snapshot_id(results)
     with driver.session(database=database) as session:
         for label in _UNIQUE_LABELS:

@@ -137,6 +137,8 @@ class Harness:
         for name in dict.fromkeys(_IDENT.findall(question)):
             if "." in name or name.startswith("<result"):
                 continue  # qualified names resolve on their own
+            if _introduced_as_a_name(question, name):
+                continue  # "a column named status_code" asks about every such column
             matches = self.tools.find(name, limit=50)
             exact_column = [m for m in matches if m["id"].rsplit(".", 1)[-1] == name]
             if len(exact_column) > 1 and not _qualified_elsewhere(question, name):
@@ -302,6 +304,11 @@ _TOOL_NAMES = (
     "coverage",
     "graph_query",
 )
+
+
+def _introduced_as_a_name(question: str, name: str) -> bool:
+    """`named X` / `called X`: the question is about every column with that name."""
+    return bool(re.search(rf"\b(named|called)\s+[`'\"]?{re.escape(name)}\b", question, re.I))
 
 
 def _qualified_elsewhere(question: str, name: str) -> bool:
