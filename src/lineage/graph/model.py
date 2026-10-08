@@ -52,6 +52,21 @@ _LABELS = {
 FLOW_TYPES = {Flow.VALUE: "FEEDS", Flow.FILTER: "FILTERS", Flow.INFLUENCE: "INFLUENCES"}
 """Lineage relationship type per parser flow."""
 
+NODE_LABELS = (*sorted(set(_LABELS.values())), "File", "Refusal")
+"""Every node label the build writes (besides `Snapshot`)."""
+
+STRUCTURAL_TYPES = (
+    "HAS_COLUMN",
+    "CONTAINS",
+    "READS",
+    "WRITES",
+    "DECLARES",
+    "BLOCKED_BY",
+    "BOUNDS",
+    "REFUSED",
+)
+"""Every non-lineage relationship type the build writes."""
+
 
 @dataclass
 class GraphBatch:
