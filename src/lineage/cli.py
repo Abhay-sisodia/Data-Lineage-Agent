@@ -25,6 +25,39 @@ app = typer.Typer(
 config_app = typer.Typer(help="Inspect the analysis configuration.", no_args_is_help=True)
 app.add_typer(config_app, name="config")
 
+graph_app = typer.Typer(
+    help="The lineage knowledge graph (Neo4j). Needs requirements-kg.txt.", no_args_is_help=True
+)
+app.add_typer(graph_app, name="graph")
+
+
+@graph_app.command("build")
+def graph_build(
+    folder: Annotated[Path, typer.Argument(help="Folder of .sql files, searched recursively.")],
+    dictionary: Annotated[
+        Path, typer.Option("--dictionary", help="Data dictionary for these files.")
+    ] = Path("stress/pg/dictionary.json"),
+    dialect: Annotated[str, typer.Option("--dialect", help="SQL dialect.")] = "postgres",
+    keep: Annotated[
+        bool,
+        typer.Option("--keep", help="Merge into the existing graph instead of replacing it."),
+    ] = False,
+) -> None:
+    """Analyse every SQL file in a folder and load the lineage into Neo4j."""
+    from lineage.graph.build import analyse_folder, graph_counts, load
+    from lineage.graph.neo4j_conn import Neo4jSettings, connect
+    from lineage.resolution.dictionary import Dictionary
+
+    config = AnalysisConfig.load().model_copy(update={"dialect": dialect})
+    results = analyse_folder(folder, Dictionary.load(dictionary), config)
+    settings = Neo4jSettings.from_env()
+    with connect(settings) as driver:
+        report = load(driver, results, database=settings.database, replace=not keep)
+        stored = graph_counts(driver, database=settings.database)
+    typer.echo(f"snapshot {report.snapshot}: {report.files} files")
+    for name, count in stored.items():
+        typer.echo(f"  {name:<12} {count}")
+
 
 @app.command()
 def version() -> None:
