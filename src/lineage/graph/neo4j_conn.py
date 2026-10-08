@@ -40,7 +40,13 @@ def connect(settings: Neo4jSettings | None = None) -> Any:
     from neo4j import GraphDatabase
 
     resolved = settings or Neo4jSettings.from_env()
-    return GraphDatabase.driver(resolved.uri, auth=(resolved.user, resolved.password))
+    # Server notifications are off: a missing optional property (an edge with no guard)
+    # is expected, and the warnings would bury every tool's output.
+    return GraphDatabase.driver(
+        resolved.uri,
+        auth=(resolved.user, resolved.password),
+        notifications_min_severity="OFF",
+    )
 
 
 def read_session(driver: Any, settings: Neo4jSettings | None = None) -> Any:

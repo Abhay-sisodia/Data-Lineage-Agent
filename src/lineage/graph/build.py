@@ -18,7 +18,7 @@ from typing import Any
 
 from lineage.analysis.procedure import analyse_source
 from lineage.config import AnalysisConfig
-from lineage.export import ExportedResult, from_document, to_document
+from lineage.export import ExportedResult, from_document, sha256_of, to_document
 from lineage.graph.model import SCHEMA_VERSION, GraphBatch, build_batch, snapshot_id
 from lineage.resolution.dictionary import Dictionary
 
@@ -67,11 +67,37 @@ def analyse_folder(
     return results
 
 
+def folder_sources(folder: Path) -> dict[str, str]:
+    """Each `.sql` file's text, keyed by the relative path `analyse_folder` records."""
+    return {
+        path.relative_to(folder).as_posix(): path.read_text(encoding="utf-8")
+        for path in sorted(folder.rglob("*.sql"))
+    }
+
+
 def load(
-    driver: Any, results: list[ExportedResult], *, database: str = "neo4j", replace: bool = True
+    driver: Any,
+    results: list[ExportedResult],
+    *,
+    database: str = "neo4j",
+    replace: bool = True,
+    sources: dict[str, str] | None = None,
 ) -> BuildReport:
-    """Write the results to Neo4j. Returns the snapshot id and the row counts written."""
+    """Write the results to Neo4j. Returns the snapshot id and the row counts written.
+
+    `sources` (path -> SQL text) is stored on each `File` node, so a tool can show the SQL
+    behind an edge. The text is checked against the hash the result recorded: SQL that
+    changed since it was analysed is refused rather than shown beside lineage it no longer
+    produces.
+    """
     batch = build_batch(results)
+    for result in results:
+        text = (sources or {}).get(result.source.path)
+        if text is None:
+            continue
+        if sha256_of(text) != result.source.sha256:
+            raise ValueError(f"{result.source.path} changed since it was analysed")
+        batch.node("File", result.source.path, text=text)
     snapshot = snapshot_id(results)
     with driver.session(database=database) as session:
         for label in _UNIQUE_LABELS:

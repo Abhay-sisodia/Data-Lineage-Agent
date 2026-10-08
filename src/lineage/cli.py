@@ -44,7 +44,7 @@ def graph_build(
     ] = False,
 ) -> None:
     """Analyse every SQL file in a folder and load the lineage into Neo4j."""
-    from lineage.graph.build import analyse_folder, graph_counts, load
+    from lineage.graph.build import analyse_folder, folder_sources, graph_counts, load
     from lineage.graph.neo4j_conn import Neo4jSettings, connect
     from lineage.resolution.dictionary import Dictionary
 
@@ -52,11 +52,48 @@ def graph_build(
     results = analyse_folder(folder, Dictionary.load(dictionary), config)
     settings = Neo4jSettings.from_env()
     with connect(settings) as driver:
-        report = load(driver, results, database=settings.database, replace=not keep)
+        report = load(
+            driver,
+            results,
+            database=settings.database,
+            replace=not keep,
+            sources=folder_sources(folder),
+        )
         stored = graph_counts(driver, database=settings.database)
     typer.echo(f"snapshot {report.snapshot}: {report.files} files")
     for name, count in stored.items():
         typer.echo(f"  {name:<12} {count}")
+
+
+@graph_app.command("trace")
+def graph_trace(
+    node: Annotated[str, typer.Argument(help="Column (or table) name; partial names allowed.")],
+    depth: Annotated[int, typer.Option("--depth", help="Hops to walk.")] = 1,
+    down: Annotated[
+        bool, typer.Option("--down", help="Downstream impact instead of upstream lineage.")
+    ] = False,
+) -> None:
+    """Upstream lineage (or downstream impact) of one column, from the graph."""
+    from lineage.graph.neo4j_conn import Neo4jSettings, connect
+    from lineage.graph.tools import GraphTools
+
+    settings = Neo4jSettings.from_env()
+    with connect(settings) as driver:
+        tools = GraphTools(driver, settings)
+        matches = tools.find(node)
+        if len(matches) != 1:
+            names = ", ".join(m["id"] for m in matches) or "nothing"
+            typer.echo(f"'{node}' matches {names} - be more specific")
+            raise typer.Exit(1)
+        resolved = matches[0]["id"]
+        edges = tools.downstream(resolved, depth) if down else tools.upstream(resolved, depth)
+    typer.echo(f"{'impact of' if down else 'lineage of'} {resolved}: {len(edges)} edges")
+    for edge in edges:
+        detail = edge["transform"] if edge["type"] == "FEEDS" else edge["phase"] or ""
+        typer.echo(
+            f"  [{edge['depth']}] {edge['type']:<10} {edge['source']} -> {edge['target']}"
+            f"  {detail}  ({edge['file']}:{edge['line']})"
+        )
 
 
 @app.command()
