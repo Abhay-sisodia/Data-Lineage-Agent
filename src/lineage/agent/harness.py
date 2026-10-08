@@ -25,6 +25,7 @@ from lineage.graph.tools import GraphTools
 from lineage.semantics import load as load_semantics
 
 MODEL = "claude-sonnet-5-5"
+EFFORT = "medium"
 SERVER = "lineage"
 MAX_TURNS = 24
 
@@ -188,6 +189,7 @@ class Harness:
             setting_sources=[],
             system_prompt=f"{load_semantics()}\n\n# Your task\n{INSTRUCTIONS}",
             model=self.model,
+            effort=EFFORT,
             max_turns=MAX_TURNS,
             output_format={"type": "json_schema", "schema": ANSWER_SCHEMA},
             permission_mode="dontAsk",
