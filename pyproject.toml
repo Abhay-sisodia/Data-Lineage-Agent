@@ -22,6 +22,11 @@ dependencies = [
     "oracledb",
 ]
 
+# The knowledge graph and agentic Q&A. Optional, so the core analyser installs without a
+# graph database or an AI provider. Pinned set: requirements-kg.txt.
+[project.optional-dependencies]
+kg = ["neo4j", "anthropic", "mcp"]
+
 [project.scripts]
 lineage = "lineage.cli:app"
 
@@ -35,6 +40,7 @@ addopts = "-ra --strict-markers"
 markers = [
     "adversarial: silent-failure regression cases (T3.4) - never delete one",
     "requires_oracle: needs a live Oracle XE instance",
+    "requires_neo4j: needs a live Neo4j instance (docker compose up -d neo4j)",
 ]
 
 [tool.ruff]

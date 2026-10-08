@@ -1,0 +1,22 @@
+# Knowledge-graph + agentic Q&A dependencies - loose constraints, resolved by pip-compile.
+# Compile with:
+#   pip-compile --generate-hashes --output-file=requirements-kg.txt requirements-kg.in
+#
+# Kept separate from requirements.in so the core analyser still installs and runs without
+# a graph database or an AI provider (air-gapped installs). The -c line pins every shared
+# transitive dependency to the version requirements.txt already ships.
+#
+# After compiling on Windows, re-add the marker pip-compile drops:
+#   pywin32==... ; sys_platform == "win32"
+# neo4j needs it only on Windows; without the marker a Linux install fails.
+
+-c requirements.txt
+
+# Graph store client (Bolt protocol) for the lineage knowledge graph.
+neo4j
+
+# Claude API for the router, the answer wording and the agent loop.
+anthropic
+
+# Model Context Protocol server exposing the typed graph tools.
+mcp
