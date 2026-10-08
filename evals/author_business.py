@@ -58,6 +58,7 @@ def main() -> None:
         questions: list[dict[str, Any]] = [
             {
                 "id": "X1",
+                "subject": fx,
                 "question": f"If {fx} is wrong, which columns in mart tables are affected, "
                 "directly or through intermediate tables (as a value or an influence)? "
                 "List the affected mart columns.",
@@ -67,6 +68,7 @@ def main() -> None:
             },
             {
                 "id": "X2",
+                "subject": dropped,
                 "question": f"We plan to drop {dropped}. Which mart columns would be affected, "
                 "directly or indirectly (as a value or an influence)? List them.",
                 "intent": "impact_multi_hop",
@@ -75,6 +77,7 @@ def main() -> None:
             },
             {
                 "id": "X3",
+                "subject": spend,
                 "question": f"Trace {spend} back through every intermediate table to its ultimate "
                 "source columns (columns nothing feeds), following value flow only. List them.",
                 "intent": "root_cause_multi_hop",
@@ -83,6 +86,7 @@ def main() -> None:
             },
             {
                 "id": "X4",
+                "subject": spend,
                 "question": f"Which columns filter the rows anywhere along the value lineage of "
                 f"{spend} - on its own table and on every table whose columns feed it? "
                 "List the filtering columns.",
@@ -92,6 +96,7 @@ def main() -> None:
             },
             {
                 "id": "X5",
+                "subject": margin,
                 "question": f"Is {margin} fully traceable to its ultimate source columns? List "
                 "those source columns (value flow only) and report every boundary or "
                 "refusal where knowledge stops.",
@@ -108,6 +113,8 @@ def main() -> None:
         ]
     for q in questions:
         q["expected"] = {k: v for k, v in q["expected"].items() if v or k == "status"}
+        q["expected"]["subject"] = q.pop("subject")
+        q["expected"]["answer"] = "nodes"
     OUT.write_text(
         "# Five multi-hop business questions (written by evals/author_business.py).\n"
         + yaml.safe_dump({"questions": questions}, sort_keys=False, width=100),

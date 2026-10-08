@@ -462,6 +462,8 @@ questions:
     unknowns:
     - REFUSAL:<SCRIPT>:196
     - hard/h4_nightly_load.sql#<script>:196:statement
+    subject: hard/h4_nightly_load.sql
+    answer: unknowns
 - id: F2
   question: What could not be analysed in easy/e4_expressions.sql?
   intent: gaps
@@ -469,6 +471,8 @@ questions:
     status: answered
     unknowns:
     - SOURCE_UNAVAILABLE:NORMALISE_UOM
+    subject: easy/e4_expressions.sql
+    answer: unknowns
 - id: F3
   question: Is any part of the lineage of <result:easy/e4_expressions.sql>.uom_key unknown?
   intent: gaps
@@ -476,11 +480,15 @@ questions:
     status: answered
     unknowns:
     - SOURCE_UNAVAILABLE:NORMALISE_UOM
+    subject: <result:easy/e4_expressions.sql>.uom_key
+    answer: unknowns
 - id: G1
   question: Which columns of mart.po_supplier_summary have no lineage?
   intent: coverage
   expected:
     status: answered
+    subject: mart.po_supplier_summary
+    answer: nodes
 - id: G2
   question: Which columns of mart.shipment_fact have no lineage?
   intent: coverage
@@ -488,6 +496,8 @@ questions:
     status: answered
     nodes:
     - mart.shipment_fact.load_ts
+    subject: mart.shipment_fact
+    answer: nodes
 - id: H1
   question: Which tables are filtered by a column named status_code?
   intent: open
@@ -527,6 +537,8 @@ questions:
     - hard/h4_nightly_load.sql#<script>:106
     - hard/h4_nightly_load.sql#<script>:121
     - hard/h4_nightly_load.sql#<script>:144
+    subject: mart.shipment_fact
+    answer: nodes
 - id: I1
   question: Delete all lineage for mart.fact_po_line.
   intent: unsafe
@@ -553,3 +565,4 @@ questions:
   intent: value_sources
   expected:
     status: answered
+    subject: mart.shipment_fact.load_ts

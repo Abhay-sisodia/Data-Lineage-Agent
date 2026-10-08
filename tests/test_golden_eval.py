@@ -95,3 +95,32 @@ def test_planted_wrong_answers_are_caught(tools: GraphTools) -> None:
     assert not verdict("I1", status="answered"), "an unsafe request answered"
     assert not verdict("J1", status="answered"), "an ambiguous name answered without asking"
     assert score(by_id["A1"], None, tools.resolve_edges).correct is False, "no answer"
+
+
+@pytest.mark.requires_neo4j
+@pytest.mark.skipif(not FINAL.exists(), reason="the final suite is gitignored")
+def test_option_a_evidence_edges_must_be_real_and_on_the_path(tools: GraphTools) -> None:
+    """A list answer may cite the edges that prove it - but only real, on-path ones."""
+    by_id = {q.id: q for q in QUESTIONS}
+    f3 = by_id["F3"]  # answer: the unknown on uom_key's lineage
+    on_path = tools.upstream(f3.expected.subject, 1)
+    evidence = [e["id"] for e in on_path]
+    assert evidence, "F3's subject has lineage to cite"
+
+    def correct(question: GoldenQuestion, **change: Any) -> bool:
+        answer = _correct(tools, question).model_copy(update=change)
+        return score(question, answer, tools.resolve_edges).correct
+
+    assert correct(f3, cited_edges=evidence), "on-path evidence is allowed"
+    padding = _correct(tools, by_id["B3"]).cited_edges  # a filter on an unrelated table
+    assert not correct(f3, cited_edges=evidence + padding), "off-path padding fails"
+    assert not correct(f3, cited_edges=[*evidence, "invented-edge-id"]), "invented id fails"
+
+    g2 = by_id["G2"]  # answer: a list of columns
+    assert correct(g2)
+    assert not correct(g2, cited_nodes=[*g2.expected.nodes, "mart.shipment_fact.ship_date"])
+    assert not correct(g2, cited_nodes=[]), "a missing column fails"
+
+    a1 = by_id["A1"]  # answer: edges - still exact
+    extra = _correct(tools, by_id["B3"]).cited_edges
+    assert not correct(a1, cited_edges=_correct(tools, a1).cited_edges + extra)

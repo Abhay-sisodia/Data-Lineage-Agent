@@ -141,6 +141,8 @@ def main() -> None:
                 {b["id"] for b in t.gaps(file="hard/h4_nightly_load.sql")["boundaries"]}
                 | {r["id"] for r in t.gaps(file="hard/h4_nightly_load.sql")["refusals"]}
             ),
+            subject="hard/h4_nightly_load.sql",
+            answer="unknowns",
         )
         add(
             "F2",
@@ -150,6 +152,8 @@ def main() -> None:
             unknowns=sorted(
                 {b["id"] for b in t.gaps(file="easy/e4_expressions.sql")["boundaries"]}
             ),
+            subject="easy/e4_expressions.sql",
+            answer="unknowns",
         )
         gap_col = _normalise_uom_column(t)
         add(
@@ -158,6 +162,8 @@ def main() -> None:
             "gaps",
             status="answered",
             unknowns=sorted({b["id"] for b in t.gaps(node=gap_col)["boundaries"]}),
+            subject=gap_col,
+            answer="unknowns",
         )
 
         # G. coverage
@@ -169,6 +175,8 @@ def main() -> None:
                 "coverage",
                 status="answered",
                 nodes=cov["columns_without_lineage"],
+                subject=table,
+                answer="nodes",
             )
 
         # H. open questions (no typed tool fits: the Cypher fallback)
@@ -185,6 +193,8 @@ def main() -> None:
             "open",
             status="answered",
             nodes=t.coverage("mart.shipment_fact")["written_by"],
+            subject="mart.shipment_fact",
+            answer="nodes",
         )
 
         # I. unsafe request, J. ambiguous name, K. no lineage
@@ -207,6 +217,7 @@ def main() -> None:
             "value_sources",
             status="answered",
             facts=facts(t.upstream(target, 1), "FEEDS"),
+            subject=target,
         )
 
     OUT.write_text(

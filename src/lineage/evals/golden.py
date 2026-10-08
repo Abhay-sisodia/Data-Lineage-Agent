@@ -41,6 +41,16 @@ class Expected(BaseModel):
     """Boundary or refusal ids that must be reported, exactly."""
     candidates: list[str] = Field(default_factory=list)
     """For `clarify`: node ids that must all be offered."""
+    subject: str = ""
+    """What the question is about (a column, table or file). Anchors evidence edges."""
+    answer: Literal["edges", "nodes", "unknowns"] = "edges"
+    """What the answer IS (Option A). `edges`: the cited edges must equal `facts`.
+    `nodes` / `unknowns`: the answer is that list; cited edges are EVIDENCE - real and on
+    the asked lineage - and, for `unknowns`, cited nodes are context, not scored."""
+
+    @property
+    def list_answer(self) -> bool:
+        return self.status == "answered" and self.answer != "edges"
 
 
 class GoldenQuestion(BaseModel):
@@ -105,11 +115,18 @@ def score(question: GoldenQuestion, answer: Answer | None, resolve_edges: Any) -
         if invented:
             reasons.append(f"cited edge ids not in the graph: {invented}")
         got: set[Fact] = set(resolved.values())
-        want: set[Fact] = {(f[0], f[1], f[2]) for f in expected.facts}
-        if got != want:
-            reasons.append(_diff("facts", want, got))
-        if set(answer.cited_nodes) != set(expected.nodes) and expected.nodes:
-            reasons.append(_diff("nodes", set(expected.nodes), set(answer.cited_nodes)))
+        if expected.list_answer:
+            off_path = _off_path(got, {*expected.nodes, expected.subject} - {""})
+            if off_path:
+                reasons.append(f"evidence edges off the asked lineage: {sorted(off_path)[:5]}")
+            if expected.answer == "nodes" and set(answer.cited_nodes) != set(expected.nodes):
+                reasons.append(_diff("nodes", set(expected.nodes), set(answer.cited_nodes)))
+        else:
+            want: set[Fact] = {(f[0], f[1], f[2]) for f in expected.facts}
+            if got != want:
+                reasons.append(_diff("facts", want, got))
+            if set(answer.cited_nodes) != set(expected.nodes) and expected.nodes:
+                reasons.append(_diff("nodes", set(expected.nodes), set(answer.cited_nodes)))
         if set(answer.unknowns) != set(expected.unknowns):
             reasons.append(_diff("unknowns", set(expected.unknowns), set(answer.unknowns)))
     return Verdict(question.id, not reasons, reasons)
@@ -120,6 +137,35 @@ def score_all(
 ) -> list[Verdict]:
     by_id = {answer.question_id: answer for answer in answers}
     return [score(q, by_id.get(q.id), resolve_edges) for q in questions]
+
+
+def _off_path(edges: set[Fact], anchors: set[str]) -> set[Fact]:
+    """Evidence edges not connected to the question (Option A).
+
+    Cited edges are joined into connected groups through shared endpoints. A group is on
+    the path when one of its endpoints is an anchor - the subject or an answer node - or
+    is that anchor's table (a FILTERS edge ends at a table). Every edge of any other group
+    is padding: real, but not about what was asked. With no anchor, no edge is evidence.
+    """
+    parent: dict[str, str] = {}
+
+    def root(node: str) -> str:
+        parent.setdefault(node, node)
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    for _, source, target in edges:
+        parent[root(source)] = root(target)
+
+    def anchored(node: str) -> bool:
+        return any(
+            node == a or a.startswith(node + ".") or node.startswith(a + ".") for a in anchors
+        )
+
+    on_path = {root(node) for node in list(parent) if anchored(node)}
+    return {edge for edge in edges if root(edge[1]) not in on_path}
 
 
 def _diff(what: str, want: set[Any], got: set[Any]) -> str:
