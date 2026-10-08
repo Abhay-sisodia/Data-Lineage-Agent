@@ -24,7 +24,7 @@ from lineage.evals.golden import Answer
 from lineage.graph.tools import GraphTools
 from lineage.semantics import load as load_semantics
 
-MODEL = "claude-opus-5-5"
+MODEL = "claude-sonnet-4-6"
 SERVER = "lineage"
 MAX_TURNS = 24
 
