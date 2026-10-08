@@ -59,18 +59,29 @@ def analyse(
         Path, typer.Option("--dictionary", help="Captured data dictionary.")
     ] = Path("corpus/dictionary.json"),
     output: Annotated[
-        Path | None, typer.Option("--output", help="Write predicted edges as JSON.")
+        Path | None,
+        typer.Option(
+            "--output",
+            help="Write the whole result (lineage-result/1 JSON: edges, "
+            "boundaries, refusals, statement counts, provenance).",
+        ),
+    ] = None,
+    dialect: Annotated[
+        str | None,
+        typer.Option("--dialect", help="SQL dialect. Defaults to the configured one."),
     ] = None,
 ) -> None:
     """Extract lineage from one package — set-based and dataflow."""
     from lineage.analysis.procedure import analyse_source
+    from lineage.export import to_document
     from lineage.resolution.dictionary import Dictionary
 
-    result = analyse_source(
-        package.read_text(encoding="utf-8"),
-        Dictionary.load(dictionary),
-        AnalysisConfig.load(),
-    )
+    config = AnalysisConfig.load()
+    if dialect is not None:
+        config = config.model_copy(update={"dialect": dialect})
+    book = Dictionary.load(dictionary)
+    source = package.read_text(encoding="utf-8")
+    result = analyse_source(source, book, config)
 
     for edge in result.edges:
         guard = f"  [{edge.guard}]" if edge.guard else ""
@@ -91,11 +102,15 @@ def analyse(
     )
 
     if output is not None:
-        payload = {
-            "edges": [edge.model_dump(mode="json") for edge in result.edges],
-            "boundaries": result.boundaries,
-        }
-        output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        document = to_document(
+            result,
+            source_path=package,
+            source_text=source,
+            dialect=config.dialect,
+            config_fingerprint=config.fingerprint(),
+            dictionary_fingerprint=book.fingerprint(),
+        )
+        output.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         typer.echo(f"wrote {output}")
 
 
@@ -133,6 +148,14 @@ def score(
     declared: list[Boundary] = []
     if predictions is not None:
         payload = json.loads(predictions.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and "format" in payload:
+            # A lineage-result document (`analyse --output`): boundaries arrive structured,
+            # so they can satisfy a structured expectation.
+            from lineage.export import from_document
+
+            exported = from_document(payload)
+            typer.echo(render(score_edges(ground_truth, exported.edges, exported.boundaries)))
+            return
         rows = payload["edges"] if isinstance(payload, dict) else payload
         predicted = [PredictedEdge.model_validate(row) for row in rows]
         if isinstance(payload, dict):
