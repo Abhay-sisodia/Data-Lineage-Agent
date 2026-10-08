@@ -18,14 +18,14 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Final
 
 from lineage.evals.golden import Answer
 from lineage.graph.tools import GraphTools
 from lineage.semantics import load as load_semantics
 
 MODEL = "claude-sonnet-5-5"
-EFFORT = "medium"
+EFFORT: Final = "medium"
 SERVER = "lineage"
 MAX_TURNS = 24
 
