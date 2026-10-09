@@ -50,7 +50,7 @@ flowchart LR
 - Re-analyse on change; every run is a new snapshot, and the old one stays queryable.
 
 ### M2. Schema input, with no hand-written dictionary
-*Status 2026-10-09: done for the CLI and Streamlit. Live pull equals the DDL build for both suites; 9/10 medium and hard files run cleanly in PostgreSQL.*
+*Status 2026-10-09: done for the CLI and Streamlit. Live pull equals the DDL build for both suites; 10/10 medium and hard files run cleanly in PostgreSQL (m3 fixed with a cast; edges unchanged).*
 
 1. **Pull from a live PostgreSQL** (`information_schema`, read-only user). Easiest for users.
 2. **Upload DDL** (`CREATE TABLE` scripts); the dictionary is built with `build_dictionary`.
