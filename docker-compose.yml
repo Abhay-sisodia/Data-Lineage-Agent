@@ -59,6 +59,29 @@ services:
       retries: 30
       start_period: 30s
 
+  # A live PostgreSQL catalogue (MVP plan M2): the dictionary is pulled from it with
+  # `lineage schema pull` instead of being built by hand. PostgreSQL 17, as the suites target.
+  # Start alone with:  docker compose up -d postgres
+  # Seed it with:      .\.venv\Scripts\python.exe scripts\pg_seed.py
+  postgres:
+    image: postgres:17
+    container_name: lineage-postgres
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    environment:
+      # Local development credentials only (see src/lineage/resolution/postgres_connect.py).
+      POSTGRES_USER: lineage
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-lineage_pg}
+      POSTGRES_DB: lineage
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lineage -d lineage"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
 volumes:
   oracle-data:
   neo4j-data:
+  postgres-data:

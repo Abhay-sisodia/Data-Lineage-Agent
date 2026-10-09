@@ -45,6 +45,26 @@ def neo4j_driver() -> Iterator[Any]:
         driver.close()
 
 
+PG_SKIP_REASON = (
+    "PostgreSQL not available. Install requirements-kg.txt and start it with "
+    "'docker compose up -d postgres'"
+)
+
+
+@pytest.fixture(scope="session")
+def pg_settings() -> Any:
+    """Settings for the local PostgreSQL (admin database), or a skip."""
+    try:
+        from lineage.resolution.postgres_connect import PgSettings
+        from lineage.resolution.postgres_connect import is_available as pg_available
+    except ImportError:  # pragma: no cover - the kg extra is not installed
+        pytest.skip(PG_SKIP_REASON)
+    settings = PgSettings.from_env()
+    if not pg_available(settings):
+        pytest.skip(PG_SKIP_REASON)
+    return settings
+
+
 @pytest.fixture(scope="session")
 def oracle_settings() -> OracleSettings:
     return OracleSettings.from_env()

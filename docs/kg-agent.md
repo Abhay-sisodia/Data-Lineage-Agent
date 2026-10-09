@@ -36,12 +36,24 @@ flowchart LR
 
 Connection settings come from `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` and `NEO4J_DATABASE`.
 
+**Schema without a hand-written dictionary (MVP M2):**
+```
+docker compose up -d postgres
+.venv\Scripts\python.exe scripts\pg_seed.py          # loads both suites' DDL: lineage_batch, lineage_final
+.venv\Scripts\lineage schema pull --database lineage_final --out final.json
+.venv\Scripts\python.exe scripts\pg_exec_suite.py    # runs the medium and hard SQL in PostgreSQL, rolled back
+```
+- PostgreSQL settings come from `PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD` and `PG_DATABASE`.
+- A pulled dictionary is identical (same fingerprint) to the one built from the same DDL.
+
 ## 2. Commands
 
 | Command | What it does |
 |---|---|
 | `lineage analyse FILE --dialect postgres --output out.json` | parse one file; write the whole result (`lineage-result/1`) |
 | `lineage graph build FOLDER --dictionary D` | analyse a folder and load Neo4j (`--keep` merges instead of replacing) |
+| `lineage schema pull --database DB --out D` | read the dictionary from a live PostgreSQL (read-only; schemas and default schema come from the database) |
+| `lineage schema from-ddl FILE --out D` | build the dictionary from `CREATE TABLE` statements |
 | `lineage graph trace COLUMN [--depth N] [--down]` | upstream lineage or downstream impact, from the graph |
 | `lineage ask "QUESTION" [--no-cache]` | answer a question through the agent harness; prints the trace path |
 | `lineage replay TRACE.json` | re-run a trace's tool calls against the current graph; report differences |
@@ -112,7 +124,7 @@ It exposes the seven typed tools, the resource `lineage://semantics` and the pro
 ```
 
 The sidebar's **View** offers three views:
-- **Parse SQL:** the original analyser view. To ask about SQL you paste, analyse it, then open **Load this SQL into the lineage graph** and press **Load into graph**. *Replace* makes the graph hold only this SQL; *add* merges it beside what is there. Then switch the view.
+- **Parse SQL:** the original analyser view. *Schema* in the sidebar: bundled test dictionary, **live PostgreSQL** (Pull schema), **upload DDL**, or infer from the SQL. To ask about SQL you paste, analyse it, then open **Load this SQL into the lineage graph** and press **Load into graph**. *Replace* makes the graph hold only this SQL; *add* merges it beside what is there. Then switch the view.
 - **Ask the lineage:** answer, status, evidence graph and table, unknowns, and the full trace. It uses the cache unless you untick it.
 - **Lineage graph:** a column's upstream lineage or downstream impact, by hops and flows, grouped by table, with the gaps on that lineage.
 

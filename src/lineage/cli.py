@@ -30,6 +30,71 @@ graph_app = typer.Typer(
 )
 app.add_typer(graph_app, name="graph")
 
+schema_app = typer.Typer(
+    help="Build a data dictionary from a live PostgreSQL or from DDL.", no_args_is_help=True
+)
+app.add_typer(schema_app, name="schema")
+
+
+@schema_app.command("pull")
+def schema_pull(
+    out: Annotated[Path, typer.Option("--out", help="Where to write the dictionary JSON.")],
+    dsn: Annotated[
+        str | None,
+        typer.Option("--dsn", help="postgresql://user:pass@host:port/db; default from PG_*."),
+    ] = None,
+    database: Annotated[
+        str | None, typer.Option("--database", help="Database name, with PG_* settings.")
+    ] = None,
+    schemas: Annotated[
+        str | None, typer.Option("--schemas", help="Comma-separated; default every user schema.")
+    ] = None,
+    default_schema: Annotated[
+        str | None,
+        typer.Option(
+            "--default-schema",
+            help="What an unqualified name means; default the database's search_path.",
+        ),
+    ] = None,
+) -> None:
+    """Read the dictionary out of a live PostgreSQL catalogue (read-only)."""
+    from lineage.resolution.postgres_connect import PgSettings, pull
+
+    conninfo = dsn or PgSettings.from_env(database).conninfo
+    wanted = [s.strip() for s in schemas.split(",") if s.strip()] if schemas else None
+    dictionary = pull(conninfo, wanted, default_schema)
+    dictionary.save(out)
+    _report_dictionary(dictionary, out)
+
+
+@schema_app.command("from-ddl")
+def schema_from_ddl(
+    ddl: Annotated[Path, typer.Argument(help="A file of CREATE TABLE statements.")],
+    out: Annotated[Path, typer.Option("--out", help="Where to write the dictionary JSON.")],
+    default_schema: Annotated[
+        str, typer.Option("--default-schema", help="What an unqualified name means.")
+    ] = "public",
+) -> None:
+    """Build the dictionary from DDL (CREATE TABLE statements only)."""
+    from lineage.resolution.ddl import from_ddl
+
+    try:
+        dictionary = from_ddl(ddl.read_text(encoding="utf-8"), default_schema)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    dictionary.save(out)
+    _report_dictionary(dictionary, out)
+
+
+def _report_dictionary(dictionary: Any, out: Path) -> None:
+    schemas = sorted({info.owner for info in dictionary.objects.values()})
+    typer.echo(f"wrote {out}")
+    typer.echo(f"  schemas     {', '.join(schemas)}")
+    typer.echo(f"  objects     {len(dictionary.objects)}")
+    typer.echo(f"  relations   {len(dictionary.columns)} with columns")
+    typer.echo(f"  views       {len(dictionary.view_text)}")
+    typer.echo(f"  fingerprint {dictionary.fingerprint()}")
+
 
 @graph_app.command("build")
 def graph_build(

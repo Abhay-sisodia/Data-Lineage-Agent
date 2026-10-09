@@ -39,6 +39,7 @@ from lineage.resolution.infer import infer_dictionary, is_inferred  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import kg_pages  # noqa: E402
+import schema_panel  # noqa: E402
 
 CORPUS = ROOT / "corpus"
 DICTIONARY = CORPUS / "dictionary.json"
@@ -184,7 +185,27 @@ with st.sidebar:
         "PostgreSQL: SQL script frontend plus the PL/pgSQL reader (batch B8), bands 0-2."
     )
 
-    if dialect == "postgres":
+    st.subheader("Schema")
+    schema_modes = (
+        [schema_panel.BUNDLED, schema_panel.LIVE, schema_panel.DDL, schema_panel.INFER]
+        if dialect == "postgres"
+        else [schema_panel.BUNDLED, schema_panel.INFER]
+    )
+    schema_mode = st.radio(
+        "Where do table and column names come from?",
+        schema_modes,
+        index=0,
+        help=(
+            "Live PostgreSQL reads a running database's catalogue; upload DDL reads your "
+            "CREATE TABLE scripts. The bundled dictionary was CAPTURED (Oracle) or built "
+            "from the test suites' DDL (PostgreSQL). Inference reads your own SQL - "
+            "provisional by construction."
+        ),
+    )
+
+    pg_choice = None
+    available: dict[str, Path] = {}
+    if dialect == "postgres" and schema_mode == schema_panel.BUNDLED:
         available = {k: v for k, v in PG_DICTIONARIES.items() if v.exists()}
         pg_choice = st.selectbox(
             "PostgreSQL dictionary",
@@ -195,22 +216,17 @@ with st.sidebar:
         if pg_choice != AUTO:
             DICTIONARIES["postgres"] = available[pg_choice]
 
-    st.subheader("Schema")
-    schema_mode = st.radio(
-        "Where do table and column names come from?",
-        ["bundled dictionary", "infer from the SQL"],
-        index=0,
-        help=(
-            "The bundled dictionary was CAPTURED (Oracle) or hand-written (PostgreSQL). "
-            "Inference reads your own SQL instead - useful when the tables are not in "
-            "either, and provisional by construction."
-        ),
-    )
+    supplied_book: Dictionary | None = None
+    if schema_mode == schema_panel.LIVE:
+        supplied_book = schema_panel.live_postgres()
+    elif schema_mode == schema_panel.DDL:
+        supplied_book = schema_panel.uploaded_ddl()
+
     inferred_schema = st.text_input(
         "Default schema for inference",
         value="public",
         help="Where an unqualified table name binds. Ignored unless inferring.",
-        disabled=schema_mode == "bundled dictionary",
+        disabled=schema_mode != schema_panel.INFER,
     )
 
     st.subheader("Target")
@@ -228,18 +244,19 @@ with st.sidebar:
     st.subheader("Load a package")
     files = _corpus_files(dialect)
     choice = st.selectbox("File", ["(paste your own)", *files], index=0)
-    st.caption(
-        f"Names resolve against `{DICTIONARIES[dialect].relative_to(ROOT)}`. Tables it "
-        "does not hold are reported as dangling references rather than guessed at - so "
-        "pasted SQL against your own schema will show boundaries, and that is the "
-        "analyser working."
-        + (
-            "\n\n**The PostgreSQL dictionary is synthetic**, not a capture - see "
-            "`stress/dictionary_postgres.md`."
-            if dialect == "postgres"
-            else ""
+    if schema_mode == schema_panel.BUNDLED:
+        st.caption(
+            f"Names resolve against `{DICTIONARIES[dialect].relative_to(ROOT)}`. Tables it "
+            "does not hold are reported as dangling references rather than guessed at - so "
+            "pasted SQL against your own schema will show boundaries, and that is the "
+            "analyser working."
+            + (
+                "\n\n**The bundled PostgreSQL dictionaries are built from the test suites' "
+                "DDL.** For your own schema, use live PostgreSQL or upload DDL."
+                if dialect == "postgres"
+                else ""
+            )
         )
-    )
 
 if choice != "(paste your own)":
     default_sql = files[choice].read_text(encoding="utf-8")
@@ -257,26 +274,27 @@ if dialect == "postgres" and pg_choice == AUTO:
     DICTIONARIES["postgres"] = available[picked]
     st.caption(f"Dictionary auto-detected: **{picked}**")
 
+# One dictionary for both the analysis and the graph load, whichever source it came from.
+warnings: list[str] = []
+if schema_mode == schema_panel.INFER:
+    book, warnings = infer_dictionary(
+        sql, dialect=dialect, default_schema=inferred_schema or "public"
+    )
+elif schema_mode in (schema_panel.LIVE, schema_panel.DDL):
+    if supplied_book is None:
+        st.info(f"Supply the schema in the sidebar ({schema_mode}) to analyse this SQL.")
+        st.stop()
+    book = supplied_book
+else:
+    book = _dictionary(dialect)
+
 submitted = st.button("Analyse", type="primary")
 
 # The bridge to the graph views: the SQL in the editor, loaded into the lineage graph with
 # the same dictionary choice the analysis uses, so "Ask the lineage" can answer about it.
-kg_pages.load_panel(
-    sql,
-    infer_dictionary(sql, dialect=dialect, default_schema=inferred_schema or "public")[0]
-    if schema_mode == "infer from the SQL"
-    else _dictionary(dialect),
-    _config(dialect),
-)
+kg_pages.load_panel(sql, book, _config(dialect))
 
 if submitted:
-    warnings: list[str] = []
-    if schema_mode == "infer from the SQL":
-        book, warnings = infer_dictionary(
-            sql, dialect=dialect, default_schema=inferred_schema or "public"
-        )
-    else:
-        book = _dictionary(dialect)
 
     if is_inferred(book):
         st.warning(

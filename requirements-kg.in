@@ -23,3 +23,6 @@ mcp
 
 # Agent loop on Claude Code credentials (no API key needed for development).
 claude-agent-sdk
+
+# PostgreSQL driver: reads a live catalogue into a dictionary (`lineage schema pull`).
+psycopg[binary]

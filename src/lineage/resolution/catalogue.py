@@ -115,3 +115,41 @@ def capture(
             temporary=resolved.temporary(cursor, owner),
             triggers=resolved.triggers(cursor, owner),
         )
+
+
+def capture_schemas(
+    connection: Any,
+    schemas: list[str],
+    default_schema: str,
+    captured_at: str,
+    dialect: str = "postgres",
+    catalogue: Catalogue | None = None,
+) -> Dictionary:
+    """`capture`, across several schemas, merged into one `Dictionary`.
+
+    A warehouse spreads its tables over many schemas (`lgx`, `s2p`, `crm`, ...) and one
+    statement joins across them, so a single-schema snapshot would leave most names
+    unresolved. Keys are already `SCHEMA.OBJECT`, so the merge cannot collide.
+    `default_schema` is only what an UNQUALIFIED name means; it need not be in `schemas`.
+    """
+    from lineage.dialects import for_name
+
+    resolved = catalogue if catalogue is not None else for_name(dialect).catalogue
+    parts: dict[str, dict[str, Any]] = {
+        "objects": {},
+        "synonyms": {},
+        "columns": {},
+        "view_text": {},
+        "temporary": {},
+        "triggers": {},
+    }
+    with connection.cursor() as cursor:
+        for schema in sorted({fold(s, dialect) for s in schemas}):
+            for part, found in parts.items():
+                found.update(getattr(resolved, part)(cursor, schema))
+    return Dictionary(
+        captured_at=captured_at,
+        default_schema=fold(default_schema, dialect),
+        dialect=dialect,
+        **parts,
+    )

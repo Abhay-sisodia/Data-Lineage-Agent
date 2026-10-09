@@ -19,8 +19,7 @@ import json
 import sys
 from pathlib import Path
 
-import sqlglot
-from sqlglot import exp
+from lineage.resolution.ddl import ddl_payload
 
 HERE = Path(__file__).resolve().parent
 SCHEMA = HERE / "schema.sql"
@@ -45,33 +44,10 @@ def build(
     # `SCHEMA` read at CALL time: the torture runners point it at their own schema.sql
     # before calling, and a default bound at definition time silently ignored that.
     schema_sql = schema_sql or SCHEMA
-    objects: dict[str, dict[str, str]] = {}
-    columns: dict[str, list[str]] = {}
-
-    for statement in sqlglot.parse(schema_sql.read_text(encoding="utf-8"), dialect="postgres"):
-        if not isinstance(statement, exp.Create) or statement.kind != "TABLE":
-            continue
-        schema = statement.this
-        table = schema.this if isinstance(schema, exp.Schema) else schema
-        owner, name = table.db, table.name
-        if not owner:
-            raise SystemExit(f"unqualified table {name!r} in schema.sql - qualify it")
-        key = f"{owner}.{name}"
-        objects[key] = {"owner": owner, "name": name, "object_type": "TABLE"}
-        columns[key] = [
-            column.name for column in schema.expressions if isinstance(column, exp.ColumnDef)
-        ]
-        if not columns[key]:
-            raise SystemExit(f"{key} has no columns - a column-less relation refuses whole runs")
-
-    return {
-        "captured_at": CAPTURED_AT,
-        "default_schema": default_schema,
-        "dialect": "postgres",
-        "objects": objects,
-        "columns": columns,
-        "temporary": {key: False for key in objects},
-    }
+    try:
+        return ddl_payload(schema_sql.read_text(encoding="utf-8"), default_schema, CAPTURED_AT)
+    except ValueError as error:
+        raise SystemExit(f"{error} ({schema_sql.name})") from error
 
 
 def main() -> int:
