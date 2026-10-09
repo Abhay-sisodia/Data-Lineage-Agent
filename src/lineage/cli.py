@@ -336,6 +336,58 @@ def graph_trace(
         )
 
 
+@graph_app.command("impact")
+def graph_impact(
+    node: Annotated[str, typer.Argument(help="Column or table name; partial names allowed.")],
+    change: Annotated[
+        str, typer.Option("--change", help="drop, rename or type (a type change).")
+    ] = "drop",
+    depth: Annotated[int, typer.Option("--depth", help="Hops to walk downstream.")] = 15,
+    fmt: Annotated[str, typer.Option("--format", help="md, csv or json.")] = "md",
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Write the report here instead of stdout.")
+    ] = None,
+) -> None:
+    """What breaks if a column or table changes: affected columns, statements to edit, unknowns."""
+    from lineage.graph.impact import CHANGES, to_csv, to_markdown
+    from lineage.graph.neo4j_conn import Neo4jSettings, connect
+    from lineage.graph.tools import GraphTools
+
+    if change not in CHANGES:
+        raise typer.BadParameter(f"--change must be one of {', '.join(CHANGES)}")
+    if fmt not in ("md", "csv", "json"):
+        raise typer.BadParameter("--format must be md, csv or json")
+    settings = Neo4jSettings.from_env()
+    with connect(settings) as driver:
+        tools = GraphTools(driver, settings)
+        matches = tools.find(node)
+        if len(matches) > 1:
+            names = ", ".join(m["id"] for m in matches)
+            typer.echo(f"'{node}' matches {names} - be more specific")
+            raise typer.Exit(1)
+        # No match can still be a real column: one in no lineage edge (a join key).
+        report = tools.impact(matches[0]["id"] if matches else node, change, depth)
+        if not report["found"]:
+            typer.echo(f"'{node}' is not in the lineage graph - give schema.table.column")
+            raise typer.Exit(1)
+    if fmt == "md":
+        rendered = to_markdown(report)
+    elif fmt == "csv":
+        rendered = to_csv(report)
+    else:
+        rendered = json.dumps(report, indent=2) + "\n"
+    if out is None:
+        typer.echo(rendered, nl=False)
+        return
+    out.write_text(rendered, encoding="utf-8", newline="\n")
+    summary = report.get("summary", {})
+    typer.echo(
+        f"wrote {out}: {summary.get('affected', 0)} affected, "
+        f"{summary.get('statements_to_edit', 0)} statements to edit, "
+        f"{summary.get('unknowns', 0)} unknowns"
+    )
+
+
 @app.command()
 def version() -> None:
     """Print the analyser version."""

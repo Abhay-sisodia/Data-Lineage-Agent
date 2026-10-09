@@ -81,6 +81,17 @@ class GraphTools:
         """
         return self._walk(node, depth, self._outgoing)
 
+    def impact(self, node: str, change: str = "drop", depth: int = 15) -> dict[str, Any]:
+        """What breaks if a column or table is dropped, renamed or retyped (MVP F3).
+
+        Affected downstream nodes (as `downstream`), the statements and lines to edit -
+        including SQL that names the column with no lineage edge, like a join key - and the
+        unknowns. See `lineage.graph.impact`.
+        """
+        from lineage.graph.impact import impact
+
+        return impact(self, node, change, depth)
+
     def path(self, source: str, target: str, max_hops: int = 8) -> list[list[dict[str, Any]]]:
         """Every shortest lineage path from `source` to `target`, as lists of edges."""
         hops = max(1, min(int(max_hops), 15))

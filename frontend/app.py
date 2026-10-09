@@ -158,12 +158,16 @@ st.set_page_config(page_title="Lineage (temporary)", layout="wide")
 
 # Three views. The two graph views read the lineage knowledge graph in Neo4j (plan C9);
 # "Parse SQL" is the original page and needs nothing but the analyser.
-VIEW = st.sidebar.radio("View", ["Parse SQL", "Ask the lineage", "Lineage graph"], index=0)
+VIEW = st.sidebar.radio(
+    "View", ["Parse SQL", "Ask the lineage", "Lineage graph", "Impact report"], index=0
+)
 if VIEW != "Parse SQL":
     if VIEW == "Ask the lineage":
         kg_pages.ask_page()
-    else:
+    elif VIEW == "Lineage graph":
         kg_pages.graph_page()
+    else:
+        kg_pages.impact_page()
     st.stop()
 
 st.title("Parser output")

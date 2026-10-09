@@ -49,6 +49,8 @@ CALLS: list[tuple[str, dict[str, Any]]] = [
     ("gaps", {"node": "<result:c.sql>.m"}),
     ("coverage", {"table": "mart.top_customers"}),
     ("coverage", {"table": "no.such_table"}),
+    ("impact", {"node": "staging.orders.amount", "change": "drop"}),
+    ("impact", {"node": "mart.top_customers", "change": "rename"}),
 ]
 
 
@@ -100,7 +102,7 @@ async def _over_mcp(calls: list[tuple[str, dict[str, Any]]]) -> dict[str, Any]:
 def test_mcp_returns_exactly_what_the_tools_return(tools: GraphTools) -> None:
     got = asyncio.run(_over_mcp(CALLS))
     assert got["names"] == sorted(
-        ["find", "upstream", "downstream", "path", "explain_edge", "gaps", "coverage"]
+        ["find", "upstream", "downstream", "path", "explain_edge", "gaps", "coverage", "impact"]
     )
     for (name, arguments), over_mcp in zip(CALLS, got["results"], strict=True):
         direct = getattr(tools, name)(**arguments)

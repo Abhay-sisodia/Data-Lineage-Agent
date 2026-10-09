@@ -441,3 +441,101 @@ def _q(text: str) -> str:
 
 def _hl(node: str, focus: set[str]) -> str:
     return ' fillcolor="#fde68a" color="#d97706" penwidth=2' if node in focus else ""
+
+
+def impact_page() -> None:
+    """MVP plan F3: what breaks if a column or table changes - deterministic, no LLM."""
+    from lineage.graph.impact import CHANGES, to_csv, to_markdown
+
+    st.title("Impact report")
+    st.caption(
+        "What breaks if a column or table is dropped, renamed or retyped: the downstream "
+        "columns it reaches, the statements and lines to edit, and what cannot be known. "
+        "Read from the graph - no model call."
+    )
+    tools = _connected()
+    if tools is None:
+        return
+    with st.sidebar:
+        name = st.text_input("Column or table (partial names allowed)", value="amount_cancelled")
+        change = st.radio("Change", list(CHANGES), horizontal=True)
+        depth = st.slider("Hops downstream", 1, 15, 15)
+    matches = tools.find(name, limit=50) if name.strip() else []
+    node = name.strip()
+    if len(matches) > 1:
+        node = st.selectbox(f"'{name}' matches {len(matches)} nodes", [m["id"] for m in matches])
+    elif matches:
+        node = matches[0]["id"]
+    if not node:
+        return
+    report = tools.impact(node, change, depth)
+    if not report["found"]:
+        st.info(f"`{name}` is not in the lineage graph. Give `schema.table.column`.")
+        return
+
+    s = report["summary"]
+    st.markdown(f"**{report['change'].title()} `{report['subject']}`** - {report['consequence']}")
+    top = st.columns(4)
+    top[0].metric("Affected", s["affected"], help="downstream columns or tables")
+    top[1].metric("Statements to edit", s["statements_to_edit"])
+    top[2].metric("Files to edit", s["files_to_edit"])
+    top[3].metric("Unknowns", s["unknowns"])
+
+    st.subheader("Statements to edit")
+    if report["edit"]:
+        st.dataframe(
+            [
+                {
+                    "file": e["file"],
+                    "statement line": e["line"],
+                    "lines naming it": ", ".join(str(n) for n in e["lines"]),
+                    "why": e["reason"],
+                }
+                for e in report["edit"]
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+    else:
+        st.caption("Nothing in the analysed SQL names it.")
+
+    st.subheader("Affected downstream")
+    if report["affected"]:
+        st.dataframe(
+            [
+                {
+                    "hops": a["hops"],
+                    "column or table": a["node"],
+                    "how": a["flow"],
+                    "transform": a["transform"],
+                    "from": a["from"],
+                    "where": f"{a['file']}:{a['line']}",
+                }
+                for a in report["affected"]
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+    else:
+        st.caption("Nothing downstream.")
+
+    st.subheader("Unknowns")
+    unknowns = report["unknowns"]
+    for b in unknowns["boundaries"]:
+        st.warning(f"Boundary `{b['kind']}` on `{b['subject']}` in `{b['statement']}`")
+    for x in unknowns["refusals"]:
+        st.warning(
+            f"Refused statement `{x['file']}`:{x['line']} ({x['code']}) names "
+            f"{', '.join(x['tables'])}: its effect is unknown."
+        )
+    if not s["unknowns"]:
+        st.caption("None: the analysed SQL is fully covered on this path.")
+    for note in report["notes"]:
+        st.caption(f"- {note}")
+
+    stem = report["subject"].replace("<", "").replace(">", "").replace(":", "_").replace("/", "_")
+    left, right = st.columns(2)
+    left.download_button(
+        "Download Markdown", to_markdown(report), f"impact_{stem}.md", mime="text/markdown"
+    )
+    right.download_button("Download CSV", to_csv(report), f"impact_{stem}.csv", mime="text/csv")

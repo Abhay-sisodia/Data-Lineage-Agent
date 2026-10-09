@@ -81,6 +81,13 @@ def coverage(table: str) -> dict[str, Any]:
     return _tools().coverage(table)
 
 
+@server.tool(annotations=READ_ONLY)
+def impact(node: str, change: str = "drop", depth: int = 15) -> dict[str, Any]:
+    """What breaks if a column or table is dropped, renamed or retyped (change: drop,
+    rename, type): affected downstream nodes, statements and lines to edit, unknowns."""
+    return _tools().impact(node, change, depth)
+
+
 @server.resource("lineage://semantics", name="lineage-semantics", mime_type="text/markdown")
 def semantics() -> str:
     """How to read the parser output and the lineage graph."""

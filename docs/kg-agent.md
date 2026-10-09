@@ -55,6 +55,7 @@ docker compose up -d postgres
 | `lineage schema pull --database DB --out D` | read the dictionary from a live PostgreSQL (read-only; schemas and default schema come from the database) |
 | `lineage schema from-ddl FILE --out D` | build the dictionary from `CREATE TABLE` statements |
 | `lineage graph trace COLUMN [--depth N] [--down]` | upstream lineage or downstream impact, from the graph |
+| `lineage graph impact NODE [--change drop\|rename\|type] [--format md\|csv\|json] [--out F]` | impact report: affected columns, statements and lines to edit, unknowns (no LLM) |
 | `lineage ask "QUESTION" [--no-cache]` | answer a question through the agent harness; prints the trace path |
 | `lineage replay TRACE.json` | re-run a trace's tool calls against the current graph; report differences |
 | `lineage eval --run DIR [--questions Q.yaml]` | ask every golden question, save answers and traces, score |
@@ -81,7 +82,7 @@ docker compose up -d postgres
 .venv\Scripts\python.exe -m lineage.mcp.server
 ```
 
-It exposes the seven typed tools, the resource `lineage://semantics` and the prompt `lineage_semantics`.
+It exposes the eight typed tools (including `impact`), the resource `lineage://semantics` and the prompt `lineage_semantics`.
 
 ## 6. The harness (`lineage ask`)
 
@@ -127,6 +128,7 @@ The sidebar's **View** offers three views:
 - **Parse SQL:** the original analyser view. *Schema* in the sidebar: bundled test dictionary, **live PostgreSQL** (Pull schema), **upload DDL**, or infer from the SQL. To ask about SQL you paste, analyse it, then open **Load this SQL into the lineage graph** and press **Load into graph**. *Replace* makes the graph hold only this SQL; *add* merges it beside what is there. Then switch the view.
 - **Ask the lineage:** answer, status, evidence graph and table, unknowns, and the full trace. It uses the cache unless you untick it.
 - **Lineage graph:** a column's upstream lineage or downstream impact, by hops and flows, grouped by table, with the gaps on that lineage.
+- **Impact report:** what breaks if a column or table is dropped, renamed or retyped; downloads as Markdown or CSV.
 
 ## 9. Five tasks to try (the C9 gate)
 

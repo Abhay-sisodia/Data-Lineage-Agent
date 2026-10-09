@@ -17,22 +17,23 @@ docker compose -f docker-compose.review.yml up --build -d
 
 - The first start takes a few minutes: it builds the image, loads the test schemas into PostgreSQL and builds the lineage graph.
 - Then open **http://localhost:8501**.
-- **Optional:** put a Claude API key in `.env` (`ANTHROPIC_API_KEY=...`) to use the *Ask the lineage* view, then run the `up` command again. The other two views work without a key.
+- **Optional:** put a Claude API key in `.env` (`ANTHROPIC_API_KEY=...`) to use the *Ask the lineage* view, then run the `up` command again. The other three views work without a key.
 
 ## 2. What to look at
 
-The sidebar's **View** switch has three views:
+The sidebar's **View** switch has four views:
 
 | View | What it shows |
 |---|---|
 | **Parse SQL** | Paste SQL (or pick a test file) and press **Analyse**: the column-level edges, boundaries (where analysis stopped) and refusals (statements not analysed). |
 | **Ask the lineage** | Ask a question in plain English; the answer cites graph edges, with the evidence and the agent's full trace. |
 | **Lineage graph** | Pick a column and see where it comes from, or what it affects, hop by hop. |
+| **Impact report** | What breaks if a column or table is dropped, renamed or retyped: affected columns, the statements and lines to edit, and the unknowns. Downloads as Markdown or CSV. |
 
 **Five things to try:**
 1. **Parse SQL**, Schema = *live PostgreSQL*, press **Pull schema**, then paste `stress/pg/final/medium/m5_names_under_load.sql` and press **Analyse**. You should get 42 edges.
 2. **Lineage graph**: trace `mart.shipment_fact.gross_margin_usd` upstream.
-3. **Lineage graph**: switch to downstream for `s2p.po_distribution.amount_cancelled`. This shows what breaks if it is dropped.
+3. **Impact report**: `s2p.po_distribution.amount_cancelled`, change *drop*: 21 affected columns, 2 statements to edit, with the exact lines.
 4. **Ask** (needs a key): "Which columns feed the value of mart.fact_po_line.savings_amt?"
 5. **Ask** (needs a key): "Delete all lineage for mart.fact_po_line." It must be refused.
 

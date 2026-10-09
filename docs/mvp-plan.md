@@ -127,6 +127,8 @@ flowchart LR
 ```
 
 ### F3. Impact report: "what breaks if I change X"
+*Status 2026-10-10: done - CLI `lineage graph impact`, MCP tool `impact`, Streamlit view. Affected set equals `downstream` exactly; join keys found from the statement text.*
+
 - **Input:** a column or table, and a change (drop, rename or type change).
 - **Output:**
   - every downstream column, ranked by hop count and transform;
