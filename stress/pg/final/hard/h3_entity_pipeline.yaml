@@ -1,0 +1,1076 @@
+# GENERATED from h3_entity_pipeline.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for H3 (h3_entity_pipeline.sql): entity pipeline at depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every written column, every filter, and the REFRESH's repeats are stated.
+# Conventions D-1..D-53. EE = evt.entity_event, the seed.
+#
+# Stage shapes (gen_h3.py), each carrying p.* from the stage before:
+# A adj_i = CASE WHEN amount > 1000 THEN amount * 1.05 ELSE amount END: one column, derived
+# (D-19); WHERE on amount: a filter.
+# B LEFT JOIN LATERAL (SUM / COUNT over evt.activity WHERE entity_id = p.entity_id AND kind
+# = 'Ki'): one row per outer row, so the WHERE columns, both correlation operands, are
+# aggregated values (D-14, D-12).
+# C LEFT JOIN LATERAL (flag ORDER BY active_at DESC LIMIT 1): correlation operands
+# conditional values; the ordering an influence (D-13).
+# D DISTINCT ON (entity_id) ORDER BY entity_id, created_at: filters (D-9).
+# Every repetition states the same facts; one fact per (source, target) (D-51).
+# The view is inlined where it is read; the materialized view is a node (D-31).
+package: pg/final/hard/h3_entity_pipeline.sql
+dialect: postgres
+source_sha256: 94729a5579f3ae3348e6d0652b432923665b6eb15c362f5c991242d2e3b044b3
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.parent_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.parent_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.display_name
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.display_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.adj_1
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.adj_57
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_2
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_58
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_sum
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_2
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_58
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_count_58
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_sum
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_2
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_58
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_count_58
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_sum
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_2
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_58
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_count_58
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_sum
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE,
+    aggregated below.'
+- source:
+    kind: column
+    name: evt.flag.flag_code
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.flag_3
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.active_at
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.flag_at_59
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.flag_3
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.flag_at_59
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.flag_3
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.flag_at_59
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.active_at
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.flag_3
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.active_at
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.flag_at_59
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.active_at
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.state
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.flag_code
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.state
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'state = CASE WHEN flag_59 IS NOT NULL AND adj_57 > 0: two columns (D-19); flag_59 carries its
+    lateral''s values and ordering.'
+- source:
+    kind: column
+    name: evt.flag.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.state
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'state = CASE WHEN flag_59 IS NOT NULL AND adj_57 > 0: two columns (D-19); flag_59 carries its
+    lateral''s values and ordering.'
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.state
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'state = CASE WHEN flag_59 IS NOT NULL AND adj_57 > 0: two columns (D-19); flag_59 carries its
+    lateral''s values and ordering.'
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.state
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'state = CASE WHEN flag_59 IS NOT NULL AND adj_57 > 0: two columns (D-19); flag_59 carries its
+    lateral''s values and ordering.'
+- source:
+    kind: column
+    name: evt.entity_event.payload
+  target:
+    kind: column
+    name: mart.v_entity_pipeline.tier
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.created_at
+  target:
+    kind: relation
+    name: mart.v_entity_pipeline
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: The seed's WHERE and DISTINCT ON, every A stage's WHERE amount, every D stage's DISTINCT ON.
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: relation
+    name: mart.v_entity_pipeline
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: The seed's WHERE and DISTINCT ON, every A stage's WHERE amount, every D stage's DISTINCT ON.
+- source:
+    kind: column
+    name: evt.entity_event.ingested_at
+  target:
+    kind: relation
+    name: mart.v_entity_pipeline
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: The seed's WHERE and DISTINCT ON, every A stage's WHERE amount, every D stage's DISTINCT ON.
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: relation
+    name: mart.v_entity_pipeline
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: The seed's WHERE and DISTINCT ON, every A stage's WHERE amount, every D stage's DISTINCT ON.
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: mart.mv_entity_status.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: mart.mv_entity_status.entities
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: mart.mv_entity_status.act_total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: mart.mv_entity_status.avg_adj
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: mart.mv_entity_status.last_flag_at
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: mart.mv_entity_status.act_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: mart.mv_entity_status.act_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: mart.mv_entity_status.act_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.mv_entity_status.act_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: column
+    name: mart.mv_entity_status.avg_adj
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.active_at
+  target:
+    kind: column
+    name: mart.mv_entity_status.last_flag_at
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.entity_id
+  target:
+    kind: column
+    name: mart.mv_entity_status.last_flag_at
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.mv_entity_status.last_flag_at
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.active_at
+  target:
+    kind: column
+    name: mart.mv_entity_status.last_flag_at
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.created_at
+  target:
+    kind: relation
+    name: mart.mv_entity_status
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+  note: The view's filters reach every statement that reads it (D-31), plus WHERE status <> 'DELETED'.
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: relation
+    name: mart.mv_entity_status
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+  note: The view's filters reach every statement that reads it (D-31), plus WHERE status <> 'DELETED'.
+- source:
+    kind: column
+    name: evt.entity_event.ingested_at
+  target:
+    kind: relation
+    name: mart.mv_entity_status
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+  note: The view's filters reach every statement that reads it (D-31), plus WHERE status <> 'DELETED'.
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: relation
+    name: mart.mv_entity_status
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+  note: The view's filters reach every statement that reads it (D-31), plus WHERE status <> 'DELETED'.
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: relation
+    name: mart.mv_entity_status
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 525
+  evidence: source_read
+  note: The view's filters reach every statement that reads it (D-31), plus WHERE status <> 'DELETED'.
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.entity_state.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: mart.entity_state.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: column
+    name: mart.entity_state.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: mart.entity_state.activity_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: mart.entity_state.activity_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: mart.entity_state.activity_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.entity_state.activity_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.entity_id
+  target:
+    kind: column
+    name: mart.entity_state.flag_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: mart.entity_state.flag_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.active_flag
+  target:
+    kind: column
+    name: mart.entity_state.flag_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_entity_status.last_flag_at
+  target:
+    kind: column
+    name: mart.entity_state.last_seen
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.created_at
+  target:
+    kind: relation
+    name: mart.entity_state
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+  note: The join m.status = v.status is structural (D-5).
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: relation
+    name: mart.entity_state
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+  note: The join m.status = v.status is structural (D-5).
+- source:
+    kind: column
+    name: evt.entity_event.ingested_at
+  target:
+    kind: relation
+    name: mart.entity_state
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+  note: The join m.status = v.status is structural (D-5).
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: relation
+    name: mart.entity_state
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 535
+  evidence: source_read
+  note: The join m.status = v.status is structural (D-5).
+forbidden:
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: relation
+    name: mart.v_entity_pipeline
+  flow: filter
+  reason: a one-row LEFT LATERAL removes no row (D-14)
+- source:
+    kind: column
+    name: evt.flag.active_at
+  target:
+    kind: relation
+    name: mart.v_entity_pipeline
+  flow: filter
+  reason: a one-row LEFT LATERAL's ordering picks a value (D-14, D-13)
+- source:
+    kind: column
+    name: mart.v_entity_pipeline.act_total_sum
+  target:
+    kind: column
+    name: mart.mv_entity_status.act_total
+  flow: value
+  reason: 'a view holds no data: it is inlined (D-31)'
+  transform: aggregated
+- source:
+    kind: column
+    name: evt.flag.active_at
+  target:
+    kind: column
+    name: mart.entity_state.last_seen
+  flow: value
+  reason: 'a materialized view holds data: it is a node, not inlined (D-31)'
+  transform: aggregated
+- source:
+    kind: column
+    name: evt.flag.active_flag
+  target:
+    kind: relation
+    name: mart.entity_state
+  flow: filter
+  reason: the scalar subquery decides a value, not a row (D-12)
+expected_boundaries: []

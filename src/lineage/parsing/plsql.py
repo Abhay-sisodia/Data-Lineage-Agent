@@ -39,14 +39,45 @@ from lineage.parsing.frontend import (
     UnitRef,
 )
 
-try:
-    from lineage.parsing.generated.PlSqlLexer import PlSqlLexer
-    from lineage.parsing.generated.PlSqlParser import PlSqlParser
-except ModuleNotFoundError as exc:  # pragma: no cover - environment guard
-    raise ModuleNotFoundError(
-        "The ANTLR PL/SQL parser has not been generated. Run:\n"
-        "    .\\.venv\\Scripts\\python.exe scripts\\generate_parser.py"
-    ) from exc
+
+class _Generated:
+    """A generated ANTLR class, imported on first use rather than when this module loads.
+
+    `Program`, `ParsedStatement` and the rest of this module are shared with PostgreSQL,
+    which never parses PL/SQL. Importing the generated parser eagerly made it a hard
+    dependency of every dialect - a clean checkout that never ran `generate_parser.py`
+    (the review bundle's image) could not analyse PostgreSQL at all. Attribute access and
+    calls are forwarded, so `PlSqlParser.StatementContext` and `PlSqlLexer(stream)` read
+    exactly as before; the missing-parser error now comes at the first Oracle parse.
+    """
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+        self._class: Any = None
+
+    def _load(self) -> Any:
+        if self._class is None:
+            import importlib
+
+            try:
+                module = importlib.import_module(f"lineage.parsing.generated.{self._name}")
+            except ModuleNotFoundError as exc:
+                raise ModuleNotFoundError(
+                    "The ANTLR PL/SQL parser has not been generated. Run:\n"
+                    "    .\\.venv\\Scripts\\python.exe scripts\\generate_parser.py"
+                ) from exc
+            self._class = getattr(module, self._name)
+        return self._class
+
+    def __getattr__(self, attr: str) -> Any:
+        return getattr(self._load(), attr)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._load()(*args, **kwargs)
+
+
+PlSqlLexer: Any = _Generated("PlSqlLexer")
+PlSqlParser: Any = _Generated("PlSqlParser")
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,37 @@
+# GENERATED from c_fail.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# control: one fact and the boundary left out on purpose - must FAIL (FP 1, unexpected 1)
+package: pg/final/control/c_fail.sql
+dialect: postgres
+source_sha256: c426486106f48d2caa55b01c9174ca84bf381d51465d1b05535a5b832450fbdc
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: <result>.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 2
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 2
+  evidence: source_read
+forbidden: []
+expected_boundaries: []

@@ -1,0 +1,927 @@
+# GENERATED from e2_aggregation.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for E2 (e2_aggregation.sql): supplier spend aggregation, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# h = s2p.po_header, l = s2p.po_line (lines / vendor_year), s = s2p.supplier.
+package: pg/final/easy/e2_aggregation.sql
+dialect: postgres
+source_sha256: 3c725cedd60460bed2e24e4b927ba98592f51834385f0ffaeee0a664e4d020de
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: s2p.supplier.vendor_name
+  target:
+    kind: column
+    name: <result>.supplier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.spend_year
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.category_id
+  target:
+    kind: column
+    name: <result>.category_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.total_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: COALESCE(amount, quantity * unit_price) is conditional per row; SUM makes it aggregated (D-7,
+    D-51).
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.share_of_year
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: COALESCE(amount, quantity * unit_price) is conditional per row; SUM makes it aggregated (D-7,
+    D-51).
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: column
+    name: <result>.total_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: COALESCE(amount, quantity * unit_price) is conditional per row; SUM makes it aggregated (D-7,
+    D-51).
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: column
+    name: <result>.share_of_year
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: COALESCE(amount, quantity * unit_price) is conditional per row; SUM makes it aggregated (D-7,
+    D-51).
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.total_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: COALESCE(amount, quantity * unit_price) is conditional per row; SUM makes it aggregated (D-7,
+    D-51).
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.share_of_year
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: COALESCE(amount, quantity * unit_price) is conditional per row; SUM makes it aggregated (D-7,
+    D-51).
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.qty_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: FILTER (WHERE purchase_basis ...) and SUM(CASE WHEN purchase_basis ...) both make it a value of
+    that one aggregate (D-10).
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.fixed_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: FILTER (WHERE purchase_basis ...) and SUM(CASE WHEN purchase_basis ...) both make it a value of
+    that one aggregate (D-10).
+- source:
+    kind: column
+    name: s2p.po_line.purchase_basis
+  target:
+    kind: column
+    name: <result>.qty_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: FILTER (WHERE purchase_basis ...) and SUM(CASE WHEN purchase_basis ...) both make it a value of
+    that one aggregate (D-10).
+- source:
+    kind: column
+    name: s2p.po_line.purchase_basis
+  target:
+    kind: column
+    name: <result>.fixed_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: FILTER (WHERE purchase_basis ...) and SUM(CASE WHEN purchase_basis ...) both make it a value of
+    that one aggregate (D-10).
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.premium_lines
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'premium_lines is COUNT(*) FILTER (WHERE unit_price > 1000): the FILTER column is its only value
+    (D-10).'
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.avg_unit_price
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'premium_lines is COUNT(*) FILTER (WHERE unit_price > 1000): the FILTER column is its only value
+    (D-10).'
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.median_unit_price
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'premium_lines is COUNT(*) FILTER (WHERE unit_price > 1000): the FILTER column is its only value
+    (D-10).'
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.last_po_ts
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.currency_code
+  target:
+    kind: column
+    name: <result>.currencies
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.currency_code
+  target:
+    kind: column
+    name: <result>.currencies
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'KEY ERROR KE-01, ADDED AFTER THE FIRST RUN (2026-10-07): string_agg''s own ORDER BY decides the
+    order of the pieces (B1 S11), and D-47 lets the ordered column also be the value. The blind key missed
+    it; the analyser was right.'
+- source:
+    kind: column
+    name: s2p.po_line.line_status
+  target:
+    kind: column
+    name: <result>.any_open
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.line_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.category_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.total_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.qty_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.fixed_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.premium_lines
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.avg_unit_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.last_po_ts
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.median_unit_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.currencies
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.any_open
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.share_of_year
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.line_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.category_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.total_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.qty_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.fixed_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.premium_lines
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.avg_unit_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.last_po_ts
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.median_unit_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.currencies
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.any_open
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.share_of_year
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: <result>.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which
+    created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected)
+    are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'RANK() ORDER BY total_spend: the aggregate''s columns decide the rank (D-4); the GROUP BY behind
+    it (D-46) is the vendor_id / created_at line above.'
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: column
+    name: <result>.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'RANK() ORDER BY total_spend: the aggregate''s columns decide the rank (D-4); the GROUP BY behind
+    it (D-46) is the vendor_id / created_at line above.'
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'RANK() ORDER BY total_spend: the aggregate''s columns decide the rank (D-4); the GROUP BY behind
+    it (D-46) is the vendor_id / created_at line above.'
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.grand_category_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.item_category.parent_category_id
+  target:
+    kind: column
+    name: <result>.grand_category_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: WHERE grouping_level = 3 reads GROUPING(...) only, which carries no lineage (D-50), so the D-12
+    predicate adds no value.
+- source:
+    kind: column
+    name: s2p.po_line.category_id
+  target:
+    kind: column
+    name: <result>.grand_category_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: WHERE grouping_level = 3 reads GROUPING(...) only, which carries no lineage (D-50), so the D-12
+    predicate adds no value.
+- source:
+    kind: column
+    name: s2p.po_header.document_status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.supplier.status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: HAVING SUM(quantity) (post), WHERE vy.total_spend > 1000 over the aggregated CTE (D-6, post),
+    and total_spend in the ORDER BY of the LIMIT (D-9).
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: HAVING SUM(quantity) (post), WHERE vy.total_spend > 1000 over the aggregated CTE (D-6, post),
+    and total_spend in the ORDER BY of the LIMIT (D-9).
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: HAVING SUM(quantity) (post), WHERE vy.total_spend > 1000 over the aggregated CTE (D-6, post),
+    and total_spend in the ORDER BY of the LIMIT (D-9).
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'spend_year leads the ORDER BY of the LIMIT (D-9). RELABELLED UNDER D-56 (2026-10-07): a row limit
+    over an aggregated query removes groups, so every sort key is post-aggregation, the grouping key included.
+    The blind key said pre (D-6 per column); FE-01''s alternative reading was decided the other way. metric_family
+    (''SPEND'') reads no column.'
+forbidden:
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.spend_rank
+  flow: value
+  reason: RANK's ORDER BY decides the rank; no part of total_spend is in it (D-4)
+  transform: aggregated
+- source:
+    kind: column
+    name: s2p.item_category.parent_category_id
+  target:
+    kind: column
+    name: <result>.grand_category_spend
+  flow: value
+  reason: a predicate on GROUPING() reads nothing traceable (D-50)
+  transform: conditional
+- source:
+    kind: column
+    name: s2p.po_line.purchase_basis
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: FILTER (WHERE) and CASE change one aggregate's value, not which rows land (D-10)
+expected_boundaries: []

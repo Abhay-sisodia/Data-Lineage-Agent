@@ -1,0 +1,69 @@
+# Answer key for M5 (m5_names_under_load.sql): names under load.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: "Order" (DISTINCT ON) JOIN lvl4 (lines -> lvl1 -> lvl2 -> lvl3 -> lvl4),
+# and the final WHERE. ORDER BY 1, 13 has no limit: nothing. System columns (ctid, xmin)
+# carry no lineage (TT-1).
+
+@ 23 the whole statement
+
+# --- "Order" ----------------------------------------------------------------------------------
+value lgx.shipment_header.shipment_id -> <result>.shipment_id identity
+value lgx.shipment_header.customer_id -> <result>.customer_id identity
+value lgx.shipment_header.status_code -> <result>.from identity
+note "select" (a keyword, quoted) renamed again to "from".
+note row_xmin is h.xmin, a system column: nothing.
+
+# --- lvl4 chain ---------------------------------------------------------------------------------
+value lgx.shipment_line.shipment_line_id -> <result>.shipment_line_id identity
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price -> <result>.ext derived
+value lgx.shipment_line.shipped_qty -> <result>.shipped_qty identity
+value lgx.shipment_line.last_update_ts -> <result>.line_updated_at identity
+
+# --- customer (outer CTE, LEFT joined, no predicate) ---------------------------------------------
+value crm.customer.customer_name -> <result>.customer_name identity
+value crm.customer.status -> <result>.customer_status identity
+value crm.customer.created_at -> <result>.customer_created_at identity
+forbid value crm.contact.email -> <result>.customer_name | the outer `customer` CTE is crm.customer; only `nested` shadows it
+
+# --- nested (inner WITH customer shadows the outer one) ------------------------------------------
+value crm.contact.email -> <result>.primary_email identity
+value crm.contact.role -> <result>.contact_role identity
+value crm.contact.is_primary -> <result>.primary_email, <result>.contact_role conditional
+forbid value crm.customer.customer_name -> <result>.primary_email | inside `nested`, `customer` is the inner WITH over crm.contact
+forbid filter crm.contact.is_primary -> <result> | nested is reached only through a LEFT join (D-45)
+
+# --- site (JOIN customer USING (customer_id), unqualified country_code) ---------------------------
+value crm.customer_site.site_code -> <result>.Ship To Site identity
+value crm.customer.segment -> <result>.site_segment identity
+value crm.customer_site.country_code -> <result>.Ship To Site, <result>.site_segment conditional
+forbid filter crm.customer_site.country_code -> <result> | site is reached only through a LEFT join (D-45)
+
+# --- regions (bare table name as qualifier) ------------------------------------------------------
+value lgx.warehouse.region_code -> <result>.region_code identity
+
+# --- carrier_name: a scalar subquery whose WHERE holds another (alias x in both) -----------------
+value lgx.carrier.carrier_name -> <result>.carrier_name identity
+value lgx.carrier.carrier_code, lgx.shipment_header.carrier_code, lgx.shipment_header.shipment_id -> <result>.carrier_name conditional
+note D-12 at both depths (D-45): the inner subquery's projected carrier_code is an operand of the outer WHERE, and its own WHERE reads shipment_id twice (inner x and the outer o."id").
+
+# --- last_touch: UNION ALL renaming event_ts / created_at to ts ----------------------------------
+value lgx.package_event.event_ts, evt.activity.created_at -> <result>.last_touch_ts aggregated
+value evt.activity.kind -> <result>.last_touch_ts, <result>.touch_sources aggregated
+influence lgx.package_event.shipment_id, evt.activity.entity_id -> <result>.last_touch_ts, <result>.touch_sources
+note touch_sources = COUNT(DISTINCT src), src a literal in both arms: its only value is the ACT arm's WHERE (D-45).
+forbid filter evt.activity.kind -> <result> | last_touch is reached only through a LEFT join (D-45)
+
+# --- status (a CTE named status, with a column named status) --------------------------------------
+value gold.dim_status.status_name -> <result>.status_name identity
+value gold.dim_status.datasource_num_id -> <result>.status_name conditional
+
+# --- filters -------------------------------------------------------------------------------
+filter lgx.shipment_header.is_deleted, lgx.shipment_header.shipment_id, lgx.shipment_header.updated_at -> <result>
+note DISTINCT ON key and tie-breakers (D-9); the ctid tie-breaker is a system column: nothing.
+filter lgx.shipment_line.line_status -> <result>
+filter lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, lgx.shipment_line.promise_date -> <result>
+note lvl3's WHERE ext > 0 and lvl4's promise_date IS NOT NULL.
+filter lgx.shipment_header.status_code -> <result>

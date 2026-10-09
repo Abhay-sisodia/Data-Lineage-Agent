@@ -14,6 +14,7 @@ folder removes it. Graphs are DOT rendered by Streamlit's built-in graphviz supp
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Any
 
 import streamlit as st
@@ -114,7 +115,7 @@ def rebuild_demo(tools: Any) -> None:
 
     folder = Path(__file__).resolve().parent.parent / "stress" / "pg" / "final"
     if not folder.exists():
-        st.error("stress/pg/final is not on this machine (it is gitignored).")
+        st.error("stress/pg/final is not on this machine.")
         return
     config = AnalysisConfig.load().model_copy(update={"dialect": "postgres"})
     results = analyse_folder(folder, Dictionary.load(folder / "dictionary.json"), config)
@@ -346,6 +347,15 @@ def ask_page() -> None:
     )
     tools = _connected()
     if tools is None:
+        return
+    # In the review bundle there is no Claude Code login to fall back on: the agent needs a key.
+    if os.environ.get("LINEAGE_REQUIRE_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY"):
+        st.info(
+            "**Asking needs a Claude API key.** Put `ANTHROPIC_API_KEY=...` in the `.env` file "
+            "next to `docker-compose.review.yml`, then restart: "
+            "`docker compose -f docker-compose.review.yml up -d`. "
+            "The Parse SQL and Lineage graph views work without one."
+        )
         return
     with st.sidebar:
         use_cache = st.checkbox(

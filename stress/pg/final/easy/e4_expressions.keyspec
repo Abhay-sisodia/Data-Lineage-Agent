@@ -1,0 +1,40 @@
+# Answer key for E4 (e4_expressions.sql): item and shipment expressions, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+# D-19: CASE / COALESCE / NULLIF / GREATEST / LEAST are conditional only when the node reads
+# two or more distinct columns.
+
+@ 16 the whole statement
+
+# --- priced (item_master) --------------------------------------------------------------------
+value lgx.item_master.item_id -> <result>.integration_id derived
+value lgx.item_master.item_code -> <result>.code_norm, <result>.code_parts derived
+note code_parts = ARRAY[SUBSTRING(item_code ...), split_part(item_code ...)].
+value lgx.item_master.item_desc, lgx.item_master.item_code -> <result>.display_name conditional
+value lgx.item_master.list_price, lgx.item_master.std_cost -> <result>.margin_band conditional
+value lgx.item_master.list_price, lgx.item_master.std_cost -> <result>.margin_pct derived
+forbid value lgx.item_master.list_price -> <result>.margin_pct conditional | NULLIF(list_price, 0) reads one column: a guard, derived (D-19)
+value lgx.item_master.item_class, lgx.item_master.weight_kg -> <result>.ship_weight conditional
+value lgx.item_master.attrs -> <result>.hazmat_class, <result>.length_cm, <result>.shelf_life_days, <result>.is_serialised derived
+note D-29: a jsonb path or key test reads the document column. shelf_life_days' COALESCE has one column.
+value lgx.item_master.tags -> <result>.tag_count, <result>.primary_tag derived
+value lgx.item_master.created_at -> <result>.created_month, <result>.created_month_start, <result>.age_days derived
+value lgx.item_master.item_code, lgx.item_master.weight_kg -> <result>.uom_key derived
+note util.normalise_uom has no body here: its arguments are derived values, and the call is declared (D-53).
+expect source_unavailable NORMALISE_UOM | D-53: the edge rests on a body that was not read
+
+# --- the joined shipment line ----------------------------------------------------------------
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price -> <result>.ext_amount derived
+value lgx.shipment_line.ship_date, lgx.shipment_line.promise_date -> <result>.latest_date conditional
+value lgx.shipment_line.ordered_qty, lgx.shipment_line.shipped_qty -> <result>.capped_qty conditional
+value lgx.shipment_line.ship_date, lgx.shipment_line.promise_date -> <result>.days_late, <result>.is_late derived
+value lgx.shipment_line.line_attrs -> <result>.is_rush derived
+value lgx.shipment_line.cancelled_qty -> <result>.cancelled_qty derived
+value lgx.item_master.item_code, lgx.shipment_line.shipped_qty -> <result>.payload derived
+value lgx.item_master.item_id, lgx.shipment_line.shipment_line_id -> <result>.row_hash derived
+note schema_version ('v1') and reserved_amount (NULL::numeric) read no column. The join key sl.item_id = p.item_id is structural (D-5).
+
+# --- filters -------------------------------------------------------------------------------
+filter lgx.item_master.item_class -> <result>
+filter lgx.shipment_line.line_status, lgx.shipment_line.shipped_qty, lgx.shipment_line.line_type_code, lgx.shipment_line.unit_selling_price -> <result>

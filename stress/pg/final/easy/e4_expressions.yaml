@@ -1,0 +1,605 @@
+# GENERATED from e4_expressions.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for E4 (e4_expressions.sql): item and shipment expressions, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+# D-19: CASE / COALESCE / NULLIF / GREATEST / LEAST are conditional only when the node reads
+# two or more distinct columns.
+package: pg/final/easy/e4_expressions.sql
+dialect: postgres
+source_sha256: 3ca14d0d681b53c03ef8e6c4c795d1745076668d6a4301c9276c06c9f26a9bb5
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: column
+    name: <result>.integration_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: <result>.code_norm
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: code_parts = ARRAY[SUBSTRING(item_code ...), split_part(item_code ...)].
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: <result>.code_parts
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: code_parts = ARRAY[SUBSTRING(item_code ...), split_part(item_code ...)].
+- source:
+    kind: column
+    name: lgx.item_master.item_desc
+  target:
+    kind: column
+    name: <result>.display_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: <result>.display_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.list_price
+  target:
+    kind: column
+    name: <result>.margin_band
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.std_cost
+  target:
+    kind: column
+    name: <result>.margin_band
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.list_price
+  target:
+    kind: column
+    name: <result>.margin_pct
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.std_cost
+  target:
+    kind: column
+    name: <result>.margin_pct
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_class
+  target:
+    kind: column
+    name: <result>.ship_weight
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.weight_kg
+  target:
+    kind: column
+    name: <result>.ship_weight
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.attrs
+  target:
+    kind: column
+    name: <result>.hazmat_class
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'D-29: a jsonb path or key test reads the document column. shelf_life_days'' COALESCE has one
+    column.'
+- source:
+    kind: column
+    name: lgx.item_master.attrs
+  target:
+    kind: column
+    name: <result>.length_cm
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'D-29: a jsonb path or key test reads the document column. shelf_life_days'' COALESCE has one
+    column.'
+- source:
+    kind: column
+    name: lgx.item_master.attrs
+  target:
+    kind: column
+    name: <result>.shelf_life_days
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'D-29: a jsonb path or key test reads the document column. shelf_life_days'' COALESCE has one
+    column.'
+- source:
+    kind: column
+    name: lgx.item_master.attrs
+  target:
+    kind: column
+    name: <result>.is_serialised
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'D-29: a jsonb path or key test reads the document column. shelf_life_days'' COALESCE has one
+    column.'
+- source:
+    kind: column
+    name: lgx.item_master.tags
+  target:
+    kind: column
+    name: <result>.tag_count
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.tags
+  target:
+    kind: column
+    name: <result>.primary_tag
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.created_at
+  target:
+    kind: column
+    name: <result>.created_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.created_at
+  target:
+    kind: column
+    name: <result>.created_month_start
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.created_at
+  target:
+    kind: column
+    name: <result>.age_days
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: <result>.uom_key
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'util.normalise_uom has no body here: its arguments are derived values, and the call is declared
+    (D-53).'
+- source:
+    kind: column
+    name: lgx.item_master.weight_kg
+  target:
+    kind: column
+    name: <result>.uom_key
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'util.normalise_uom has no body here: its arguments are derived values, and the call is declared
+    (D-53).'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.ext_amount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.ext_amount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.latest_date
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.latest_date
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ordered_qty
+  target:
+    kind: column
+    name: <result>.capped_qty
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.capped_qty
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.days_late
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.is_late
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.days_late
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.is_late
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.line_attrs
+  target:
+    kind: column
+    name: <result>.is_rush
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.cancelled_qty
+  target:
+    kind: column
+    name: <result>.cancelled_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: <result>.payload
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.payload
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: column
+    name: <result>.row_hash
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: schema_version ('v1') and reserved_amount (NULL::numeric) read no column. The join key sl.item_id
+    = p.item_id is structural (D-5).
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.row_hash
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: schema_version ('v1') and reserved_amount (NULL::numeric) read no column. The join key sl.item_id
+    = p.item_id is structural (D-5).
+- source:
+    kind: column
+    name: lgx.item_master.item_class
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.line_status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.line_type_code
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: lgx.item_master.list_price
+  target:
+    kind: column
+    name: <result>.margin_pct
+  flow: value
+  reason: 'NULLIF(list_price, 0) reads one column: a guard, derived (D-19)'
+  transform: conditional
+expected_boundaries:
+- kind: source_unavailable
+  subject: NORMALISE_UOM
+  reason: 'D-53: the edge rests on a body that was not read'

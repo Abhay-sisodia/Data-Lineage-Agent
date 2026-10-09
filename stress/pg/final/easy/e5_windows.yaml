@@ -1,0 +1,777 @@
+# GENERATED from e5_windows.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for E5 (e5_windows.sql): entity activity windows, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# a = evt.activity. w_entity = PARTITION BY entity_id; w_entity_ordered inherits it and adds
+# ORDER BY created_at, sequence_no. A window's partition and order are INFLUENCE (D-4), and
+# influence is carried into any column computed from a windowed one.
+package: pg/final/easy/e5_windows.sql
+dialect: postgres
+source_sha256: 782161857b85df99be9ab68f03d3a0462aca0160edf797355e952e01d38d8619
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: evt.activity.activity_id
+  target:
+    kind: column
+    name: <result>.activity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: <result>.kind
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.running_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.amount_30d
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.moving_avg_3
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.prev_amount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: LAG is derived (D-3); delta_amount = amount - COALESCE(prev_amount, 0), one column per COALESCE
+    (D-19).
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.delta_amount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: LAG is derived (D-3); delta_amount = amount - COALESCE(prev_amount, 0), one column per COALESCE
+    (D-19).
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.next_activity_ts
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: <result>.first_kind
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.running_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.moving_avg_3
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.prev_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.delta_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.next_activity_ts
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.activity_seq
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.running_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.moving_avg_3
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.prev_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.delta_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.next_activity_ts
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.activity_seq
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.sequence_no
+  target:
+    kind: column
+    name: <result>.running_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.sequence_no
+  target:
+    kind: column
+    name: <result>.moving_avg_3
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.sequence_no
+  target:
+    kind: column
+    name: <result>.prev_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.sequence_no
+  target:
+    kind: column
+    name: <result>.delta_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.sequence_no
+  target:
+    kind: column
+    name: <result>.next_activity_ts
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.sequence_no
+  target:
+    kind: column
+    name: <result>.activity_seq
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'next_activity_ts: created_at is both its value and part of its ordering (D-47).'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.amount_30d
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.first_kind
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.amount_30d
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.first_kind
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: <result>.region_events
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: <result>.region_amount_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.region_amount_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.entity_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.share_in_region
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.entity_total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'The GROUP BY decides each aggregate (D-2) and so each window ordered or partitioned by one (D-46):
+    activity_quartile is NTILE ordered by COUNT(*), which has no column of its own.'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.share_in_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'The GROUP BY decides each aggregate (D-2) and so each window ordered or partitioned by one (D-46):
+    activity_quartile is NTILE ordered by COUNT(*), which has no column of its own.'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.entity_rank_in_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'The GROUP BY decides each aggregate (D-2) and so each window ordered or partitioned by one (D-46):
+    activity_quartile is NTILE ordered by COUNT(*), which has no column of its own.'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.activity_quartile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'The GROUP BY decides each aggregate (D-2) and so each window ordered or partitioned by one (D-46):
+    activity_quartile is NTILE ordered by COUNT(*), which has no column of its own.'
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: <result>.entity_total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'The GROUP BY decides each aggregate (D-2) and so each window ordered or partitioned by one (D-46):
+    activity_quartile is NTILE ordered by COUNT(*), which has no column of its own.'
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: <result>.share_in_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'The GROUP BY decides each aggregate (D-2) and so each window ordered or partitioned by one (D-46):
+    activity_quartile is NTILE ordered by COUNT(*), which has no column of its own.'
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: <result>.entity_rank_in_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'The GROUP BY decides each aggregate (D-2) and so each window ordered or partitioned by one (D-46):
+    activity_quartile is NTILE ordered by COUNT(*), which has no column of its own.'
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: <result>.activity_quartile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'The GROUP BY decides each aggregate (D-2) and so each window ordered or partitioned by one (D-46):
+    activity_quartile is NTILE ordered by COUNT(*), which has no column of its own.'
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.entity_rank_in_region
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: RANK() ORDER BY total_amount (D-4).
+- source:
+    kind: column
+    name: evt.entity_event.display_name
+  target:
+    kind: column
+    name: <result>.display_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: <result>.display_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.amount_pct_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: PERCENT_RANK() OVER (ORDER BY r.amount) (D-4).
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'acts'' WHERE created_at, and activity_seq <= 10 cuts ROW_NUMBER() OVER w_entity_ordered: its
+    partition and order decide which rows survive (D-9). ORDER BY with no limit gives nothing.'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'acts'' WHERE created_at, and activity_seq <= 10 cuts ROW_NUMBER() OVER w_entity_ordered: its
+    partition and order decide which rows survive (D-9). ORDER BY with no limit gives nothing.'
+- source:
+    kind: column
+    name: evt.activity.sequence_no
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+  note: 'acts'' WHERE created_at, and activity_seq <= 10 cuts ROW_NUMBER() OVER w_entity_ordered: its
+    partition and order decide which rows survive (D-9). ORDER BY with no limit gives nothing.'
+forbidden:
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: <result>.region_amount_rank
+  flow: value
+  reason: DENSE_RANK's ORDER BY decides the rank; no part of amount is in it (D-4)
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: a LEFT join's one-relation ON condition removes no row (D-48)
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: a window removes no rows (D-4)
+expected_boundaries: []

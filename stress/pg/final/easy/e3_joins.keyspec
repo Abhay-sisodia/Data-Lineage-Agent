@@ -1,0 +1,63 @@
+# Answer key for E3 (e3_joins.sql): shipment joins, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# The row-deciding path is hdr (shipment_header) JOIN shipment_line JOIN customer, plus the
+# final WHERE. cs, site, org, wh and plan_vs_ship are reached only through LEFT joins, so
+# every predicate inside or on them is a conditional VALUE of what they feed (D-45, D-48,
+# D-49), never a filter.
+
+@ 17 the whole statement
+
+# --- inner spine ---------------------------------------------------------------------------
+value lgx.shipment_line.shipment_line_id -> <result>.shipment_line_id identity
+value lgx.shipment_header.shipment_id -> <result>.shipment_id identity
+value crm.customer.customer_name -> <result>.customer_name identity
+value lgx.shipment_line.shipped_qty -> <result>.shipped_qty identity
+
+# --- cs: carrier LEFT JOIN (carrier_service NATURAL JOIN transport_mode) USING, WHERE active
+value lgx.carrier.carrier_name -> <result>.carrier_name identity
+value lgx.carrier_service.service_level -> <result>.service_level identity
+value lgx.transport_mode.mode_desc -> <result>.mode_desc identity
+value lgx.shipment_line.ship_date, lgx.carrier_service.transit_days -> <result>.expected_delivery derived
+note ship_date + COALESCE(transit_days, 0): the COALESCE reads one column (D-19).
+value lgx.carrier.active_flag -> <result>.carrier_name, <result>.service_level, <result>.mode_desc, <result>.expected_delivery conditional
+note cs's WHERE cr.active_flag cannot remove a result row through the LEFT join: a value of every column cs feeds (D-45).
+forbid filter lgx.carrier.active_flag -> <result> | cs is reached only through a LEFT join (D-45)
+
+# --- site: LEFT join with a one-relation ON condition (D-48) -------------------------------
+value crm.customer_site.site_code -> <result>.site_code identity
+value crm.customer_site.time_zone_name -> <result>.site_code conditional
+forbid filter crm.customer_site.time_zone_name -> <result> | on a LEFT join's null side the ON condition removes no row (D-48)
+
+# --- org: LEFT join with a range ON (D-49 on the null side = values, D-48) ------------------
+value gold.dim_organization.org_name -> <result>.ship_from_org identity
+value gold.dim_organization.organization_start_date, gold.dim_organization.organization_end_date, lgx.shipment_header.created_at -> <result>.ship_from_org conditional
+note The key equality org.integration_id = hdr.ship_from_org_id::text stays structural (D-5, D-11).
+forbid filter gold.dim_organization.organization_start_date -> <result> | a range condition on a LEFT join's null side decides a value, not a row (D-49, D-48)
+
+# --- wh: organization RIGHT JOIN warehouse ON ... AND o.is_active, itself LEFT joined -------
+value lgx.warehouse.warehouse_code -> <result>.warehouse_code identity
+value crm.organization.org_name -> <result>.warehouse_org identity
+value crm.organization.is_active -> <result>.warehouse_org conditional
+forbid value crm.organization.is_active -> <result>.warehouse_code conditional | the RIGHT join keeps every warehouse; is_active only decides whether org_name is filled
+
+# --- plan_vs_ship: FULL JOIN of two aggregates ----------------------------------------------
+value lgx.bill_of_material.qty_per -> <result>.planned_qty aggregated
+influence lgx.bill_of_material.parent_item_id -> <result>.planned_qty
+value lgx.shipment_line.shipped_qty -> <result>.shipped_total aggregated
+influence lgx.shipment_line.item_id -> <result>.shipped_total
+note The FULL JOIN key and the COALESCE(item_id) join key are structural (D-5).
+
+# --- filters -------------------------------------------------------------------------------
+filter lgx.shipment_header.is_deleted -> <result>
+filter crm.customer.status -> <result>
+note An INNER join's one-relation ON condition removes rows as WHERE would (D-48).
+filter lgx.shipment_header.status_code -> <result>
+filter lgx.shipment_line.ship_date, lgx.shipment_header.created_at -> <result>
+note ln.ship_date >= hdr.created_at::date: a non-equality between two relations, both operands (D-49).
+filter lgx.shipment_header.customer_id, crm.contact.customer_id, crm.contact.is_primary -> <result>
+note IN (subquery): both match columns and the subquery's WHERE (D-52).
+filter lgx.package_event.shipment_id, lgx.shipment_header.shipment_id, lgx.package_event.event_type -> <result>
+note NOT EXISTS: both correlation operands and the subquery's own predicate (D-52).

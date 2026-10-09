@@ -1,0 +1,164 @@
+# Answer key for H4 (h4_nightly_load.sql): the nightly load script, 18 statements.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every written column, every filter, every repeated fact and the one refusal.
+# Conventions D-1..D-53 and the B3 / B7 key conventions.
+#
+# ST = pg_temp.stg_ship, CM = pg_temp.cust_metrics, SE = pg_temp.stg_entity (temp tables are
+# nodes, D-31); MSF = mart.shipment_fact, MCS = mart.customer_snapshot, ES = mart.entity_state,
+# SS = mart.supplier_spend, DE = gold.dim_employee. BEGIN, SET LOCAL, ANALYZE and COMMIT carry
+# nothing. A fact two statements produce is stated once and restated with `repeat`.
+
+@ 40 S1 CREATE TEMP TABLE stg_ship
+value lgx.shipment_line.shipment_line_id -> pg_temp.stg_ship.shipment_line_id identity
+value lgx.shipment_header.shipment_id -> pg_temp.stg_ship.shipment_id identity
+value lgx.shipment_header.customer_id -> pg_temp.stg_ship.customer_id identity
+value lgx.shipment_line.item_id -> pg_temp.stg_ship.item_id identity
+value lgx.shipment_line.line_status -> pg_temp.stg_ship.line_status identity
+value lgx.shipment_line.ship_date -> pg_temp.stg_ship.ship_date identity
+value lgx.shipment_line.shipped_qty -> pg_temp.stg_ship.shipped_qty identity
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate -> pg_temp.stg_ship.ext_amount_usd, pg_temp.stg_ship.gross_margin_usd derived
+value lgx.item_master.std_cost -> pg_temp.stg_ship.gross_margin_usd derived
+value gold.fx_rate.to_ccy -> pg_temp.stg_ship.ext_amount_usd, pg_temp.stg_ship.gross_margin_usd conditional
+influence gold.fx_rate.from_ccy, gold.fx_rate.rate_date, gold.fx_rate.loaded_at -> pg_temp.stg_ship.ext_amount_usd, pg_temp.stg_ship.gross_margin_usd
+note fx is LEFT joined: its WHERE to_ccy is a value, its DISTINCT ON key and tie-breaker are influence (D-45, as E1's null-side dedup).
+forbid filter gold.fx_rate.to_ccy -> pg_temp.stg_ship | fx is reached only through a LEFT join (D-45)
+value lgx.shipment_line.ship_date, lgx.shipment_line.promise_date -> pg_temp.stg_ship.delivery_class conditional
+value lgx.shipment_line.ship_date, lgx.shipment_line.promise_date -> pg_temp.stg_ship.is_late derived
+value lgx.carrier.carrier_name -> pg_temp.stg_ship.carrier_name identity
+value lgx.package_event.event_type -> pg_temp.stg_ship.packages_packed aggregated
+value lgx.package_event.event_ts -> pg_temp.stg_ship.last_event_ts aggregated
+influence lgx.package_event.shipment_id -> pg_temp.stg_ship.packages_packed, pg_temp.stg_ship.last_event_ts
+filter lgx.shipment_header.is_deleted, lgx.shipment_header.shipment_id, lgx.shipment_header.version_no, lgx.shipment_line.last_update_ts -> pg_temp.stg_ship
+
+@ 106 S2 UPDATE mart.shipment_fact FROM stg_ship
+value pg_temp.stg_ship.shipped_qty -> mart.shipment_fact.shipped_qty identity
+value pg_temp.stg_ship.ext_amount_usd -> mart.shipment_fact.ext_amount_usd identity
+value pg_temp.stg_ship.gross_margin_usd -> mart.shipment_fact.gross_margin_usd identity
+value pg_temp.stg_ship.delivery_class -> mart.shipment_fact.delivery_class identity
+value pg_temp.stg_ship.is_late -> mart.shipment_fact.is_late identity
+filter mart.shipment_fact.ext_amount_usd, pg_temp.stg_ship.ext_amount_usd, mart.shipment_fact.delivery_class, pg_temp.stg_ship.delivery_class -> mart.shipment_fact
+note IS DISTINCT FROM between the target and the FROM table: non-equalities, both operands (D-49). The shipment_line_id equality is structural (D-11).
+forbid value lgx.shipment_line.shipped_qty -> mart.shipment_fact.shipped_qty identity | the temp table holds data: it is a node (D-31)
+
+@ 121 S3 INSERT new lines WHERE NOT EXISTS
+value pg_temp.stg_ship.shipment_line_id -> mart.shipment_fact.shipment_line_id identity
+value pg_temp.stg_ship.shipment_id -> mart.shipment_fact.shipment_id identity
+value pg_temp.stg_ship.customer_id -> mart.shipment_fact.customer_id identity
+value pg_temp.stg_ship.item_id -> mart.shipment_fact.item_id identity
+value pg_temp.stg_ship.ship_date -> mart.shipment_fact.ship_date identity
+repeat value pg_temp.stg_ship.shipped_qty -> mart.shipment_fact.shipped_qty identity
+repeat value pg_temp.stg_ship.ext_amount_usd -> mart.shipment_fact.ext_amount_usd identity
+repeat value pg_temp.stg_ship.gross_margin_usd -> mart.shipment_fact.gross_margin_usd identity
+repeat value pg_temp.stg_ship.delivery_class -> mart.shipment_fact.delivery_class identity
+repeat value pg_temp.stg_ship.is_late -> mart.shipment_fact.is_late identity
+filter pg_temp.stg_ship.line_status, mart.shipment_fact.shipment_line_id, pg_temp.stg_ship.shipment_line_id -> mart.shipment_fact
+# NOT EXISTS against the target: both match columns (D-52).
+
+@ 144 S4 DELETE ... USING
+filter lgx.shipment_line.line_status -> mart.shipment_fact
+
+@ 152 S5 writable CTE: UPDATE ... RETURNING feeding an INSERT
+filter mart.customer_snapshot.customer_id, crm.customer.customer_id, crm.customer.status -> mart.customer_snapshot
+filter mart.customer_snapshot.customer_id, crm.customer.customer_id, crm.customer.status -> mart.load_audit
+note D-17: the UPDATE's predicate decides which snapshots are closed AND which audit rows are written.
+value mart.customer_snapshot.customer_id -> mart.load_audit.run_id identity
+note D-16: a returned column's source is the written table's column. SET status = 'CLOSED', updated_at = now(): literals.
+
+@ 168 S6 MERGE mart.customer_snapshot
+value mart.shipment_fact.customer_id -> mart.customer_snapshot.customer_id identity
+value crm.customer.customer_name -> mart.customer_snapshot.customer_name identity
+value crm.customer.segment -> mart.customer_snapshot.segment identity
+value mart.shipment_fact.ext_amount_usd -> mart.customer_snapshot.lifetime_revenue aggregated
+value mart.shipment_fact.ship_date -> mart.customer_snapshot.last_ship_date aggregated
+value mart.shipment_fact.delivery_class -> mart.customer_snapshot.open_lines aggregated
+influence mart.shipment_fact.customer_id, crm.customer.customer_name, crm.customer.segment -> mart.customer_snapshot.lifetime_revenue, mart.customer_snapshot.last_ship_date, mart.customer_snapshot.open_lines
+repeat filter crm.customer.status -> mart.customer_snapshot
+filter mart.shipment_fact.ext_amount_usd -> mart.customer_snapshot post
+filter mart.customer_snapshot.lifetime_revenue, mart.customer_snapshot.status -> mart.customer_snapshot
+note USING's WHERE (restated from S5); MATCHED AND s.lifetime_revenue (a SUM: post, D-6) vs t.lifetime_revenue; BY SOURCE AND t.status.
+
+@ 196 S7 TRUNCATE - refused by name
+expect refusal <SCRIPT>:196 | TRUNCATE is in the refusal register (B3); nothing in front of it on its own line block, so F0-08 does not apply
+
+@ 201 S8 audit INSERT after the refusal
+value mart.shipment_fact.load_ts -> mart.load_audit.run_ts aggregated
+filter mart.shipment_fact.load_ts -> mart.load_audit
+note run_id (epoch of now()), table_name and COUNT(*) read no column.
+
+@ 212 S9 CREATE TEMP TABLE cust_metrics
+value mart.shipment_fact.customer_id -> pg_temp.cust_metrics.customer_id identity
+value mart.shipment_fact.ext_amount_usd -> pg_temp.cust_metrics.revenue aggregated
+value mart.shipment_fact.gross_margin_usd, mart.shipment_fact.ext_amount_usd -> pg_temp.cust_metrics.margin_pct aggregated
+value mart.shipment_fact.is_late -> pg_temp.cust_metrics.late_ratio, pg_temp.cust_metrics.segment_hint aggregated
+influence mart.shipment_fact.customer_id -> pg_temp.cust_metrics.revenue, pg_temp.cust_metrics.margin_pct, pg_temp.cust_metrics.late_ratio, pg_temp.cust_metrics.revenue_rank, pg_temp.cust_metrics.segment_hint
+influence mart.shipment_fact.ext_amount_usd -> pg_temp.cust_metrics.revenue_rank, pg_temp.cust_metrics.segment_hint
+note RANK() OVER (ORDER BY revenue) (D-4, D-46); segment_hint is a CASE over revenue_rank and late_ratio and carries both their influences.
+filter mart.shipment_fact.ship_date -> pg_temp.cust_metrics
+
+@ 246 S10 UPDATE the snapshot FROM cust_metrics
+value pg_temp.cust_metrics.segment_hint, mart.customer_snapshot.segment -> mart.customer_snapshot.segment conditional
+value pg_temp.cust_metrics.revenue -> mart.customer_snapshot.lifetime_revenue identity
+repeat filter mart.customer_snapshot.status -> mart.customer_snapshot
+
+@ 256 S11 reconciliation SELECT (FULL JOIN)
+value mart.shipment_fact.shipment_line_id, pg_temp.stg_ship.shipment_line_id -> <result>.shipment_line_id, <result>.presence conditional
+value mart.shipment_fact.ext_amount_usd -> <result>.fact_amount identity
+value pg_temp.stg_ship.ext_amount_usd -> <result>.staged_amount identity
+value mart.shipment_fact.ext_amount_usd, pg_temp.stg_ship.ext_amount_usd -> <result>.amount_gap derived
+filter mart.shipment_fact.ext_amount_usd, pg_temp.stg_ship.ext_amount_usd -> <result>
+note A non-equality between the two sides of a FULL JOIN, in WHERE: both operands (D-49, D-11).
+
+@ 273 S12 CREATE TEMP TABLE stg_entity
+value evt.entity_event.entity_id -> pg_temp.stg_entity.entity_id identity
+value evt.entity_event.status -> pg_temp.stg_entity.status identity
+value evt.entity_event.amount -> pg_temp.stg_entity.amount identity
+value evt.activity.amount, evt.activity.kind -> pg_temp.stg_entity.activity_total aggregated
+value evt.flag.active_flag -> pg_temp.stg_entity.flag_count aggregated
+value evt.entity_event.created_at -> pg_temp.stg_entity.last_seen conditional
+value evt.activity.created_at, evt.activity.kind -> pg_temp.stg_entity.last_seen aggregated
+influence evt.activity.entity_id -> pg_temp.stg_entity.activity_total, pg_temp.stg_entity.last_seen
+influence evt.flag.entity_id -> pg_temp.stg_entity.flag_count
+note acts and flags are LEFT joined: their own WHERE is an aggregated value of what each feeds (D-45). last_seen = GREATEST(created_at, MAX(activity.created_at)).
+filter evt.entity_event.entity_id, evt.entity_event.created_at, evt.entity_event.status -> pg_temp.stg_entity
+forbid filter evt.activity.kind -> pg_temp.stg_entity | acts is reached only through a LEFT join (D-45)
+
+@ 306 S13 MERGE mart.entity_state USING stg_entity, INSERT VALUES by position
+value pg_temp.stg_entity.entity_id -> mart.entity_state.entity_id identity
+value pg_temp.stg_entity.status -> mart.entity_state.status identity
+value pg_temp.stg_entity.amount -> mart.entity_state.amount identity
+value pg_temp.stg_entity.activity_total -> mart.entity_state.activity_total identity
+value pg_temp.stg_entity.flag_count -> mart.entity_state.flag_count identity
+value pg_temp.stg_entity.last_seen -> mart.entity_state.last_seen identity
+filter mart.entity_state.amount, pg_temp.stg_entity.amount, mart.entity_state.status, pg_temp.stg_entity.status -> mart.entity_state
+
+@ 321 S14 DELETE WHERE NOT EXISTS in the temp table
+filter pg_temp.stg_entity.entity_id, mart.entity_state.entity_id, mart.entity_state.last_seen -> mart.entity_state
+
+@ 328 S15 audit INSERT with no column source
+# SELECT 2, 'entity_state', COUNT(*), now() FROM stg_entity: no fact.
+
+@ 335 S16 supplier spend ... ON CONFLICT DO NOTHING
+value s2p.po_header.vendor_id -> mart.supplier_spend.supplier_id identity
+value s2p.supplier.vendor_name -> mart.supplier_spend.supplier_name identity
+value s2p.po_header.created_at -> mart.supplier_spend.spend_year derived
+value s2p.po_header.po_header_id -> mart.supplier_spend.po_count aggregated
+value s2p.po_line.amount -> mart.supplier_spend.total_spend aggregated
+influence s2p.po_header.vendor_id, s2p.po_header.created_at -> mart.supplier_spend.po_count, mart.supplier_spend.total_spend, mart.supplier_spend.spend_rank
+influence s2p.po_line.amount -> mart.supplier_spend.spend_rank
+note GROUP BY 1, 2 is vendor_id and the year expression; ROW_NUMBER() OVER (PARTITION BY spend_year ORDER BY total_spend) (D-4, D-46). total_savings is NULL.
+filter s2p.po_header.document_status, s2p.supplier.status -> mart.supplier_spend
+
+@ 362 S17 SCD2 close: UPDATE gold.dim_employee FROM s2p.person
+filter gold.dim_employee.effective_to_date, gold.dim_employee.full_name, s2p.person.full_name, s2p.person.active_flag -> gold.dim_employee
+note SET effective_to_date = now(), is_delete = 'Y': no source. The integration_id equality to 'PER~' || person_id is the join (D-11); full_name IS DISTINCT FROM: both operands (D-49).
+
+@ 373 S18 SCD2 open: INSERT new versions WHERE NOT EXISTS
+value gold.dim_employee.employee_sk -> gold.dim_employee.employee_sk aggregated
+influence s2p.person.person_id -> gold.dim_employee.employee_sk
+note (SELECT MAX(employee_sk) ...) + ROW_NUMBER() OVER (ORDER BY person_id): an aggregated self-read plus the ordering's influence.
+value s2p.person.person_id -> gold.dim_employee.integration_id derived
+value s2p.person.full_name -> gold.dim_employee.full_name identity
+repeat filter s2p.person.active_flag -> gold.dim_employee
+filter gold.dim_employee.integration_id, s2p.person.person_id, gold.dim_employee.is_delete -> gold.dim_employee
+note NOT EXISTS: both match columns and the subquery's own predicate (D-52).

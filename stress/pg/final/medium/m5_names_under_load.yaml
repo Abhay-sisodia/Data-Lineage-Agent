@@ -1,0 +1,625 @@
+# GENERATED from m5_names_under_load.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for M5 (m5_names_under_load.sql): names under load.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: "Order" (DISTINCT ON) JOIN lvl4 (lines -> lvl1 -> lvl2 -> lvl3 -> lvl4),
+# and the final WHERE. ORDER BY 1, 13 has no limit: nothing. System columns (ctid, xmin)
+# carry no lineage (TT-1).
+package: pg/final/medium/m5_names_under_load.sql
+dialect: postgres
+source_sha256: 067642c648aca423a35498e9edc78cc245f2e9587d132f3e40e34af87c4fec5a
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.shipment_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.status_code
+  target:
+    kind: column
+    name: <result>.from
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: '"select" (a keyword, quoted) renamed again to "from". row_xmin is h.xmin, a system column: nothing.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.shipment_line_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.ext
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.ext
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.shipped_qty
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.last_update_ts
+  target:
+    kind: column
+    name: <result>.line_updated_at
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: <result>.customer_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.status
+  target:
+    kind: column
+    name: <result>.customer_status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.created_at
+  target:
+    kind: column
+    name: <result>.customer_created_at
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.email
+  target:
+    kind: column
+    name: <result>.primary_email
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.role
+  target:
+    kind: column
+    name: <result>.contact_role
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.is_primary
+  target:
+    kind: column
+    name: <result>.primary_email
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.is_primary
+  target:
+    kind: column
+    name: <result>.contact_role
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.site_code
+  target:
+    kind: column
+    name: <result>.Ship To Site
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.segment
+  target:
+    kind: column
+    name: <result>.site_segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.country_code
+  target:
+    kind: column
+    name: <result>.Ship To Site
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.country_code
+  target:
+    kind: column
+    name: <result>.site_segment
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.region_code
+  target:
+    kind: column
+    name: <result>.region_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier.carrier_name
+  target:
+    kind: column
+    name: <result>.carrier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier.carrier_code
+  target:
+    kind: column
+    name: <result>.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'D-12 at both depths (D-45): the inner subquery''s projected carrier_code is an operand of the
+    outer WHERE, and its own WHERE reads shipment_id twice (inner x and the outer o."id").'
+- source:
+    kind: column
+    name: lgx.shipment_header.carrier_code
+  target:
+    kind: column
+    name: <result>.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'D-12 at both depths (D-45): the inner subquery''s projected carrier_code is an operand of the
+    outer WHERE, and its own WHERE reads shipment_id twice (inner x and the outer o."id").'
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'D-12 at both depths (D-45): the inner subquery''s projected carrier_code is an operand of the
+    outer WHERE, and its own WHERE reads shipment_id twice (inner x and the outer o."id").'
+- source:
+    kind: column
+    name: lgx.package_event.event_ts
+  target:
+    kind: column
+    name: <result>.last_touch_ts
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: <result>.last_touch_ts
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: <result>.last_touch_ts
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: <result>.touch_sources
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.package_event.shipment_id
+  target:
+    kind: column
+    name: <result>.last_touch_ts
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'touch_sources = COUNT(DISTINCT src), src a literal in both arms: its only value is the ACT arm''s
+    WHERE (D-45).'
+- source:
+    kind: column
+    name: lgx.package_event.shipment_id
+  target:
+    kind: column
+    name: <result>.touch_sources
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'touch_sources = COUNT(DISTINCT src), src a literal in both arms: its only value is the ACT arm''s
+    WHERE (D-45).'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.last_touch_ts
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'touch_sources = COUNT(DISTINCT src), src a literal in both arms: its only value is the ACT arm''s
+    WHERE (D-45).'
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: <result>.touch_sources
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'touch_sources = COUNT(DISTINCT src), src a literal in both arms: its only value is the ACT arm''s
+    WHERE (D-45).'
+- source:
+    kind: column
+    name: gold.dim_status.status_name
+  target:
+    kind: column
+    name: <result>.status_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.dim_status.datasource_num_id
+  target:
+    kind: column
+    name: <result>.status_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.is_deleted
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'DISTINCT ON key and tie-breakers (D-9); the ctid tie-breaker is a system column: nothing.'
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'DISTINCT ON key and tie-breakers (D-9); the ctid tie-breaker is a system column: nothing.'
+- source:
+    kind: column
+    name: lgx.shipment_header.updated_at
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: 'DISTINCT ON key and tie-breakers (D-9); the ctid tie-breaker is a system column: nothing.'
+- source:
+    kind: column
+    name: lgx.shipment_line.line_status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: lvl3's WHERE ext > 0 and lvl4's promise_date IS NOT NULL.
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: lvl3's WHERE ext > 0 and lvl4's promise_date IS NOT NULL.
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+  note: lvl3's WHERE ext > 0 and lvl4's promise_date IS NOT NULL.
+- source:
+    kind: column
+    name: lgx.shipment_header.status_code
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: crm.contact.email
+  target:
+    kind: column
+    name: <result>.customer_name
+  flow: value
+  reason: the outer `customer` CTE is crm.customer; only `nested` shadows it
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: <result>.primary_email
+  flow: value
+  reason: inside `nested`, `customer` is the inner WITH over crm.contact
+- source:
+    kind: column
+    name: crm.contact.is_primary
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: nested is reached only through a LEFT join (D-45)
+- source:
+    kind: column
+    name: crm.customer_site.country_code
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: site is reached only through a LEFT join (D-45)
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: last_touch is reached only through a LEFT join (D-45)
+expected_boundaries: []

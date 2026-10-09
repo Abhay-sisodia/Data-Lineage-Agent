@@ -1,0 +1,75 @@
+# Answer key for M3 (m3_hierarchies.sql): hierarchies, islands and sessions.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: lines (shipment_line JOIN shipment_header) JOIN cust_rollup JOIN
+# org_tree JOIN sessions, and the final WHERE. Recursion counters (lvl, hop, bom_level) start
+# at a literal and only add to themselves: no base source (B2 S11).
+#
+# Convention readings flagged for the report:
+#   * SEARCH ... SET dfs_order and CYCLE ... SET is_cycle are built from the BY / CYCLE
+#     column (org_id), as PostgreSQL builds them: derived values of org_id.
+#   * CYCLE also stops the recursive arm from extending a row that closed a cycle - the same
+#     guard as cust_rollup's explicit `NOT customer_id = ANY (chain)` - so org_id is keyed as
+#     a filter, like that explicit guard.
+#   * island_count is COUNT(*) over `islands`, whose GROUP BY (customer_id, grp_key) decides
+#     how many island rows exist: grp_key's source ship_date is keyed as an influence.
+
+@ 20 the whole statement
+
+# --- lines ------------------------------------------------------------------------------------
+value lgx.shipment_line.shipment_line_id -> <result>.shipment_line_id identity
+value lgx.shipment_header.customer_id -> <result>.customer_id identity
+value lgx.shipment_line.ship_date -> <result>.ship_date identity
+value lgx.shipment_line.shipped_qty -> <result>.shipped_qty identity
+influence lgx.shipment_header.customer_id -> <result>.customer_lines
+note COUNT(*) OVER (PARTITION BY customer_id) (D-4).
+
+# --- cust_rollup (recursive) ----------------------------------------------------------------------
+value crm.customer.customer_id -> <result>.ultimate_parent_id identity
+value crm.customer.customer_id -> <result>.hierarchy_depth, <result>.hierarchy_path derived
+note chain = ARRAY[customer_id] || customer_id ...; cardinality() and array_to_string() over it.
+value crm.customer.customer_name -> <result>.ultimate_parent_name identity
+note `up` is a plain LEFT join to crm.customer on the root's id: no predicate on it.
+
+# --- org_tree (recursive, SEARCH + CYCLE) -----------------------------------------------------------
+value crm.organization.org_name -> <result>.ship_from_org, <result>.ship_from_root identity
+note root_name is the anchor's org_name, carried unchanged by the recursive arm (B2-10).
+value crm.organization.org_name -> <result>.org_path derived
+value crm.organization.org_id -> <result>.org_dfs_order, <result>.org_is_cycle derived
+forbid value crm.organization.org_id -> <result>.org_level | lvl counts recursion steps; the join key is not in it (B2 S11)
+
+# --- sessions (main path) ---------------------------------------------------------------------------
+value lgx.shipment_line.ship_date -> <result>.session_no aggregated
+influence lgx.shipment_header.customer_id, lgx.shipment_line.ship_date, lgx.shipment_line.shipment_line_id -> <result>.session_no
+note is_new = CASE over LAG(ship_date) and ship_date (one column: derived), windowed by customer_id / ship_date; session_no = SUM(is_new) OVER (customer_id ORDER BY ship_date, shipment_line_id).
+
+# --- bom_summary (LEFT joined; both arms' WHERE bom_status are aggregated values, D-45) ---------
+value lgx.bill_of_material.component_item_id -> <result>.component_count aggregated
+value lgx.bill_of_material.qty_per, lgx.bill_of_material.scrap_pct -> <result>.total_component_qty aggregated
+value lgx.bill_of_material.bom_status -> <result>.component_count, <result>.total_component_qty, <result>.bom_depth aggregated
+influence lgx.bill_of_material.parent_item_id -> <result>.component_count, <result>.total_component_qty, <result>.bom_depth
+note bom_depth = MAX(bom_level), a counter: no value of its own. top_item_id is the anchor's parent_item_id carried down.
+forbid filter lgx.bill_of_material.bom_status -> <result> | bom_summary is reached only through a LEFT join (D-45)
+
+# --- island_stats (LEFT joined, aggregate of an aggregate) ------------------------------------------
+influence lgx.shipment_header.customer_id, lgx.shipment_line.ship_date -> <result>.island_count, <result>.longest_island
+note Neither has a value source (COUNT(*) all the way down). lines is on the main path, so its WHERE adds nothing; islands' HAVING COUNT(*) reads no column.
+
+# --- org_wh, session_stats (LEFT joined) ----------------------------------------------------------
+influence lgx.warehouse.org_id -> <result>.warehouse_count, <result>.warehouse_codes
+value lgx.warehouse.warehouse_code -> <result>.warehouse_codes aggregated
+influence lgx.warehouse.warehouse_code -> <result>.warehouse_codes
+note string_agg's own ORDER BY (B1 S11, D-47).
+value lgx.shipment_line.ship_date -> <result>.session_count aggregated
+influence lgx.shipment_header.customer_id, lgx.shipment_line.ship_date, lgx.shipment_line.shipment_line_id -> <result>.session_count
+note MAX(session_no) GROUP BY customer_id: session_no's value and influence are carried.
+
+# --- filters -------------------------------------------------------------------------------
+filter lgx.shipment_line.ship_date -> <result>
+filter crm.customer.parent_customer_id, crm.customer.customer_id -> <result>
+note cust_rollup: the anchor picks the roots; the recursive arm's NOT customer_id = ANY (chain) is a cycle guard on customer_id. The hop counter test reads nothing.
+filter crm.organization.parent_org_id, crm.organization.is_active, crm.organization.org_id -> <result>
+note org_tree: the anchor's predicates, and CYCLE's implicit guard on org_id (the reading flagged above).
+filter lgx.shipment_line.shipped_qty -> <result>

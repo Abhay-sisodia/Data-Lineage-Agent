@@ -1,0 +1,3 @@
+# control: TRUNCATE is refused by name (B3); the second expect is planted - must FAIL (1 not declared)
+expect refusal <SCRIPT>:2 | TRUNCATE is in the refusal register (keyword line; F0-08 reports line 1)
+expect source_unavailable NOT_A_CALL | planted: never declared

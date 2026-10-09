@@ -1,0 +1,114 @@
+# Answer key for H2 (h2_po_fact_load.sql): the purchase-order fact load, 8 statements.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every written column, every filter, and every repeated fact is stated.
+# Conventions D-1..D-53 and the B3 / B7 key conventions (D-15 EXCLUDED and self-edges, D-31).
+#
+# MF = mart.fact_po_line, PS = mart.po_supplier_summary (created by S2), SS = mart.supplier_spend.
+# S1's chain is M1's, so its facts follow M1's key:
+#   LA = po_line.matching_basis, po_distribution.amount_ordered / amount_cancelled /
+#        quantity_ordered / quantity_cancelled, po_line_location.price_override;
+#   SC = LA + po_line.purchase_basis, po_line_ext.attribute1, po_line.unit_price,
+#        po_line.amount, po_line.quantity (should_cost = COALESCE of two CASE variants over
+#        the same columns).
+# A fact produced by two statements is stated once and restated with `repeat`.
+
+@ 31 S1 INSERT ... ON CONFLICT DO UPDATE into mart.fact_po_line
+value s2p.po_distribution.distribution_id -> mart.fact_po_line.integration_id derived
+value s2p.po_header.po_header_id -> mart.fact_po_line.po_header_id identity
+value s2p.po_header.segment1 -> mart.fact_po_line.po_number identity
+value s2p.po_line.line_number -> mart.fact_po_line.line_number derived
+value s2p.po_header.vendor_id -> mart.fact_po_line.supplier_id identity
+value s2p.po_header.agent_id, s2p.po_header.type_lookup_code, s2p.person.person_id, s2p.person.active_flag -> mart.fact_po_line.buyer_id conditional
+note COALESCE(agent_id, bpa_agent_id, buyer_person_id): bpa_hdr's BLANKET ON test (D-48), and pu's WHERE active_flag reached through two LEFT joins (D-45).
+forbid filter s2p.person.active_flag -> mart.fact_po_line | pu is reached only through LEFT joins (D-45)
+value s2p.po_line.item_description, s2p.item_category.category_name, s2p.uom.uom_name -> mart.fact_po_line.item_description derived
+note concat_ws is a function, not a choice (D-19): derived. category_name comes through two instances (c, pc) of one table.
+value s2p.po_line.matching_basis, s2p.po_distribution.amount_ordered, s2p.po_distribution.amount_cancelled, s2p.po_distribution.quantity_ordered, s2p.po_distribution.quantity_cancelled, s2p.po_line_location.price_override -> mart.fact_po_line.line_amt conditional
+value s2p.po_distribution.quantity_ordered, s2p.po_distribution.quantity_cancelled -> mart.fact_po_line.po_dist_qty derived
+value s2p.po_line.matching_basis, s2p.po_distribution.amount_ordered, s2p.po_distribution.amount_cancelled, s2p.po_distribution.quantity_ordered, s2p.po_distribution.quantity_cancelled, s2p.po_line_location.price_override, s2p.po_line.purchase_basis, s2p.po_line_ext.attribute1, s2p.po_line.unit_price, s2p.po_line.amount, s2p.po_line.quantity -> mart.fact_po_line.should_cost, mart.fact_po_line.savings_amt conditional
+influence s2p.po_line_ext.po_line_id -> mart.fact_po_line.should_cost, mart.fact_po_line.savings_amt
+value s2p.po_line_ext.attribute4, gold.fx_rate.conversion_rate -> mart.fact_po_line.savings_amt derived
+note D-7 on one target: the cost-avoidance CASE reads one column (derived) and the FX rate is multiplied in (derived), while should_cost and line_amt arrive conditional.
+value gold.fx_rate.from_ccy, gold.fx_rate.to_ccy, gold.fx_rate.rate_date, s2p.po_header.currency_code, s2p.po_header.created_at -> mart.fact_po_line.savings_amt conditional
+influence gold.fx_rate.rate_date -> mart.fact_po_line.savings_amt
+forbid filter gold.fx_rate.rate_date -> mart.fact_po_line | a one-row LEFT LATERAL removes no row (D-14)
+value s2p.po_line_location.inspection_required_flag, s2p.po_line_location.receipt_required_flag -> mart.fact_po_line.x_po_match conditional
+value s2p.po_line.line_status, s2p.po_line_location.promised_date, s2p.po_line_location.need_by_date, s2p.po_version.approved_date, s2p.po_header.created_at -> mart.fact_po_line.overdue_days, mart.fact_po_line.overdue_bucket conditional
+influence s2p.po_version.po_header_id, s2p.po_version.submitted_date, s2p.po_version.approved_date -> mart.fact_po_line.overdue_days, mart.fact_po_line.overdue_bucket
+note pov is a null-side ROW_NUMBER pick (D-45 influence, as E1); approved_date is also a value of the COALESCE fallback (D-47).
+forbid filter s2p.po_version.approved_date -> mart.fact_po_line | pov is on a LEFT join's null side (D-45)
+value gold.dim_status.status_code -> mart.fact_po_line.status_code identity
+value gold.dim_status.datasource_num_id -> mart.fact_po_line.status_code conditional
+value mart.fact_po_line.overdue_days -> mart.fact_po_line.overdue_days conditional
+note ON CONFLICT ... SET overdue_days = GREATEST(f.overdue_days, EXCLUDED.overdue_days): a self-edge through a two-column choice (D-15, D-19). The other SET columns are EXCLUDED.c: the same facts as the INSERT's (D-15). load_ts is now(): nothing.
+filter s2p.po_distribution.distribution_id, s2p.po_distribution.last_modification_date_time, s2p.po_line_location.line_location_id, s2p.po_line_location.last_modification_date_time, s2p.po_line.line_status, s2p.po_header.po_header_id, s2p.po_header.last_modification_date_time, s2p.po_header.document_status -> mart.fact_po_line
+filter s2p.po_line.matching_basis, s2p.po_distribution.amount_ordered, s2p.po_distribution.amount_cancelled, s2p.po_distribution.quantity_ordered, s2p.po_distribution.quantity_cancelled, s2p.po_line_location.price_override -> mart.fact_po_line
+note line_amt <> 0 reads every operand of its CASE.
+filter mart.fact_po_line.status_code, mart.fact_po_line.line_amt, gold.dim_status.status_code, gold.dim_status.datasource_num_id -> mart.fact_po_line
+note The DO UPDATE WHERE: the target's own columns, and EXCLUDED.status_code's / EXCLUDED.line_amt's sources (D-15; line_amt's are LA, stated above). The conflict target integration_id is structural.
+
+@ 345 S2 CREATE TABLE AS mart.po_supplier_summary
+value mart.fact_po_line.supplier_id -> mart.po_supplier_summary.supplier_id identity
+value s2p.supplier.vendor_name -> mart.po_supplier_summary.supplier_name identity
+value mart.fact_po_line.po_header_id -> mart.po_supplier_summary.po_count aggregated
+value mart.fact_po_line.line_amt -> mart.po_supplier_summary.total_spend aggregated
+value mart.fact_po_line.savings_amt -> mart.po_supplier_summary.total_savings aggregated
+influence mart.fact_po_line.supplier_id, s2p.supplier.vendor_name -> mart.po_supplier_summary.po_count, mart.po_supplier_summary.total_spend, mart.po_supplier_summary.total_savings, mart.po_supplier_summary.spend_rank
+influence mart.fact_po_line.line_amt -> mart.po_supplier_summary.spend_rank
+note RANK() OVER (ORDER BY SUM(line_amt)): the summed column orders it (D-4), the GROUP BY behind it influences it (D-46).
+filter mart.fact_po_line.status_code -> mart.po_supplier_summary
+forbid filter s2p.supplier.vendor_id -> mart.po_supplier_summary | the join key is structural (D-5)
+
+@ 360 S3 INSERT from the CTAS table (a node)
+value mart.po_supplier_summary.supplier_id -> mart.supplier_spend.supplier_id identity
+value mart.po_supplier_summary.supplier_name -> mart.supplier_spend.supplier_name identity
+value mart.po_supplier_summary.po_count -> mart.supplier_spend.po_count identity
+value mart.po_supplier_summary.total_spend -> mart.supplier_spend.total_spend identity
+value mart.po_supplier_summary.total_savings -> mart.supplier_spend.total_savings identity
+value mart.po_supplier_summary.spend_rank -> mart.supplier_spend.spend_rank identity
+filter mart.po_supplier_summary.spend_rank -> mart.supplier_spend
+note A table created in the script is a node (D-31): its columns are the sources. spend_year is a literal expression.
+forbid value mart.fact_po_line.savings_amt -> mart.supplier_spend.total_savings identity | S3 reads the CTAS table, a node, not the fact (D-31)
+
+@ 375 S4 UPDATE ... FROM (requisition dedup)
+repeat value mart.fact_po_line.overdue_days -> mart.fact_po_line.overdue_days conditional
+value s2p.req_line.need_by_date -> mart.fact_po_line.overdue_days, mart.fact_po_line.overdue_bucket conditional
+value mart.fact_po_line.overdue_bucket -> mart.fact_po_line.overdue_bucket conditional
+note GREATEST(f.overdue_days, CURRENT_DATE - need_by) and CASE WHEN need_by ... ELSE f.overdue_bucket: two columns each (D-19), self-edges (D-1).
+filter s2p.req_distribution.distribution_quantity, s2p.req_distribution.req_distribution_id, s2p.req_distribution.last_modification_date_time, s2p.req_header.approved_date -> mart.fact_po_line
+note req's WHERE; r.rn = 1 in an INNER join's ON is a ROW_NUMBER cut (D-48, D-9); pr.req_approved_date IS NOT NULL. Every join key, including the target join, is structural (D-11).
+
+@ 408 S5 DELETE ... USING
+repeat filter s2p.po_distribution.quantity_cancelled, s2p.po_distribution.quantity_ordered -> mart.fact_po_line
+# Both operands are one relation's columns: filters. The target-to-USING equality is structural (D-11).
+
+@ 416 S6 MERGE from the CTAS table
+repeat value mart.po_supplier_summary.supplier_id -> mart.supplier_spend.supplier_id identity
+repeat value mart.po_supplier_summary.supplier_name -> mart.supplier_spend.supplier_name identity
+repeat value mart.po_supplier_summary.total_spend -> mart.supplier_spend.total_spend identity
+repeat value mart.po_supplier_summary.spend_rank -> mart.supplier_spend.spend_rank identity
+filter mart.po_supplier_summary.po_count, mart.po_supplier_summary.total_spend, mart.supplier_spend.total_spend, mart.supplier_spend.spend_year -> mart.supplier_spend
+note USING's WHERE, the MATCHED AND condition, the BY SOURCE AND condition (B3 S15). The ON is structural.
+
+@ 436 S7 validation SELECT
+value mart.fact_po_line.status_code -> <result>.status_code identity
+value mart.fact_po_line.x_po_match -> <result>.x_po_match identity
+value mart.fact_po_line.line_amt -> <result>.line_amt aggregated
+value mart.fact_po_line.savings_amt, mart.fact_po_line.overdue_days -> <result>.overdue_savings aggregated
+value mart.fact_po_line.overdue_days -> <result>.avg_overdue aggregated
+influence mart.fact_po_line.status_code, mart.fact_po_line.x_po_match -> <result>.lines, <result>.line_amt, <result>.overdue_savings, <result>.avg_overdue
+filter mart.fact_po_line.load_ts -> <result>
+note grp is GROUPING(): nothing (D-50). HAVING COUNT(*) reads no column; ORDER BY with no limit gives nothing.
+
+@ 452 S8 yearly history INSERT ... ON CONFLICT DO NOTHING
+value mart.fact_po_line.supplier_id -> mart.supplier_spend.supplier_id identity
+value s2p.supplier.vendor_name -> mart.supplier_spend.supplier_name identity
+value s2p.po_header.created_at -> mart.supplier_spend.spend_year derived
+value mart.fact_po_line.po_header_id -> mart.supplier_spend.po_count aggregated
+value mart.fact_po_line.line_amt -> mart.supplier_spend.total_spend aggregated
+value mart.fact_po_line.savings_amt -> mart.supplier_spend.total_savings aggregated
+influence mart.fact_po_line.supplier_id, s2p.po_header.created_at -> mart.supplier_spend.po_count, mart.supplier_spend.total_spend, mart.supplier_spend.total_savings, mart.supplier_spend.spend_rank
+influence mart.fact_po_line.line_amt -> mart.supplier_spend.spend_rank
+filter s2p.po_header.document_status, s2p.po_header.created_at -> mart.supplier_spend
+note WHERE r.spend_year < ...: the grouping expression, not an aggregate - pre-aggregation (D-6). ON CONFLICT DO NOTHING with no target adds nothing.

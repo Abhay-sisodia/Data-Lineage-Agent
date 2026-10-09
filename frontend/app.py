@@ -22,6 +22,7 @@ Run it with::
 from __future__ import annotations
 
 import json
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -57,6 +58,10 @@ DICTIONARIES = {
     "oracle": DICTIONARY,
     "postgres": STRESS / "pg" / "dictionary.json",
 }
+# The review bundle (docker-compose.review.yml) is PostgreSQL only: LINEAGE_DIALECTS=postgres.
+_DIALECTS = [d.strip() for d in os.environ.get("LINEAGE_DIALECTS", "").split(",") if d.strip()]
+if _DIALECTS:
+    DICTIONARIES = {k: v for k, v in DICTIONARIES.items() if k in _DIALECTS}
 
 # PostgreSQL has several synthetic schemas; the SQL you paste decides which one fits.
 AUTO = "auto-detect from the SQL"

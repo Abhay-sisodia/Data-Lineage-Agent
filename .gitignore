@@ -39,8 +39,11 @@ Thumbs.db
 
 # Torture tests over user-supplied SQL: run locally, kept out of git (decided 2026-10-05).
 stress/pg/torture*/
-# The final PostgreSQL acceptance suite (decided 2026-10-07): local, like the torture tests.
-stress/pg/final/
+# The final PostgreSQL acceptance suite was local until 2026-10-09; it is now committed so
+# the review bundle (docker-compose.review.yml) can demo it from a clean clone.
 
 # Agent answer cache and traces (lineage ask), per machine.
 .lineage_cache/
+
+# Local secrets for the review bundle (ANTHROPIC_API_KEY); .env.example is the template.
+.env

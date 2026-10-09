@@ -1,0 +1,82 @@
+# Answer key for M1 (m1_procurement_savings.sql): the procurement savings chain.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: pod JOIN poll JOIN pol JOIN poh -> cte_dedup (d), and the chain
+# cte_amounts -> cte_savings_base -> cte_should_cost -> cte_savings (sv), joined back to d.
+# poh and pol are re-joined on the null side (bpa_hdr, contract_hdr, bpa_line): they are on
+# the main path, so their own WHERE / DISTINCT ON stay filters there and add nothing to what
+# those instances feed (D-45's exception). cte_starting_price reads cte_dedup and is LEFT
+# JOINed back: the same exception.
+#
+# LA = the sources of line_amt = CASE WHEN matching_basis = 'AMOUNT' THEN amount_ordered -
+#      COALESCE(amount_cancelled, 0) ELSE (COALESCE(quantity_ordered,0) -
+#      COALESCE(quantity_cancelled,0)) * COALESCE(price_override, 0) END
+#    = po_line.matching_basis, po_distribution.amount_ordered, .amount_cancelled,
+#      .quantity_ordered, .quantity_cancelled, po_line_location.price_override.
+# SC = the sources of should_cost (a CASE over everything below it) = LA + po_line.purchase_basis,
+#      po_line_ext.attribute1 (both starting prices), po_line.unit_price, po_line.amount (the
+#      line amount AND the BPA line amount: one node), po_line.quantity.
+
+@ 21 the whole statement
+
+# --- identifiers and plain carries ----------------------------------------------------------
+value s2p.po_distribution.distribution_id -> <result>.integration_id derived
+value s2p.po_header.segment1 -> <result>.po_number identity
+value s2p.po_line.line_number -> <result>.line_number derived
+value s2p.po_header.vendor_id -> <result>.supplier_id identity
+value s2p.po_line.item_description -> <result>.item_description derived
+value s2p.po_header_ext.attribute_number1 -> <result>.x_cpa_discount derived
+
+# --- buyer: COALESCE(agent_id, bpa_hdr.agent_id), bpa_hdr behind an ON test -----------------
+value s2p.po_header.agent_id -> <result>.buyer_id conditional
+note Two columns in the COALESCE's scope (d.agent_id, d.bpa_agent_id), one base node: conditional (D-19).
+value s2p.po_header.type_lookup_code -> <result>.buyer_id conditional
+note bpa_hdr's ON ... AND type_lookup_code = 'BLANKET' on a LEFT join's null side: a value of what that side feeds (D-48).
+forbid filter s2p.po_header.type_lookup_code -> <result> | a one-relation condition on a LEFT join's null side removes no row (D-48)
+
+# --- amounts ----------------------------------------------------------------------------------
+value s2p.po_line.matching_basis, s2p.po_distribution.amount_ordered, s2p.po_distribution.amount_cancelled, s2p.po_distribution.quantity_ordered, s2p.po_distribution.quantity_cancelled, s2p.po_line_location.price_override -> <result>.line_amt conditional
+value s2p.po_distribution.quantity_ordered, s2p.po_distribution.quantity_cancelled -> <result>.po_dist_qty derived
+value s2p.po_line.matching_basis, s2p.po_distribution.amount_ordered, s2p.po_distribution.amount_cancelled, s2p.po_distribution.quantity_ordered, s2p.po_distribution.quantity_cancelled, s2p.po_line_location.price_override -> <result>.po_total_amt, <result>.share_of_po aggregated
+influence s2p.po_header.po_header_id -> <result>.po_total_amt, <result>.share_of_po, <result>.lines_in_po
+note SUM(line_amt) OVER (PARTITION BY po_header_id); lines_in_po is COUNT(*) OVER the same partition.
+
+# --- should cost and savings (SC, all conditional) -----------------------------------------
+value s2p.po_line.matching_basis, s2p.po_distribution.amount_ordered, s2p.po_distribution.amount_cancelled, s2p.po_distribution.quantity_ordered, s2p.po_distribution.quantity_cancelled, s2p.po_line_location.price_override, s2p.po_line.purchase_basis, s2p.po_line_ext.attribute1, s2p.po_line.unit_price, s2p.po_line.amount, s2p.po_line.quantity -> <result>.should_cost, <result>.savings_amt, <result>.savings_pct, <result>.zerorized_savings conditional
+influence s2p.po_line_ext.po_line_id -> <result>.should_cost, <result>.savings_amt, <result>.savings_pct, <result>.zerorized_savings
+note pole and bpa_line_ext are null-side ROW_NUMBER dedups of po_line_ext (ORDER BY the constant 1): their partition influences every column built from attribute1 / attribute12 (D-45, as E1 measured).
+forbid filter s2p.po_line_ext.po_line_id -> <result> | the ext dedups are on LEFT joins' null side (D-14, D-45)
+
+# --- should-cost availability: a COALESCE / CASE over five null-side instances -------------
+value s2p.po_line_ext.attribute12, s2p.po_header_ext.attribute4 -> <result>.x_should_cost_avbl, <result>.x_should_cost_level conditional
+influence s2p.po_line_ext.po_line_id -> <result>.x_should_cost_avbl, <result>.x_should_cost_level
+note contract_attribute4 reaches through contract_hdr, a null-side instance of poh: poh's DISTINCT ON is on the main path, so it adds nothing here.
+forbid influence s2p.po_header.last_modification_date_time -> <result>.x_should_cost_avbl | poh's DISTINCT ON stays a filter on the main path; its contract_hdr instance adds nothing (D-45 exception)
+
+# --- match, overdue -------------------------------------------------------------------------
+value s2p.po_line_location.inspection_required_flag, s2p.po_line_location.receipt_required_flag -> <result>.x_po_match conditional
+value s2p.po_line.line_status, s2p.po_line_location.promised_date, s2p.po_line_location.need_by_date -> <result>.overdue_days, <result>.overdue_bucket conditional
+
+# --- cte_requisition (LEFT joined; its WHERE is a value, D-45) --------------------------------
+value s2p.req_header.requisition_number -> <result>.purch_requisition_number identity
+value s2p.req_header.approved_date -> <result>.req_approved_date identity
+value s2p.req_distribution.distribution_quantity -> <result>.purch_requisition_number, <result>.req_approved_date conditional
+forbid filter s2p.req_distribution.distribution_quantity -> <result> | cte_requisition is reached only through a LEFT join (D-45)
+
+# --- dimensions --------------------------------------------------------------------------------
+value gold.dim_status.status_name -> <result>.po_status_name identity
+value gold.dim_status.datasource_num_id -> <result>.po_status_name conditional
+note ds's ON integration_id = 'PURCHASE_ORDER_STATUS~' || document_status is the key equality (structural); the literal test is D-48.
+value gold.dim_supplier.supplier_name -> <result>.supplier_name identity
+note load_ts (CURRENT_TIMESTAMP) reads nothing.
+
+# --- filters -------------------------------------------------------------------------------
+filter s2p.po_distribution.distribution_id, s2p.po_distribution.last_modification_date_time -> <result>
+filter s2p.po_line_location.line_location_id, s2p.po_line_location.last_modification_date_time -> <result>
+filter s2p.po_line.line_status -> <result>
+filter s2p.po_header.po_header_id, s2p.po_header.last_modification_date_time -> <result>
+filter s2p.po_header.document_status -> <result>
+filter s2p.po_line.matching_basis, s2p.po_distribution.amount_ordered, s2p.po_distribution.amount_cancelled, s2p.po_distribution.quantity_ordered, s2p.po_distribution.quantity_cancelled, s2p.po_line_location.price_override -> <result>
+note sv.line_amt <> 0 reads every operand of the CASE.

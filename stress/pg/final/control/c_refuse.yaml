@@ -1,0 +1,17 @@
+# GENERATED from c_refuse.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# control: TRUNCATE is refused by name (B3); the second expect is planted - must FAIL (1 not declared)
+package: pg/final/control/c_refuse.sql
+dialect: postgres
+source_sha256: 93616d3c6a9add4d1554dbe67f0def50581a5f00fd07492e17e5ca6955192ffe
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges: []
+forbidden: []
+expected_boundaries:
+- kind: refusal
+  subject: <SCRIPT>:2
+  reason: TRUNCATE is in the refusal register
+- kind: source_unavailable
+  subject: NOT_A_CALL
+  reason: 'planted: never declared'

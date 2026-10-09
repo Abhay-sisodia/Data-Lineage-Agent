@@ -1,0 +1,4 @@
+# control: one fact and the boundary left out on purpose - must FAIL (FP 1, unexpected 1)
+@ 2 the statement
+value crm.customer.customer_id -> <result>.customer_id identity
+filter crm.customer.status -> <result>

@@ -1,0 +1,6 @@
+# control: the full answer - must PASS
+@ 2 the statement
+value crm.customer.customer_id -> <result>.customer_id identity
+value crm.customer.credit_limit -> <result>.v derived
+filter crm.customer.status -> <result>
+expect source_unavailable MY_UDF | D-53: an unknown call is declared

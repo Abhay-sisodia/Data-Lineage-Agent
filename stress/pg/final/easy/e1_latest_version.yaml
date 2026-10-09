@@ -1,0 +1,563 @@
+# GENERATED from e1_latest_version.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for E1 (e1_latest_version.sql): latest version per key, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated; any other edge is a false
+# positive. Conventions D-1..D-53; targets are <result>.<column> (D-8); nodes are
+# schema-qualified (D-25). All facts band 0.
+#
+# Convention reading flagged for the report: a ROW_NUMBER() ... WHERE rn = 1 dedup reached
+# only through a LEFT JOIN (pole, pov) is read as an ORDERING cut under D-45 - its
+# partition and order columns INFLUENCE the columns that side feeds (D-13), as the
+# torture_names key read a `pos = 1` ordinal cut. If the analyser reads it as a WHERE
+# predicate instead (a conditional value), that is a convention question, not a bug.
+package: pg/final/easy/e1_latest_version.sql
+dialect: postgres
+source_sha256: e839b7157af38d0a828b5ce22ff606a6e869a48b48132399c6ffe45a3c78c60b
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: s2p.po_distribution.distribution_id
+  target:
+    kind: column
+    name: <result>.integration_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.segment1
+  target:
+    kind: column
+    name: <result>.po_number
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.line_number
+  target:
+    kind: column
+    name: <result>.line_number
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.distribution_num
+  target:
+    kind: column
+    name: <result>.distribution_num
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.shipment_num
+  target:
+    kind: column
+    name: <result>.schedule_number
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.supplier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: <result>.po_dist_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'Each COALESCE(x, 0) reads one column: a null guard, derived (D-19).'
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: <result>.po_dist_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'Each COALESCE(x, 0) reads one column: a null guard, derived (D-19).'
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: <result>.unit_price
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.unit_price
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.last_modification_date_time
+  target:
+    kind: column
+    name: <result>.aux1_changed_on_dt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.last_modification_date_time
+  target:
+    kind: column
+    name: <result>.aux1_changed_on_dt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.type_lookup_code
+  target:
+    kind: column
+    name: <result>.blanket_agreement_number
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'D-51: segment1 reaches blanket_agreement_number only through the CASE.'
+- source:
+    kind: column
+    name: s2p.po_header.segment1
+  target:
+    kind: column
+    name: <result>.blanket_agreement_number
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'D-51: segment1 reaches blanket_agreement_number only through the CASE.'
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute12
+  target:
+    kind: column
+    name: <result>.should_cost_flag
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute1
+  target:
+    kind: column
+    name: <result>.starting_price_txt
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: <result>.should_cost_flag
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'The window''s ORDER BY 1 orders by the constant 1 (not a position): no source.'
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: <result>.starting_price_txt
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'The window''s ORDER BY 1 orders by the constant 1 (not a position): no source.'
+- source:
+    kind: column
+    name: s2p.po_version.revision_num
+  target:
+    kind: column
+    name: <result>.latest_revision
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.change_order_description
+  target:
+    kind: column
+    name: <result>.change_order_desc
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.po_header_id
+  target:
+    kind: column
+    name: <result>.latest_revision
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.po_header_id
+  target:
+    kind: column
+    name: <result>.change_order_desc
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.submitted_date
+  target:
+    kind: column
+    name: <result>.latest_revision
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.submitted_date
+  target:
+    kind: column
+    name: <result>.change_order_desc
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.approved_date
+  target:
+    kind: column
+    name: <result>.latest_revision
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.approved_date
+  target:
+    kind: column
+    name: <result>.change_order_desc
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.submitted_date
+  target:
+    kind: column
+    name: <result>.po_submit_on_dt
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.po_header_id
+  target:
+    kind: column
+    name: <result>.po_submit_on_dt
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'version_count is COUNT(*): no value, only its grouping (D-2).'
+- source:
+    kind: column
+    name: s2p.po_version.po_header_id
+  target:
+    kind: column
+    name: <result>.version_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'version_count is COUNT(*): no value, only its grouping (D-2).'
+- source:
+    kind: column
+    name: s2p.po_distribution.distribution_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'pod: ROW_NUMBER partition and order, cut to 1 (D-9).'
+- source:
+    kind: column
+    name: s2p.po_distribution.last_modification_date_time
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'pod: ROW_NUMBER partition and order, cut to 1 (D-9).'
+- source:
+    kind: column
+    name: s2p.po_line_location.line_location_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'poll: the same cut through a named window.'
+- source:
+    kind: column
+    name: s2p.po_line_location.last_modification_date_time
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'poll: the same cut through a named window.'
+- source:
+    kind: column
+    name: s2p.po_line.line_status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.document_status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'poh: DISTINCT ON key and both tie-breakers decide the surviving row (D-9).'
+- source:
+    kind: column
+    name: s2p.po_header.po_header_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'poh: DISTINCT ON key and both tie-breakers decide the surviving row (D-9).'
+- source:
+    kind: column
+    name: s2p.po_header.last_modification_date_time
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'poh: DISTINCT ON key and both tie-breakers decide the surviving row (D-9).'
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: 'poh: DISTINCT ON key and both tie-breakers decide the surviving row (D-9).'
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+  note: deleted_flag ('N') and load_ts (CURRENT_TIMESTAMP) read no column; ORDER BY with no limit gives
+    nothing (D-9).
+forbidden:
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: a left-joined dedup picks which ext row fills the columns; it removes no result row (D-14, D-45)
+- source:
+    kind: column
+    name: s2p.po_version.submitted_date
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: the version pick is on a LEFT join's null side (D-14, D-45)
+expected_boundaries: []
