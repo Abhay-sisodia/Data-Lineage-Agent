@@ -122,3 +122,32 @@ def test_pasted_sql_loads_into_the_graph_and_the_graph_view_reads_it(
     graph = _app("Lineage graph")
     graph.sidebar.text_input[0].set_value("top_customers.revenue").run()
     assert "staging.payments" in graph.get("graphviz_chart")[0].proto.spec
+
+
+def test_the_dictionary_is_auto_detected_from_the_sql() -> None:
+    import sys
+
+    sys.path.insert(0, str(ROOT / "frontend"))
+    import kg_pages
+
+    choices = {
+        "batch": ROOT / "stress" / "pg" / "dictionary.json",
+        "legacy": ROOT / "stress" / "dictionary_postgres.json",
+    }
+    assert kg_pages.best_dictionary("SELECT o.id FROM staging.orders AS o", choices) == "batch"
+    final = ROOT / "stress" / "pg" / "final"
+    if final.exists():
+        m5 = (final / "medium" / "m5_names_under_load.sql").read_text(encoding="utf-8")
+        assert (
+            kg_pages.best_dictionary(m5, {**choices, "final": final / "dictionary.json"}) == "final"
+        )
+
+
+def test_a_load_with_no_lineage_warns_instead_of_claiming_success(tools: GraphTools) -> None:
+    app = AppTest.from_file(APP, default_timeout=60)
+    app.run()
+    next(r for r in app.sidebar.radio if r.label == "Source dialect").set_value("postgres").run()
+    app.text_area[0].set_value("INSERT INTO nowhere.t (a) SELECT x.a FROM nowhere.s AS x;").run()
+    next(b for b in app.button if b.label == "Load into graph").click().run()
+    assert not app.exception, app.exception
+    assert not app.success and any("no lineage edges" in w.value for w in app.warning)

@@ -37,6 +37,9 @@ from lineage.config import AnalysisConfig  # noqa: E402
 from lineage.resolution.dictionary import Dictionary  # noqa: E402
 from lineage.resolution.infer import infer_dictionary, is_inferred  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import kg_pages  # noqa: E402
+
 CORPUS = ROOT / "corpus"
 DICTIONARY = CORPUS / "dictionary.json"
 STRESS = ROOT / "stress"
@@ -55,6 +58,7 @@ DICTIONARIES = {
 }
 
 # PostgreSQL has several synthetic schemas; the SQL you paste decides which one fits.
+AUTO = "auto-detect from the SQL"
 PG_DICTIONARIES = {
     "batch tests (core, mart, staging)": STRESS / "pg" / "dictionary.json",
     "final suite (crm, evt, gold, lgx, mart, s2p)": STRESS / "pg" / "final" / "dictionary.json",
@@ -150,9 +154,10 @@ st.set_page_config(page_title="Lineage (temporary)", layout="wide")
 # "Parse SQL" is the original page and needs nothing but the analyser.
 VIEW = st.sidebar.radio("View", ["Parse SQL", "Ask the lineage", "Lineage graph"], index=0)
 if VIEW != "Parse SQL":
-    import kg_pages
-
-    kg_pages.ask_page() if VIEW == "Ask the lineage" else kg_pages.graph_page()
+    if VIEW == "Ask the lineage":
+        kg_pages.ask_page()
+    else:
+        kg_pages.graph_page()
     st.stop()
 
 st.title("Parser output")
@@ -181,9 +186,14 @@ with st.sidebar:
 
     if dialect == "postgres":
         available = {k: v for k, v in PG_DICTIONARIES.items() if v.exists()}
-        DICTIONARIES["postgres"] = available[
-            st.selectbox("PostgreSQL dictionary", list(available), index=0)
-        ]
+        pg_choice = st.selectbox(
+            "PostgreSQL dictionary",
+            [AUTO, *available],
+            index=0,
+            help="Auto picks the dictionary that knows the most tables your SQL names.",
+        )
+        if pg_choice != AUTO:
+            DICTIONARIES["postgres"] = available[pg_choice]
 
     st.subheader("Schema")
     schema_mode = st.radio(
@@ -242,12 +252,15 @@ sql = st.text_area(
     height=320,
     key=f"{dialect}:{choice}",
 )
+if dialect == "postgres" and pg_choice == AUTO:
+    picked = kg_pages.best_dictionary(sql, available)
+    DICTIONARIES["postgres"] = available[picked]
+    st.caption(f"Dictionary auto-detected: **{picked}**")
+
 submitted = st.button("Analyse", type="primary")
 
 # The bridge to the graph views: the SQL in the editor, loaded into the lineage graph with
 # the same dictionary choice the analysis uses, so "Ask the lineage" can answer about it.
-import kg_pages  # noqa: E402
-
 kg_pages.load_panel(
     sql,
     infer_dictionary(sql, dialect=dialect, default_schema=inferred_schema or "public")[0]

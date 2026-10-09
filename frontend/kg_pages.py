@@ -56,12 +56,84 @@ def _connected() -> Any | None:
             f"`{error}`"
         )
         return None
+    with st.sidebar:
+        if st.button(
+            "Rebuild the final-suite demo graph",
+            help="Replace the graph with the 15 final-suite files (stress/pg/final).",
+        ):
+            with st.spinner("Building the graph from stress/pg/final ..."):
+                rebuild_demo(tools)
     snapshot = tools.snapshot()
     if not snapshot:
-        st.warning("Neo4j is up but holds no lineage graph. Run `lineage graph build <folder>`.")
+        st.warning(
+            "Neo4j is up but holds no lineage graph. Load SQL from *Parse SQL*, or "
+            "rebuild the demo graph from the sidebar."
+        )
         return None
-    st.sidebar.caption(f"Graph snapshot `{snapshot}`")
+    summary = graph_summary(tools)
+    st.sidebar.caption(
+        f"Graph snapshot `{snapshot}` - {summary['files']} files, "
+        f"{summary['lineage']} lineage edges"
+    )
+    if summary["lineage"] == 0:
+        st.warning(
+            f"The graph holds {summary['files']} file(s) but **no lineage edges**: "
+            f"{', '.join(summary['file_names'][:5])}. Their SQL resolved to nothing - "
+            f"{summary['dangling']} dangling references were declared, which usually means "
+            "the wrong dictionary was used when loading. Reload from *Parse SQL* with the "
+            "right dictionary, or rebuild the demo graph from the sidebar."
+        )
     return tools
+
+
+def graph_summary(tools: Any) -> dict[str, Any]:
+    """Files, lineage edges and dangling references in the graph, for the sidebar."""
+    row = tools._read(
+        """
+        OPTIONAL MATCH (f:File) WITH collect(f.id) AS files
+        OPTIONAL MATCH ()-[r:FEEDS|FILTERS|INFLUENCES]->() WITH files, count(r) AS lineage
+        OPTIONAL MATCH (:File)-[d:DECLARES]->(b:Boundary {kind: 'dangling_reference'})
+        RETURN files, lineage, count(d) AS dangling
+        """
+    )[0]
+    return {
+        "files": len(row["files"]),
+        "file_names": sorted(row["files"]),
+        "lineage": row["lineage"],
+        "dangling": row["dangling"],
+    }
+
+
+def rebuild_demo(tools: Any) -> None:
+    """The final-suite graph (`lineage graph build stress/pg/final ...`)."""
+    from pathlib import Path
+
+    from lineage.config import AnalysisConfig
+    from lineage.graph.build import analyse_folder, folder_sources, load
+    from lineage.resolution.dictionary import Dictionary
+
+    folder = Path(__file__).resolve().parent.parent / "stress" / "pg" / "final"
+    if not folder.exists():
+        st.error("stress/pg/final is not on this machine (it is gitignored).")
+        return
+    config = AnalysisConfig.load().model_copy(update={"dialect": "postgres"})
+    results = analyse_folder(folder, Dictionary.load(folder / "dictionary.json"), config)
+    load(tools._driver, results, database=tools._settings.database, sources=folder_sources(folder))
+
+
+def best_dictionary(sql: str, choices: dict[str, Any]) -> str:
+    """The dictionary that knows the most `schema.table` names the SQL mentions."""
+    import json
+    import re
+    from pathlib import Path
+
+    named = {m.lower() for m in re.findall(r"\b([A-Za-z_]\w*\.[A-Za-z_]\w*)\b", sql)}
+
+    def known(path: Any) -> int:
+        tables = json.loads(Path(path).read_text(encoding="utf-8"))["columns"]
+        return len(named & {k.lower() for k in tables})
+
+    return max(choices, key=lambda label: (known(choices[label]), -list(choices).index(label)))
 
 
 def lineage_dot(edges: list[dict[str, Any]], focus: set[str] | None = None) -> str:
@@ -194,6 +266,14 @@ def load_panel(sql: str, book: Any, config: Any) -> None:
             st.error(f"Could not load the graph: {error}")
             return
         lineage = sum(report.counts.get(t, 0) for t in ("FEEDS", "FILTERS", "INFLUENCES"))
+        if lineage == 0:
+            dangling = report.counts.get("DECLARES", 0)
+            st.warning(
+                f"Loaded `{name}`, but it produced **no lineage edges** ({dangling} boundaries "
+                "declared). Most often the dictionary does not know these tables - check the "
+                "PostgreSQL dictionary in the sidebar (or use auto-detect) and load again."
+            )
+            return
         st.success(
             f"Loaded `{name}`: {lineage} lineage edges, snapshot `{report.snapshot}`. "
             "Switch the sidebar **View** to *Ask the lineage* or *Lineage graph*."
@@ -218,7 +298,13 @@ def graph_page() -> None:
         )
     matches = tools.find(name, limit=50) if name.strip() else []
     if not matches:
-        st.info(f"No column or table matches '{name}'.")
+        st.info(f"No column or table in the current graph matches '{name}'.")
+        examples = tools._read(
+            "MATCH (c:Column)<-[:FEEDS]-() RETURN DISTINCT c.id AS id ORDER BY id LIMIT 12"
+        )
+        if examples:
+            st.caption("Columns with lineage in this graph, to try:")
+            st.code("\n".join(row["id"] for row in examples), language="text")
         return
     node = matches[0]["id"]
     if len(matches) > 1:
