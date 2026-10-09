@@ -17,13 +17,9 @@ import asyncio
 import os
 from typing import Any
 
+import explorer
 import streamlit as st
 
-FLOW_STYLE = {
-    "FEEDS": 'color="#2563eb" penwidth=1.6',
-    "FILTERS": 'color="#dc2626" style=dashed',
-    "INFLUENCES": 'color="#7c3aed" style=dotted penwidth=1.6',
-}
 MAX_EDGES = 300
 
 EXAMPLES = [
@@ -137,50 +133,6 @@ def best_dictionary(sql: str, choices: dict[str, Any]) -> str:
     return max(choices, key=lambda label: (known(choices[label]), -list(choices).index(label)))
 
 
-def lineage_dot(edges: list[dict[str, Any]], focus: set[str] | None = None) -> str:
-    """DOT for lineage edges: columns grouped into their tables, edges styled by flow."""
-    focus = focus or set()
-    tables: dict[str, set[str]] = {}
-    standalone: set[str] = set()
-    for edge in edges:
-        for node in (edge["source"], edge["target"]):
-            table = _table_of(node)
-            if table == node:  # a table (filter target) or a variable
-                standalone.add(node)
-            else:
-                tables.setdefault(table, set()).add(node)
-    lines = [
-        "digraph lineage {",
-        "  rankdir=LR; bgcolor=transparent; compound=true;",
-        '  node [shape=box style="rounded,filled" fillcolor="#f8fafc" color="#94a3b8" '
-        'fontname="Helvetica" fontsize=11];',
-        '  edge [fontname="Helvetica" fontsize=9 fontcolor="#475569"];',
-    ]
-    for index, (table, columns) in enumerate(sorted(tables.items())):
-        lines.append(f'  subgraph "cluster_{index}" {{')
-        lines.append(
-            f'    label={_q(table)}; style="rounded,filled"; color="#cbd5e1"; '
-            'fillcolor="#eef2ff"; fontname="Helvetica"; fontsize=10;'
-        )
-        for column in sorted(columns):
-            lines.append(
-                f"    {_q(column)} [label={_q(column.rsplit('.', 1)[-1])}{_hl(column, focus)}];"
-            )
-        lines.append("  }")
-    for node in sorted(standalone):
-        shape = 'shape=cylinder fillcolor="#fee2e2"' if _is_table(node) else ""
-        lines.append(f"  {_q(node)} [label={_q(node)} {shape}{_hl(node, focus)}];")
-    for edge in edges:
-        label = edge["transform"] if edge["type"] == "FEEDS" else edge["type"].lower()
-        where = f"{edge['file']}:{edge['line']}"
-        lines.append(
-            f"  {_q(edge['source'])} -> {_q(edge['target'])} "
-            f"[{FLOW_STYLE.get(edge['type'], '')} label={_q(label)} tooltip={_q(where)}];"
-        )
-    lines.append("}")
-    return "\n".join(lines)
-
-
 def edge_rows(edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
@@ -201,9 +153,12 @@ def edge_rows(edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def legend() -> None:
     st.caption(
-        "Blue solid = **value** (data flows in, labelled with its transform) · red dashed = "
-        "**filter** (decides which rows of the table land) · purple dotted = **influence** "
-        "(GROUP BY / window ordering) · red cylinder = a table a filter applies to."
+        "Scroll to zoom, drag to pan. Blue solid = **value** (Σ aggregated · ƒ derived · "
+        "? conditional · no badge = copied) "
+        "· red dashed into a card's header = **filter** (decides which rows of that table "
+        "exist) · purple dotted = **influence** (GROUP BY, window ordering) · yellow row = the "
+        "column you asked about · ⚠ = a gap: a boundary or refused statement touches that "
+        "table (hover it)."
     )
 
 
@@ -292,10 +247,21 @@ def graph_page() -> None:
         return
     with st.sidebar:
         name = st.text_input("Column (partial names allowed)", value="gross_margin_usd")
-        direction = st.radio("Direction", ["upstream (lineage)", "downstream (impact)"])
+        direction = st.radio(
+            "Direction",
+            list(explorer.DIRECTIONS),
+            horizontal=True,
+            help="Upstream: where it comes from. Downstream: what it affects.",
+        )
         depth = st.slider("Hops", 1, 8, 2)
         flows = st.multiselect(
             "Flows", ["FEEDS", "FILTERS", "INFLUENCES"], default=["FEEDS", "FILTERS", "INFLUENCES"]
+        )
+        follow_filters = st.checkbox(
+            "Follow filters further upstream",
+            value=False,
+            help="Off: a filter is shown where it acts, but its own sources are not walked - "
+            "they decide which rows exist, not this column's value.",
         )
     matches = tools.find(name, limit=50) if name.strip() else []
     if not matches:
@@ -310,9 +276,8 @@ def graph_page() -> None:
     node = matches[0]["id"]
     if len(matches) > 1:
         node = st.selectbox(f"'{name}' matches {len(matches)} nodes", [m["id"] for m in matches])
-    upward = direction.startswith("upstream")
-    edges = tools.upstream(node, depth) if upward else tools.downstream(node, depth)
-    edges = [e for e in edges if e["type"] in flows]
+    upward = direction != "downstream"
+    edges = explorer.explore(tools, node, direction, depth, tuple(flows), follow_filters)
 
     top = st.columns(4)
     top[0].metric("Edges", len(edges))
@@ -320,12 +285,13 @@ def graph_page() -> None:
     top[2].metric("Filter", sum(e["type"] == "FILTERS" for e in edges))
     top[3].metric("Influence", sum(e["type"] == "INFLUENCES" for e in edges))
     if not edges:
-        st.info(f"No {'lineage' if upward else 'impact'} for `{node}` with these flows.")
+        st.info(f"No {direction} lineage for `{node}` with these flows.")
     else:
         shown = edges[:MAX_EDGES]
         if len(edges) > MAX_EDGES:
             st.warning(f"Showing the first {MAX_EDGES} of {len(edges)} edges - lower the hops.")
-        st.graphviz_chart(lineage_dot(shown, {node}), use_container_width=True)
+        marks = explorer.gap_marks(tools, explorer.cards_of(shown))
+        st.iframe(explorer.html(explorer.model(shown, {node}, marks)), height=660)
         legend()
         st.dataframe(edge_rows(edges), use_container_width=True, hide_index=True)
 
@@ -401,7 +367,9 @@ def ask_page() -> None:
     cited = tools.describe_edges(answer.cited_edges) if answer.cited_edges else []
     if cited:
         st.subheader(f"Evidence: {len(cited)} cited edges")
-        st.graphviz_chart(lineage_dot(cited[:MAX_EDGES]), use_container_width=True)
+        evidence = cited[:MAX_EDGES]
+        marks = explorer.gap_marks(tools, explorer.cards_of(evidence))
+        st.iframe(explorer.html(explorer.model(evidence, warn=marks)), height=560)
         legend()
         st.dataframe(edge_rows(cited), use_container_width=True, hide_index=True)
     if answer.cited_nodes:
@@ -422,25 +390,6 @@ def ask_page() -> None:
 
 
 # --- helpers -----------------------------------------------------------------------------
-
-
-def _table_of(node: str) -> str:
-    if node.startswith("<result:"):
-        return node.split(">", 1)[0] + ">" if "." in node.split(">", 1)[-1] else node
-    head, _, _ = node.rpartition(".")
-    return head if head.count(".") >= 1 else node
-
-
-def _is_table(node: str) -> bool:
-    return node.startswith("<result:") or node.count(".") == 1
-
-
-def _q(text: str) -> str:
-    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
-def _hl(node: str, focus: set[str]) -> str:
-    return ' fillcolor="#fde68a" color="#d97706" penwidth=2' if node in focus else ""
 
 
 def impact_page() -> None:

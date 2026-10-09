@@ -58,9 +58,9 @@ def test_the_lineage_graph_view_draws_a_columns_lineage(tools: GraphTools) -> No
     app.sidebar.text_input[0].set_value("top_customers.revenue").run()
     assert not app.exception, app.exception
     assert app.title[0].value == "Lineage graph"
-    charts = app.get("graphviz_chart")
-    assert charts, "no graph drawn"
-    assert "staging.orders" in charts[0].proto.spec
+    frames = app.get("iframe")
+    assert frames, "no graph drawn"
+    assert "staging.orders" in str(frames[0].proto)
     assert len(app.dataframe) == 1
 
 
@@ -91,7 +91,7 @@ def test_the_ask_view_answers_through_the_harness_from_the_cache(
     app.button[0].click().run()
     assert not app.exception, app.exception
     assert any("revenue = SUM(amount)" in m.value for m in app.markdown)
-    assert app.get("graphviz_chart"), "no evidence graph"
+    assert app.get("iframe"), "no evidence graph"
     assert app.metric[1].value == "cache", "the cached answer was not used"
 
 
@@ -121,7 +121,7 @@ def test_pasted_sql_loads_into_the_graph_and_the_graph_view_reads_it(
 
     graph = _app("Lineage graph")
     graph.sidebar.text_input[0].set_value("top_customers.revenue").run()
-    assert "staging.payments" in graph.get("graphviz_chart")[0].proto.spec
+    assert "staging.payments" in str(graph.get("iframe")[0].proto)
 
 
 def test_the_dictionary_is_auto_detected_from_the_sql() -> None:
