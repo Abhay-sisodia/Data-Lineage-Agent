@@ -35,6 +35,10 @@ The sidebar's **View** switch adds two views over the Neo4j lineage graph (needs
 | **Ask the lineage** | a question through the agent harness: answer, status, cited edges as a graph and a table, unknowns, full trace (cached answers by default) |
 | **Lineage graph** | a column's upstream lineage or downstream impact by hops and flows, grouped by table, with the gaps on it |
 
+To ask about SQL you paste: **Parse SQL** -> *Load this SQL into the lineage graph* ->
+**Load into graph** (replace or add), then switch the view. The PostgreSQL dictionary is
+picked in the sidebar (batch tests, final suite, or legacy `public`).
+
 Code: `frontend/kg_pages.py`; tests: `tests/test_frontend_kg.py` (delete it with this folder).
 See `docs/kg-agent.md`.
 

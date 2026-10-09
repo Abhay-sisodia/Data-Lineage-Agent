@@ -93,3 +93,32 @@ def test_the_ask_view_answers_through_the_harness_from_the_cache(
     assert any("revenue = SUM(amount)" in m.value for m in app.markdown)
     assert app.get("graphviz_chart"), "no evidence graph"
     assert app.metric[1].value == "cache", "the cached answer was not used"
+
+
+def test_pasted_sql_loads_into_the_graph_and_the_graph_view_reads_it(
+    tools: GraphTools,
+) -> None:
+    """Parse SQL -> "Load into graph" -> the Lineage graph view shows the pasted lineage."""
+    pasted = (
+        "INSERT INTO mart.top_customers (customer_id, revenue)\n"
+        "SELECT p.order_id, SUM(p.amount) FROM staging.payments AS p GROUP BY p.order_id;\n"
+    )
+    app = AppTest.from_file(APP, default_timeout=60)
+    app.run()
+    next(r for r in app.sidebar.radio if r.label == "Source dialect").set_value("postgres").run()
+    app.text_area[0].set_value(pasted).run()
+    next(t for t in app.text_input if t.label == "File name in the graph").set_value(
+        "pasted/payments.sql"
+    ).run()
+    next(b for b in app.button if b.label == "Load into graph").click().run()
+    assert not app.exception, app.exception
+    assert any("Loaded `pasted/payments.sql`" in s.value for s in app.success)
+
+    sources = {e["source"] for e in tools.upstream("mart.top_customers.revenue", 1)}
+    assert sources == {"staging.payments.amount", "staging.payments.order_id"}, (
+        "replace mode: only the pasted SQL's lineage is in the graph"
+    )
+
+    graph = _app("Lineage graph")
+    graph.sidebar.text_input[0].set_value("top_customers.revenue").run()
+    assert "staging.payments" in graph.get("graphviz_chart")[0].proto.spec

@@ -134,6 +134,72 @@ def legend() -> None:
     )
 
 
+def load_sql(sql: str, name: str, book: Any, config: Any, replace: bool) -> Any:
+    """Analyse one pasted script and load it into the graph, as the file `name`.
+
+    The same path `lineage graph build` takes - analyse, export to lineage-result/1 and
+    back, load - so the graph holds exactly what the parser said. `replace` empties the
+    graph first; otherwise the script is merged in beside what is there. Either way the
+    snapshot changes, so no cached answer from the previous graph is served for it.
+    """
+    import json
+
+    from lineage.analysis.procedure import analyse_source
+    from lineage.export import from_document, to_document
+    from lineage.graph.build import load
+
+    document = to_document(
+        analyse_source(sql, book, config),
+        source_path=name,
+        source_text=sql,
+        dialect=config.dialect,
+        config_fingerprint=config.fingerprint(),
+        dictionary_fingerprint=book.fingerprint(),
+    )
+    result = from_document(json.loads(json.dumps(document)))
+    tools = _tools()
+    return load(
+        tools._driver,  # the build is the one writer; tools only ever read
+        [result],
+        database=tools._settings.database,
+        replace=replace,
+        sources={result.source.path: sql},
+    )
+
+
+def load_panel(sql: str, book: Any, config: Any) -> None:
+    """The Parse SQL view's bridge to the graph views."""
+    with st.expander("Load this SQL into the lineage graph - then ask questions about it"):
+        if config.dialect != "postgres":
+            st.info("The lineage graph is PostgreSQL-only for now.")
+            return
+        name = st.text_input("File name in the graph", value="pasted/query.sql")
+        mode = st.radio(
+            "How",
+            ["replace the graph with this SQL", "add this SQL to the graph"],
+            help="Replace: the graph holds only this script. Add: it joins the files already "
+            "there, and tables they share link up.",
+        )
+        if not st.button("Load into graph"):
+            return
+        try:
+            report = load_sql(
+                sql,
+                name.strip() or "pasted/query.sql",
+                book,
+                config,
+                replace=mode.startswith("replace"),
+            )
+        except Exception as error:
+            st.error(f"Could not load the graph: {error}")
+            return
+        lineage = sum(report.counts.get(t, 0) for t in ("FEEDS", "FILTERS", "INFLUENCES"))
+        st.success(
+            f"Loaded `{name}`: {lineage} lineage edges, snapshot `{report.snapshot}`. "
+            "Switch the sidebar **View** to *Ask the lineage* or *Lineage graph*."
+        )
+
+
 # --- the views ---------------------------------------------------------------------------
 
 

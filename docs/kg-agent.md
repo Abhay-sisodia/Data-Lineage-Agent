@@ -103,7 +103,7 @@ It exposes the seven typed tools, the resource `lineage://semantics` and the pro
 ```
 
 The sidebar's **View** offers three views:
-- **Parse SQL:** the original analyser view.
+- **Parse SQL:** the original analyser view. To ask about SQL you paste, analyse it, then open **Load this SQL into the lineage graph** and press **Load into graph**. *Replace* makes the graph hold only this SQL; *add* merges it beside what is there. Then switch the view.
 - **Ask the lineage:** answer, status, evidence graph and table, unknowns, and the full trace. It uses the cache unless you untick it.
 - **Lineage graph:** a column's upstream lineage or downstream impact, by hops and flows, grouped by table, with the gaps on that lineage.
 

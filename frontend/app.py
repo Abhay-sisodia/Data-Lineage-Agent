@@ -51,7 +51,14 @@ STRESS = ROOT / "stress"
 # while reading anything on this screen.
 DICTIONARIES = {
     "oracle": DICTIONARY,
-    "postgres": STRESS / "dictionary_postgres.json",
+    "postgres": STRESS / "pg" / "dictionary.json",
+}
+
+# PostgreSQL has several synthetic schemas; the SQL you paste decides which one fits.
+PG_DICTIONARIES = {
+    "batch tests (core, mart, staging)": STRESS / "pg" / "dictionary.json",
+    "final suite (crm, evt, gold, lgx, mart, s2p)": STRESS / "pg" / "final" / "dictionary.json",
+    "legacy (public)": STRESS / "dictionary_postgres.json",
 }
 
 EXAMPLES = {
@@ -84,8 +91,12 @@ WINDOW w AS (PARTITION BY a.cust_id ORDER BY a.total DESC);""",
 
 
 @st.cache_resource
+def _load_dictionary(path: str) -> Dictionary:
+    return Dictionary.load(Path(path))
+
+
 def _dictionary(dialect: str) -> Dictionary:
-    return Dictionary.load(DICTIONARIES[dialect])
+    return _load_dictionary(str(DICTIONARIES[dialect]))
 
 
 @st.cache_resource
@@ -168,6 +179,12 @@ with st.sidebar:
         "PostgreSQL: SQL script frontend plus the PL/pgSQL reader (batch B8), bands 0-2."
     )
 
+    if dialect == "postgres":
+        available = {k: v for k, v in PG_DICTIONARIES.items() if v.exists()}
+        DICTIONARIES["postgres"] = available[
+            st.selectbox("PostgreSQL dictionary", list(available), index=0)
+        ]
+
     st.subheader("Schema")
     schema_mode = st.radio(
         "Where do table and column names come from?",
@@ -226,6 +243,18 @@ sql = st.text_area(
     key=f"{dialect}:{choice}",
 )
 submitted = st.button("Analyse", type="primary")
+
+# The bridge to the graph views: the SQL in the editor, loaded into the lineage graph with
+# the same dictionary choice the analysis uses, so "Ask the lineage" can answer about it.
+import kg_pages  # noqa: E402
+
+kg_pages.load_panel(
+    sql,
+    infer_dictionary(sql, dialect=dialect, default_schema=inferred_schema or "public")[0]
+    if schema_mode == "infer from the SQL"
+    else _dictionary(dialect),
+    _config(dialect),
+)
 
 if submitted:
     warnings: list[str] = []
