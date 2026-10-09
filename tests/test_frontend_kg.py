@@ -1,0 +1,95 @@
+"""C9: the Streamlit views over the lineage graph render - without any model call.
+
+`Lineage graph` is driven end to end. `Ask the lineage` is driven with an answer already in
+the cache for the exact question, graph snapshot, model and prompt, so the page goes
+through the real harness and is served from the cache. Delete with `frontend/`.
+These tests replace the graph's contents; rebuild with `lineage graph build` afterwards.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+pytest.importorskip("streamlit")
+from streamlit.testing.v1 import AppTest
+
+from lineage.agent.harness import EFFORT, MODEL, prompt_fingerprint
+from lineage.agent.store import Trace, TraceStore, cache_key
+from lineage.config import AnalysisConfig
+from lineage.evals.golden import Answer
+from lineage.graph.build import analyse_folder, folder_sources, load
+from lineage.graph.tools import GraphTools
+from lineage.resolution.dictionary import Dictionary
+
+pytestmark = pytest.mark.requires_neo4j
+
+ROOT = Path(__file__).resolve().parent.parent
+APP = str(ROOT / "frontend" / "app.py")
+SQL = (
+    "INSERT INTO mart.top_customers (customer_id, revenue)\n"
+    "SELECT o.customer_id, SUM(o.amount) FROM staging.orders AS o\n"
+    "WHERE o.status = 'PAID' GROUP BY o.customer_id;\n"
+)
+QUESTION = "Which columns feed mart.top_customers.revenue?"
+
+
+@pytest.fixture(scope="module")
+def tools(neo4j_driver: Any, tmp_path_factory: pytest.TempPathFactory) -> GraphTools:
+    folder = tmp_path_factory.mktemp("sql")
+    (folder / "a.sql").write_bytes(SQL.encode("utf-8"))
+    config = AnalysisConfig.load().model_copy(update={"dialect": "postgres"})
+    book = Dictionary.load(ROOT / "stress" / "pg" / "dictionary.json")
+    load(neo4j_driver, analyse_folder(folder, book, config), sources=folder_sources(folder))
+    return GraphTools(neo4j_driver)
+
+
+def _app(view: str) -> AppTest:
+    app = AppTest.from_file(APP, default_timeout=60)
+    app.run()
+    app.sidebar.radio[0].set_value(view).run()
+    return app
+
+
+def test_the_lineage_graph_view_draws_a_columns_lineage(tools: GraphTools) -> None:
+    app = _app("Lineage graph")
+    app.sidebar.text_input[0].set_value("top_customers.revenue").run()
+    assert not app.exception, app.exception
+    assert app.title[0].value == "Lineage graph"
+    charts = app.get("graphviz_chart")
+    assert charts, "no graph drawn"
+    assert "staging.orders" in charts[0].proto.spec
+    assert len(app.dataframe) == 1
+
+
+def test_the_ask_view_answers_through_the_harness_from_the_cache(
+    tools: GraphTools, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LINEAGE_CACHE_DIR", str(tmp_path))
+    edges = [
+        e["id"] for e in tools.upstream("mart.top_customers.revenue", 1) if e["type"] == "FEEDS"
+    ]
+    key = cache_key(QUESTION, tools.snapshot(), MODEL, EFFORT, prompt_fingerprint())
+    TraceStore(tmp_path).put(
+        Trace(
+            key=key,
+            question=QUESTION,
+            snapshot=tools.snapshot(),
+            model=MODEL,
+            effort=EFFORT,
+            prompt=prompt_fingerprint(),
+            stage="agent",
+            answer=Answer(
+                question_id="q", status="answered", text="revenue = SUM(amount)", cited_edges=edges
+            ),
+        )
+    )
+    app = _app("Ask the lineage")
+    app.text_area[0].set_value(QUESTION).run()
+    app.button[0].click().run()
+    assert not app.exception, app.exception
+    assert any("revenue = SUM(amount)" in m.value for m in app.markdown)
+    assert app.get("graphviz_chart"), "no evidence graph"
+    assert app.metric[1].value == "cache", "the cached answer was not used"

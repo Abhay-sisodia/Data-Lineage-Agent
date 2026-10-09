@@ -25,6 +25,19 @@ Opens on <http://localhost:8501>. Paste PL/SQL, press **Analyse**, and you get:
 
 The sidebar loads any corpus package into the editor, so a known answer is one click away.
 
+### Lineage graph views (plan C9)
+
+The sidebar's **View** switch adds two views over the Neo4j lineage graph (needs
+`requirements-kg.txt`, `docker compose up -d neo4j` and `lineage graph build`):
+
+| view | what it shows |
+|---|---|
+| **Ask the lineage** | a question through the agent harness: answer, status, cited edges as a graph and a table, unknowns, full trace (cached answers by default) |
+| **Lineage graph** | a column's upstream lineage or downstream impact by hops and flows, grouped by table, with the gaps on it |
+
+Code: `frontend/kg_pages.py`; tests: `tests/test_frontend_kg.py` (delete it with this folder).
+See `docs/kg-agent.md`.
+
 ## Two things it deliberately does not do
 
 **No score.** Pasted SQL has no ground truth, so precision and recall would be invented, and

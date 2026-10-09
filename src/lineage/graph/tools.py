@@ -239,6 +239,18 @@ class GraphTools:
             return {"rejected": True, "reason": f"Neo4j: {str(error)[:300]}"}
         return {"rejected": False, "query": checked.query, "rows": rows}
 
+    def describe_edges(self, ids: list[str]) -> list[dict[str, Any]]:
+        """Full records of the given lineage edges (unknown ids are skipped)."""
+        rows = self._read(
+            f"""
+            MATCH (a)-[r]->(b) WHERE r.id IN $ids AND type(r) IN $types
+            RETURN {{{_EDGE_FIELDS}}} AS edge ORDER BY r.id
+            """,
+            ids=list(ids),
+            types=list(LINEAGE),
+        )
+        return [row["edge"] for row in rows]
+
     def snapshot(self) -> str:
         """The id of the build the graph holds ('' when it holds none)."""
         rows = self._read("MATCH (s:Snapshot) RETURN s.id AS id ORDER BY id")

@@ -106,7 +106,8 @@ def _corpus_files(dialect: str) -> dict[str, Path]:
     """
     if dialect == "postgres":
         return {
-            path.name: path for path in sorted(STRESS.glob("stress_pg_*.sql"))
+            str(path.relative_to(STRESS / "pg")).replace("\\", "/"): path
+            for path in sorted((STRESS / "pg").glob("b*/*.sql"))
         }
     return {
         str(path.relative_to(CORPUS)).replace("\\", "/"): path
@@ -132,7 +133,17 @@ def _edge_rows(edges) -> list[dict[str, object]]:
     ]
 
 
-st.set_page_config(page_title="Parser output (temporary)", layout="wide")
+st.set_page_config(page_title="Lineage (temporary)", layout="wide")
+
+# Three views. The two graph views read the lineage knowledge graph in Neo4j (plan C9);
+# "Parse SQL" is the original page and needs nothing but the analyser.
+VIEW = st.sidebar.radio("View", ["Parse SQL", "Ask the lineage", "Lineage graph"], index=0)
+if VIEW != "Parse SQL":
+    import kg_pages
+
+    kg_pages.ask_page() if VIEW == "Ask the lineage" else kg_pages.graph_page()
+    st.stop()
+
 st.title("Parser output")
 st.caption(
     "Temporary inspection tool - paste PL/SQL, see the edges, boundaries and refusals the "
@@ -154,8 +165,7 @@ with st.sidebar:
     )
     st.caption(
         "Oracle: ANTLR frontend, full bands 0-2.\n\n"
-        "PostgreSQL: SQL script frontend, **band 0 only** - a PL/pgSQL body is refused, so "
-        "there are no variables, no cursors and no trigger inheritance (ADR-0002 §5)."
+        "PostgreSQL: SQL script frontend plus the PL/pgSQL reader (batch B8), bands 0-2."
     )
 
     st.subheader("Schema")
