@@ -20,6 +20,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from lineage.agent.store import Trace, TraceStore, cache_key, fingerprint
 from lineage.evals.golden import Answer
 from lineage.graph.tools import GraphTools
 from lineage.semantics import load as load_semantics
@@ -80,14 +81,81 @@ class Run:
     cost_usd: float = 0.0
     turns: int = 0
     notes: list[str] = field(default_factory=list)
+    key: str = ""
+    snapshot: str = ""
+    trace_path: str = ""
+
+
+HARNESS_VERSION = "1"
+"""Bump when a tool description or harness stage changes: it is part of every cache key."""
+
+
+def prompt_fingerprint() -> str:
+    """Everything the model is told: semantics, instructions, answer schema, tools."""
+    return fingerprint(
+        load_semantics(),
+        INSTRUCTIONS,
+        json.dumps(ANSWER_SCHEMA, sort_keys=True),
+        ",".join(_TOOL_NAMES),
+        HARNESS_VERSION,
+    )
 
 
 class Harness:
-    def __init__(self, tools: GraphTools, model: str = MODEL) -> None:
+    def __init__(
+        self,
+        tools: GraphTools,
+        model: str = MODEL,
+        store: TraceStore | None = None,
+        read_cache: bool = True,
+    ) -> None:
         self.tools = tools
         self.model = model
+        self.store = store
+        self.read_cache = read_cache
 
     async def ask(self, question: str, question_id: str = "q") -> Run:
+        """Answer from the cache when this exact question met this exact graph and prompt
+        before; otherwise run the harness and store the trace (C8)."""
+        snapshot = self.tools.snapshot()
+        key = cache_key(question, snapshot, self.model, EFFORT, prompt_fingerprint())
+        if self.store is not None and self.read_cache:
+            cached = self.store.get(key)
+            if cached is not None:
+                answer = cached.answer.model_copy(update={"question_id": question_id})
+                return Run(
+                    answer,
+                    cached.tool_calls,
+                    "cache",
+                    0.0,
+                    0,
+                    [*cached.notes, f"served from cache ({cached.stage})"],
+                    key,
+                    snapshot,
+                )
+        run = await self._answer(question, question_id)
+        run.key, run.snapshot = key, snapshot
+        if self.store is not None:
+            path = self.store.put(
+                Trace(
+                    key=key,
+                    question=question,
+                    snapshot=snapshot,
+                    model=self.model,
+                    effort=EFFORT,
+                    prompt=prompt_fingerprint(),
+                    answer=run.answer,
+                    tool_calls=run.tool_calls,
+                    stage=run.stage,
+                    notes=run.notes,
+                    cost_usd=run.cost_usd,
+                    turns=run.turns,
+                )
+            )
+            run.trace_path = str(path)
+        return run
+
+    async def _answer(self, question: str, question_id: str) -> Run:
         if _WRITE_REQUEST.search(question):
             return Run(
                 Answer(

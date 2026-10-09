@@ -239,6 +239,11 @@ class GraphTools:
             return {"rejected": True, "reason": f"Neo4j: {str(error)[:300]}"}
         return {"rejected": False, "query": checked.query, "rows": rows}
 
+    def snapshot(self) -> str:
+        """The id of the build the graph holds ('' when it holds none)."""
+        rows = self._read("MATCH (s:Snapshot) RETURN s.id AS id ORDER BY id")
+        return ",".join(row["id"] for row in rows)
+
     def resolve_edges(self, ids: list[str]) -> dict[str, tuple[str, str, str]]:
         """Lineage edge id -> (type, source, target). Ids not in the graph are absent."""
         rows = self._read(

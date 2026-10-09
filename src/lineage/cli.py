@@ -66,17 +66,28 @@ def graph_build(
 
 
 @app.command("ask")
-def ask(question: Annotated[str, typer.Argument(help="A lineage question.")]) -> None:
-    """Answer one lineage question from the graph, through the agent harness."""
+def ask(
+    question: Annotated[str, typer.Argument(help="A lineage question.")],
+    no_cache: Annotated[
+        bool, typer.Option("--no-cache", help="Ask the model even if a cached answer exists.")
+    ] = False,
+) -> None:
+    """Answer one lineage question from the graph, through the agent harness.
+
+    Answers are cached by question + graph snapshot + model + prompt, and every answer's
+    trace is kept in .lineage_cache/ (replay it with `lineage replay`).
+    """
     import asyncio
 
     from lineage.agent.harness import Harness
+    from lineage.agent.store import TraceStore
     from lineage.graph.neo4j_conn import Neo4jSettings, connect
     from lineage.graph.tools import GraphTools
 
     settings = Neo4jSettings.from_env()
     with connect(settings) as driver:
-        result = asyncio.run(Harness(GraphTools(driver, settings)).ask(question))
+        harness = Harness(GraphTools(driver, settings), store=TraceStore(), read_cache=not no_cache)
+        result = asyncio.run(harness.ask(question))
     typer.echo(result.answer.text)
     for label, ids in (
         ("edges", result.answer.cited_edges),
@@ -89,6 +100,30 @@ def ask(question: Annotated[str, typer.Argument(help="A lineage question.")]) ->
     typer.echo(
         f"  [{result.stage}; {len(result.tool_calls)} tool calls; {'; '.join(result.notes)}]"
     )
+    if result.trace_path:
+        typer.echo(f"  trace: {result.trace_path}")
+
+
+@app.command("replay")
+def replay_trace(
+    trace: Annotated[Path, typer.Argument(help="A trace JSON from .lineage_cache/.")],
+) -> None:
+    """Re-run a trace's tool calls against the current graph; report any result that differs."""
+    from lineage.agent.store import Trace, replay
+    from lineage.graph.neo4j_conn import Neo4jSettings, connect
+    from lineage.graph.tools import GraphTools
+
+    recorded = Trace.from_json(trace.read_text(encoding="utf-8"))
+    settings = Neo4jSettings.from_env()
+    with connect(settings) as driver:
+        report = replay(recorded, GraphTools(driver, settings))
+    typer.echo(f"question: {recorded.question}")
+    typer.echo(f"snapshot then {report.snapshot_then} / now {report.snapshot_now}")
+    for line in report.mismatches:
+        typer.echo(f"  MISMATCH {line}")
+    verdict = "reproduced" if report.reproduced else f"{len(report.mismatches)} differ"
+    typer.echo(f"{report.calls} tool calls replayed: {verdict}")
+    raise typer.Exit(0 if report.reproduced else 1)
 
 
 @app.command("eval")

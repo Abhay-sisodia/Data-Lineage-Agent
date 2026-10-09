@@ -41,3 +41,6 @@ Thumbs.db
 stress/pg/torture*/
 # The final PostgreSQL acceptance suite (decided 2026-10-07): local, like the torture tests.
 stress/pg/final/
+
+# Agent answer cache and traces (lineage ask), per machine.
+.lineage_cache/
