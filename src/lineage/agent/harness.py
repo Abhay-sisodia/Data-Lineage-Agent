@@ -62,12 +62,23 @@ Return the answer in the structured format:
   returned it - and ONLY those that answer the question (e.g. for "which columns feed X"
   cite the FEEDS edges into X, not filters or influences). Never invent or alter an id.
 - cited_nodes: node ids the answer lists, when the answer is a list of nodes rather than
-  edges (e.g. columns without lineage, statements that write a table). Otherwise [].
+  edges (e.g. the result of a comparison such as "columns that filter but never feed",
+  columns without lineage, statements that write a table). Put EVERY listed id here,
+  even though the text names them too; the edges that prove the list go in cited_edges.
+  Otherwise [].
 - unknowns: the `id` of every boundary or refusal that limits the answer (from `gaps`).
+  A refused statement comes back twice - as a boundary of kind `refusal` and as a
+  refusal: cite both ids.
 - candidates: only for "clarify".
 
 Work from tool results only. Resolve names with `find` first. Answer the exact question
-asked: "directly" means one hop. If the graph has nothing, say so with empty citations.
+asked:
+- One hop unless the question asks for more ("ultimate", "through every intermediate
+  table", "how does A reach B", "directly or indirectly", a hop count): cite only the
+  edges into (or out of) the asked node. Further hops may be named in the text, not cited.
+- "Influences" means the INFLUENCES edges - a source that is both a value and an
+  influence of a target has both facts, and is listed for each (D-47).
+- If the graph has nothing, say so with empty citations.
 """
 
 
@@ -86,7 +97,7 @@ class Run:
     trace_path: str = ""
 
 
-HARNESS_VERSION = "1"
+HARNESS_VERSION = "2"
 """Bump when a tool description or harness stage changes: it is part of every cache key."""
 
 
@@ -349,7 +360,8 @@ class Harness:
                 ),
                 wrap(
                     "coverage",
-                    "A table's columns, which have lineage, its writers, filters, gaps.",
+                    "A table's columns, which are fed by lineage (incoming only), its "
+                    "writers, filters, gaps. Not what the table feeds: use downstream.",
                     obj({"table": s}, ["table"]),
                     t.coverage,
                 ),

@@ -26,7 +26,7 @@ from lineage.graph.neo4j_conn import Neo4jSettings, read_session
 LINEAGE = ("FEEDS", "FILTERS", "INFLUENCES")
 VALUE_LIKE = ("FEEDS", "INFLUENCES")
 _ENDPOINT_LABELS = ("Column", "Table", "Variable", "Boundary", "Procedure", "Literal")
-_SNIPPET_LINES = 25
+_SNIPPET_LINES = 200
 
 _EDGE_FIELDS = """
     id: r.id, type: type(r), source: a.id, target: b.id,
@@ -200,6 +200,11 @@ class GraphTools:
         files = sorted(set(found.pop("files")))
         found["written_by"] = sorted(found["written_by"])
         found["columns_without_lineage"] = sorted(found["columns_without_lineage"])
+        found["lineage_note"] = (
+            "with/without lineage counts what FEEDS or INFLUENCES each column (incoming). "
+            "A source table's columns are usually all 'without lineage' and still feed other "
+            "tables: use `downstream` for what a column feeds"
+        )
         found["filters"] = self._read(
             f"""
             MATCH (a)-[r:FILTERS]->(b:Table {{id: $table}})
@@ -366,13 +371,19 @@ def _table_id(node: str) -> str:
 
 
 def _snippet(text: str | None, line: int | None) -> str | None:
-    """The statement starting at `line`: up to its terminating `;`, at most 25 lines."""
+    """The statement starting at `line`: up to its terminating `;`, at most 200 lines.
+
+    The whole statement, so a CTE body or join far below its first line stays visible; a
+    longer one is cut and says how many lines were left out.
+    """
     if not text or not line:
         return None
-    lines = text.splitlines()[line - 1 : line - 1 + _SNIPPET_LINES]
     taken = []
-    for current in lines:
+    for current in text.splitlines()[line - 1 :]:
         taken.append(current)
         if current.rstrip().endswith(";"):
             break
+    if len(taken) > _SNIPPET_LINES:
+        cut = len(taken) - _SNIPPET_LINES
+        taken = [*taken[:_SNIPPET_LINES], f"-- ... {cut} more lines of this statement"]
     return "\n".join(taken)

@@ -1,0 +1,213 @@
+{
+  "question": "Which columns of <result:pasted/query11111.sql> are computed by an aggregate function (MAX, COUNT, SUM ...)? List the result columns only.",
+  "seconds": 34.8,
+  "stage": "agent",
+  "cost_usd": 0.0357318,
+  "turns": 7,
+  "notes": [],
+  "answer": {
+    "question_id": "H1",
+    "status": "answered",
+    "text": "Two result columns are computed by an aggregate (value edges with transform `aggregated`): `last_touch_ts` (fed by lgx.package_event.event_ts, evt.activity.kind and evt.activity.created_at) and `touch_sources` (fed by evt.activity.kind). The other 17 result columns have no aggregated edge. No boundaries or refusals were reported for this result.",
+    "cited_edges": [
+      "d8993d4f5befd90b81492f54",
+      "a8c6f422f9ed0693c37ed100",
+      "c8b75848705bed3a59fb3e62",
+      "c5413e46891d780d17f6a49e"
+    ],
+    "cited_nodes": [
+      "<result:pasted/query11111.sql>.last_touch_ts",
+      "<result:pasted/query11111.sql>.touch_sources"
+    ],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "<result:pasted/query11111.sql>",
+        "limit": 50
+      },
+      "result": [
+        {
+          "id": "<result:pasted/query11111.sql>",
+          "label": "Table"
+        }
+      ]
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "<result:pasted/query11111.sql>"
+      },
+      "result": {
+        "id": "<result:pasted/query11111.sql>",
+        "columns": 19,
+        "columns_with_lineage": 19,
+        "columns_without_lineage": [],
+        "written_by": [
+          "pasted/query11111.sql#<script>:23"
+        ],
+        "found": true,
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.line_status",
+            "id": "4c8e7265d50b85314a04a7d8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.updated_at",
+            "id": "63b4369286a64023b15fb2b7",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.is_deleted",
+            "id": "6581e3cd5e433026dee2ecc8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.shipped_qty",
+            "id": "881bea9b77923461bbd76250",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.unit_selling_price",
+            "id": "8e258f3bb514783050566f9b",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.shipment_id",
+            "id": "9a71a41d968280483731a7a1",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.promise_date",
+            "id": "eab8917304314c646a1be12a",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.status_code",
+            "id": "f9a8abaebd7b0eef17c2d57e",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    },
+    {
+      "tool": "upstream",
+      "args": {
+        "node": "<result:pasted/query11111.sql>"
+      },
+      "result": []
+    },
+    {
+      "tool": "graph_query",
+      "args": {
+        "cypher": "MATCH (s)-[r:FEEDS]->(c:Column) WHERE c.id STARTS WITH '<result:pasted/query11111.sql>.' AND r.transform='aggregated' RETURN c.id, r.id, s.id"
+      },
+      "result": {
+        "rejected": false,
+        "query": "MATCH (s)-[r:FEEDS]->(c:Column) WHERE c.id STARTS WITH '<result:pasted/query11111.sql>.' AND r.transform='aggregated' RETURN c.id, r.id, s.id\nLIMIT 500",
+        "rows": [
+          {
+            "c.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "r.id": "d8993d4f5befd90b81492f54",
+            "s.id": "lgx.package_event.event_ts"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "r.id": "a8c6f422f9ed0693c37ed100",
+            "s.id": "evt.activity.kind"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "r.id": "c8b75848705bed3a59fb3e62",
+            "s.id": "evt.activity.created_at"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.touch_sources",
+            "r.id": "c5413e46891d780d17f6a49e",
+            "s.id": "evt.activity.kind"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,340 @@
+{
+  "question": "Is any column of <result:pasted/query11111.sql> an aggregate over lgx.shipment_line (e.g. SUM of quantity or value)? List the result columns that are (none, if none are).",
+  "seconds": 24.2,
+  "stage": "agent",
+  "cost_usd": 0.0355506,
+  "turns": 11,
+  "notes": [],
+  "answer": {
+    "question_id": "H10",
+    "status": "answered",
+    "text": "No. No result column of pasted/query11111.sql is an aggregate over lgx.shipment_line. Every value edge from shipment_line into the result is identity or derived, and none is aggregated, with phase pre-aggregation (line 23). The edges are:\n- ext is derived from shipped_qty and unit_selling_price (a row-level computation).\n- shipped_qty is identity from shipped_qty.\n- shipment_line_id is identity from shipment_line_id.\n- line_updated_at is identity from last_update_ts.\nline_status, promise_date, shipped_qty and unit_selling_price also act as filters on the result, but that is not aggregation. The file has no boundaries or refusals.",
+    "cited_edges": [
+      "61c79af8ed72a19f2fff75e3",
+      "7fbfeec0fef587fa35b1911d",
+      "46c9e9a221b9f8f6c4935e4b",
+      "f1eecb0cb336ba17f9b5f01a",
+      "5910d8cda7704ce78d601a80"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "result:pasted/query11111.sql",
+        "limit": 50
+      },
+      "result": [
+        {
+          "id": "<result:pasted/query11111.sql>",
+          "label": "Table"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.ext",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.from",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.customer_id",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.region_code",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.shipment_id",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.shipped_qty",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.status_name",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.Ship To Site",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.carrier_name",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.contact_role",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.site_segment",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.customer_name",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.last_touch_ts",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.primary_email",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.touch_sources",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.customer_status",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.line_updated_at",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.shipment_line_id",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.customer_created_at",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "lgx.shipment_line"
+      },
+      "result": {
+        "id": "lgx.shipment_line",
+        "columns": 6,
+        "columns_with_lineage": 0,
+        "columns_without_lineage": [
+          "lgx.shipment_line.last_update_ts",
+          "lgx.shipment_line.line_status",
+          "lgx.shipment_line.promise_date",
+          "lgx.shipment_line.shipment_line_id",
+          "lgx.shipment_line.shipped_qty",
+          "lgx.shipment_line.unit_selling_price"
+        ],
+        "written_by": [],
+        "found": true,
+        "filters": [],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.shipment_line.shipped_qty",
+        "depth": 1
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "derived",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.shipped_qty",
+          "id": "61c79af8ed72a19f2fff75e3",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.ext",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.shipped_qty",
+          "id": "46c9e9a221b9f8f6c4935e4b",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.shipped_qty",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.shipped_qty",
+          "id": "881bea9b77923461bbd76250",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.shipment_line.unit_selling_price",
+        "depth": 1
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "derived",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.unit_selling_price",
+          "id": "7fbfeec0fef587fa35b1911d",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.ext",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.unit_selling_price",
+          "id": "8e258f3bb514783050566f9b",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.shipment_line.shipment_line_id",
+        "depth": 1
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.shipment_line_id",
+          "id": "f1eecb0cb336ba17f9b5f01a",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.shipment_line_id",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.shipment_line.last_update_ts",
+        "depth": 1
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.last_update_ts",
+          "id": "5910d8cda7704ce78d601a80",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.line_updated_at",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.shipment_line.line_status",
+        "depth": 1
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.line_status",
+          "id": "4c8e7265d50b85314a04a7d8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.shipment_line.promise_date",
+        "depth": 1
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.promise_date",
+          "id": "eab8917304314c646a1be12a",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "file": "pasted/query11111.sql"
+      },
+      "result": {
+        "scope": "file pasted/query11111.sql",
+        "boundaries": [],
+        "refusals": []
+      }
+    }
+  ]
+}

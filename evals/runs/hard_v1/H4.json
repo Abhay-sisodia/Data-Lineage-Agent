@@ -1,0 +1,373 @@
+{
+  "question": "Which source columns both restrict the rows of <result:pasted/query11111.sql> and supply a value to one of its columns?",
+  "seconds": 38.6,
+  "stage": "agent",
+  "cost_usd": 0.0444677,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "H4",
+    "status": "answered",
+    "text": "Four source columns are both a pre-aggregation filter (line 23) on <result:pasted/query11111.sql> and a value source for its columns: lgx.shipment_header.shipment_id (value into shipment_id identity, carrier_name conditional), lgx.shipment_line.shipped_qty (value into shipped_qty identity, ext derived), lgx.shipment_line.unit_selling_price (value into ext, derived), and lgx.shipment_header.status_code (value into the column named \"from\", identity). The other filter columns (line_status, promise_date, header updated_at, is_deleted) supply no value. No boundaries or refusals.",
+    "cited_edges": [
+      "9a71a41d968280483731a7a1",
+      "881bea9b77923461bbd76250",
+      "8e258f3bb514783050566f9b",
+      "f9a8abaebd7b0eef17c2d57e",
+      "38430f812c8c41db2cc43e07",
+      "c9c2ddcf6d2d19734b75d749",
+      "46c9e9a221b9f8f6c4935e4b",
+      "61c79af8ed72a19f2fff75e3",
+      "7fbfeec0fef587fa35b1911d",
+      "54f2767b3546803d12f58e77"
+    ],
+    "cited_nodes": [
+      "lgx.shipment_header.shipment_id",
+      "lgx.shipment_line.shipped_qty",
+      "lgx.shipment_line.unit_selling_price",
+      "lgx.shipment_header.status_code"
+    ],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "<result:pasted/query11111.sql>"
+      },
+      "result": [
+        {
+          "id": "<result:pasted/query11111.sql>",
+          "label": "Table"
+        }
+      ]
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "<result:pasted/query11111.sql>"
+      },
+      "result": {
+        "id": "<result:pasted/query11111.sql>",
+        "columns": 19,
+        "columns_with_lineage": 19,
+        "columns_without_lineage": [],
+        "written_by": [
+          "pasted/query11111.sql#<script>:23"
+        ],
+        "found": true,
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.line_status",
+            "id": "4c8e7265d50b85314a04a7d8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.updated_at",
+            "id": "63b4369286a64023b15fb2b7",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.is_deleted",
+            "id": "6581e3cd5e433026dee2ecc8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.shipped_qty",
+            "id": "881bea9b77923461bbd76250",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.unit_selling_price",
+            "id": "8e258f3bb514783050566f9b",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.shipment_id",
+            "id": "9a71a41d968280483731a7a1",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.promise_date",
+            "id": "eab8917304314c646a1be12a",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.status_code",
+            "id": "f9a8abaebd7b0eef17c2d57e",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    },
+    {
+      "tool": "graph_query",
+      "args": {
+        "cypher": "MATCH (s:Column)-[f:FEEDS]->(t:Column) WHERE t.id STARTS WITH '<result:pasted/query11111.sql>.' RETURN s.id, f.id, t.id, f.transform"
+      },
+      "result": {
+        "rejected": false,
+        "query": "MATCH (s:Column)-[f:FEEDS]->(t:Column) WHERE t.id STARTS WITH '<result:pasted/query11111.sql>.' RETURN s.id, f.id, t.id, f.transform\nLIMIT 500",
+        "rows": [
+          {
+            "s.id": "crm.customer_site.country_code",
+            "f.id": "16976cf4e7525e953707ad8a",
+            "t.id": "<result:pasted/query11111.sql>.Ship To Site",
+            "f.transform": "conditional"
+          },
+          {
+            "s.id": "crm.customer_site.site_code",
+            "f.id": "fcfd707b97b71617e7c3046c",
+            "t.id": "<result:pasted/query11111.sql>.Ship To Site",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "lgx.shipment_header.shipment_id",
+            "f.id": "c9c2ddcf6d2d19734b75d749",
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "f.transform": "conditional"
+          },
+          {
+            "s.id": "lgx.shipment_header.carrier_code",
+            "f.id": "f2f4269d1fbb6fc0800735c2",
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "f.transform": "conditional"
+          },
+          {
+            "s.id": "lgx.carrier.carrier_name",
+            "f.id": "49af2ba193dcb18848562fb5",
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "lgx.carrier.carrier_code",
+            "f.id": "b3b8bc87f36c1ff4e286b573",
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "f.transform": "conditional"
+          },
+          {
+            "s.id": "crm.contact.role",
+            "f.id": "c40aeffeaaf0a48c1970cd49",
+            "t.id": "<result:pasted/query11111.sql>.contact_role",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "crm.contact.is_primary",
+            "f.id": "4f95785a3ee544ce41206617",
+            "t.id": "<result:pasted/query11111.sql>.contact_role",
+            "f.transform": "conditional"
+          },
+          {
+            "s.id": "crm.customer.created_at",
+            "f.id": "23d1326b43286fa07eeaad95",
+            "t.id": "<result:pasted/query11111.sql>.customer_created_at",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "lgx.shipment_header.customer_id",
+            "f.id": "6d00ba2ea4948f0c68acdf32",
+            "t.id": "<result:pasted/query11111.sql>.customer_id",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "crm.customer.customer_name",
+            "f.id": "8b7dc9ecf7de82c6ccb0ffda",
+            "t.id": "<result:pasted/query11111.sql>.customer_name",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "crm.customer.status",
+            "f.id": "94fd55d63a8e14e094010115",
+            "t.id": "<result:pasted/query11111.sql>.customer_status",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "lgx.shipment_line.unit_selling_price",
+            "f.id": "7fbfeec0fef587fa35b1911d",
+            "t.id": "<result:pasted/query11111.sql>.ext",
+            "f.transform": "derived"
+          },
+          {
+            "s.id": "lgx.shipment_line.shipped_qty",
+            "f.id": "61c79af8ed72a19f2fff75e3",
+            "t.id": "<result:pasted/query11111.sql>.ext",
+            "f.transform": "derived"
+          },
+          {
+            "s.id": "lgx.shipment_header.status_code",
+            "f.id": "54f2767b3546803d12f58e77",
+            "t.id": "<result:pasted/query11111.sql>.from",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "lgx.package_event.event_ts",
+            "f.id": "d8993d4f5befd90b81492f54",
+            "t.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "f.transform": "aggregated"
+          },
+          {
+            "s.id": "evt.activity.kind",
+            "f.id": "a8c6f422f9ed0693c37ed100",
+            "t.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "f.transform": "aggregated"
+          },
+          {
+            "s.id": "evt.activity.created_at",
+            "f.id": "c8b75848705bed3a59fb3e62",
+            "t.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "f.transform": "aggregated"
+          },
+          {
+            "s.id": "lgx.shipment_line.last_update_ts",
+            "f.id": "5910d8cda7704ce78d601a80",
+            "t.id": "<result:pasted/query11111.sql>.line_updated_at",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "crm.contact.is_primary",
+            "f.id": "d4f3b9ad4f6ed566f676f14a",
+            "t.id": "<result:pasted/query11111.sql>.primary_email",
+            "f.transform": "conditional"
+          },
+          {
+            "s.id": "crm.contact.email",
+            "f.id": "770c4afaa06bc09ffe0b6fc1",
+            "t.id": "<result:pasted/query11111.sql>.primary_email",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "lgx.warehouse.region_code",
+            "f.id": "19ed7c1a6c35a4a890975061",
+            "t.id": "<result:pasted/query11111.sql>.region_code",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "lgx.shipment_header.shipment_id",
+            "f.id": "38430f812c8c41db2cc43e07",
+            "t.id": "<result:pasted/query11111.sql>.shipment_id",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "lgx.shipment_line.shipment_line_id",
+            "f.id": "f1eecb0cb336ba17f9b5f01a",
+            "t.id": "<result:pasted/query11111.sql>.shipment_line_id",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "lgx.shipment_line.shipped_qty",
+            "f.id": "46c9e9a221b9f8f6c4935e4b",
+            "t.id": "<result:pasted/query11111.sql>.shipped_qty",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "crm.customer_site.country_code",
+            "f.id": "a2cdb1d3def6d781b48289a0",
+            "t.id": "<result:pasted/query11111.sql>.site_segment",
+            "f.transform": "conditional"
+          },
+          {
+            "s.id": "crm.customer.segment",
+            "f.id": "fef2d2170cedffbfa4ce70c0",
+            "t.id": "<result:pasted/query11111.sql>.site_segment",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "gold.dim_status.status_name",
+            "f.id": "c37eb6b592f62d6ea8a1f281",
+            "t.id": "<result:pasted/query11111.sql>.status_name",
+            "f.transform": "identity"
+          },
+          {
+            "s.id": "gold.dim_status.datasource_num_id",
+            "f.id": "73f858abb2b6c6e1563df64f",
+            "t.id": "<result:pasted/query11111.sql>.status_name",
+            "f.transform": "conditional"
+          },
+          {
+            "s.id": "evt.activity.kind",
+            "f.id": "c5413e46891d780d17f6a49e",
+            "t.id": "<result:pasted/query11111.sql>.touch_sources",
+            "f.transform": "aggregated"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -95,6 +95,15 @@ It exposes the seven typed tools, the resource `lineage://semantics` and the pro
 |---|---|---|---|
 | baseline | Opus 5.5 | 20/30 (19/30 under the strict scorer) | $1.26 |
 | v2 | Sonnet 5.5, medium | **30/30** golden, **5/5** business | $0.60 + $0.28 |
+| harness 1 | Sonnet 5.5, medium | M5 set 8/10, hard set 8/10 | |
+| harness 2 | Sonnet 5.5, medium | **30/30** golden, **5/5** business, **10/10** M5, **10/10** hard | |
+
+- **M5 set** (`evals/m5_questions.yaml`) and **hard set** (`evals/hard_questions.yaml`): questions on M5, loaded as `pasted/query11111.sql`. The hard set mixes multi-hop paths, filters and aggregation.
+- **Harness 2 changes:**
+  - `explain_edge` shows the whole statement, up to 200 lines (it used to stop at 25);
+  - `coverage` says its lineage counts are incoming only;
+  - the prompt adds rules for one-hop scope, D-47 influences, list answers and refusals that come back twice;
+  - the semantics document says outer-join and scalar-subquery predicates are `conditional` values.
 
 ## 8. Streamlit (temporary observability UI)
 

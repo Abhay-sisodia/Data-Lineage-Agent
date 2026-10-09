@@ -85,6 +85,17 @@ def test_path_explain_and_ids(small: GraphTools) -> None:
     assert small.explain_edge("no-such-edge") is None
 
 
+def test_snippet_shows_the_whole_statement_up_to_its_cap() -> None:
+    from lineage.graph.tools import _SNIPPET_LINES, _snippet
+
+    body = ["WITH a AS (", *[f"  -- line {i}" for i in range(120)], ")", "SELECT 1 FROM a;", "X;"]
+    assert _snippet("\n".join(body), 1) == "\n".join(body[:-1])
+    long = ["SELECT", *["  1," for _ in range(_SNIPPET_LINES + 30)], "  2;"]
+    cut = _snippet("\n".join(long), 1)
+    assert cut is not None and cut.endswith("-- ... 32 more lines of this statement")
+    assert len(cut.splitlines()) == _SNIPPET_LINES + 1
+
+
 def test_gaps_name_the_boundary_and_the_refusal(small: GraphTools) -> None:
     by_file = small.gaps(file="c.sql")
     assert {b["kind"] for b in by_file["boundaries"]} == {"source_unavailable", "refusal"}

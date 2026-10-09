@@ -96,7 +96,8 @@ def main() -> None:
         ):
             add(
                 f"C{i}",
-                f"What influences {col} without being part of its value?",
+                f"What influences {col} (grouping, ordering or partition keys), whether or not "
+                "it also feeds its value?",
                 "influences",
                 status="answered",
                 facts=facts(t.upstream(col, 1), "INFLUENCES"),

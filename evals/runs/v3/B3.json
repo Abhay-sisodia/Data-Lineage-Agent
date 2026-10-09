@@ -1,0 +1,72 @@
+{
+  "question": "Which columns filter the rows that land in mart.po_supplier_summary?",
+  "seconds": 18.8,
+  "stage": "agent",
+  "cost_usd": 0.007184800000000001,
+  "turns": 4,
+  "notes": [],
+  "answer": {
+    "question_id": "B3",
+    "status": "answered",
+    "text": "One column filters the rows of mart.po_supplier_summary: mart.fact_po_line.status_code. It is a pre-aggregation filter, written at hard/h2_po_fact_load.sql:345. No boundaries or refusals apply.",
+    "cited_edges": [
+      "e9a392e6bd79b47dcc85ae48"
+    ],
+    "cited_nodes": [
+      "mart.fact_po_line.status_code"
+    ],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.po_supplier_summary"
+      },
+      "result": [
+        {
+          "id": "mart.po_supplier_summary",
+          "label": "Table"
+        }
+      ]
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "mart.po_supplier_summary"
+      },
+      "result": {
+        "id": "mart.po_supplier_summary",
+        "columns": 6,
+        "columns_with_lineage": 6,
+        "columns_without_lineage": [],
+        "written_by": [
+          "hard/h2_po_fact_load.sql#<script>:345"
+        ],
+        "found": true,
+        "lineage_note": "with/without lineage counts what FEEDS or INFLUENCES each column (incoming). A source table's columns are usually all 'without lineage' and still feed other tables: use `downstream` for what a column feeds",
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h2_po_fact_load.sql",
+            "tier": "A",
+            "line": 345,
+            "guard": null,
+            "statement": "hard/h2_po_fact_load.sql#<script>:345",
+            "source": "mart.fact_po_line.status_code",
+            "id": "e9a392e6bd79b47dcc85ae48",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.po_supplier_summary"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    }
+  ]
+}

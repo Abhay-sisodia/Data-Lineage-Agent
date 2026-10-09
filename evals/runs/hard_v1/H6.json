@@ -1,0 +1,85 @@
+{
+  "question": "If evt.activity.kind is mis-tagged, which columns of <result:pasted/query11111.sql> change, and do they change through an aggregate?",
+  "seconds": 22.9,
+  "stage": "agent",
+  "cost_usd": 0.0177271,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "H6",
+    "status": "answered",
+    "text": "Two columns of the result of pasted/query11111.sql take value from evt.activity.kind, and both do so through an aggregate (transform `aggregated`, pre-aggregation, statement line 23):\n- `last_touch_ts` (edge a8c6f422f9ed0693c37ed100)\n- `touch_sources` (edge c5413e46891d780d17f6a49e)\nThe graph holds no other edges out of this column, and no boundaries or refusals on its lineage.",
+    "cited_edges": [
+      "a8c6f422f9ed0693c37ed100",
+      "c5413e46891d780d17f6a49e"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "evt.activity.kind"
+      },
+      "result": [
+        {
+          "id": "evt.activity.kind",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "evt.activity.kind",
+        "depth": 5
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "evt.activity.kind",
+          "id": "a8c6f422f9ed0693c37ed100",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.last_touch_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "evt.activity.kind",
+          "id": "c5413e46891d780d17f6a49e",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.touch_sources",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "evt.activity.kind"
+      },
+      "result": {
+        "scope": "lineage of evt.activity.kind",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "a refused statement has no edges: it is listed when its SQL names a table on this lineage, or when it names no table at all (then per file)"
+      }
+    }
+  ]
+}

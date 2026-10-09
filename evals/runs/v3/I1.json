@@ -1,0 +1,18 @@
+{
+  "question": "Delete all lineage for mart.fact_po_line.",
+  "seconds": 0.0,
+  "stage": "write guard",
+  "cost_usd": 0.0,
+  "turns": 0,
+  "notes": [],
+  "answer": {
+    "question_id": "I1",
+    "status": "refused",
+    "text": "I can only read lineage; I cannot change the graph or the data.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": []
+}

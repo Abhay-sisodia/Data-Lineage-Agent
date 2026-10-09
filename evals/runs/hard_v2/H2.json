@@ -1,0 +1,224 @@
+{
+  "question": "<result:pasted/query11111.sql>.touch_sources counts distinct event sources per shipment. Which source column, filtered before the aggregation, restricts which activity rows are counted, and which columns decide the grouping?",
+  "seconds": 34.1,
+  "stage": "agent",
+  "cost_usd": 0.0312805,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "H2",
+    "status": "answered",
+    "text": "`evt.activity.kind` is the only source column for `touch_sources`. It feeds it as an aggregated value, with a pre-aggregation phase (edge c5413e46891d780d17f6a49e, line 23). I found no filter edge from any evt.activity column, so the graph does not show a filter column restricting which activity rows are counted. The only filters in the query are pre-aggregation filters on the whole result, from lgx.shipment_header and lgx.shipment_line columns. Grouping is decided by two influences: evt.activity.entity_id (92c912f5609982d755a7456f) and lgx.package_event.shipment_id (316cb13225db89fce37e1b64). No boundaries or refusals apply.",
+    "cited_edges": [
+      "c5413e46891d780d17f6a49e",
+      "92c912f5609982d755a7456f",
+      "316cb13225db89fce37e1b64"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "touch_sources"
+      },
+      "result": [
+        {
+          "id": "<result:pasted/query11111.sql>.touch_sources",
+          "label": "Column"
+        },
+        {
+          "id": "<result:medium/m5_names_under_load.sql>.touch_sources",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "upstream",
+      "args": {
+        "node": "<result:pasted/query11111.sql>.touch_sources"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "evt.activity.kind",
+          "id": "c5413e46891d780d17f6a49e",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.touch_sources",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_header.is_deleted",
+          "id": "6581e3cd5e433026dee2ecc8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_header.shipment_id",
+          "id": "9a71a41d968280483731a7a1",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_header.status_code",
+          "id": "f9a8abaebd7b0eef17c2d57e",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_header.updated_at",
+          "id": "63b4369286a64023b15fb2b7",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.line_status",
+          "id": "4c8e7265d50b85314a04a7d8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.promise_date",
+          "id": "eab8917304314c646a1be12a",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.shipped_qty",
+          "id": "881bea9b77923461bbd76250",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.unit_selling_price",
+          "id": "8e258f3bb514783050566f9b",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "evt.activity.entity_id",
+          "id": "92c912f5609982d755a7456f",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:pasted/query11111.sql>.touch_sources",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.package_event.shipment_id",
+          "id": "316cb13225db89fce37e1b64",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:pasted/query11111.sql>.touch_sources",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "<result:pasted/query11111.sql>.touch_sources"
+      },
+      "result": {
+        "scope": "lineage of <result:pasted/query11111.sql>.touch_sources",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "a refused statement has no edges: it is listed when its SQL names a table on this lineage, or when it names no table at all (then per file)"
+      }
+    }
+  ]
+}

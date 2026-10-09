@@ -1,0 +1,168 @@
+{
+  "question": "Is any part of the lineage of <result:easy/e4_expressions.sql>.uom_key unknown?",
+  "seconds": 24.7,
+  "stage": "agent",
+  "cost_usd": 0.0107518,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "F3",
+    "status": "answered",
+    "text": "Yes. The function NORMALISE_UOM at easy/e4_expressions.sql:16 is unknown to the graph. Its source could not be read (source_unavailable), so what it does inside is not traceable. Its arguments still flow in as derived value edges: lgx.item_master.item_code and lgx.item_master.weight_kg feed uom_key. Apart from that boundary, the graph shows no other unknowns and no refusals for this column.",
+    "cited_edges": [
+      "722086f4219d0a5900d4bd1c",
+      "f9b2e33c46635c7b165810fc"
+    ],
+    "cited_nodes": [],
+    "unknowns": [
+      "SOURCE_UNAVAILABLE:NORMALISE_UOM"
+    ],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "<result:easy/e4_expressions.sql>.uom_key"
+      },
+      "result": [
+        {
+          "id": "<result:easy/e4_expressions.sql>.uom_key",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "<result:easy/e4_expressions.sql>.uom_key"
+      },
+      "result": {
+        "scope": "lineage of <result:easy/e4_expressions.sql>.uom_key",
+        "boundaries": [
+          {
+            "id": "SOURCE_UNAVAILABLE:NORMALISE_UOM",
+            "kind": "source_unavailable",
+            "subject": "NORMALISE_UOM",
+            "statement": "easy/e4_expressions.sql#<script>:16"
+          }
+        ],
+        "refusals": [],
+        "refusals_note": "a refused statement has no edges: it is listed when its SQL names a table on this lineage, or when it names no table at all (then per file)"
+      }
+    },
+    {
+      "tool": "upstream",
+      "args": {
+        "node": "<result:easy/e4_expressions.sql>.uom_key"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "derived",
+          "file": "easy/e4_expressions.sql",
+          "tier": "A",
+          "line": 16,
+          "guard": null,
+          "statement": "easy/e4_expressions.sql#<script>:16",
+          "source": "lgx.item_master.item_code",
+          "id": "722086f4219d0a5900d4bd1c",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:easy/e4_expressions.sql>.uom_key",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "derived",
+          "file": "easy/e4_expressions.sql",
+          "tier": "A",
+          "line": 16,
+          "guard": null,
+          "statement": "easy/e4_expressions.sql#<script>:16",
+          "source": "lgx.item_master.weight_kg",
+          "id": "f9b2e33c46635c7b165810fc",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:easy/e4_expressions.sql>.uom_key",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "easy/e4_expressions.sql",
+          "tier": "A",
+          "line": 16,
+          "guard": null,
+          "statement": "easy/e4_expressions.sql#<script>:16",
+          "source": "lgx.item_master.item_class",
+          "id": "0b82ec1810be75b621c77ab9",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:easy/e4_expressions.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "easy/e4_expressions.sql",
+          "tier": "A",
+          "line": 16,
+          "guard": null,
+          "statement": "easy/e4_expressions.sql#<script>:16",
+          "source": "lgx.shipment_line.line_status",
+          "id": "d26999deb24172ddb5375960",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:easy/e4_expressions.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "easy/e4_expressions.sql",
+          "tier": "A",
+          "line": 16,
+          "guard": null,
+          "statement": "easy/e4_expressions.sql#<script>:16",
+          "source": "lgx.shipment_line.line_type_code",
+          "id": "2a401e7bac7436a61c498088",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:easy/e4_expressions.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "easy/e4_expressions.sql",
+          "tier": "A",
+          "line": 16,
+          "guard": null,
+          "statement": "easy/e4_expressions.sql#<script>:16",
+          "source": "lgx.shipment_line.shipped_qty",
+          "id": "75fc30823b9fee858a761696",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:easy/e4_expressions.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "easy/e4_expressions.sql",
+          "tier": "A",
+          "line": 16,
+          "guard": null,
+          "statement": "easy/e4_expressions.sql#<script>:16",
+          "source": "lgx.shipment_line.unit_selling_price",
+          "id": "568557894302c3d1e97f2e5b",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:easy/e4_expressions.sql>",
+          "depth": 1
+        }
+      ]
+    }
+  ]
+}

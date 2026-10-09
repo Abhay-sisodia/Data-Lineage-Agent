@@ -1,0 +1,310 @@
+{
+  "question": "Where does mart.shipment_fact.load_ts come from?",
+  "seconds": 19.5,
+  "stage": "agent",
+  "cost_usd": 0.0196152,
+  "turns": 6,
+  "notes": [],
+  "answer": {
+    "question_id": "K1",
+    "status": "answered",
+    "text": "No lineage found for mart.shipment_fact.load_ts. No value or influence edge feeds it, and the coverage check lists it as the only column of mart.shipment_fact without lineage (10 of 11 have it). The graph holds no boundary or refusal on it. It is written by statements in hard/h4_nightly_load.sql (lines 106, 121, 144), but the parser found no source column for it. That is consistent with a literal or a default such as now(), but the graph doesn't say so. The only edges touching the table are table-level filters, which decide which rows land and put no data into load_ts.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.shipment_fact.load_ts"
+      },
+      "result": [
+        {
+          "id": "mart.shipment_fact.load_ts",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "upstream",
+      "args": {
+        "node": "mart.shipment_fact.load_ts"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 144,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:144",
+          "source": "lgx.shipment_line.line_status",
+          "id": "a491df39b753c506f7b603ed",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 106,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:106",
+          "source": "mart.shipment_fact.delivery_class",
+          "id": "e2eade0df02ab6213e57d76c",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 106,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:106",
+          "source": "mart.shipment_fact.ext_amount_usd",
+          "id": "b4ee268b9192a2cba615a93f",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 121,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:121",
+          "source": "mart.shipment_fact.shipment_line_id",
+          "id": "f9cb1da711fd52350b6aa09f",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 106,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:106",
+          "source": "pg_temp.stg_ship.delivery_class",
+          "id": "056660ee8bb6c930798327f8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 106,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:106",
+          "source": "pg_temp.stg_ship.ext_amount_usd",
+          "id": "c3b986e91e01e3270e78df36",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 121,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:121",
+          "source": "pg_temp.stg_ship.line_status",
+          "id": "ecac703e1300d4193927e32d",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 121,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:121",
+          "source": "pg_temp.stg_ship.shipment_line_id",
+          "id": "962514e748651ce5bfca7938",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "mart.shipment_fact.load_ts"
+      },
+      "result": {
+        "scope": "lineage of mart.shipment_fact.load_ts",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "a refused statement has no edges: it is listed when its SQL names a table on this lineage, or when it names no table at all (then per file)"
+      }
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "mart.shipment_fact"
+      },
+      "result": {
+        "id": "mart.shipment_fact",
+        "columns": 11,
+        "columns_with_lineage": 10,
+        "columns_without_lineage": [
+          "mart.shipment_fact.load_ts"
+        ],
+        "written_by": [
+          "hard/h4_nightly_load.sql#<script>:106",
+          "hard/h4_nightly_load.sql#<script>:121",
+          "hard/h4_nightly_load.sql#<script>:144"
+        ],
+        "found": true,
+        "lineage_note": "with/without lineage counts what FEEDS or INFLUENCES each column (incoming). A source table's columns are usually all 'without lineage' and still feed other tables: use `downstream` for what a column feeds",
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h4_nightly_load.sql",
+            "tier": "A",
+            "line": 106,
+            "guard": null,
+            "statement": "hard/h4_nightly_load.sql#<script>:106",
+            "source": "pg_temp.stg_ship.delivery_class",
+            "id": "056660ee8bb6c930798327f8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.shipment_fact"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h4_nightly_load.sql",
+            "tier": "A",
+            "line": 121,
+            "guard": null,
+            "statement": "hard/h4_nightly_load.sql#<script>:121",
+            "source": "pg_temp.stg_ship.shipment_line_id",
+            "id": "962514e748651ce5bfca7938",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.shipment_fact"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h4_nightly_load.sql",
+            "tier": "A",
+            "line": 144,
+            "guard": null,
+            "statement": "hard/h4_nightly_load.sql#<script>:144",
+            "source": "lgx.shipment_line.line_status",
+            "id": "a491df39b753c506f7b603ed",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.shipment_fact"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h4_nightly_load.sql",
+            "tier": "A",
+            "line": 106,
+            "guard": null,
+            "statement": "hard/h4_nightly_load.sql#<script>:106",
+            "source": "mart.shipment_fact.ext_amount_usd",
+            "id": "b4ee268b9192a2cba615a93f",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.shipment_fact"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h4_nightly_load.sql",
+            "tier": "A",
+            "line": 106,
+            "guard": null,
+            "statement": "hard/h4_nightly_load.sql#<script>:106",
+            "source": "pg_temp.stg_ship.ext_amount_usd",
+            "id": "c3b986e91e01e3270e78df36",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.shipment_fact"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h4_nightly_load.sql",
+            "tier": "A",
+            "line": 106,
+            "guard": null,
+            "statement": "hard/h4_nightly_load.sql#<script>:106",
+            "source": "mart.shipment_fact.delivery_class",
+            "id": "e2eade0df02ab6213e57d76c",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.shipment_fact"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h4_nightly_load.sql",
+            "tier": "A",
+            "line": 121,
+            "guard": null,
+            "statement": "hard/h4_nightly_load.sql#<script>:121",
+            "source": "pg_temp.stg_ship.line_status",
+            "id": "ecac703e1300d4193927e32d",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.shipment_fact"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h4_nightly_load.sql",
+            "tier": "A",
+            "line": 121,
+            "guard": null,
+            "statement": "hard/h4_nightly_load.sql#<script>:121",
+            "source": "mart.shipment_fact.shipment_line_id",
+            "id": "f9cb1da711fd52350b6aa09f",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.shipment_fact"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    }
+  ]
+}

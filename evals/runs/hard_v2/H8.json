@@ -1,0 +1,713 @@
+{
+  "question": "Which columns of <result:pasted/query11111.sql> does any column of lgx.package_event affect, as a value or as a grouping key?",
+  "seconds": 29.5,
+  "stage": "agent",
+  "cost_usd": 0.0557878,
+  "turns": 10,
+  "notes": [],
+  "answer": {
+    "question_id": "H8",
+    "status": "answered",
+    "text": "Two columns of <result:pasted/query11111.sql> are affected by lgx.package_event (statement pasted/query11111.sql#<script>:23). last_touch_ts: event_ts is a value source (FEEDS, aggregated) and shipment_id is an influence (grouping key). touch_sources: shipment_id is an influence (grouping key). event_type and location_code have no edges into this result. No boundaries or refusals apply.",
+    "cited_edges": [
+      "d8993d4f5befd90b81492f54",
+      "5031d6ac456945e36e085a90",
+      "316cb13225db89fce37e1b64"
+    ],
+    "cited_nodes": [
+      "<result:pasted/query11111.sql>.last_touch_ts",
+      "<result:pasted/query11111.sql>.touch_sources"
+    ],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "lgx.package_event"
+      },
+      "result": [
+        {
+          "id": "lgx.package_event",
+          "label": "Table"
+        }
+      ]
+    },
+    {
+      "tool": "find",
+      "args": {
+        "name": "query11111"
+      },
+      "result": [
+        {
+          "id": "<result:pasted/query11111.sql>",
+          "label": "Table"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.ext",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.from",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.customer_id",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.region_code",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.shipment_id",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.shipped_qty",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.status_name",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.Ship To Site",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.carrier_name",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "<result:pasted/query11111.sql>"
+      },
+      "result": {
+        "id": "<result:pasted/query11111.sql>",
+        "columns": 19,
+        "columns_with_lineage": 19,
+        "columns_without_lineage": [],
+        "written_by": [
+          "pasted/query11111.sql#<script>:23"
+        ],
+        "found": true,
+        "lineage_note": "with/without lineage counts what FEEDS or INFLUENCES each column (incoming). A source table's columns are usually all 'without lineage' and still feed other tables: use `downstream` for what a column feeds",
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.line_status",
+            "id": "4c8e7265d50b85314a04a7d8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.updated_at",
+            "id": "63b4369286a64023b15fb2b7",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.is_deleted",
+            "id": "6581e3cd5e433026dee2ecc8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.shipped_qty",
+            "id": "881bea9b77923461bbd76250",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.unit_selling_price",
+            "id": "8e258f3bb514783050566f9b",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.shipment_id",
+            "id": "9a71a41d968280483731a7a1",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.promise_date",
+            "id": "eab8917304314c646a1be12a",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.status_code",
+            "id": "f9a8abaebd7b0eef17c2d57e",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "lgx.package_event"
+      },
+      "result": {
+        "id": "lgx.package_event",
+        "columns": 4,
+        "columns_with_lineage": 0,
+        "columns_without_lineage": [
+          "lgx.package_event.event_ts",
+          "lgx.package_event.event_type",
+          "lgx.package_event.location_code",
+          "lgx.package_event.shipment_id"
+        ],
+        "written_by": [],
+        "found": true,
+        "lineage_note": "with/without lineage counts what FEEDS or INFLUENCES each column (incoming). A source table's columns are usually all 'without lineage' and still feed other tables: use `downstream` for what a column feeds",
+        "filters": [],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.package_event.event_ts"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "bf927bbd581108386dc25fdb",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "42e44c503ef6723525b96c3b",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_scan_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "medium/m5_names_under_load.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "medium/m5_names_under_load.sql#<script>:23",
+          "source": "lgx.package_event.event_ts",
+          "id": "d82e381b5cd0387b35bf43bc",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m5_names_under_load.sql>.last_touch_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.package_event.event_ts",
+          "id": "d8993d4f5befd90b81492f54",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.last_touch_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 40,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:40",
+          "source": "lgx.package_event.event_ts",
+          "id": "c0878ca04f4bfd813355e2fb",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "pg_temp.stg_ship.last_event_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "adf96f9212b3c35d8105c6ae",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "48dfb6ba0432e246d3f45e45",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_type",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "2e0b8f7ac909a9bfa7f67caf",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_location",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.package_event.event_type"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_type",
+          "id": "f9edf742bddb81041ddaa493",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.exception_count",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_type",
+          "id": "3031e3256e4cb26793939769",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.is_delivered",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_type",
+          "id": "c7733da48c43c35acb31f1c1",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_type",
+          "id": "77e299545b2b78acc160eca4",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_type",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_type",
+          "id": "693058f8c3ac2542444a80d7",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_location",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 40,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:40",
+          "source": "lgx.package_event.event_type",
+          "id": "b416da96d4df6a8b88ea106f",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "pg_temp.stg_ship.packages_packed",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "easy/e3_joins.sql",
+          "tier": "A",
+          "line": 17,
+          "guard": null,
+          "statement": "easy/e3_joins.sql#<script>:17",
+          "source": "lgx.package_event.event_type",
+          "id": "a6a7d4396d67602f94e449ca",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:easy/e3_joins.sql>",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.package_event.location_code"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.location_code",
+          "id": "94797f6289697e81359fb2cb",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_location",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.package_event.shipment_id"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.shipment_id",
+          "id": "8f663dbd0bd7641774f737bd",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.exception_count",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.shipment_id",
+          "id": "fc3d8155acd52f41e3cd22c0",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.is_delivered",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.shipment_id",
+          "id": "e5aa9ca5279b5c0e31b81b25",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.shipment_id",
+          "id": "4da667eeb610f72b990b32ed",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_type",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.shipment_id",
+          "id": "e99cb815d3bf34b6d843c763",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_location",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.shipment_id",
+          "id": "ffd43fd352cd5d975def6ece",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_scan_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "easy/e3_joins.sql",
+          "tier": "A",
+          "line": 17,
+          "guard": null,
+          "statement": "easy/e3_joins.sql#<script>:17",
+          "source": "lgx.package_event.shipment_id",
+          "id": "feaebc774e61ddec6c6a028f",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:easy/e3_joins.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m5_names_under_load.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "medium/m5_names_under_load.sql#<script>:23",
+          "source": "lgx.package_event.shipment_id",
+          "id": "8556834f71c8dea3b9a938b5",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:medium/m5_names_under_load.sql>.last_touch_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m5_names_under_load.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "medium/m5_names_under_load.sql#<script>:23",
+          "source": "lgx.package_event.shipment_id",
+          "id": "550049ca8e74d753d8a89c44",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:medium/m5_names_under_load.sql>.touch_sources",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.package_event.shipment_id",
+          "id": "5031d6ac456945e36e085a90",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:pasted/query11111.sql>.last_touch_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.package_event.shipment_id",
+          "id": "316cb13225db89fce37e1b64",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:pasted/query11111.sql>.touch_sources",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 40,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:40",
+          "source": "lgx.package_event.shipment_id",
+          "id": "8adc980459719a8f1f021564",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "pg_temp.stg_ship.last_event_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 40,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:40",
+          "source": "lgx.package_event.shipment_id",
+          "id": "c54e1c6159b430b52d0a360d",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "pg_temp.stg_ship.packages_packed",
+          "depth": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,369 @@
+{
+  "question": "Some columns of <result:pasted/query11111.sql> come from LEFT-JOINed CTEs that filter their own rows, so those columns are NULL when the filter fails. Which result columns are affected that way, and by which filter column?",
+  "seconds": 31.5,
+  "stage": "agent",
+  "cost_usd": 0.0898336,
+  "turns": 12,
+  "notes": [],
+  "answer": {
+    "question_id": "H5",
+    "status": "answered",
+    "text": "Five result columns are NULL-able this way. Each is fed through a LEFT JOIN to a CTE that filters its own rows, so the filter column is a `conditional` value source (not a row filter):\n- `primary_email` and `contact_role`: `crm.contact.is_primary` (`WHERE ct.is_primary` in the `nested` CTE, LEFT JOINed as n).\n- `Ship To Site` and `site_segment`: `crm.customer_site.country_code` (`country_code = 'US'` in the `site` CTE, LEFT JOINed as st).\n- `status_name`: `gold.dim_status.datasource_num_id` (`= 100` in the `status` CTE, LEFT JOINed).\n\nNot counted: `carrier_name` also has `conditional` edges, but they come from a scalar subquery in the select list, not a LEFT-joined CTE. No boundaries or refusals apply to this file.",
+    "cited_edges": [
+      "4f95785a3ee544ce41206617",
+      "d4f3b9ad4f6ed566f676f14a",
+      "16976cf4e7525e953707ad8a",
+      "a2cdb1d3def6d781b48289a0",
+      "73f858abb2b6c6e1563df64f"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "<result:pasted/query11111.sql>"
+      },
+      "result": [
+        {
+          "id": "<result:pasted/query11111.sql>",
+          "label": "Table"
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "file": "pasted/query11111.sql"
+      },
+      "result": {
+        "scope": "file pasted/query11111.sql",
+        "boundaries": [],
+        "refusals": []
+      }
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "<result:pasted/query11111.sql>"
+      },
+      "result": {
+        "id": "<result:pasted/query11111.sql>",
+        "columns": 19,
+        "columns_with_lineage": 19,
+        "columns_without_lineage": [],
+        "written_by": [
+          "pasted/query11111.sql#<script>:23"
+        ],
+        "found": true,
+        "lineage_note": "with/without lineage counts what FEEDS or INFLUENCES each column (incoming). A source table's columns are usually all 'without lineage' and still feed other tables: use `downstream` for what a column feeds",
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.line_status",
+            "id": "4c8e7265d50b85314a04a7d8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.updated_at",
+            "id": "63b4369286a64023b15fb2b7",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.is_deleted",
+            "id": "6581e3cd5e433026dee2ecc8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.shipped_qty",
+            "id": "881bea9b77923461bbd76250",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.unit_selling_price",
+            "id": "8e258f3bb514783050566f9b",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.shipment_id",
+            "id": "9a71a41d968280483731a7a1",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.promise_date",
+            "id": "eab8917304314c646a1be12a",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.status_code",
+            "id": "f9a8abaebd7b0eef17c2d57e",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    },
+    {
+      "tool": "graph_query",
+      "args": {
+        "cypher": "MATCH (s)-[r:FEEDS]->(t:Column) WHERE t.id STARTS WITH '<result:pasted/query11111.sql>.' AND r.transform = 'conditional' RETURN r.id, s.id, t.id, r.transform"
+      },
+      "result": {
+        "rejected": false,
+        "query": "MATCH (s)-[r:FEEDS]->(t:Column) WHERE t.id STARTS WITH '<result:pasted/query11111.sql>.' AND r.transform = 'conditional' RETURN r.id, s.id, t.id, r.transform\nLIMIT 500",
+        "rows": [
+          {
+            "r.id": "16976cf4e7525e953707ad8a",
+            "s.id": "crm.customer_site.country_code",
+            "t.id": "<result:pasted/query11111.sql>.Ship To Site",
+            "r.transform": "conditional"
+          },
+          {
+            "r.id": "c9c2ddcf6d2d19734b75d749",
+            "s.id": "lgx.shipment_header.shipment_id",
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "r.transform": "conditional"
+          },
+          {
+            "r.id": "f2f4269d1fbb6fc0800735c2",
+            "s.id": "lgx.shipment_header.carrier_code",
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "r.transform": "conditional"
+          },
+          {
+            "r.id": "b3b8bc87f36c1ff4e286b573",
+            "s.id": "lgx.carrier.carrier_code",
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "r.transform": "conditional"
+          },
+          {
+            "r.id": "4f95785a3ee544ce41206617",
+            "s.id": "crm.contact.is_primary",
+            "t.id": "<result:pasted/query11111.sql>.contact_role",
+            "r.transform": "conditional"
+          },
+          {
+            "r.id": "d4f3b9ad4f6ed566f676f14a",
+            "s.id": "crm.contact.is_primary",
+            "t.id": "<result:pasted/query11111.sql>.primary_email",
+            "r.transform": "conditional"
+          },
+          {
+            "r.id": "a2cdb1d3def6d781b48289a0",
+            "s.id": "crm.customer_site.country_code",
+            "t.id": "<result:pasted/query11111.sql>.site_segment",
+            "r.transform": "conditional"
+          },
+          {
+            "r.id": "73f858abb2b6c6e1563df64f",
+            "s.id": "gold.dim_status.datasource_num_id",
+            "t.id": "<result:pasted/query11111.sql>.status_name",
+            "r.transform": "conditional"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "16976cf4e7525e953707ad8a"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "crm.customer_site.country_code",
+        "id": "16976cf4e7525e953707ad8a",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.Ship To Site",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x\n),\nlvl3 AS (\n    SELECT *\n    FROM lvl2\n    WHERE ext > 0\n),\nlvl4 AS (\n    SELECT x.*\n    FROM lvl3 AS x\n    WHERE x.promise_date IS NOT NULL\n),\ncustomer AS (\n    SELECT c.customer_id, c.customer_name AS name, c.status, c.segment, c.created_at\n    FROM crm.customer AS c\n),\nnested AS (\n    WITH customer AS (\n        SELECT ct.customer_id, ct.email AS name, ct.role AS status\n        FROM crm.contact AS ct\n        WHERE ct.is_primary\n    )\n    SELECT customer.customer_id,\n           customer.name   AS primary_email,\n           customer.status AS contact_role\n    FROM customer\n),\nsite AS (\n    SELECT customer_id, s.site_code, cu.segment, cu.name AS customer_name\n    FROM crm.customer_site AS s\n    JOIN customer AS cu USING (customer_id)\n    WHERE country_code = 'US'\n),\nevents AS (\n    SELECT pe.shipment_id, pe.event_ts AS ts, 'PKG' AS src\n    FROM lgx.package_event AS pe\n    UNION ALL\n    SELECT a.entity_id, a.created_at, 'ACT'\n    FROM evt.activity AS a\n    WHERE a.kind = 'SHIPMENT'\n),\nlast_touch AS (\n    SELECT e.shipment_id, MAX(e.ts) AS last_touch_ts, COUNT(DISTINCT e.src) AS touch_sources\n    FROM events AS e\n    GROUP BY e.shipment_id\n),\nstatus AS (\n    SELECT ds.status_code AS status, ds.status_name\n    FROM gold.dim_status AS ds\n    WHERE ds.datasource_num_id = 100\n),\nregions AS (\n    SELECT warehouse.org_id, warehouse.region_code, warehouse.warehouse_code\n    FROM lgx.warehouse\n)\nSELECT\n    o.\"id\"                                             AS shipment_id,\n    o.\"Customer_Id\"                                    AS customer_id,\n    o.\"select\"                                         AS \"from\",\n    o.row_xmin,\n    cu.name                                            AS customer_name,\n    cu.status                                          AS customer_status,\n    cu.created_at                                      AS customer_created_at,\n    n.primary_email,\n    n.contact_role,\n    st.site_code                                       AS \"Ship To Site\",\n    st.segment                                         AS site_segment,\n    rg.region_code,\n    L4.shipment_line_id,\n    l4.ext,\n    L4.SHIPPED_QTY                                     AS shipped_qty,\n    l4.last_update_ts                                  AS line_updated_at,\n    (SELECT x.carrier_name\n     FROM lgx.carrier AS x\n     WHERE x.carrier_code = (SELECT x.carrier_code\n                             FROM lgx.shipment_header AS x\n                             WHERE x.shipment_id = o.\"id\"))    AS carrier_name,\n    lt.last_touch_ts,\n    lt.touch_sources,\n    status.status_name\nFROM \"Order\" AS o\nJOIN lvl4 AS L4          ON l4.shipment_id = o.\"id\"\nLEFT JOIN customer AS cu ON cu.customer_id = o.\"Customer_Id\"\nLEFT JOIN nested   AS n  ON n.customer_id = o.\"Customer_Id\"\nLEFT JOIN site     AS st ON st.customer_id = o.\"Customer_Id\"\nLEFT JOIN regions  AS rg ON rg.org_id = o.ship_from_org_id\nLEFT JOIN last_touch AS lt ON lt.shipment_id = o.\"id\"\nLEFT JOIN status         ON status.status = o.\"select\"\nWHERE o.\"select\" <> 'VOID'\nORDER BY 1, 13;"
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "4f95785a3ee544ce41206617"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "crm.contact.is_primary",
+        "id": "4f95785a3ee544ce41206617",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.contact_role",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x\n),\nlvl3 AS (\n    SELECT *\n    FROM lvl2\n    WHERE ext > 0\n),\nlvl4 AS (\n    SELECT x.*\n    FROM lvl3 AS x\n    WHERE x.promise_date IS NOT NULL\n),\ncustomer AS (\n    SELECT c.customer_id, c.customer_name AS name, c.status, c.segment, c.created_at\n    FROM crm.customer AS c\n),\nnested AS (\n    WITH customer AS (\n        SELECT ct.customer_id, ct.email AS name, ct.role AS status\n        FROM crm.contact AS ct\n        WHERE ct.is_primary\n    )\n    SELECT customer.customer_id,\n           customer.name   AS primary_email,\n           customer.status AS contact_role\n    FROM customer\n),\nsite AS (\n    SELECT customer_id, s.site_code, cu.segment, cu.name AS customer_name\n    FROM crm.customer_site AS s\n    JOIN customer AS cu USING (customer_id)\n    WHERE country_code = 'US'\n),\nevents AS (\n    SELECT pe.shipment_id, pe.event_ts AS ts, 'PKG' AS src\n    FROM lgx.package_event AS pe\n    UNION ALL\n    SELECT a.entity_id, a.created_at, 'ACT'\n    FROM evt.activity AS a\n    WHERE a.kind = 'SHIPMENT'\n),\nlast_touch AS (\n    SELECT e.shipment_id, MAX(e.ts) AS last_touch_ts, COUNT(DISTINCT e.src) AS touch_sources\n    FROM events AS e\n    GROUP BY e.shipment_id\n),\nstatus AS (\n    SELECT ds.status_code AS status, ds.status_name\n    FROM gold.dim_status AS ds\n    WHERE ds.datasource_num_id = 100\n),\nregions AS (\n    SELECT warehouse.org_id, warehouse.region_code, warehouse.warehouse_code\n    FROM lgx.warehouse\n)\nSELECT\n    o.\"id\"                                             AS shipment_id,\n    o.\"Customer_Id\"                                    AS customer_id,\n    o.\"select\"                                         AS \"from\",\n    o.row_xmin,\n    cu.name                                            AS customer_name,\n    cu.status                                          AS customer_status,\n    cu.created_at                                      AS customer_created_at,\n    n.primary_email,\n    n.contact_role,\n    st.site_code                                       AS \"Ship To Site\",\n    st.segment                                         AS site_segment,\n    rg.region_code,\n    L4.shipment_line_id,\n    l4.ext,\n    L4.SHIPPED_QTY                                     AS shipped_qty,\n    l4.last_update_ts                                  AS line_updated_at,\n    (SELECT x.carrier_name\n     FROM lgx.carrier AS x\n     WHERE x.carrier_code = (SELECT x.carrier_code\n                             FROM lgx.shipment_header AS x\n                             WHERE x.shipment_id = o.\"id\"))    AS carrier_name,\n    lt.last_touch_ts,\n    lt.touch_sources,\n    status.status_name\nFROM \"Order\" AS o\nJOIN lvl4 AS L4          ON l4.shipment_id = o.\"id\"\nLEFT JOIN customer AS cu ON cu.customer_id = o.\"Customer_Id\"\nLEFT JOIN nested   AS n  ON n.customer_id = o.\"Customer_Id\"\nLEFT JOIN site     AS st ON st.customer_id = o.\"Customer_Id\"\nLEFT JOIN regions  AS rg ON rg.org_id = o.ship_from_org_id\nLEFT JOIN last_touch AS lt ON lt.shipment_id = o.\"id\"\nLEFT JOIN status         ON status.status = o.\"select\"\nWHERE o.\"select\" <> 'VOID'\nORDER BY 1, 13;"
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "d4f3b9ad4f6ed566f676f14a"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "crm.contact.is_primary",
+        "id": "d4f3b9ad4f6ed566f676f14a",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.primary_email",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x\n),\nlvl3 AS (\n    SELECT *\n    FROM lvl2\n    WHERE ext > 0\n),\nlvl4 AS (\n    SELECT x.*\n    FROM lvl3 AS x\n    WHERE x.promise_date IS NOT NULL\n),\ncustomer AS (\n    SELECT c.customer_id, c.customer_name AS name, c.status, c.segment, c.created_at\n    FROM crm.customer AS c\n),\nnested AS (\n    WITH customer AS (\n        SELECT ct.customer_id, ct.email AS name, ct.role AS status\n        FROM crm.contact AS ct\n        WHERE ct.is_primary\n    )\n    SELECT customer.customer_id,\n           customer.name   AS primary_email,\n           customer.status AS contact_role\n    FROM customer\n),\nsite AS (\n    SELECT customer_id, s.site_code, cu.segment, cu.name AS customer_name\n    FROM crm.customer_site AS s\n    JOIN customer AS cu USING (customer_id)\n    WHERE country_code = 'US'\n),\nevents AS (\n    SELECT pe.shipment_id, pe.event_ts AS ts, 'PKG' AS src\n    FROM lgx.package_event AS pe\n    UNION ALL\n    SELECT a.entity_id, a.created_at, 'ACT'\n    FROM evt.activity AS a\n    WHERE a.kind = 'SHIPMENT'\n),\nlast_touch AS (\n    SELECT e.shipment_id, MAX(e.ts) AS last_touch_ts, COUNT(DISTINCT e.src) AS touch_sources\n    FROM events AS e\n    GROUP BY e.shipment_id\n),\nstatus AS (\n    SELECT ds.status_code AS status, ds.status_name\n    FROM gold.dim_status AS ds\n    WHERE ds.datasource_num_id = 100\n),\nregions AS (\n    SELECT warehouse.org_id, warehouse.region_code, warehouse.warehouse_code\n    FROM lgx.warehouse\n)\nSELECT\n    o.\"id\"                                             AS shipment_id,\n    o.\"Customer_Id\"                                    AS customer_id,\n    o.\"select\"                                         AS \"from\",\n    o.row_xmin,\n    cu.name                                            AS customer_name,\n    cu.status                                          AS customer_status,\n    cu.created_at                                      AS customer_created_at,\n    n.primary_email,\n    n.contact_role,\n    st.site_code                                       AS \"Ship To Site\",\n    st.segment                                         AS site_segment,\n    rg.region_code,\n    L4.shipment_line_id,\n    l4.ext,\n    L4.SHIPPED_QTY                                     AS shipped_qty,\n    l4.last_update_ts                                  AS line_updated_at,\n    (SELECT x.carrier_name\n     FROM lgx.carrier AS x\n     WHERE x.carrier_code = (SELECT x.carrier_code\n                             FROM lgx.shipment_header AS x\n                             WHERE x.shipment_id = o.\"id\"))    AS carrier_name,\n    lt.last_touch_ts,\n    lt.touch_sources,\n    status.status_name\nFROM \"Order\" AS o\nJOIN lvl4 AS L4          ON l4.shipment_id = o.\"id\"\nLEFT JOIN customer AS cu ON cu.customer_id = o.\"Customer_Id\"\nLEFT JOIN nested   AS n  ON n.customer_id = o.\"Customer_Id\"\nLEFT JOIN site     AS st ON st.customer_id = o.\"Customer_Id\"\nLEFT JOIN regions  AS rg ON rg.org_id = o.ship_from_org_id\nLEFT JOIN last_touch AS lt ON lt.shipment_id = o.\"id\"\nLEFT JOIN status         ON status.status = o.\"select\"\nWHERE o.\"select\" <> 'VOID'\nORDER BY 1, 13;"
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "a2cdb1d3def6d781b48289a0"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "crm.customer_site.country_code",
+        "id": "a2cdb1d3def6d781b48289a0",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.site_segment",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x\n),\nlvl3 AS (\n    SELECT *\n    FROM lvl2\n    WHERE ext > 0\n),\nlvl4 AS (\n    SELECT x.*\n    FROM lvl3 AS x\n    WHERE x.promise_date IS NOT NULL\n),\ncustomer AS (\n    SELECT c.customer_id, c.customer_name AS name, c.status, c.segment, c.created_at\n    FROM crm.customer AS c\n),\nnested AS (\n    WITH customer AS (\n        SELECT ct.customer_id, ct.email AS name, ct.role AS status\n        FROM crm.contact AS ct\n        WHERE ct.is_primary\n    )\n    SELECT customer.customer_id,\n           customer.name   AS primary_email,\n           customer.status AS contact_role\n    FROM customer\n),\nsite AS (\n    SELECT customer_id, s.site_code, cu.segment, cu.name AS customer_name\n    FROM crm.customer_site AS s\n    JOIN customer AS cu USING (customer_id)\n    WHERE country_code = 'US'\n),\nevents AS (\n    SELECT pe.shipment_id, pe.event_ts AS ts, 'PKG' AS src\n    FROM lgx.package_event AS pe\n    UNION ALL\n    SELECT a.entity_id, a.created_at, 'ACT'\n    FROM evt.activity AS a\n    WHERE a.kind = 'SHIPMENT'\n),\nlast_touch AS (\n    SELECT e.shipment_id, MAX(e.ts) AS last_touch_ts, COUNT(DISTINCT e.src) AS touch_sources\n    FROM events AS e\n    GROUP BY e.shipment_id\n),\nstatus AS (\n    SELECT ds.status_code AS status, ds.status_name\n    FROM gold.dim_status AS ds\n    WHERE ds.datasource_num_id = 100\n),\nregions AS (\n    SELECT warehouse.org_id, warehouse.region_code, warehouse.warehouse_code\n    FROM lgx.warehouse\n)\nSELECT\n    o.\"id\"                                             AS shipment_id,\n    o.\"Customer_Id\"                                    AS customer_id,\n    o.\"select\"                                         AS \"from\",\n    o.row_xmin,\n    cu.name                                            AS customer_name,\n    cu.status                                          AS customer_status,\n    cu.created_at                                      AS customer_created_at,\n    n.primary_email,\n    n.contact_role,\n    st.site_code                                       AS \"Ship To Site\",\n    st.segment                                         AS site_segment,\n    rg.region_code,\n    L4.shipment_line_id,\n    l4.ext,\n    L4.SHIPPED_QTY                                     AS shipped_qty,\n    l4.last_update_ts                                  AS line_updated_at,\n    (SELECT x.carrier_name\n     FROM lgx.carrier AS x\n     WHERE x.carrier_code = (SELECT x.carrier_code\n                             FROM lgx.shipment_header AS x\n                             WHERE x.shipment_id = o.\"id\"))    AS carrier_name,\n    lt.last_touch_ts,\n    lt.touch_sources,\n    status.status_name\nFROM \"Order\" AS o\nJOIN lvl4 AS L4          ON l4.shipment_id = o.\"id\"\nLEFT JOIN customer AS cu ON cu.customer_id = o.\"Customer_Id\"\nLEFT JOIN nested   AS n  ON n.customer_id = o.\"Customer_Id\"\nLEFT JOIN site     AS st ON st.customer_id = o.\"Customer_Id\"\nLEFT JOIN regions  AS rg ON rg.org_id = o.ship_from_org_id\nLEFT JOIN last_touch AS lt ON lt.shipment_id = o.\"id\"\nLEFT JOIN status         ON status.status = o.\"select\"\nWHERE o.\"select\" <> 'VOID'\nORDER BY 1, 13;"
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "73f858abb2b6c6e1563df64f"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "gold.dim_status.datasource_num_id",
+        "id": "73f858abb2b6c6e1563df64f",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.status_name",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x\n),\nlvl3 AS (\n    SELECT *\n    FROM lvl2\n    WHERE ext > 0\n),\nlvl4 AS (\n    SELECT x.*\n    FROM lvl3 AS x\n    WHERE x.promise_date IS NOT NULL\n),\ncustomer AS (\n    SELECT c.customer_id, c.customer_name AS name, c.status, c.segment, c.created_at\n    FROM crm.customer AS c\n),\nnested AS (\n    WITH customer AS (\n        SELECT ct.customer_id, ct.email AS name, ct.role AS status\n        FROM crm.contact AS ct\n        WHERE ct.is_primary\n    )\n    SELECT customer.customer_id,\n           customer.name   AS primary_email,\n           customer.status AS contact_role\n    FROM customer\n),\nsite AS (\n    SELECT customer_id, s.site_code, cu.segment, cu.name AS customer_name\n    FROM crm.customer_site AS s\n    JOIN customer AS cu USING (customer_id)\n    WHERE country_code = 'US'\n),\nevents AS (\n    SELECT pe.shipment_id, pe.event_ts AS ts, 'PKG' AS src\n    FROM lgx.package_event AS pe\n    UNION ALL\n    SELECT a.entity_id, a.created_at, 'ACT'\n    FROM evt.activity AS a\n    WHERE a.kind = 'SHIPMENT'\n),\nlast_touch AS (\n    SELECT e.shipment_id, MAX(e.ts) AS last_touch_ts, COUNT(DISTINCT e.src) AS touch_sources\n    FROM events AS e\n    GROUP BY e.shipment_id\n),\nstatus AS (\n    SELECT ds.status_code AS status, ds.status_name\n    FROM gold.dim_status AS ds\n    WHERE ds.datasource_num_id = 100\n),\nregions AS (\n    SELECT warehouse.org_id, warehouse.region_code, warehouse.warehouse_code\n    FROM lgx.warehouse\n)\nSELECT\n    o.\"id\"                                             AS shipment_id,\n    o.\"Customer_Id\"                                    AS customer_id,\n    o.\"select\"                                         AS \"from\",\n    o.row_xmin,\n    cu.name                                            AS customer_name,\n    cu.status                                          AS customer_status,\n    cu.created_at                                      AS customer_created_at,\n    n.primary_email,\n    n.contact_role,\n    st.site_code                                       AS \"Ship To Site\",\n    st.segment                                         AS site_segment,\n    rg.region_code,\n    L4.shipment_line_id,\n    l4.ext,\n    L4.SHIPPED_QTY                                     AS shipped_qty,\n    l4.last_update_ts                                  AS line_updated_at,\n    (SELECT x.carrier_name\n     FROM lgx.carrier AS x\n     WHERE x.carrier_code = (SELECT x.carrier_code\n                             FROM lgx.shipment_header AS x\n                             WHERE x.shipment_id = o.\"id\"))    AS carrier_name,\n    lt.last_touch_ts,\n    lt.touch_sources,\n    status.status_name\nFROM \"Order\" AS o\nJOIN lvl4 AS L4          ON l4.shipment_id = o.\"id\"\nLEFT JOIN customer AS cu ON cu.customer_id = o.\"Customer_Id\"\nLEFT JOIN nested   AS n  ON n.customer_id = o.\"Customer_Id\"\nLEFT JOIN site     AS st ON st.customer_id = o.\"Customer_Id\"\nLEFT JOIN regions  AS rg ON rg.org_id = o.ship_from_org_id\nLEFT JOIN last_touch AS lt ON lt.shipment_id = o.\"id\"\nLEFT JOIN status         ON status.status = o.\"select\"\nWHERE o.\"select\" <> 'VOID'\nORDER BY 1, 13;"
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "c9c2ddcf6d2d19734b75d749"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "lgx.shipment_header.shipment_id",
+        "id": "c9c2ddcf6d2d19734b75d749",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.carrier_name",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x\n),\nlvl3 AS (\n    SELECT *\n    FROM lvl2\n    WHERE ext > 0\n),\nlvl4 AS (\n    SELECT x.*\n    FROM lvl3 AS x\n    WHERE x.promise_date IS NOT NULL\n),\ncustomer AS (\n    SELECT c.customer_id, c.customer_name AS name, c.status, c.segment, c.created_at\n    FROM crm.customer AS c\n),\nnested AS (\n    WITH customer AS (\n        SELECT ct.customer_id, ct.email AS name, ct.role AS status\n        FROM crm.contact AS ct\n        WHERE ct.is_primary\n    )\n    SELECT customer.customer_id,\n           customer.name   AS primary_email,\n           customer.status AS contact_role\n    FROM customer\n),\nsite AS (\n    SELECT customer_id, s.site_code, cu.segment, cu.name AS customer_name\n    FROM crm.customer_site AS s\n    JOIN customer AS cu USING (customer_id)\n    WHERE country_code = 'US'\n),\nevents AS (\n    SELECT pe.shipment_id, pe.event_ts AS ts, 'PKG' AS src\n    FROM lgx.package_event AS pe\n    UNION ALL\n    SELECT a.entity_id, a.created_at, 'ACT'\n    FROM evt.activity AS a\n    WHERE a.kind = 'SHIPMENT'\n),\nlast_touch AS (\n    SELECT e.shipment_id, MAX(e.ts) AS last_touch_ts, COUNT(DISTINCT e.src) AS touch_sources\n    FROM events AS e\n    GROUP BY e.shipment_id\n),\nstatus AS (\n    SELECT ds.status_code AS status, ds.status_name\n    FROM gold.dim_status AS ds\n    WHERE ds.datasource_num_id = 100\n),\nregions AS (\n    SELECT warehouse.org_id, warehouse.region_code, warehouse.warehouse_code\n    FROM lgx.warehouse\n)\nSELECT\n    o.\"id\"                                             AS shipment_id,\n    o.\"Customer_Id\"                                    AS customer_id,\n    o.\"select\"                                         AS \"from\",\n    o.row_xmin,\n    cu.name                                            AS customer_name,\n    cu.status                                          AS customer_status,\n    cu.created_at                                      AS customer_created_at,\n    n.primary_email,\n    n.contact_role,\n    st.site_code                                       AS \"Ship To Site\",\n    st.segment                                         AS site_segment,\n    rg.region_code,\n    L4.shipment_line_id,\n    l4.ext,\n    L4.SHIPPED_QTY                                     AS shipped_qty,\n    l4.last_update_ts                                  AS line_updated_at,\n    (SELECT x.carrier_name\n     FROM lgx.carrier AS x\n     WHERE x.carrier_code = (SELECT x.carrier_code\n                             FROM lgx.shipment_header AS x\n                             WHERE x.shipment_id = o.\"id\"))    AS carrier_name,\n    lt.last_touch_ts,\n    lt.touch_sources,\n    status.status_name\nFROM \"Order\" AS o\nJOIN lvl4 AS L4          ON l4.shipment_id = o.\"id\"\nLEFT JOIN customer AS cu ON cu.customer_id = o.\"Customer_Id\"\nLEFT JOIN nested   AS n  ON n.customer_id = o.\"Customer_Id\"\nLEFT JOIN site     AS st ON st.customer_id = o.\"Customer_Id\"\nLEFT JOIN regions  AS rg ON rg.org_id = o.ship_from_org_id\nLEFT JOIN last_touch AS lt ON lt.shipment_id = o.\"id\"\nLEFT JOIN status         ON status.status = o.\"select\"\nWHERE o.\"select\" <> 'VOID'\nORDER BY 1, 13;"
+      }
+    }
+  ]
+}

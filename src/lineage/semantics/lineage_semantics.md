@@ -52,7 +52,7 @@ A ladder, weakest to strongest: `identity` < `derived` < `conditional` < `aggreg
 
 - `identity`: copied unchanged.
 - `derived`: computed from it (arithmetic, a cast, a function).
-- `conditional`: chosen by a condition between two or more columns (CASE, COALESCE, GREATEST, ...; D-19).
+- `conditional`: chosen by a condition between two or more columns (CASE, COALESCE, GREATEST, ...; D-19). Also a predicate that **cannot remove a result row** (section 10): a WHERE inside an outer-joined CTE or subquery, or inside a scalar subquery, decides whether the value is there or NULL, so its columns are `conditional` value sources of the columns that come through it, not filters.
 - `aggregated`: summarised over many rows (SUM, COUNT, MAX, ...).
 - An edge carries the **hardest** transform on its path (D-7), and one value fact per source and target per statement (D-51).
 - Filter and influence edges always carry `identity`.

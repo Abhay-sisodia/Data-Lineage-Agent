@@ -257,7 +257,7 @@ questions:
       - mart.fact_po_line.status_code
       - mart.po_supplier_summary
 - id: C1
-  question: What influences mart.po_supplier_summary.spend_rank without being part of its value?
+  question: What influences mart.po_supplier_summary.spend_rank (grouping, ordering or partition keys), whether or not it also feeds its value?
   intent: influences
   expected:
     status: answered
@@ -272,7 +272,7 @@ questions:
       - s2p.supplier.vendor_name
       - mart.po_supplier_summary.spend_rank
 - id: C2
-  question: What influences mart.po_supplier_summary.total_spend without being part of its value?
+  question: What influences mart.po_supplier_summary.total_spend (grouping, ordering or partition keys), whether or not it also feeds its value?
   intent: influences
   expected:
     status: answered
@@ -284,7 +284,7 @@ questions:
       - s2p.supplier.vendor_name
       - mart.po_supplier_summary.total_spend
 - id: C3
-  question: What influences mart.mv_entity_status.last_flag_at without being part of its value?
+  question: What influences mart.mv_entity_status.last_flag_at (grouping, ordering or partition keys), whether or not it also feeds its value?
   intent: influences
   expected:
     status: answered
