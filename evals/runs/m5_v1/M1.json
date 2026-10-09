@@ -1,0 +1,205 @@
+{
+  "question": "Where does <result:pasted/query11111.sql>.ext come from, through all the CTE levels?",
+  "seconds": 22.7,
+  "stage": "agent",
+  "cost_usd": 0.0234805,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "M1",
+    "status": "answered",
+    "text": "`ext` is derived from two base columns, and the graph shows no further CTE hops. The CTE levels resolve in the single statement at line 23 (query11111.sql:23).\n- Value sources (both `derived`, pre-aggregation): `lgx.shipment_line.shipped_qty` and `lgx.shipment_line.unit_selling_price`.\n- Filters on the result rows (not part of the value): `lgx.shipment_header` columns `is_deleted`, `shipment_id`, `status_code`, `updated_at`. `lgx.shipment_line` columns `line_status`, `promise_date`, `shipped_qty`, `unit_selling_price`.\n- No boundaries or refusals limit this lineage.",
+    "cited_edges": [
+      "61c79af8ed72a19f2fff75e3",
+      "7fbfeec0fef587fa35b1911d"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "<result:pasted/query11111.sql>.ext"
+      },
+      "result": [
+        {
+          "id": "<result:pasted/query11111.sql>.ext",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "upstream",
+      "args": {
+        "node": "<result:pasted/query11111.sql>.ext",
+        "depth": 10
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "derived",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.shipped_qty",
+          "id": "61c79af8ed72a19f2fff75e3",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.ext",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "derived",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.unit_selling_price",
+          "id": "7fbfeec0fef587fa35b1911d",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.ext",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_header.is_deleted",
+          "id": "6581e3cd5e433026dee2ecc8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_header.shipment_id",
+          "id": "9a71a41d968280483731a7a1",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_header.status_code",
+          "id": "f9a8abaebd7b0eef17c2d57e",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_header.updated_at",
+          "id": "63b4369286a64023b15fb2b7",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.line_status",
+          "id": "4c8e7265d50b85314a04a7d8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.promise_date",
+          "id": "eab8917304314c646a1be12a",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.shipped_qty",
+          "id": "881bea9b77923461bbd76250",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.shipment_line.unit_selling_price",
+          "id": "8e258f3bb514783050566f9b",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:pasted/query11111.sql>",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "<result:pasted/query11111.sql>.ext"
+      },
+      "result": {
+        "scope": "lineage of <result:pasted/query11111.sql>.ext",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "a refused statement has no edges: it is listed when its SQL names a table on this lineage, or when it names no table at all (then per file)"
+      }
+    }
+  ]
+}

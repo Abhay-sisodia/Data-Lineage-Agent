@@ -1,0 +1,148 @@
+[
+  {
+    "question_id": "M1",
+    "status": "answered",
+    "text": "`ext` is derived from two base columns, and the graph shows no further CTE hops. The CTE levels resolve in the single statement at line 23 (query11111.sql:23).\n- Value sources (both `derived`, pre-aggregation): `lgx.shipment_line.shipped_qty` and `lgx.shipment_line.unit_selling_price`.\n- Filters on the result rows (not part of the value): `lgx.shipment_header` columns `is_deleted`, `shipment_id`, `status_code`, `updated_at`. `lgx.shipment_line` columns `line_status`, `promise_date`, `shipped_qty`, `unit_selling_price`.\n- No boundaries or refusals limit this lineage.",
+    "cited_edges": [
+      "61c79af8ed72a19f2fff75e3",
+      "7fbfeec0fef587fa35b1911d"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "M2",
+    "status": "answered",
+    "text": "It comes from crm.customer.customer_name. It is a value edge, identity (copied unchanged), at pasted/query11111.sql:23. The graph has no lineage from crm.contact to this column. No boundaries or refusals apply.",
+    "cited_edges": [
+      "8b7dc9ecf7de82c6ccb0ffda"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "M3",
+    "status": "answered",
+    "text": "primary_email takes its value from crm.contact.email (identity, pre-aggregation). crm.contact.is_primary also feeds it as a value with a conditional transform, so it decides which contact's email is used. The exact rule (e.g. the CASE or tie-break) is not shown by the graph. No influence edges (ORDER BY/PARTITION BY) found. Separately, filters on the whole result (lgx.shipment_header is_deleted, shipment_id, status_code, updated_at; lgx.shipment_line line_status, promise_date, shipped_qty, unit_selling_price) decide which rows exist, but none of their data is in the column. No boundaries or refusals.",
+    "cited_edges": [
+      "770c4afaa06bc09ffe0b6fc1",
+      "d4f3b9ad4f6ed566f676f14a"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "M4",
+    "status": "answered",
+    "text": "carrier_name (query11111.sql:23) has four value sources:\n- lgx.carrier.carrier_name: identity, the copied name.\n- lgx.carrier.carrier_code: conditional.\n- lgx.shipment_header.carrier_code: conditional.\n- lgx.shipment_header.shipment_id: conditional.\n\nThe three conditional sources are what choose the carrier. The graph doesn't give the exact condition.\n\nThe graph also shows filters on the whole result (pre-aggregation). They decide which rows appear, not the carrier itself:\n- shipment_header: is_deleted, shipment_id, status_code, updated_at.\n- shipment_line: line_status, promise_date, shipped_qty, unit_selling_price.\n\nNo boundaries or refusals on this lineage.",
+    "cited_edges": [
+      "49af2ba193dcb18848562fb5",
+      "b3b8bc87f36c1ff4e286b573",
+      "f2f4269d1fbb6fc0800735c2",
+      "c9c2ddcf6d2d19734b75d749",
+      "6581e3cd5e433026dee2ecc8",
+      "9a71a41d968280483731a7a1",
+      "f9a8abaebd7b0eef17c2d57e",
+      "63b4369286a64023b15fb2b7",
+      "4c8e7265d50b85314a04a7d8",
+      "eab8917304314c646a1be12a",
+      "881bea9b77923461bbd76250",
+      "8e258f3bb514783050566f9b"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "M5",
+    "status": "answered",
+    "text": "**last_touch_ts**\n- Value sources, all aggregated (pasted/query11111.sql:23): evt.activity.created_at, evt.activity.kind, lgx.package_event.event_ts.\n- Influences: evt.activity.entity_id and lgx.package_event.shipment_id.\n\n**touch_sources**\n- Value source, aggregated: evt.activity.kind only.\n- Influences: evt.activity.entity_id and lgx.package_event.shipment_id.\n\n**Row filters on both columns** (pre-aggregation, whole result, same statement): lgx.shipment_header.is_deleted, shipment_id, status_code and updated_at, plus lgx.shipment_line.line_status, promise_date, shipped_qty and unit_selling_price.\n\nNo boundaries or refusals on either lineage.",
+    "cited_edges": [
+      "c8b75848705bed3a59fb3e62",
+      "a8c6f422f9ed0693c37ed100",
+      "d8993d4f5befd90b81492f54",
+      "3a12485ee68dcf225bc03665",
+      "5031d6ac456945e36e085a90",
+      "c5413e46891d780d17f6a49e",
+      "92c912f5609982d755a7456f",
+      "316cb13225db89fce37e1b64",
+      "6581e3cd5e433026dee2ecc8",
+      "9a71a41d968280483731a7a1",
+      "f9a8abaebd7b0eef17c2d57e",
+      "63b4369286a64023b15fb2b7",
+      "4c8e7265d50b85314a04a7d8",
+      "eab8917304314c646a1be12a",
+      "881bea9b77923461bbd76250",
+      "8e258f3bb514783050566f9b"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "M6",
+    "status": "answered",
+    "text": "Eight columns filter the rows of <result:pasted/query11111.sql>. All are pre-aggregation filters from the statement at line 23. No boundaries or refusals were found.\nFrom lgx.shipment_header: shipment_id, status_code, is_deleted, updated_at.\nFrom lgx.shipment_line: line_status, shipped_qty, unit_selling_price, promise_date.",
+    "cited_edges": [
+      "4c8e7265d50b85314a04a7d8",
+      "63b4369286a64023b15fb2b7",
+      "6581e3cd5e433026dee2ecc8",
+      "881bea9b77923461bbd76250",
+      "8e258f3bb514783050566f9b",
+      "9a71a41d968280483731a7a1",
+      "eab8917304314c646a1be12a",
+      "f9a8abaebd7b0eef17c2d57e"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "M7",
+    "status": "answered",
+    "text": "Only one column is affected: <result:pasted/query11111.sql>.last_touch_ts. It takes lgx.package_event.event_ts as a value, aggregated transform, pre-aggregation (line 23). No other value, filter or influence edge from event_ts into this query was found, and there are no boundaries or refusals.",
+    "cited_edges": [
+      "d8993d4f5befd90b81492f54"
+    ],
+    "cited_nodes": [
+      "<result:pasted/query11111.sql>.last_touch_ts"
+    ],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "M8",
+    "status": "answered",
+    "text": "No. No crm.contact column reaches <result:pasted/query11111.sql>.customer_status. Its only value source is crm.customer.status (identity, line 23). The other edges into the result are filters from lgx.shipment_header and lgx.shipment_line columns. No boundaries or refusals on this lineage.",
+    "cited_edges": [
+      "94fd55d63a8e14e094010115"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "M9",
+    "status": "answered",
+    "text": "site_segment (pasted/query11111.sql, line 23) takes its value from two columns:\n- crm.customer.segment: value, identity (copied unchanged).\n- crm.customer_site.country_code: value, conditional (it picks the result, likely in a CASE or COALESCE).\n\nThe same statement also filters the result's rows, pre-aggregation. These filters are not part of the value:\n- lgx.shipment_header: is_deleted, shipment_id, status_code, updated_at.\n- lgx.shipment_line: line_status, promise_date, shipped_qty, unit_selling_price.\n\nNo boundaries or refusals limit this lineage.",
+    "cited_edges": [
+      "fef2d2170cedffbfa4ce70c0",
+      "a2cdb1d3def6d781b48289a0"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "M10",
+    "status": "answered",
+    "text": "No lineage found: `<result:pasted/query11111.sql>.row_xmin` is not a column in the graph. The result of pasted/query11111.sql (statement at line 23) has 19 columns, and none is row_xmin: from, customer_id, Ship To Site, site_segment, region_code, touch_sources, customer_name, shipment_line_id, ext, status_name, shipped_qty, shipment_id, customer_created_at, last_touch_ts, line_updated_at, customer_status, carrier_name, primary_email, contact_role. Did you mean one of these? No boundaries or refusals on this statement.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  }
+]
