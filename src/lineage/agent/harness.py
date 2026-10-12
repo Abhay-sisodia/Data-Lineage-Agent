@@ -97,7 +97,7 @@ class Run:
     trace_path: str = ""
 
 
-HARNESS_VERSION = "2"
+HARNESS_VERSION = "3"
 """Bump when a tool description or harness stage changes: it is part of every cache key."""
 
 
@@ -316,7 +316,7 @@ class Harness:
         def obj(props: dict[str, Any], required: list[str]) -> dict[str, Any]:
             return {"type": "object", "properties": props, "required": required}
 
-        s, i = {"type": "string"}, {"type": "integer"}
+        s, i, b = {"type": "string"}, {"type": "integer"}, {"type": "boolean"}
         return create_sdk_mcp_server(
             SERVER,
             tools=[
@@ -330,14 +330,16 @@ class Harness:
                 wrap(
                     "upstream",
                     "Lineage edges INTO a column: FEEDS and INFLUENCES into it, and "
-                    "FILTERS on its table; `depth` hops up (default 1).",
-                    obj({"node": s, "depth": i}, ["node"]),
+                    "FILTERS on its table; `depth` hops up (default 1). `join_keys`: also "
+                    "the KEYS edges - the keys that chose a lookup's row.",
+                    obj({"node": s, "depth": i, "join_keys": b}, ["node"]),
                     t.upstream,
                 ),
                 wrap(
                     "downstream",
-                    "Impact: lineage edges OUT of a column, `depth` hops down.",
-                    obj({"node": s, "depth": i}, ["node"]),
+                    "Impact: lineage edges OUT of a column, `depth` hops down. "
+                    "`join_keys`: also the lookups it keys.",
+                    obj({"node": s, "depth": i, "join_keys": b}, ["node"]),
                     t.downstream,
                 ),
                 wrap(

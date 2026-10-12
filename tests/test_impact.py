@@ -1,8 +1,9 @@
 """MVP plan F3: the impact report - what breaks if a column or table changes.
 
-Gate: the affected set is exactly `downstream` (nodes and nearest hops); the statements to
-edit include writers, readers and SQL that names the column with no lineage edge (a join
-key, D-5); refused statements that name an affected table are unknowns.
+Gate: the affected set is exactly `downstream` with join keys (nodes and nearest hops); the
+statements to edit include writers, readers, lookups keyed on the column (D-57) and SQL that
+names it with no lineage edge (a key whose join supplies no value, D-5); refused statements
+that name an affected table are unknowns.
 
 These tests replace the graph's contents; rebuild with `lineage graph build` afterwards.
 The small-graph tests run first: the last test loads the final suite over them.
@@ -41,6 +42,11 @@ FILES = {
     ),
     "b.sql": "SELECT t.customer_id, t.revenue * 2 AS doubled FROM mart.top_customers AS t;\n",
     "c.sql": "TRUNCATE mart.top_customers;\n",
+    "d.sql": (  # the join only keeps matching rows: the customers table supplies no value
+        "INSERT INTO mart.events_log (id, kind)\n"
+        "SELECT w.id, w.event_type FROM staging.web_events AS w\n"
+        "JOIN staging.customers AS c ON c.id = w.customer_id;\n"
+    ),
 }
 
 
@@ -60,7 +66,7 @@ def small(neo4j_driver: Any, tmp_path_factory: pytest.TempPathFactory) -> GraphT
 
 def _nearest(tools: GraphTools, node: str) -> dict[str, int]:
     hops: dict[str, int] = {}
-    for edge in tools.downstream(node, 15):
+    for edge in tools.downstream(node, 15, join_keys=True):
         hops[edge["target"]] = min(hops.get(edge["target"], 99), edge["depth"])
     return hops
 
@@ -81,11 +87,22 @@ def test_drop_lists_affected_edits_and_unknowns(small: GraphTools) -> None:
     assert [x["file"] for x in report["unknowns"]["refusals"]] == ["c.sql"]
 
 
-def test_a_join_key_is_a_possible_edit_with_no_lineage(small: GraphTools) -> None:
+def test_a_lookup_key_affects_what_the_lookup_supplies(small: GraphTools) -> None:
+    """`s.region` is read from the dim_store row `o.store_id` picks (D-57)."""
     report = small.impact("staging.orders.store_id", "drop")
+    assert [(a["node"], a["flow"]) for a in report["affected"]] == [
+        ("mart.top_customers.region", "join key")
+    ]
+    assert [(e["file"], e["lines"], e["reason"], e["possible"]) for e in report["edit"]] == [
+        ("a.sql", [4], "joins a lookup on it", False)
+    ]
+
+
+def test_a_join_key_with_no_lookup_is_a_possible_edit(small: GraphTools) -> None:
+    report = small.impact("staging.web_events.customer_id", "drop")
     assert report["affected"] == []
     assert [(e["file"], e["lines"], e["possible"]) for e in report["edit"]] == [
-        ("a.sql", [4], True)
+        ("d.sql", [3], True)
     ]
 
 
@@ -146,7 +163,7 @@ def test_a_column_reached_as_value_and_influence_shows_both() -> None:
     from lineage.graph.impact import _affected
 
     class _Tools:
-        def downstream(self, node: str, depth: int) -> list[dict[str, Any]]:
+        def downstream(self, node: str, depth: int, join_keys: bool = False) -> list[Any]:
             base = {"source": node, "statement": "s", "file": "f.sql", "line": 1}
             return [
                 {

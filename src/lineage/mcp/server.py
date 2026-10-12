@@ -46,15 +46,18 @@ def find(name: str, limit: int = 10) -> list[dict[str, Any]]:
 
 
 @server.tool(annotations=READ_ONLY)
-def upstream(node: str, depth: int = 1) -> list[dict[str, Any]]:
-    """Lineage edges into a column (value, influence, and filters on its table), `depth` hops up."""
-    return _tools().upstream(node, depth)
+def upstream(node: str, depth: int = 1, join_keys: bool = False) -> list[dict[str, Any]]:
+    """Lineage edges into a column (value, influence, and filters on its table), `depth` hops up.
+
+    `join_keys` also returns KEYS edges: the keys that chose a lookup's row (D-57).
+    """
+    return _tools().upstream(node, depth, join_keys)
 
 
 @server.tool(annotations=READ_ONLY)
-def downstream(node: str, depth: int = 1) -> list[dict[str, Any]]:
-    """Impact: lineage edges out of a column, `depth` hops down."""
-    return _tools().downstream(node, depth)
+def downstream(node: str, depth: int = 1, join_keys: bool = False) -> list[dict[str, Any]]:
+    """Impact: lineage edges out of a column, `depth` hops down (`join_keys`: KEYS too)."""
+    return _tools().downstream(node, depth, join_keys)
 
 
 @server.tool(annotations=READ_ONLY)

@@ -9,7 +9,8 @@ Two pure pieces, kept apart from the page so the React version can copy the rule
 * `model` - what to draw, as data; `explorer_render.js` lays it out with ELK (orthogonal
   edges, crossings minimised) and draws it. One card per table, one row per column; edges run from
   column row to column row. Value edges are solid with a transform badge, influence edges
-  dotted, filter edges dashed into the card's header. Parallel facts (two statements
+  dotted, filter edges dashed into the card's header, join-key edges (D-57) thin and
+  dash-dotted. Parallel facts (two statements
   writing the same column the same way) are drawn once.
 """
 
@@ -20,6 +21,9 @@ from pathlib import Path
 from typing import Any
 
 BADGE = {"aggregated": "Σ", "derived": "ƒ", "conditional": "?", "identity": ""}
+KINDS = ("FEEDS", "INFLUENCES", "FILTERS", "KEYS")
+"""Lineage relationship types, strongest claim first."""
+VERB = {"FEEDS": "value", "INFLUENCES": "influence", "FILTERS": "filter", "KEYS": "join key"}
 DIRECTIONS = ("upstream", "downstream", "both")
 
 
@@ -33,11 +37,12 @@ def explore(
 ) -> list[dict[str, Any]]:
     """The edges to draw around `node`, each once, with the hop it was reached at."""
     edges: dict[str, dict[str, Any]] = {}
+    keys = "KEYS" in flows
     if direction in ("upstream", "both"):
-        for edge in _walk_up(tools, node, depth, follow_filters):
+        for edge in _walk_up(tools, node, depth, follow_filters, keys):
             edges.setdefault(edge["id"], edge)
     if direction in ("downstream", "both"):
-        for edge in tools.downstream(node, depth):
+        for edge in tools.downstream(node, depth, join_keys=keys):
             edges.setdefault(edge["id"], edge)
     return sorted(
         (e for e in edges.values() if e["type"] in flows),
@@ -45,13 +50,15 @@ def explore(
     )
 
 
-def _walk_up(tools: Any, node: str, depth: int, follow_filters: bool) -> list[dict[str, Any]]:
+def _walk_up(
+    tools: Any, node: str, depth: int, follow_filters: bool, join_keys: bool = False
+) -> list[dict[str, Any]]:
     """`upstream`, except that a filter's source is shown and, by default, not walked."""
     seen: dict[str, dict[str, Any]] = {}
     frontier, visited = [node], {node}
     for hop in range(1, max(1, min(int(depth), 15)) + 1):
         nxt: list[str] = []
-        for edge in tools._incoming(frontier):
+        for edge in tools._incoming(frontier, join_keys):
             if edge["id"] in seen:
                 continue
             seen[edge["id"]] = {**edge, "depth": hop}
@@ -153,7 +160,7 @@ def model(
             (e["transform"] or "identity" for e in same),
             key=lambda t: LADDER.index(t) if t in LADDER else 0,
         )
-        verb = {"FEEDS": "value", "INFLUENCES": "influence", "FILTERS": "filter"}[kind]
+        verb = VERB[kind]
         passed = f" via {', '.join(via)}" if via else ""
         lines.append(
             {
@@ -432,6 +439,7 @@ def collapse(
         "FILTERS": "rows also filtered by",
         "FEEDS": "values also from",
         "INFLUENCES": "also influenced by",
+        "KEYS": "lookup also keyed on",
     }
     notes: dict[str, list[str]] = {}
     for (card, kind), sources in sorted(unjoined.items()):
@@ -450,6 +458,8 @@ def _join(kind: str, transform: str, nxt_kind: str, nxt_transform: str) -> tuple
     if kind == "FEEDS" and nxt_kind == "FEEDS":
         hardest = max(transform, nxt_transform, key=lambda t: LADDER.index(t) if t in LADDER else 0)
         return "FEEDS", hardest
+    if "KEYS" in (kind, nxt_kind):
+        return "KEYS", "identity"  # it still picks the lookup's row, wherever it passed
     return "INFLUENCES", "identity"
 
 
@@ -661,11 +671,16 @@ def table_level(edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if source == target:
             continue
         groups.setdefault((source, target), []).append(edge)
-    words = {"FEEDS": "as values", "INFLUENCES": "as grouping or ordering", "FILTERS": "as filters"}
+    words = {
+        "FEEDS": "as values",
+        "INFLUENCES": "as grouping or ordering",
+        "FILTERS": "as filters",
+        "KEYS": "as join keys",
+    }
     out = []
     for (source, target), same in sorted(groups.items()):
         kinds = {e["type"] for e in same}
-        kind = next(k for k in ("FEEDS", "INFLUENCES", "FILTERS") if k in kinds)
+        kind = next(k for k in KINDS if k in kinds)
         used = {e["source"] for e in same}
         values = [e for e in same if e["type"] == "FEEDS"]
         hardest = max(
@@ -675,7 +690,7 @@ def table_level(edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
         parts = [
             f"{len({e['source'] for e in same if e['type'] == k})} {words[k]}"
-            for k in ("FEEDS", "INFLUENCES", "FILTERS")
+            for k in KINDS
             if k in kinds
         ]
         out.append(

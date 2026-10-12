@@ -28,6 +28,7 @@ Node labels: `Table`, `Column`, `Variable`, `File`, `Statement`, `Boundary`, `Re
 | `FEEDS` | Column/Variable → Column/Variable | value flow |
 | `FILTERS` | Column/Variable → Table | filter flow: decides which rows of the table land |
 | `INFLUENCES` | Column/Variable → Column/Variable | influence flow |
+| `KEYS` | Column/Variable → Column/Variable | join-key flow: the key that chose a lookup's row (section 4) |
 | `HAS_COLUMN` | Table → Column | the column belongs to the table |
 | `CONTAINS` | File → Statement | the statement is in the file |
 | `READS` / `WRITES` | Statement → Table | tables a statement reads / writes |
@@ -45,6 +46,9 @@ Lineage relationship properties: `id`, `transform`, `phase`, `band`, `tier`, `me
 - `filter`: the source decides **which rows** reach the target relation; none of its data is in any column. Relationship `FILTERS`, ending at a **table**, so it bounds every column of that table.
 - `influence`: the source decides the target's value **without being part of it** - a GROUP BY key, a window's PARTITION BY / ORDER BY, an ordered aggregate's ORDER BY. Relationship `INFLUENCES`.
 - One source can be both a value and an influence of the same target (D-47): two facts, both true.
+- `join_key`: the source is a **lookup join's key** - it chose which row of a joined table the target's value was read from (`LEFT JOIN ref.status_map m ON m.code = o.status` and `m.label` projected: `o.status` is a join key of the label). Relationship `KEYS` (D-57).
+  - Not one of the scored flows: D-5 still gives a key no value, filter or influence edge. `upstream` / `downstream` walk `KEYS` only with `join_keys=true`; impact reports include them.
+  - Say "the lookup is keyed on X", never "X feeds Y".
 
 ## 5. Transform (value edges)
 
@@ -116,7 +120,7 @@ A refused statement has **zero edges**; never guess what it does. It is tied to 
 
 ## 10. Conventions that change how a fact reads
 
-- A join's **key equality** gives **no edge**: it is plumbing, in ON or WHERE (D-5, D-11).
+- A join's **key equality** gives **no value, filter or influence edge**: it is plumbing, in ON or WHERE (D-5, D-11). Where the joined table is a lookup that supplies the target's value, the key is reported separately as `join_key` (D-57).
 - A non-key condition in an **inner** join's ON is a **filter**, as in WHERE (D-48). A non-equality condition between two tables (a range join) is a filter with both columns as sources (D-49).
 - `IN`, `EXISTS`, `NOT IN`, `NOT EXISTS` match keys are **filters**, both columns (D-52).
 - A row-choosing cut is a **filter** on what orders it: `rn = 1` over ROW_NUMBER, DISTINCT ON keys, ORDER BY under LIMIT (D-9). An ORDER BY without a limit gives nothing.

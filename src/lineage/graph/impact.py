@@ -4,12 +4,14 @@ Deterministic, from the graph alone - no LLM. For a column (or every column of a
 a change - `drop`, `rename` or `type` - it lists:
 
 * **affected**: every downstream column or table, by hop, and HOW it is reached - as a
-  `value`, an `influence` (grouping, ordering) or a `filter` (which rows exist). This is
-  exactly `GraphTools.downstream`: a filter ends at a whole table and is reported there,
-  not fanned out to every column built from that table.
+  `value`, an `influence` (grouping, ordering), a `filter` (which rows exist) or a
+  `join key` (it picks a lookup's row, D-57). This is `GraphTools.downstream` with join
+  keys walked: a filter ends at a whole table and is reported there, not fanned out to
+  every column built from that table.
 * **edit**: the statements whose SQL must change, with the lines that name the column:
   - statements that READ it into lineage (its outgoing edges),
   - statements that WRITE it (its incoming edges),
+  - statements that join a lookup ON it (its join-key edges, D-57),
   - statements that NAME it with no lineage edge at all - a join key's equality is
     plumbing and gives no edge (D-5), yet dropping that column still breaks the SQL. These
     come from the statement text, so they are marked `possible`: a word match, not proof.
@@ -29,7 +31,7 @@ if TYPE_CHECKING:
 
 CHANGES = ("drop", "rename", "type")
 
-FLOW = {"FEEDS": "value", "INFLUENCES": "influence", "FILTERS": "filter"}
+FLOW = {"FEEDS": "value", "INFLUENCES": "influence", "FILTERS": "filter", "KEYS": "join key"}
 
 LADDER = ("identity", "derived", "conditional", "aggregated")
 """Transforms, weakest to strongest (D-7)."""
@@ -46,6 +48,7 @@ CONSEQUENCE = {
 REASONS = {
     "reads": "reads it into lineage",
     "writes": "writes it",
+    "keys": "joins a lookup on it",
     "names": "names it with no lineage edge (e.g. a join key) - possible",
     "reads_table": "reads the table",
     "writes_table": "writes the table",
@@ -141,7 +144,7 @@ def _affected(tools: GraphTools, columns: list[str], depth: int) -> list[dict[st
     """
     nearest: dict[str, list[dict[str, Any]]] = {}
     for column in columns:
-        for edge in tools.downstream(column, depth):
+        for edge in tools.downstream(column, depth, join_keys=True):
             kept = nearest.setdefault(edge["target"], [])
             if kept and edge["depth"] > kept[0]["depth"]:
                 continue
@@ -151,7 +154,7 @@ def _affected(tools: GraphTools, columns: list[str], depth: int) -> list[dict[st
     rows = []
     for node, edges in nearest.items():
         kinds = {edge["type"] for edge in edges}
-        flows = [FLOW[kind] for kind in ("FEEDS", "INFLUENCES", "FILTERS") if kind in kinds]
+        flows = [FLOW[kind] for kind in FLOW if kind in kinds]
         values = [edge for edge in edges if edge["type"] == "FEEDS"]
         lead = min(values or edges, key=lambda e: e["id"])
         hardest = max(
@@ -191,6 +194,8 @@ def _edit(
             UNION
             MATCH ()-[r:FEEDS|INFLUENCES]->(c) RETURN r.statement AS statement,
                   'writes' AS reason
+            UNION
+            MATCH (c)-[r:KEYS]->() RETURN r.statement AS statement, 'keys' AS reason
         }
         RETURN DISTINCT statement, reason
         UNION
@@ -229,7 +234,7 @@ def _edit(
         if info is None:
             continue
         lines = _mentions(info["text"], info["line"], names)
-        lineage = found & {"reads", "writes"}
+        lineage = found & {"reads", "writes", "keys"}
         if lineage:
             reason = ", ".join(REASONS[r] for r in sorted(lineage))
         elif is_table:

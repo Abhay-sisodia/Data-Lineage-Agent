@@ -27,6 +27,7 @@ from __future__ import annotations
 import dataclasses
 import re
 
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -141,6 +142,14 @@ class AnalysisResult:
     named part of themselves, so counting them as wholly analysed would be false too. The
     honest report is both numbers plus this one, and a reader who wants the strict figure
     can subtract it.
+    """
+
+    join_keys: list[PredictedEdge] = field(default_factory=list)
+    """Lookup-join keys, `Flow.JOIN_KEY` (D-57). Kept OUT of `edges` on purpose.
+
+    D-5 gives a join key no edge and every closed-world key is written against `edges`, so
+    a key here changes no score. Filled by `procedure.analyse_source` only; a direct band-0
+    call leaves it empty.
     """
 
     scoped_statements: set[tuple[str, int]] = field(default_factory=set)
@@ -1774,6 +1783,71 @@ def _window_influence(
     return _remember(scope, key, unresolved, first_declared, found)
 
 
+JOIN_KEYS: ContextVar[bool] = ContextVar("join_keys", default=False)
+"""Whether band 0 reports lookup-join keys (D-57). Set by `analyse_source(join_keys=True)`."""
+
+
+def _join_key_influence(
+    projection: Any,
+    scope: Scope,
+    dictionary: Dictionary,
+    unresolved: list[Boundary],
+    depth: int = 0,
+) -> list[tuple[str, str, Transform]]:
+    """The keys that chose which LOOKUP row this projection's value came from (D-57).
+
+    `LEFT JOIN ref.status_map AS m ON m.code = upper(o.status)` with `m.label` projected:
+    the far side of each equality in the joined relation's `ON` - `o.status` - picked the
+    row the label was read from. Only the relation a join ADDS is a lookup (`join.this`);
+    the relations already in the FROM keep their rows, so their values carry no key. A
+    RIGHT or FULL join preserves the joined side too and is skipped.
+
+    The same walk as `_window_influence`: the lookup is as likely to sit in a CTE as in the
+    statement that writes, and a rule that only looked at the top level would answer
+    differently for two spellings of one query. Keys are traced into a throwaway list -
+    a join key is supplementary, and one that does not resolve must not add a boundary to
+    the closed-world answer.
+    """
+    if depth > TRACE_DEPTH_CAP:
+        return []
+    key = ("join_key", id(projection))
+    recalled = _recall(scope, key, unresolved)
+    if recalled is not None:
+        return recalled
+    first_declared = len(unresolved)
+
+    found: list[tuple[str, str, Transform]] = []
+    own = _query_of_scope(scope.expression)
+    read = {
+        column.table
+        for column in _value_columns(projection)
+        if column.table and column.find_ancestor(exp.Select) is own
+    }
+    joins = (own.args.get("joins") or []) if isinstance(own, exp.Select) else []
+    for join in joins:
+        if join.side in ("RIGHT", "FULL") or join.this is None:
+            continue
+        alias = join.this.alias_or_name
+        condition = join.args.get("on")
+        if not alias or alias not in read or condition is None:
+            continue
+        for equality in condition.find_all(exp.EQ):
+            sides = (equality.this, equality.expression)
+            owners = [{c.table for c in side.find_all(exp.Column)} for side in sides]
+            for mine, other in ((0, 1), (1, 0)):
+                if owners[mine] != {alias} or not owners[other] or alias in owners[other]:
+                    continue
+                for column in sides[other].find_all(exp.Column):
+                    found.extend(_trace(column, scope, dictionary, [], depth + 1))
+
+    for column in _value_columns(projection):
+        for inner, home in _projections_behind(column, scope):
+            found.extend(_join_key_influence(inner, home, dictionary, unresolved, depth + 1))
+    for nested_scope, nested in _scalar_subquery_projections(projection, scope):
+        found.extend(_join_key_influence(nested, nested_scope, dictionary, unresolved, depth + 1))
+    return _remember(scope, key, unresolved, first_declared, found)
+
+
 def _projections_behind(column: Any, scope: Scope) -> list[tuple[Any, Scope]]:
     """The projection(s) a column reads from a derived table, CTE or LATERAL, with scopes."""
     source = scope.sources.get(column.table) if column.table else None
@@ -2655,6 +2729,25 @@ def _analyse_select_into(
                     flow=Flow.INFLUENCE,
                 )
             )
+
+        # A lookup join's key chose which row this value was read from (D-57). Reported
+        # apart from the edges: D-5 gives a join key no edge, and the keys say so.
+        if JOIN_KEYS.get():
+            for source_table, source_column, _ in _join_key_influence(
+                projection, scope, dictionary, unresolved
+            ):
+                edges.append(
+                    _edge(
+                        source_table,
+                        source_column,
+                        target_name,
+                        target_column,
+                        Transform.IDENTITY,
+                        band,
+                        origin,
+                        flow=Flow.JOIN_KEY,
+                    )
+                )
 
     # The pivot's FOR column decides WHICH output column a row lands in. It supplies no
     # value to any of them, which is exactly what a filter edge says.
@@ -4086,8 +4179,12 @@ def analyse_source(
     band: int = 0,
     summaries: dict[str, Any] | None = None,
     result_target: str | None = None,
+    join_keys: bool = False,
 ) -> AnalysisResult:
     """Analyse one PL/SQL source unit for band-0 lineage.
+
+    `join_keys` adds `Flow.JOIN_KEY` edges to `edges` (D-57) for `procedure` to set apart;
+    left False, none is computed.
 
     `result_target` names the relation a TARGETLESS query writes into (PG-09). Left unset,
     such a query's projections land on `<result>`, which is enough to read one query and
@@ -4132,6 +4229,7 @@ def analyse_source(
     ccflag_spans = conditional_compilation_spans(source, program.dialect)
 
     path_token = SEARCH_PATH.set(None)
+    keys_token = JOIN_KEYS.set(join_keys)
     # D-31: objects the script creates, visible to the statements after them (B7).
     catalog = ScriptCatalog(dictionary) if program.dialect == "postgres" else None
     for statement, statement_band in static + recovered:
@@ -4380,6 +4478,7 @@ def analyse_source(
         unique.setdefault(edge.identity(), edge)
     result.edges = [unique[key] for key in sorted(unique)]
 
+    JOIN_KEYS.reset(keys_token)
     SEARCH_PATH.reset(path_token)
     return result
 
@@ -4707,3 +4806,4 @@ def _analyse_parsed(
         for note in notes
     )
     return edges, None
+

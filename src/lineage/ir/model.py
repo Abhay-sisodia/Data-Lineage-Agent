@@ -141,6 +141,17 @@ class Flow(StrEnum):
     "rank_in_month depends on order_date".
     """
 
+    JOIN_KEY = "join_key"
+    """This column chose which row of a LOOKUP the target's value was read from (D-57).
+
+    `LEFT JOIN map AS m ON m.code = upper(o.status)` with `m.label` projected: `o.status`
+    supplies none of the label and removes no row, yet change it and a different label
+    lands. D-5 gives a join key no edge, and every closed-world key is written that way, so
+    this is a separate claim rather than a reinterpreted influence: it is reported in
+    `AnalysisResult.join_keys`, beside the edges and never among them, and scored by
+    nothing. The target is the output column, as for `INFLUENCE`.
+    """
+
 
 class FilterPhase(StrEnum):
     """WHEN a filter acts, relative to aggregation. Part of the match key.

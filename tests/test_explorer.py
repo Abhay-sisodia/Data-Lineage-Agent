@@ -93,15 +93,16 @@ class _Graph:
     def __init__(self, edges: list[dict[str, Any]]) -> None:
         self.edges = edges
 
-    def _incoming(self, frontier: list[str]) -> list[dict[str, Any]]:
+    def _incoming(self, frontier: list[str], join_keys: bool = False) -> list[dict[str, Any]]:
         out = []
         for node in frontier:
             table = node.rpartition(".")[0]
             out += [e for e in self.edges if e["target"] in (node, table)]
-        return out
+        return [e for e in out if join_keys or e["type"] != "KEYS"]
 
-    def downstream(self, node: str, depth: int) -> list[dict[str, Any]]:
-        return [e for e in self.edges if e["source"] == node]
+    def downstream(self, node: str, depth: int, join_keys: bool = False) -> list[dict[str, Any]]:
+        out = [e for e in self.edges if e["source"] == node]
+        return [e for e in out if join_keys or e["type"] != "KEYS"]
 
 
 def test_filters_are_shown_but_not_walked_unless_asked() -> None:
@@ -170,6 +171,25 @@ def test_mixed_paths_become_influence_or_filter() -> None:
     assert joined[("s.a.g", "m.r.w")] == ("INFLUENCES", "identity")
     assert joined[("s.a.f", "m.r")] == ("FILTERS", "identity")
     assert joined[("s.a.d", "m.r")] == ("FILTERS", "identity")
+
+
+def test_join_keys_are_walked_only_when_chosen_and_survive_a_hidden_table() -> None:
+    graph = _Graph(
+        [
+            _edge("FEEDS", "ref.map.label", "m.r.status"),
+            _edge("KEYS", "s.o.code", "m.r.status"),  # D-57: picked the map's row
+        ]
+    )
+    default = explore(graph, "m.r.status", "upstream", 2)
+    assert {e["type"] for e in default} == {"FEEDS"}
+    chosen = explore(graph, "m.r.status", "upstream", 2, flows=("FEEDS", "KEYS"))
+    assert {(e["type"], e["source"]) for e in chosen} == {
+        ("FEEDS", "ref.map.label"),
+        ("KEYS", "s.o.code"),
+    }
+    edges = [_edge("FEEDS", "s.a.code", "tmp.t.code"), _edge("KEYS", "tmp.t.code", "m.r.z")]
+    assert _joined(edges, {"tmp.t"}) == {("s.a.code", "m.r.z"): ("KEYS", "identity")}
+    assert '"kind": "KEYS"' in html(model(edges))
 
 
 def test_a_chain_of_hidden_tables_joins_end_to_end() -> None:

@@ -41,7 +41,7 @@ from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
 from lineage.dialects import resolve_dialect
 from lineage.evidence.witness import ExecutionWitness
-from lineage.ir.model import Boundary, BoundaryKind, IREdge, Node, NodeKind
+from lineage.ir.model import Boundary, BoundaryKind, Flow, IREdge, Node, NodeKind
 from lineage.parsing import pg_grammar, psql
 from lineage.parsing.plsql import Program, parse_program, source_slice
 from lineage.resolution.dictionary import Dictionary
@@ -107,7 +107,12 @@ def analyse_source(
     summaries = build_summaries(program, dictionary, settings.budgets.interprocedural_depth_cap)
 
     result = band0.analyse_source(
-        source, dictionary, settings, summaries=summaries, result_target=result_target
+        source,
+        dictionary,
+        settings,
+        summaries=summaries,
+        result_target=result_target,
+        join_keys=True,
     )
     if desugared is not None:
         # Rule 6: a scalar PL/pgSQL function's summary comes from its own body, which band
@@ -122,7 +127,12 @@ def analyse_source(
             known.update(found)
             result = plpgsql.finish(
                 band0.analyse_source(
-                    source, dictionary, settings, summaries=known, result_target=result_target
+                    source,
+                    dictionary,
+                    settings,
+                    summaries=known,
+                    result_target=result_target,
+                    join_keys=True,
                 ),
                 desugared,
                 dictionary,
@@ -333,6 +343,12 @@ def analyse_source(
     result.edges = sorted(
         result.edges, key=lambda e: (e.band, e.flow.value, str(e.source), str(e.target))
     )
+
+    # D-57: lookup-join keys went through every pass above (views, variables, guards) as
+    # edges, and are set apart here - the one place every caller's edges come from - so
+    # no closed-world key and no score sees them.
+    result.join_keys = [edge for edge in result.edges if edge.flow is Flow.JOIN_KEY]
+    result.edges = [edge for edge in result.edges if edge.flow is not Flow.JOIN_KEY]
 
     # Declared, not silently resolved. Nothing composes paths yet, so nothing is fused -
     # but the hazard is recorded now so the constraint exists before the code that would

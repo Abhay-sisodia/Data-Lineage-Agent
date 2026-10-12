@@ -4824,3 +4824,25 @@ and FE-01's alternative reading. None is implemented yet.
   always post). A WHERE stays per column (D-6): a WHERE on a grouping key can be moved
   before the GROUP BY unchanged, so it is pre. Makes the single-key case the defect
   (`ORDER BY spend_year LIMIT n` alone reports pre); the final suite's E2 key was relabelled.
+
+## Decision taken — 2026-10-12 (D-57)
+
+Taken by Abhay after the production pilot (20 PostgreSQL files, `expectations.md`), where the
+base columns behind a lookup were the largest remaining miss: `raw.orders.status` mapped
+through `ref."OrderStatusMap"` had no lineage to the order status it decides.
+
+* **D-57** - a **lookup join's key** is reported as its own flow, `join_key` (graph
+  relationship `KEYS`): for an output column whose value is read from a relation a join
+  ADDS (`join.this`, not a RIGHT or FULL join), the columns on the far side of that join's
+  `ON` equalities are join keys of the column. Found at any depth, the same walk as window
+  and grouping influence (a lookup in a CTE gives the same keys as one written inline).
+* **D-5 is unchanged.** Join keys go in `AnalysisResult.join_keys`, never in `edges`: no
+  closed-world key, score or edge count moves. Measured before deciding: folding them into
+  `influence` instead added 137 facts to the final suite (0 of 15 closed-world), broke 31
+  keyed tests and one metamorphic pair.
+* **Who reads them:** the impact report (a lookup keyed on the column is affected, and its
+  statement is a proven edit, no longer a `possible` word match); the explorer (a `KEYS`
+  flow, teal dash-dot); `upstream` / `downstream` and the MCP and agent tools with
+  `join_keys=true`. The default walk is the one the C3 gate checks, and stays as it was.
+* **Pilot:** recall over base columns 94.4% (454/481) by the default walk, 98.3% (473/481)
+  with join keys; 484 join keys beside 3,928 edges.

@@ -15,6 +15,8 @@ compare the graph with the parser exactly: every count below is derived here, an
 **Relationships**
 - `FEEDS` / `FILTERS` / `INFLUENCES` - one per parser edge (value / filter / influence),
   carrying transform, phase, band, tier, mechanism, guard and origin.
+- `KEYS` - one per lookup-join key (D-57): the column that chose which lookup row the
+  target's value was read from. Same properties; never among the edges a key scores.
 - `HAS_COLUMN` (Table -> Column); `CONTAINS` (File -> Statement);
   `READS` / `WRITES` (Statement -> Table), from the edges' endpoints;
   `DECLARES` (File -> Boundary), one per declared boundary; `BLOCKED_BY`
@@ -49,7 +51,12 @@ _LABELS = {
     NodeKind.LITERAL: "Literal",
 }
 
-FLOW_TYPES = {Flow.VALUE: "FEEDS", Flow.FILTER: "FILTERS", Flow.INFLUENCE: "INFLUENCES"}
+FLOW_TYPES = {
+    Flow.VALUE: "FEEDS",
+    Flow.FILTER: "FILTERS",
+    Flow.INFLUENCE: "INFLUENCES",
+    Flow.JOIN_KEY: "KEYS",
+}
 """Lineage relationship type per parser flow."""
 
 NODE_LABELS = (*sorted(set(_LABELS.values())), "File", "Refusal")
@@ -220,7 +227,7 @@ def _add_file(batch: GraphBatch, result: ExportedResult) -> None:
         statements_analysed=result.statements_analysed,
     )
 
-    for edge in result.edges:
+    for edge in [*result.edges, *result.join_keys]:
         source = _endpoint(batch, edge.source, file)
         target = _endpoint(batch, edge.target, file)
         statement = _statement(batch, file, edge.origin.unit, edge.origin.line)

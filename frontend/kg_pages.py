@@ -147,9 +147,7 @@ def best_dictionary(sql: str, choices: dict[str, Any]) -> str:
 def edge_rows(edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
-            "flow": {"FEEDS": "value", "FILTERS": "filter", "INFLUENCES": "influence"}.get(
-                e["type"], e["type"]
-            ),
+            "flow": explorer.VERB.get(e["type"], e["type"]),
             "source": e["source"],
             "target": e["target"],
             "transform": e["transform"],
@@ -167,7 +165,8 @@ def legend() -> None:
         "Scroll to zoom, drag to pan. Blue solid = **value** (Σ aggregated · ƒ derived · "
         "? conditional · no badge = copied) "
         "· red dashed into a card's header = **filter** (decides which rows of that table "
-        "exist) · purple dotted = **influence** (GROUP BY, window ordering) · yellow row = the "
+        "exist) · purple dotted = **influence** (GROUP BY, window ordering) · teal dash-dot = "
+        "**join key** (picked a lookup's row) · yellow row = the "
         "column you asked about · ⚠ = a gap: a boundary or refused statement touches that "
         "table (hover it)."
     )
@@ -269,7 +268,11 @@ def graph_page() -> None:
             help="One column: its lineage, hop by hop. A file: everything one SQL file "
             "produces. Entire graph: every lineage edge loaded.",
         )
-    all_flows = ["FEEDS", "FILTERS", "INFLUENCES"]
+    all_flows = ["FEEDS", "FILTERS", "INFLUENCES", "KEYS"]
+    flow_help = (
+        "KEYS (teal, dash-dot): the join key that picked a lookup's row - e.g. a status code "
+        "mapped through a reference table. Not a value, filter or influence (D-5, D-57)."
+    )
     node: str | None = None
     detail = "Columns"
     upward = False
@@ -285,7 +288,7 @@ def graph_page() -> None:
                 help="Upstream: where it comes from. Downstream: what it affects.",
             )
             depth = st.slider("Hops", 1, 8, 2)
-            flows = st.multiselect("Flows", all_flows, default=all_flows)
+            flows = st.multiselect("Flows", all_flows, default=all_flows, help=flow_help)
             follow_filters = st.checkbox(
                 "Follow filters further upstream",
                 value=False,
@@ -324,7 +327,7 @@ def graph_page() -> None:
             file = None
             if scope == "A file":
                 file = st.selectbox("File", explorer.files(tools))
-            flows = st.multiselect("Flows", all_flows, default=all_flows)
+            flows = st.multiselect("Flows", all_flows, default=all_flows, help=flow_help)
             limit = st.slider(
                 "Most edges to draw",
                 100,
@@ -362,11 +365,12 @@ def graph_page() -> None:
         )
     hide = set(temps if hide_temps else []) | set(extra)
 
-    top = st.columns(4)
+    top = st.columns(5)
     top[0].metric("Edges", len(edges))
     top[1].metric("Value", sum(e["type"] == "FEEDS" for e in edges))
     top[2].metric("Filter", sum(e["type"] == "FILTERS" for e in edges))
     top[3].metric("Influence", sum(e["type"] == "INFLUENCES" for e in edges))
+    top[4].metric("Join key", sum(e["type"] == "KEYS" for e in edges))
     if not edges:
         subject = f" for `{node}`" if node else ""
         st.info(f"No {direction} lineage{subject} with these flows.")
@@ -449,7 +453,12 @@ def _edge_panel(tools: Any, edges: list[dict[str, Any]], scope: str) -> None:
         st.warning("That edge is no longer in the graph - it was rebuilt; select it again.")
         return
     edge = context["edge"]
-    verb = {"FEEDS": "feeds the value of", "INFLUENCES": "influences", "FILTERS": "filters"}
+    verb = {
+        "FEEDS": "feeds the value of",
+        "INFLUENCES": "influences",
+        "FILTERS": "filters",
+        "KEYS": "is the join key that picks the lookup row of",
+    }
     st.subheader("Why this edge exists")
     st.markdown(
         f"`{edge['source']}` **{verb.get(edge['type'], edge['type'])}** `{edge['target']}`"

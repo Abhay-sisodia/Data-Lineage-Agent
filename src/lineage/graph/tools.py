@@ -14,6 +14,9 @@ path is composed at query time - `docs/ir-v0.md`):
 * a column's direct sources are the `FEEDS` and `INFLUENCES` into it, and the `FILTERS`
   into its table (a filter decides which rows land, so it bounds every column of them);
 * walking further up repeats that from each source column or variable.
+
+A lookup-join key (`KEYS`, D-57) is walked only when asked for (`join_keys=True`): it is
+not one of the parser's scored edges, and the default walk is the one the keys check.
 """
 
 from __future__ import annotations
@@ -23,8 +26,8 @@ from typing import Any
 
 from lineage.graph.neo4j_conn import Neo4jSettings, read_session
 
-LINEAGE = ("FEEDS", "FILTERS", "INFLUENCES")
-VALUE_LIKE = ("FEEDS", "INFLUENCES")
+LINEAGE = ("FEEDS", "FILTERS", "INFLUENCES", "KEYS")
+VALUE_LIKE = ("FEEDS", "INFLUENCES", "KEYS")
 _ENDPOINT_LABELS = ("Column", "Table", "Variable", "Boundary", "Procedure", "Literal")
 _SNIPPET_LINES = 200
 
@@ -66,20 +69,23 @@ class GraphTools:
         best = [row for row in rows if row["rank"] == rows[0]["rank"]] if rows else []
         return [{"id": row["id"], "label": row["label"]} for row in best]
 
-    def upstream(self, node: str, depth: int = 1) -> list[dict[str, Any]]:
+    def upstream(self, node: str, depth: int = 1, join_keys: bool = False) -> list[dict[str, Any]]:
         """Where a column comes from: every lineage edge into it, `depth` hops up.
 
         Each edge is returned once, with the hop (`depth`) at which it was first reached.
+        `join_keys` also walks the `KEYS` edges: the columns that chose a lookup's row.
         """
-        return self._walk(node, depth, self._incoming)
+        return self._walk(node, depth, lambda ids: self._incoming(ids, join_keys))
 
-    def downstream(self, node: str, depth: int = 1) -> list[dict[str, Any]]:
+    def downstream(
+        self, node: str, depth: int = 1, join_keys: bool = False
+    ) -> list[dict[str, Any]]:
         """What a column affects: every lineage edge out of it, `depth` hops down.
 
         A `FILTERS` edge ends at a table - every column of it is affected - and the walk
         stops there rather than fanning out to the whole table.
         """
-        return self._walk(node, depth, self._outgoing)
+        return self._walk(node, depth, lambda ids: self._outgoing(ids, join_keys), upward=False)
 
     def impact(self, node: str, change: str = "drop", depth: int = 15) -> dict[str, Any]:
         """What breaks if a column or table is dropped, renamed or retyped (MVP F3).
@@ -291,6 +297,7 @@ class GraphTools:
         node: str,
         depth: int,
         step: Callable[[list[str]], list[dict[str, Any]]],
+        upward: bool = True,
     ) -> list[dict[str, Any]]:
         seen: dict[str, dict[str, Any]] = {}
         frontier = [node]
@@ -302,7 +309,6 @@ class GraphTools:
                 if edge["id"] in seen:
                     continue
                 seen[edge["id"]] = {**edge, "depth": hop}
-                upward = step == self._incoming
                 nxt = edge["source"] if upward else edge["target"]
                 # Downstream, a FILTERS edge ends at a whole table: reported, not walked.
                 if (upward or edge["type"] in VALUE_LIKE) and nxt not in visited:
@@ -315,13 +321,14 @@ class GraphTools:
             key=lambda e: (e["depth"], e["type"], e["source"], e["target"], e["id"]),
         )
 
-    def _incoming(self, frontier: list[str]) -> list[dict[str, Any]]:
+    def _incoming(self, frontier: list[str], join_keys: bool = False) -> list[dict[str, Any]]:
+        into = "FEEDS|INFLUENCES|KEYS" if join_keys else "FEEDS|INFLUENCES"
         rows = self._read(
             f"""
             UNWIND $ids AS nid
             MATCH (b {{id: nid}}) WHERE b:Column OR b:Variable OR b:Table
             CALL (b) {{
-                MATCH (a)-[r:FEEDS|INFLUENCES]->(b) RETURN a, r
+                MATCH (a)-[r:{into}]->(b) RETURN a, r
                 UNION
                 MATCH (b)<-[:HAS_COLUMN]-(t:Table)<-[r:FILTERS]-(a) RETURN a, r
             }}
@@ -333,11 +340,12 @@ class GraphTools:
         )
         return [row["edge"] for row in rows]
 
-    def _outgoing(self, frontier: list[str]) -> list[dict[str, Any]]:
+    def _outgoing(self, frontier: list[str], join_keys: bool = False) -> list[dict[str, Any]]:
+        out = "FEEDS|INFLUENCES|FILTERS|KEYS" if join_keys else "FEEDS|INFLUENCES|FILTERS"
         rows = self._read(
             f"""
             UNWIND $ids AS nid
-            MATCH (a {{id: nid}})-[r:FEEDS|INFLUENCES|FILTERS]->(b)
+            MATCH (a {{id: nid}})-[r:{out}]->(b)
             WHERE a:Column OR a:Variable
             RETURN DISTINCT {{{_EDGE_FIELDS}}} AS edge
             """,

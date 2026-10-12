@@ -51,6 +51,8 @@ class ExportedResult:
     edges: list[IREdge] = field(default_factory=list)
     boundaries: list[Boundary] = field(default_factory=list)
     refusals: list[Refusal] = field(default_factory=list)
+    join_keys: list[IREdge] = field(default_factory=list)
+    """Lookup-join keys (D-57), apart from `edges`. Absent from older documents."""
 
 
 def sha256_of(text: str) -> str:
@@ -90,6 +92,7 @@ def to_document(
         "edges": [edge.model_dump(mode="json") for edge in result.edges],
         "boundaries": [boundary.model_dump(mode="json") for boundary in result.boundaries],
         "refusals": [_refusal_row(refusal) for refusal in result.refusals],
+        "join_keys": [edge.model_dump(mode="json") for edge in getattr(result, "join_keys", [])],
     }
 
 
@@ -111,6 +114,7 @@ def from_document(document: dict[str, Any]) -> ExportedResult:
         refusals=[
             Refusal(**{**row, "code": RefusalCode(row["code"])}) for row in document["refusals"]
         ],
+        join_keys=[IREdge.model_validate(row) for row in document.get("join_keys", [])],
     )
 
 
