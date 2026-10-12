@@ -33,6 +33,24 @@ import re
 _CURRENT_OF = re.compile(r"\s+WHERE\s+CURRENT\s+OF\s+[A-Za-z_][A-Za-z0-9_$#]*", re.IGNORECASE)
 
 
+# `INSERT ... SELECT ... FROM a CROSS JOIN tmp_run AS r ON CONFLICT (k) DO UPDATE ...`
+# (production pilot, 2026-10-12: four upserts, among them the order fact's). A CROSS JOIN
+# takes no ON, so PostgreSQL reads `ON CONFLICT` as the INSERT's clause; SQLGlot reads `ON`
+# as the join's condition and fails outright, losing the whole statement.
+#
+# The opposite of the rule's usual shape - this ADDS a clause rather than removing one -
+# but it passes the same test: ` WHERE TRUE` names no column and no variable, so it can
+# change no edge. It only ends the FROM clause where PostgreSQL already knows it ends, on
+# the same line, so line numbers hold. Only a plain relation (an identifier, optionally
+# aliased) directly before `ON CONFLICT` qualifies - that is the end of an INSERT's SELECT.
+_CROSS_JOIN_BEFORE_CONFLICT = re.compile(
+    r"(\bCROSS\s+JOIN\s+(?:ONLY\s+)?[A-Za-z_\"][\w.$\"]*"
+    r"(?:\s+(?:AS\s+)?(?!ON\b)[A-Za-z_\"][\w$\"]*)?)(\s+ON\s+CONFLICT\b)",
+    re.IGNORECASE,
+)
+
+
 def strip_unparseable_clauses(text: str) -> str:
-    """Remove clauses that block the parser and carry no lineage. Idempotent."""
-    return _CURRENT_OF.sub("", text)
+    """Rewrite clauses that block the parser and carry no lineage. Idempotent."""
+    text = _CURRENT_OF.sub("", text)
+    return _CROSS_JOIN_BEFORE_CONFLICT.sub(r"\1 WHERE TRUE\2", text)

@@ -204,6 +204,11 @@ def statement_kind(text: str, dialect: str) -> str:
         stripped.startswith(("create or replace procedure", "create procedure"))
     ):
         return "create_routine"
+    # `DROP TRIGGER [IF EXISTS] name ON table` - the `ON` makes SQLGlot fail where every
+    # other DROP parses, and the statement was refused as unreadable. It removes an object
+    # and carries no lineage, exactly like the `drop_statement` it is (production pilot).
+    if re.match(r"drop\s+trigger\b", stripped):
+        return "drop_statement"
     try:
         parsed = sqlglot.parse_one(text, dialect=dialect)
     except Exception:

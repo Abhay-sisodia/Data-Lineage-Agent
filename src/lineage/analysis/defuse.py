@@ -621,6 +621,10 @@ def analyse_statement(
     # Asked of the FRONT END rather than of ANTLR's `source_slice`: a statement context is
     # whatever the dialect's parser produced, and only that parser knows how to read it
     # back. This was the last place the analysis assumed an ANTLR context.
+    # A DROP removes an object and carries no lineage. `DROP TRIGGER ... ON t` is the one
+    # SQLGlot cannot parse, and reading it here declared a parse failure for nothing.
+    if node.statement_kind == "drop_statement":
+        return result
     text = for_name(dictionary.dialect).frontend.text(node.ctx)
     recovered = dynamic is not None and node.line in dynamic.recovered
     if dynamic is not None and recovered:

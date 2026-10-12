@@ -105,6 +105,9 @@ class Desugared:
     units: dict[str, str] = field(default_factory=dict)  # scalar function -> unit
     trigger_filters: dict[str, list[Use]] = field(default_factory=dict)
     trigger_tables: dict[str, list[str]] = field(default_factory=dict)
+    unsupported: dict[int, str] = field(default_factory=dict)
+    """Routine line -> why the reader gave up on it. The refusal says so, rather than the
+    generic "no grammar" - the cause is what a person needs to act on."""
 
 
 @dataclass
@@ -236,7 +239,8 @@ class _Desugarer:
             return
         try:
             routine = pl.read_routine(self.source, start, end)
-        except pl.UnsupportedError:
+        except pl.UnsupportedError as error:
+            self._gave_up(start, error)
             return  # left as written: refused by name, as before B8
         if routine is not None:
             if routine.language != "plpgsql":
@@ -248,6 +252,12 @@ class _Desugarer:
             self.out.blank(start, end + 1)  # its `;` too: the rewrite carries its own
             self.out.put(start, rewritten)
 
+    def _gave_up(self, start: int, error: Exception) -> None:
+        """Record why the routine starting at `start` stays refused, by its CREATE line."""
+        found = re.compile(r"(?i)\bCREATE\b|\bDO\b").search(self.source, start)
+        at = found.start() if found else start
+        self.result.unsupported[self.source.count("\n", 0, at) + 1] = str(error)
+
     def _trigger_known(self, text: str) -> bool:
         binding = pl.read_trigger(text)
         return binding is not None and binding.function in self.trigger_functions
@@ -257,7 +267,8 @@ class _Desugarer:
     def routine(self, routine: pl.Routine, start: int, end: int, previous: int = 0) -> None:
         try:
             block = pl.read_body(self.source, routine.body_start, routine.body_end)
-        except pl.UnsupportedError:
+        except pl.UnsupportedError as error:
+            self._gave_up(start, error)
             return
         unit = routine.name
         bindings = self.bindings.get(routine.name, []) if routine.returns == "trigger" else []
@@ -286,7 +297,8 @@ class _Desugarer:
                 self.block(block, context, function)
                 if routine.search_path:
                     self.out.put(end, "RESET search_path;")
-        except pl.UnsupportedError:
+        except pl.UnsupportedError as error:
+            self._gave_up(start, error)
             # Undo this routine: it stays refused by name, never half-read.
             del self.result.emitted[saved[0] :]
             del self.result.boundaries[saved[1] :]
@@ -1233,3 +1245,31 @@ def summaries(result: Any, desugared: Desugared) -> dict[str, Summary]:
                     summary.returns_from.append(ReturnSource(column, _combine(inner, transform)))
         out[summary.unit] = summary
     return out
+
+
+def explain_refusals(result: Any, desugared: Desugared) -> Any:
+    """Name what stopped the reader on each routine it gave up on.
+
+    A routine the reader could not follow stays refused by name; the generic "no grammar"
+    reason hid the actual cause (`DML ... RETURNING ... INTO`, an assignment to a record
+    field), which is what a person needs to act on. Run once the refusals are final.
+    """
+    if not desugared.unsupported:
+        return result
+    import dataclasses
+
+    result.refusals = [
+        dataclasses.replace(
+            refusal,
+            reason=(
+                "PL/pgSQL routine the reader could not follow - it stopped at: "
+                f"{desugared.unsupported[refusal.line]}. Refused whole, so nothing half-read "
+                "is reported"
+            ),
+        )
+        if refusal.line in desugared.unsupported
+        and refusal.reason.startswith("PL/pgSQL routine body")
+        else refusal
+        for refusal in result.refusals
+    ]
+    return result

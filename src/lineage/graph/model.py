@@ -172,6 +172,20 @@ def statement_tables(statement: str, default_schema: str | None = None) -> set[s
             return found
     except Exception:  # unreadable SQL: use the text
         pass
+    # Unreadable SQL is still full of `alias.column` - an upsert's `excluded.amount`, a
+    # CTE's `t.total` - and every one would pass for a table (a 2026-10-12 pilot grew 380
+    # such nodes). Names right after a keyword that introduces a relation come first; the
+    # bare scan is only for a statement with no such keyword at all.
+    anchored = {
+        match.lower()
+        for match in re.findall(
+            r"(?i)\b(?:FROM|JOIN|INTO|UPDATE|TABLE|USING|TRUNCATE|COPY|ONLY)\s+"
+            r"([A-Za-z_]\w*\.[A-Za-z_]\w*)\b",
+            statement,
+        )
+    }
+    if anchored:
+        return anchored
     return {
         match.lower()
         for match in re.findall(r"\b([A-Za-z_]\w*\.[A-Za-z_]\w*)\b", statement)

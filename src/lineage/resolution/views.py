@@ -115,12 +115,23 @@ def base_column(relation: str, column: str, dictionary: Dictionary) -> str | Non
     return None
 
 
-def resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IREdge], list[str]]:
+def resolve_views(
+    edges: list[IREdge],
+    dictionary: Dictionary,
+    defined: set[tuple[str, int]] | None = None,
+) -> tuple[list[IREdge], list[str]]:
     """Rewrite every view reference on an edge to the base object underneath it.
 
     Idempotent, and safe to run over edges whose views some other pass already inlined:
     a node naming a table is left exactly as it is.
+
+    `defined` holds (view, line) for each `CREATE VIEW` in the script. An edge INTO a view
+    from the statement that defines it is the view's own definition, not a write through
+    it: left as it is. Rewriting it sent every column of a live-catalogued view's
+    definition onto names from inside its query (`recent.net_revenue_last_3m_usd`), and the
+    view itself vanished from the graph.
     """
+    defined = defined or set()
     rewritten: list[IREdge] = []
     unresolved: list[str] = []
 
@@ -128,12 +139,17 @@ def resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IRE
         update: dict[str, Node] = {}
         resolved_to: dict[str, str] = {}
 
+        defining = {
+            view for view, line in defined if line == getattr(edge.origin, "line", None)
+        }
         for side in ("source", "target"):
             node: Node = getattr(edge, side)
             if node.kind is not NodeKind.COLUMN or "." not in node.name:
                 continue
             relation, _, column = node.name.rpartition(".")
             if not is_view(relation, dictionary):
+                continue
+            if side == "target" and fold(relation, dictionary.dialect) in defining:
                 continue
             base = base_column(relation, column, dictionary)
             if base is None:
@@ -151,6 +167,8 @@ def resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IRE
         for side in ("source", "target"):
             node = getattr(edge, side)
             if node.kind is not NodeKind.RELATION or not is_view(node.name, dictionary):
+                continue
+            if side == "target" and fold(node.name, dictionary.dialect) in defining:
                 continue
             followed = resolved_to.get(fold(node.name, dictionary.dialect))
             if followed is None:

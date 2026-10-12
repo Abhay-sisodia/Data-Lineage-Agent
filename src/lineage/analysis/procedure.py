@@ -279,7 +279,9 @@ def analyse_source(
     #
     # Run over every edge from every analyser, because a view is a naming fact and the
     # third copy of a naming rule is the one that disagrees with the other two.
-    result.edges, view_notes = resolve_views(result.edges, dictionary)
+    result.edges, view_notes = resolve_views(
+        result.edges, dictionary, _defined_views(source, dictionary.dialect)
+    )
     for note in view_notes:
         view_note = Boundary(
             kind=BoundaryKind.ROW_CORRESPONDENCE,
@@ -345,6 +347,8 @@ def analyse_source(
         if entry not in result.boundaries:
             result.boundaries.append(entry)
 
+    if desugared is not None:
+        result = plpgsql.explain_refusals(result, desugared)
     return result
 
 
@@ -614,3 +618,29 @@ def _with_guard(edge: IREdge, graphs: dict[str, Cfg]) -> IREdge:
             return edge.model_copy(update={"guard": " AND ".join(guards)})
         return edge
     return edge
+
+
+_CREATE_VIEW = re.compile(
+    r"(?is)^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?(?:RECURSIVE\s+)?"
+    r"(?:MATERIALIZED\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w.\"$]+)"
+)
+
+
+def _defined_views(source: str, dialect: str) -> set[tuple[str, int]]:
+    """(view, line) for every `CREATE VIEW` in the script - its edges define the view."""
+    from lineage.dialects import fold
+    from lineage.parsing.sqlscript import split_statements
+
+    found: set[tuple[str, int]] = set()
+    try:
+        statements = split_statements(source)
+    except Exception:
+        return found
+    for line, text in statements:
+        match = _CREATE_VIEW.match(text)
+        if match:
+            name = ".".join(
+                part[1:-1] if part.startswith('"') else part for part in match.group(1).split(".")
+            )
+            found.add((fold(name, dialect), line))
+    return found
