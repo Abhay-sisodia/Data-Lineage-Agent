@@ -21,6 +21,8 @@ import explorer
 import streamlit as st
 
 MAX_EDGES = 300
+FOCUS_KEY = "lg_column"
+SCOPE_KEY = "lg_scope"
 TABLE_VIEW_FROM = 120
 """A file or the whole graph opens at table level above this many edges (gap 9)."""
 
@@ -262,6 +264,7 @@ def graph_page() -> None:
         scope = st.radio(
             "Show",
             list(explorer.SCOPES),
+            key=SCOPE_KEY,
             horizontal=True,
             help="One column: its lineage, hop by hop. A file: everything one SQL file "
             "produces. Entire graph: every lineage edge loaded.",
@@ -272,7 +275,9 @@ def graph_page() -> None:
     upward = False
     if scope == "One column":
         with st.sidebar:
-            name = st.text_input("Column (partial names allowed)", value="gross_margin_usd")
+            # Keyed, so the focus buttons and the jump picker below can set it (F2.3).
+            st.session_state.setdefault(FOCUS_KEY, "gross_margin_usd")
+            name = st.text_input("Column (partial names allowed)", key=FOCUS_KEY)
             direction = st.radio(
                 "Direction",
                 list(explorer.DIRECTIONS),
@@ -384,7 +389,7 @@ def graph_page() -> None:
                 "every edge, hidden ones included."
             )
         legend()
-        st.dataframe(edge_rows(edges), use_container_width=True, hide_index=True)
+        _edge_panel(tools, edges, scope)
 
     gaps = tools.gaps(node=node) if node and upward else None
     if gaps and (gaps["boundaries"] or gaps["refusals"]):
@@ -393,6 +398,88 @@ def graph_page() -> None:
             st.warning(f"**{b['kind']}** - `{b['subject']}`")
         for r in gaps["refusals"]:
             st.error(f"Refused statement **{r['file']}:{r['line']}** ({r['code']}): {r['reason']}")
+
+
+def _focus_on(column: str) -> None:
+    """Callback: show `column` in the One column scope."""
+    st.session_state[FOCUS_KEY] = column
+    st.session_state[SCOPE_KEY] = "One column"
+
+
+def _edge_panel(tools: Any, edges: list[dict[str, Any]], scope: str) -> None:
+    """F2.3: the edge table, selectable - and for the selected edge, why it exists.
+
+    The panel shows the fact in words and only the lines of its statement that name the
+    source (yellow) or the target (pink), narrowed to the CTEs on the target's own path.
+    Buttons re-focus the view on either end; a picker jumps to any column on the diagram.
+    """
+    columns = sorted(
+        {
+            end
+            for e in edges
+            for end in (e["source"], e["target"])
+            if "." in end.split(">")[-1] or (end.startswith("<result:") and ">." in end)
+        }
+    )
+    st.selectbox(
+        "Jump to a column on this diagram",
+        ["", *columns],
+        key="lg_jump",
+        on_change=lambda: (
+            _focus_on(st.session_state["lg_jump"]) if st.session_state.get("lg_jump") else None
+        ),
+        help="Re-focus the One column view on it.",
+    )
+    st.caption("Select a row to see why that edge exists - the SQL behind it.")
+    rows = edge_rows(edges)
+    event = st.dataframe(
+        rows,
+        width="stretch",
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key=f"lg_edges_{scope}",
+    )
+    picked = event.selection.rows if event and event.selection else []
+    if not picked:
+        return
+    row = rows[picked[0]]
+    context = explorer.edge_context(tools, row["id"])
+    if context is None:
+        st.warning("That edge is no longer in the graph - it was rebuilt; select it again.")
+        return
+    edge = context["edge"]
+    verb = {"FEEDS": "feeds the value of", "INFLUENCES": "influences", "FILTERS": "filters"}
+    st.subheader("Why this edge exists")
+    st.markdown(
+        f"`{edge['source']}` **{verb.get(edge['type'], edge['type'])}** `{edge['target']}`"
+        + (f" - transform **{edge['transform']}**" if edge["type"] == "FEEDS" else "")
+        + (f", phase {edge['phase']}" if edge.get("phase") else "")
+        + f" - statement at `{edge['file']}`:{edge['line']}."
+    )
+    left, right = st.columns(2)
+    left.button(
+        "Focus on the source",
+        on_click=_focus_on,
+        args=(edge["source"],),
+        disabled=edge["source"].startswith("<") and ">." not in edge["source"],
+    )
+    right.button(
+        "Focus on the target",
+        on_click=_focus_on,
+        args=(edge["target"],),
+        disabled=edge["type"] == "FILTERS",
+    )
+    if context["lines"]:
+        where = "the CTEs on this column's own path" if context.get("narrowed") else "the statement"
+        st.caption(
+            f"Lines of {where} that name the **source** (yellow) or the **target** (pink); "
+            f"green names both. {context['statement_lines']} lines in the statement; the rest "
+            "are folded."
+        )
+        st.html(explorer.context_html(context["lines"]))
+    else:
+        st.caption("The statement's SQL is not stored in the graph for this file.")
 
 
 def _steps_view(tools: Any, node: str) -> None:

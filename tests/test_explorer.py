@@ -10,11 +10,22 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "frontend"))
 
-from explorer import cards_of, collapse, cte_steps, explore, hidable, html, model, table_of
+from explorer import (
+    cards_of,
+    collapse,
+    context_html,
+    cte_steps,
+    edge_context,
+    explore,
+    hidable,
+    html,
+    model,
+    table_of,
+)
 
 
 def _edge(kind: str, source: str, target: str, transform: str = "identity", n: int = 0) -> dict:
@@ -237,3 +248,76 @@ def test_a_tampered_vendored_elk_falls_back_to_the_pinned_cdn(
     tag = explorer._elk_script()
     assert explorer.ELK_URL in tag and f'integrity="{explorer.ELK_SRI}"' in tag
     monkeypatch.setattr(explorer, "_ELK_TAG", None)  # type: ignore[attr-defined]
+
+
+class _Statement:
+    """describe_edges / _read over one file holding one statement (F2.3)."""
+
+    SQL = (
+        "WITH unrelated AS (\n"  # 1
+        "  SELECT o.amt AS other FROM s.orders o\n"  # 2  names amt, off the path
+        "),\n"  # 3
+        "a AS (\n"  # 4
+        "  SELECT o.amt AS amt FROM s.orders o\n"  # 5  on the path
+        "),\n"  # 6
+        "b AS (\n"  # 7
+        "  SELECT SUM(a.amt) AS total FROM a\n"  # 8
+        ")\n"  # 9
+        "SELECT b.total FROM b;\n"  # 10
+    )
+    EDGE: ClassVar[dict[str, Any]] = {
+        "id": "e1",
+        "type": "FEEDS",
+        "source": "s.orders.amt",
+        "target": "<result:q.sql>.total",
+        "transform": "aggregated",
+        "phase": "pre-aggregation",
+        "file": "q.sql",
+        "line": 1,
+    }
+
+    def describe_edges(self, ids: list[str]) -> list[dict[str, Any]]:
+        return [self.EDGE] if ids == ["e1"] else []
+
+    def _read(self, query: str, **_: Any) -> list[dict[str, Any]]:
+        if "HAS_COLUMN" in query:
+            return [{"t": "s.orders", "cols": ["s.orders.amt", "s.orders.k"]}]
+        if "r.line AS line" in query:
+            return [{"text": self.SQL, "line": 1}]
+        return [{"text": self.SQL}]
+
+
+def test_why_an_edge_exists_shows_only_the_lines_on_its_path() -> None:
+    context = edge_context(_Statement(), "e1", context=0)
+    assert context is not None and context["narrowed"] is True
+    marked = {line["number"]: line["mark"] for line in context["lines"] if line["number"]}
+    assert marked[5] == "source"  # amt in the CTE on total's path
+    assert 2 not in marked  # amt in an unrelated CTE is folded away
+    # a.amt is the CTE's column, not s.orders' - only the alias that binds to the table counts
+    assert marked[8] == "target"
+    assert marked[10] == "target"
+    assert edge_context(_Statement(), "missing") is None
+
+
+def test_the_context_listing_escapes_sql() -> None:
+    page = context_html([{"number": 3, "text": "SELECT '<b>' AS x", "mark": "source"}])
+    assert "&lt;b&gt;" in page and "<b>" not in page
+
+
+def test_source_lines_follow_what_a_reference_binds_to() -> None:
+    """F2.3: `unit_cost` is a column of two tables; only references bound to the edge's
+    source table are its lines - by alias, through a correlated subquery, or unqualified
+    when that table is alone in its FROM."""
+    from explorer import _source_lines
+
+    sql = (
+        "SELECT c.unit_cost,\n"  # 1  components
+        "       od.unit_cost,\n"  # 2  order_details
+        "       (SELECT MAX(x.unit_cost) FROM s.order_details x\n"  # 3  order_details
+        "         WHERE x.k = c.k AND c.unit_cost > 0)\n"  # 4  correlated: components
+        "FROM s.components c JOIN s.order_details od ON od.k = c.k\n"  # 5
+        "UNION ALL SELECT unit_cost, 1, 2 FROM s.components\n"  # 6  unqualified, alone
+    )
+    assert _source_lines(sql, "s.components.unit_cost") == {1, 4, 6}
+    assert _source_lines(sql, "s.order_details.unit_cost") == {2, 3}
+    assert _source_lines("not sql ((", "s.t.c") is None

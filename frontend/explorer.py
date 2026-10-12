@@ -695,3 +695,247 @@ def table_level(edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
             }
         )
     return out
+
+
+# --- why does this edge exist? (F2.3) --------------------------------------------------------
+
+
+def edge_context(tools: Any, edge_id: str, context: int = 2) -> dict[str, Any] | None:
+    """One edge, and the lines of its statement that explain it.
+
+    Only the lines that name the source column or the target column, with `context` lines
+    around each; the stretches between are folded. A 900-line statement shows a dozen lines
+    instead of its first 200. Lines are file line numbers.
+    """
+    import re
+
+    from lineage.parsing.sqlscript import split_statements
+
+    found = tools.describe_edges([edge_id])
+    if not found:
+        return None
+    edge = found[0]
+    rows = tools._read("MATCH (f:File {id: $id}) RETURN f.text AS text", id=edge["file"])
+    text = rows[0]["text"] if rows else None
+    statement = None
+    if text:
+        statement = next(
+            (sql for line, sql in split_statements(text) if line == edge["line"]), None
+        )
+    if statement is None:
+        return {"edge": edge, "lines": []}
+
+    def word(node: str) -> re.Pattern[str] | None:
+        if node.startswith("<result:") and ">." not in node:
+            return None  # a whole result table, e.g. a filter target
+        name = node.rsplit(".", 1)[-1]
+        if not name or name.startswith("<"):
+            return None
+        return re.compile(rf'(?<![\w$])"?{re.escape(name)}"?(?![\w$])', re.I)
+
+    source, target = word(edge["source"]), word(edge["target"])
+    numbered = list(enumerate(statement.splitlines(), start=edge["line"]))
+
+    # The source's lines by what each reference BINDS to, not by its name: `unit_cost` is a
+    # column of several tables, and only `c.unit_cost` is components'. None: not parsable.
+    bound = _source_lines(statement, edge["source"])
+    first = edge["line"] - 1
+
+    def marked(within: set[int] | None) -> dict[int, str]:
+        found: dict[int, str] = {}
+        for number, line in numbered:
+            if within is not None and number not in within:
+                continue
+            code = line.split("--", 1)[0]
+            if bound is not None:
+                hit_source = (number - first) in bound
+            else:
+                hit_source = bool(source and source.search(code))
+            hit_target = bool(target and target.search(code))
+            if hit_source or hit_target:
+                found[number] = (
+                    "both" if hit_source and hit_target else ("source" if hit_source else "target")
+                )
+        return found
+
+    # Narrowed to the CTEs on the target's own path when they are known; the whole
+    # statement when that would hide the source altogether.
+    on_path = _path_lines(tools, edge, statement)
+    marks = marked(on_path)
+    narrowed = on_path is not None and any(m in ("source", "both") for m in marks.values())
+    if not narrowed:
+        marks = marked(None)
+    keep = {n for marked in marks for n in range(marked - context, marked + context + 1)} or {
+        n for n, _ in numbered[: 2 * context + 1]
+    }
+    lines: list[dict[str, Any]] = []
+    previous = None
+    for number, line in numbered:
+        if number not in keep:
+            continue
+        if previous is not None and number != previous + 1:
+            lines.append(
+                {"number": None, "text": f"... {number - previous - 1} lines ...", "mark": "gap"}
+            )
+        lines.append({"number": number, "text": line, "mark": marks.get(number)})
+        previous = number
+    return {
+        "edge": edge,
+        "lines": lines,
+        "statement_lines": len(numbered),
+        "narrowed": narrowed,
+    }
+
+
+def _source_lines(statement: str, source: str) -> set[int] | None:
+    """Statement-relative lines where a reference BINDS to the source column.
+
+    `alias.col` counts when the alias names the source's table in its own SELECT or an
+    enclosing one (a correlated subquery); a bare `col` counts when that table is the only
+    relation in its SELECT's FROM. None when the SQL cannot be parsed - the caller then
+    falls back to matching the name.
+    """
+    import sqlglot
+    from sqlglot import exp
+
+    table_id, _, column = source.rpartition(".")
+    schema, _, table = table_id.rpartition(".")
+    if not table or not column or source.startswith("<"):
+        return None
+    try:
+        parsed = sqlglot.parse_one(statement, read="postgres")
+    except Exception:
+        return None
+
+    def is_source(node: Any) -> bool:
+        return (
+            isinstance(node, exp.Table)
+            and node.name.lower() == table.lower()
+            and (not node.db or not schema or node.db.lower() == schema.lower())
+        )
+
+    def owning(node: Any) -> Any:
+        parent = node.parent
+        while parent is not None and not isinstance(parent, exp.Select):
+            parent = parent.parent
+        return parent
+
+    def relations(select: Any) -> list[Any]:
+        from_ = select.args.get("from_") or select.args.get("from")
+        found = [from_.this] if from_ is not None else []
+        return found + [join.this for join in select.args.get("joins") or []]
+
+    lines: set[int] = set()
+    for ref in parsed.find_all(exp.Column):
+        if ref.name.lower() != column.lower():
+            continue
+        line = ref.this.meta.get("line") if isinstance(ref.this, exp.Identifier) else None
+        if not line:
+            continue
+        select = owning(ref)
+        if ref.table:
+            wanted = ref.table.lower()
+            while select is not None:
+                named = [r for r in relations(select) if (r.alias_or_name or "").lower() == wanted]
+                if named:
+                    if is_source(named[0]):
+                        lines.add(int(line))
+                    break
+                select = owning(select)
+        elif select is not None:
+            sources = relations(select)
+            if len(sources) == 1 and is_source(sources[0]):
+                lines.add(int(line))
+    return lines
+
+
+def _path_lines(tools: Any, edge: dict[str, Any], statement: str) -> set[int] | None:
+    """File lines of the CTEs on the target column's value path, plus the final query.
+
+    A source column is often used all over a long statement - `order_date` in a dozen CTEs -
+    while only a few of those CTEs lead to THIS target. The step walker names them; SQLGlot
+    gives each CTE's first line. None (no narrowing) when the walk is not possible.
+    """
+    import sqlglot
+    from sqlglot import exp
+
+    if edge["type"] == "FILTERS":
+        return None
+    inputs = step_inputs(tools, edge["target"])
+    if inputs is None:
+        return None
+    column = edge["target"].rsplit(".", 1)[-1]
+    steps = cte_steps(statement, column, edge["target"], "public", inputs[1])
+    names = {e["source"].split(".")[1] for e in steps if e["source"].startswith("cte.")}
+    if not names:
+        return None
+    try:
+        parsed = sqlglot.parse_one(statement, read="postgres")
+    except Exception:
+        return None
+    starts = []
+    for cte in parsed.find_all(exp.CTE):
+        alias = cte.args.get("alias")
+        line = alias.this.meta.get("line") if alias is not None and alias.this else None
+        if line:
+            starts.append((int(line), cte.alias_or_name.lower()))
+    if not starts:
+        return None
+    starts.sort()
+    total = len(statement.splitlines())
+    query = parsed if isinstance(parsed, exp.Query) else parsed.find(exp.Query)
+    main = None
+    if query is not None and getattr(query, "selects", None):
+        ident = query.selects[0].find(exp.Identifier)
+        main = ident.meta.get("line") if ident is not None else None
+    keep: set[int] = set()
+    for index, (line, name) in enumerate(starts):
+        if index + 1 < len(starts):
+            end = starts[index + 1][0] - 1
+        else:
+            end = int(main) - 1 if main else total
+        if name in names:
+            keep.update(range(line, end + 1))
+    if main:
+        keep.update(range(int(main) - 1, total + 1))
+    return {edge["line"] - 1 + n for n in keep}
+
+
+def context_html(lines: list[dict[str, Any]]) -> str:
+    """The context lines as a small, escaped HTML listing with the marks coloured.
+
+    Every colour is explicit - background AND text - so the listing reads the same in
+    Streamlit's light and dark themes (inheriting the theme's text colour once put white
+    text on a white background).
+    """
+    # Marked lines: a tinted dark background and a light text of the same hue.
+    marks = {
+        "source": ("#3d3510", "#fde68a"),  # yellow - names the source column
+        "target": ("#4a1d3c", "#fbcfe8"),  # pink - names the target column
+        "both": ("#123d24", "#bbf7d0"),  # green - names both
+    }
+    out = [
+        '<div style="font-family: Consolas, Menlo, monospace; font-size: 12.5px; '
+        "border: 1px solid #334155; border-radius: 6px; overflow-x: auto; "
+        'background: #0f172a; color: #e2e8f0; padding: 4px 0">'
+    ]
+    for line in lines:
+        text = _escape(line["text"]) or "&nbsp;"
+        if line["mark"] == "gap":
+            out.append(
+                '<div style="color:#64748b; padding: 1px 8px; background:#111c33; '
+                f'font-style: italic">{text}</div>'
+            )
+            continue
+        background, colour = marks.get(line["mark"] or "", ("transparent", "#cbd5e1"))
+        out.append(
+            f'<div style="white-space: pre; padding: 0 8px; background:{background}; '
+            f'color:{colour}"><span style="color:#64748b; display:inline-block; width:4.5em">'
+            f"{line['number']}</span>{text}</div>"
+        )
+    out.append("</div>")
+    return "".join(out)
+
+
+def _escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
