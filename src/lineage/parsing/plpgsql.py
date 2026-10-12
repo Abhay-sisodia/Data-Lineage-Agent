@@ -43,6 +43,7 @@ class Stmt:
     expression: str = ""  # assignment RHS, RETURN expression, EXECUTE text
     using: str = ""  # EXECUTE ... USING
     cursor: str = ""  # FETCH cursor
+    at: int = 0  # dml_returning_into: absolute offset of its RETURNING keyword
 
 
 @dataclass
@@ -93,7 +94,10 @@ Node = Stmt | Loop | If | Block
 _WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*")
 _ASSIGN = re.compile(r"^([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*(?::=|=)\s*(.*)$", re.DOTALL)
 _SQL_START = {"select", "with", "insert", "update", "delete", "merge", "values", "table"}
-_NOOPS = {"raise", "null", "commit", "rollback", "close", "call", "assert", "move", "open"}
+_NOOPS = {"raise", "null", "commit", "rollback", "close", "call", "assert", "move", "open",
+          "exit", "continue"}
+"""Statements that move no data. EXIT / CONTINUE end an iteration or a loop early; the
+loop's own reads and writes are where its lineage is."""
 
 
 def _chunks(source: str, start: int, end: int) -> list[tuple[int, int]]:
@@ -404,12 +408,27 @@ def classify(text: str, start: int) -> Stmt:
     if word in _SQL_START:
         if word == "select" and find_word(stripped, "into") >= 0:
             return Stmt("select_into", stripped, start)
-        if (
-            find_word(stripped, "returning") >= 0
-            and find_word(stripped, "into") >= 0
-            and word != "select"
-        ):
-            raise UnsupportedError("DML ... RETURNING ... INTO")
+        returning = find_word(stripped, "returning")
+        if returning >= 0 and word != "select":
+            into_at = find_word(stripped[returning:], "into")
+            if into_at >= 0:
+                # `INSERT ... RETURNING id INTO v_id`: the DML, then the variables taken from
+                # the row it wrote (see `_Desugarer._dml_returning_into`).
+                into_at += returning
+                returned_into = tuple(
+                    t.strip() for t in stripped[into_at + 4 :].rstrip(";").split(",") if t.strip()
+                )
+                if not returned_into:
+                    raise UnsupportedError("DML ... RETURNING ... INTO with no target")
+                lead = len(text) - len(text.lstrip())
+                return Stmt(
+                    "dml_returning_into",
+                    stripped[:returning].rstrip(),
+                    start,
+                    targets=returned_into,
+                    expression=stripped[returning + len("returning") : into_at].strip(),
+                    at=start + lead + returning,
+                )
         return Stmt("sql", stripped, start)
     if word == "perform":
         return Stmt("noop", stripped, start)

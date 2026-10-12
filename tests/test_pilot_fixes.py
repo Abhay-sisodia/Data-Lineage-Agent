@@ -11,6 +11,9 @@ Each was found by running a real-shaped warehouse through the tool, not by a key
 4. An unparseable statement's `alias.column` text became table nodes (380 in the pilot).
 5. A PL/pgSQL routine the reader gave up on was refused with a generic reason; the
    refusal now says what stopped the reader.
+6. The reader now follows `DML ... RETURNING ... INTO`, `EXIT` / `CONTINUE`, a variable in a
+   FROM-clause function and a trigger field set from a clock - the procedure, function and
+   triggers of the pilot's files 16-18, all refused before.
 """
 
 from __future__ import annotations
@@ -80,14 +83,68 @@ def test_unreadable_sql_yields_only_real_relations() -> None:
     assert statement_tables("FROBNICATE mart.x WITH ((") == {"mart.x"}
 
 
-def test_a_refused_routine_says_what_stopped_the_reader() -> None:
-    sql = (
+def _routine(body: str, declare: str = "") -> str:
+    return (
         "CREATE OR REPLACE FUNCTION mart.f() RETURNS void LANGUAGE plpgsql AS $fn$\n"
-        "DECLARE v_id bigint;\n"
+        f"DECLARE {declare}\n"
         "BEGIN\n"
-        "  INSERT INTO mart.events_log (kind) VALUES ('x') RETURNING id INTO v_id;\n"
+        f"{body}"
         "END;\n"
         "$fn$;\n"
+        "SELECT mart.f();\n"
+    )
+
+
+def test_dml_returning_into_is_read_not_refused() -> None:
+    """The load-log pattern: the DML's lineage, then the variable from the row written."""
+    sql = _routine(
+        "  INSERT INTO mart.top_customers (customer_id, revenue)\n"
+        "  SELECT o.customer_id, o.amount FROM staging.orders AS o\n"
+        "  RETURNING customer_id INTO v_id;\n"
+        "  UPDATE mart.events_log SET kind = 'done' WHERE id = v_id;\n",
+        declare="v_id bigint;",
+    )
+    result = analyse_source(sql, _book(), POSTGRES)
+    assert result.refusals == []
+    facts = {(str(e.source).split(":")[-1], str(e.target).split(":")[-1]) for e in result.edges}
+    assert ("staging.orders.amount", "mart.top_customers.revenue") in facts
+    # v_id holds a value of the row just written, and filters the UPDATE from there.
+    assert ("mart.top_customers.customer_id", "v_id") in facts
+    assert ("v_id", "mart.events_log") in facts
+
+
+def test_loop_control_and_a_variable_in_a_from_function_are_read() -> None:
+    sql = _routine(
+        "  FOR v_day IN SELECT d::date FROM generate_series(p_from, p_from + 7, 1) AS d LOOP\n"
+        "    CONTINUE WHEN v_day IS NULL;\n"
+        "    EXIT WHEN v_day > current_date;\n"
+        "    INSERT INTO mart.events_log (kind) VALUES (v_day::text);\n"
+        "  END LOOP;\n",
+        declare="v_day date; p_from date := current_date;",
+    )
+    assert analyse_source(sql, _book(), POSTGRES).refusals == []
+
+
+def test_a_trigger_field_set_from_a_clock_carries_no_lineage() -> None:
+    sql = (
+        "CREATE OR REPLACE FUNCTION mart.touch() RETURNS trigger LANGUAGE plpgsql AS $fn$\n"
+        "BEGIN\n"
+        "  IF NEW IS DISTINCT FROM OLD THEN\n"
+        "    NEW.revenue := now();\n"
+        "  END IF;\n"
+        "  RETURN NEW;\n"
+        "END;\n"
+        "$fn$;\n"
+        "CREATE TRIGGER trg_touch BEFORE UPDATE ON mart.top_customers\n"
+        "  FOR EACH ROW EXECUTE FUNCTION mart.touch();\n"
+    )
+    result = analyse_source(sql, _book(), POSTGRES)  # used to crash on an empty relation
+    assert result.refusals == []
+
+
+def test_a_routine_the_reader_cannot_follow_says_why() -> None:
+    sql = _routine(
+        "  FOR v_r IN EXECUTE 'SELECT 1' LOOP\n    NULL;\n  END LOOP;\n", declare="v_r record;"
     )
     reasons = [r.reason for r in analyse_source(sql, _book(), POSTGRES).refusals]
-    assert any("stopped at: DML ... RETURNING ... INTO" in reason for reason in reasons), reasons
+    assert any("stopped at: FOR ... IN EXECUTE" in reason for reason in reasons), reasons

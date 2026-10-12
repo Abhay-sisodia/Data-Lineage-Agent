@@ -386,6 +386,8 @@ class _Desugarer:
             self._sql(stmt.text, stmt.start, context)
         elif kind == "select_into":
             self._select_into(stmt.text, stmt.start, context)
+        elif kind == "dml_returning_into":
+            self._dml_returning_into(stmt, context)
         elif kind == "assign":
             self._assign(stmt, context)
         elif kind == "diagnostics":
@@ -430,6 +432,26 @@ class _Desugarer:
             )
         )
 
+    def _dml_returning_into(self, stmt: pl.Stmt, context: _Context) -> None:
+        """`INSERT ... RETURNING id INTO v_id` (production pilot: the load-log pattern).
+
+        Read as the DML itself, then `SELECT <returning> INTO <targets> FROM <written>`:
+        the variables hold values of the row just written, so their source is that
+        relation's columns. The SELECT goes on the RETURNING keyword's line - its own
+        statement - so it is never mistaken for the DML when edges are matched by line.
+        """
+        parsed = _parse(stmt.text)
+        written = _written(parsed) if parsed is not None else ""
+        if not written:
+            raise pl.UnsupportedError("DML ... RETURNING ... INTO on an unknown relation")
+        if self._line(stmt.at) == self._line(stmt.start):
+            raise pl.UnsupportedError("DML ... RETURNING ... INTO on one line")
+        self._sql(stmt.text, stmt.start, context)
+        targets = tuple(t.lower() for t in stmt.targets)
+        self._phantom(
+            f"SELECT {stmt.expression} FROM {written}", stmt.at, context, "into", targets
+        )
+
     def _select_into(self, text: str, start: int, context: _Context) -> None:
         parsed = _parse(text)
         if not isinstance(parsed, exp.Select) or parsed.args.get("into") is None:
@@ -442,12 +464,17 @@ class _Desugarer:
 
     def _assign(self, stmt: pl.Stmt, context: _Context) -> None:
         target = stmt.targets[0].lower()
-        if "." in target:
-            raise pl.UnsupportedError("assignment to a record field")
         expression = stmt.expression
         query = _parse(f"SELECT {expression}")
         if query is None:
             raise pl.UnsupportedError("an assignment SQLGlot cannot parse")
+        if "." in target:
+            # `NEW.updated_at := now()` - a field set from nothing the analysis can name (a
+            # clock, a literal) carries no lineage, so it is passed over. A field set from
+            # a column or a variable still stops the reader: that write is not traced yet.
+            if query.find(exp.Column) is None and query.find(exp.Subquery) is None:
+                return
+            raise pl.UnsupportedError("assignment to a record field")
         constant = _literal(expression)
         if constant is not None:
             context.constants[target] = constant
@@ -649,6 +676,19 @@ class _Desugarer:
             elif _in_predicate(column):
                 read = _relations_beside(column, parsed) if (into or record_fields) else ()
                 uses.append(Use(symbol=_symbol(column), role="filter", read=read))
+            elif slots and _in_from_function(column):
+                # `FROM generate_series(date_trunc('month', p_from), ...) AS gs`: the
+                # variable decides the rows the function produces, and the projections
+                # read those rows - a derived value of every target (production pilot).
+                for _root, target in slots:
+                    uses.append(
+                        Use(
+                            symbol=_symbol(column),
+                            role="value",
+                            target=target,
+                            transform=Transform.DERIVED,
+                        )
+                    )
             else:
                 raise pl.UnsupportedError("a variable in a position this reader does not trace")
         return uses
@@ -789,6 +829,19 @@ def _inside_routine_call(node: Any, functions: dict[str, _Function]) -> bool:
 def _qualified(table: exp.Table) -> str:
     parts = [p for p in (table.catalog, table.db, table.name) if p]
     return ".".join(p.lower() for p in parts)
+
+
+def _in_from_function(column: exp.Column) -> bool:
+    """Is `column` an argument of a function used as a relation in a FROM or JOIN?"""
+    node: Any = column.parent
+    inside_function = False
+    while node is not None and not isinstance(node, exp.Select):
+        if isinstance(node, exp.Func):
+            inside_function = True
+        if isinstance(node, (exp.From, exp.Join)):
+            return inside_function
+        node = node.parent
+    return False
 
 
 def _written(parsed: Any) -> str:
@@ -1125,6 +1178,11 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
                     else [_resolve(r, dictionary) for r in use.read]
                 )
                 for relation in relations:
+                    if not relation:
+                        # A guard in a routine whose statement names no relation of its own
+                        # (`IF NEW IS DISTINCT FROM OLD` in a BEFORE trigger that only sets
+                        # a NEW field): nothing written, so nothing filtered here.
+                        continue
                     kept.append(
                         _edge(
                             source,
