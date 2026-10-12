@@ -14,7 +14,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "frontend"))
 
-from explorer import cards_of, collapse, explore, hidable, html, model, table_of
+from explorer import cards_of, collapse, cte_steps, explore, hidable, html, model, table_of
 
 
 def _edge(kind: str, source: str, target: str, transform: str = "identity", n: int = 0) -> dict:
@@ -72,7 +72,8 @@ def test_the_page_cannot_be_injected_through_a_name() -> None:
     edges = [_edge("FEEDS", "s.t.x", "<result:</script><img src=x onerror=alert(1)>.sql>.y")]
     page = html(model(edges))
     assert "</script><img" not in page and "onerror=alert(1)>" not in page
-    assert 'integrity="sha384-' in page and "LineageExplorer" in page
+    assert "LineageExplorer" in page
+    assert "cdn.jsdelivr.net" not in page.split("LineageExplorer")[0], "ELK is inlined (gap 10)"
 
 
 class _Graph:
@@ -190,3 +191,49 @@ def test_an_edge_no_visible_path_reaches_becomes_a_note() -> None:
 
 def test_the_focus_table_is_never_offered_for_hiding() -> None:
     assert hidable(EDGES, "m.sales.total") == ["s.orders"]
+
+
+SCHEMA = {"s": {"orders": {"amt": "numeric", "k": "int", "st": "text"}}}
+
+
+def test_steps_walk_a_column_back_through_each_cte() -> None:
+    sql = (
+        "WITH a AS (SELECT o.amt AS amt, o.k FROM s.orders o), "
+        "b AS (SELECT a.k, SUM(a.amt) AS total FROM a GROUP BY 1) "
+        "SELECT b.total * 2 AS doubled FROM b"
+    )
+    steps = cte_steps(sql, "doubled", "<result:q.sql>.doubled", "s", SCHEMA)
+    chain = {(e["source"], e["target"], e["transform"]) for e in steps}
+    assert chain == {
+        ("s.orders.amt", "cte.a.amt", "identity"),
+        ("cte.a.amt", "cte.b.total", "aggregated"),
+        ("cte.b.total", "<result:q.sql>.doubled", "derived"),
+    }
+    cards = {c["key"]: c for c in model(steps)["cards"]}
+    assert cards["cte.b"]["title"] == "b" and "step inside the query" in cards["cte.b"]["subtitle"]
+
+
+def test_steps_map_an_insert_column_to_its_select_item() -> None:
+    sql = "INSERT INTO m.t (total) WITH a AS (SELECT o.amt FROM s.orders o) SELECT a.amt FROM a"
+    steps = cte_steps(sql, "total", "m.t.total", "s", SCHEMA)
+    assert ("cte.a.amt", "m.t.total") in {(e["source"], e["target"]) for e in steps}
+
+
+def test_steps_never_raise() -> None:
+    assert cte_steps("not sql at all ((", "x", "r.x", "s", SCHEMA) == []
+    assert cte_steps("DELETE FROM s.orders", "x", "r.x", "s", SCHEMA) == []
+
+
+def test_a_tampered_vendored_elk_falls_back_to_the_pinned_cdn(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Gap 10: the vendored ELK is inlined only when it matches the pinned hash."""
+    import explorer
+
+    bad = tmp_path / "elk.bundled.js"
+    bad.write_text("window.ELK = function () {};", encoding="utf-8")
+    monkeypatch.setattr(explorer, "ELK_VENDORED", bad)  # type: ignore[attr-defined]
+    monkeypatch.setattr(explorer, "_ELK_TAG", None)  # type: ignore[attr-defined]
+    tag = explorer._elk_script()
+    assert explorer.ELK_URL in tag and f'integrity="{explorer.ELK_SRI}"' in tag
+    monkeypatch.setattr(explorer, "_ELK_TAG", None)  # type: ignore[attr-defined]

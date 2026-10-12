@@ -238,7 +238,13 @@ def infer_dictionary(
             else:
                 key = _sole_relation(column.parent_select, cte_names, default_schema, dialect)
                 if key is None:
-                    unattributed += 1
+                    # A select that reads only CTEs and derived tables names COMPUTED
+                    # columns, which resolve through those queries to their base tables and
+                    # belong in no dictionary - not a gap, so not counted as one. Counting
+                    # them told a user that 47 columns of a CTE-heavy report were "absent"
+                    # when not one stored column was missing.
+                    if not _reads_only_computed(column.parent_select, cte_names, dialect):
+                        unattributed += 1
                     continue
 
             if name not in columns[key]:
@@ -260,7 +266,14 @@ def infer_dictionary(
             f"from them will not resolve."
         )
 
-    if any("*" == c.name for s in statements for c in s.find_all(exp.Column)) or "*" in sql:
+    # Only a star over a STORED relation needs that relation's full column list; a star over
+    # a CTE or derived table expands to computed columns the SQL itself defines. Matching
+    # `*` anywhere in the text also fired on COUNT(*) and on multiplication.
+    if any(
+        _projects_star(select) and not _reads_only_computed(select, cte_names, dialect)
+        for statement in statements
+        for select in statement.find_all(exp.Select)
+    ):
         warnings.append(
             "the SQL appears to use `SELECT *`. An inferred dictionary holds only the "
             "columns the text mentions, so a star expansion against it would be "
@@ -362,12 +375,26 @@ def _sole_relation(
     return _qualified(source, default_schema, dialect)
 
 
+def _reads_only_computed(select: Any, cte_names: set[str], dialect: str) -> bool:
+    """Does this select read nothing but CTEs and derived tables (no stored relation)?"""
+    if select is None:
+        return False
+    from_clause = select.args.get("from_") or select.args.get("from")
+    sources = [from_clause.this] if from_clause is not None else []
+    sources += [join.this for join in select.args.get("joins") or []]
+    if not sources:
+        return False
+    return all(
+        not isinstance(source, exp.Table)
+        or (bool(source.name) and fold(source.name, dialect) in cte_names)
+        for source in sources
+    )
+
+
 def _qualified(table: Any, default_schema: str, dialect: str) -> str:
     schema = table.db or default_schema
     return f"{fold(schema, dialect)}.{fold(table.name, dialect)}"
 
 
 def _empty(default_schema: str, dialect: str) -> Dictionary:
-    return Dictionary(
-        captured_at=INFERRED_MARKER, default_schema=default_schema, dialect=dialect
-    )
+    return Dictionary(captured_at=INFERRED_MARKER, default_schema=default_schema, dialect=dialect)

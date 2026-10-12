@@ -129,6 +129,7 @@ The sidebar's **View** offers three views:
 - **Ask the lineage:** answer, status, evidence graph and table, unknowns, and the full trace. It uses the cache unless you untick it.
 - **Lineage graph:** a column's upstream lineage or downstream impact, by hops and flows, grouped by table, with the gaps on that lineage.
 - **Impact report:** what breaks if a column or table is dropped, renamed or retyped; downloads as Markdown or CSV.
+- **Lineage graph options:** Show (one column / a file / the entire graph); Detail (tables / columns); Hide temp tables; Step through the query (CTEs). The diagram's layout engine (ELK 0.9.3, EPL-2.0) ships in `frontend/vendor/`, so it works offline.
 
 ## 9. Five tasks to try (the C9 gate)
 

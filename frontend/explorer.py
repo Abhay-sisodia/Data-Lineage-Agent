@@ -116,8 +116,13 @@ def model(
         rows = []
         for row, column in enumerate(sorted(columns)):
             ports[column] = f"{cid}.c{row}"
+            label = _column_name(column, card)
             rows.append(
-                {"id": ports[column], "label": _column_name(column, card), "focus": column in focus}
+                {
+                    "id": ports[column],
+                    "label": "columns used" if label == TABLE_ROW else label,
+                    "focus": column in focus,
+                }
             )
         title, subtitle, colour = _header(card)
         own = sorted(_column_name(c, card) for c in self_filters.get(card, ()))
@@ -156,8 +161,14 @@ def model(
                 "kind": kind,
                 "from": ports[source],
                 "to": ports[target],
-                "badge": BADGE.get(transform, "") if kind == "FEEDS" else "",
-                "tip": f"{verb} {transform} - {source} -> {target}{passed} ({where})",
+                "badge": same[0].get("badge")
+                or (BADGE.get(transform, "") if kind == "FEEDS" else ""),
+                "tip": (
+                    f"{table_of(source)} -> {table_of(target)}: {same[0]['badge']} column(s) "
+                    f"used - {same[0].get('breakdown', verb)} ({where})"
+                    if same[0].get("count")
+                    else f"{verb} {transform} - {source} -> {target}{passed} ({where})"
+                ),
                 "ids": sorted(e["id"] for e in same),
                 "joined": bool(via),
             }
@@ -168,7 +179,31 @@ def model(
 ELK_URL = "https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js"
 # Subresource integrity: the browser refuses a file that does not match this hash.
 ELK_SRI = "sha384-KO35c6PFq7tFxAEx6FtATwL9vOBOmCzQYr7GM0iTr3oO22s7Jc9OkclOH4AV7jwK"
+ELK_VENDORED = Path(__file__).resolve().parent / "vendor" / "elk.bundled.js"
+"""ELK 0.9.3, shipped with the app (EPL-2.0, vendor/ELK-LICENSE.md) - end-to-end gap 10: the
+diagram must draw offline and behind a proxy that blocks CDNs."""
 RENDERER = Path(__file__).resolve().parent / "explorer_render.js"
+
+
+def _elk_script() -> str:
+    """The `<script>` that loads ELK: the vendored copy inlined when it matches the pinned
+    hash, else the pinned CDN file (integrity-checked by the browser). Read once."""
+    global _ELK_TAG
+    if _ELK_TAG is None:
+        import base64
+        import hashlib
+
+        tag = f'<script src="{ELK_URL}" integrity="{ELK_SRI}" crossorigin="anonymous"></script>'
+        if ELK_VENDORED.exists():
+            body = ELK_VENDORED.read_bytes()
+            digest = "sha384-" + base64.b64encode(hashlib.sha384(body).digest()).decode()
+            if digest == ELK_SRI and b"</script" not in body:
+                tag = f"<script>{body.decode('utf-8')}</script>"
+        _ELK_TAG = tag
+    return _ELK_TAG
+
+
+_ELK_TAG: str | None = None
 
 _PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <style>
@@ -184,7 +219,7 @@ _PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <div id="tools"><button onclick="zoom(1/1.25)">+</button><button onclick="zoom(1.25)">-</button>
 <button onclick="fit()">fit</button></div>
 <div id="view"><div id="msg">Laying out the lineage ...</div></div>
-<script src="__ELK__" integrity="__SRI__" crossorigin="anonymous"></script>
+__ELK__
 <script>__RENDERER__</script>
 <script>
 const model = __MODEL__;
@@ -197,7 +232,7 @@ function zoom(f, cx, cy) { const [x, y, w, h] = box;
   box = [cx - (cx - x) * f, cy - (cy - y) * f, w * f, h * f]; apply(); }
 if (typeof ELK === "undefined") {
   document.getElementById("msg").textContent =
-    "Could not load the layout engine (ELK) from cdn.jsdelivr.net - check the network.";
+    "Could not load the layout engine (ELK): the vendored copy is missing and the CDN is blocked.";
 } else {
   LineageExplorer.render(model, ELK).then((svg) => {
     const view = document.getElementById("view");
@@ -228,19 +263,18 @@ if (typeof ELK === "undefined") {
 
 def html(diagram: dict[str, Any], height: int = 640) -> str:
     """A self-contained page: ELK lays the model out, the SVG is drawn, the wheel zooms and
-    dragging pans. ELK comes from jsDelivr (pinned, integrity-checked); if it is blocked,
-    the page says so."""
+    dragging pans. ELK is inlined from the vendored copy, so no network is needed; the page
+    says so if it cannot be loaded at all."""
     # Names come from user SQL: no `<`, `>` or `&` may reach the page unescaped.
     payload = (
         json.dumps(diagram).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     )
-    return (
+    page = (
         _PAGE.replace("__HEIGHT__", str(height - 8))
-        .replace("__ELK__", ELK_URL)
-        .replace("__SRI__", ELK_SRI)
         .replace("__RENDERER__", RENDERER.read_text(encoding="utf-8"))
         .replace("__MODEL__", payload)
     )
+    return page.replace("__ELK__", _elk_script())  # last: nothing is substituted inside ELK
 
 
 def _header(card: str) -> tuple[str, str, str]:
@@ -252,6 +286,8 @@ def _header(card: str) -> tuple[str, str, str]:
     schema, _, name = card.rpartition(".")
     if not schema:
         return card, "variable", "#475569"
+    if schema == "cte":
+        return name, "step inside the query (CTE or subquery)", "#6d28d9"
     return name, schema, "#1e3a8a"
 
 
@@ -444,3 +480,218 @@ def files(tools: Any) -> list[str]:
         "MATCH ()-[r:FEEDS|FILTERS|INFLUENCES]->() RETURN DISTINCT r.file AS file ORDER BY file"
     )
     return [row["file"] for row in rows]
+
+
+# --- step through the query's CTEs (end-to-end gap 8) --------------------------------------
+#
+# The parser folds a statement's CTEs into one hop - base column -> result column - and the
+# answer keys are written that way. For READING a long query that hides the "how": the
+# step view walks one result column back through each CTE with SQLGlot's own column
+# lineage, for display only. Facts, transforms in the edge table, Ask and the impact report
+# all stay the parser's.
+
+
+def cte_steps(
+    statement: str, column: str, result: str, default_schema: str, schema: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Edges, in the explorer's format, from base columns through each CTE to `result`.
+
+    `statement` is the SQL of the statement that produces `result` (whose last part is the
+    column name `column` in its select list); `schema` is SQLGlot's {schema: {table:
+    {column: type}}}. Returns [] when the walk is not possible (e.g. a statement with no
+    SELECT); never raises.
+    """
+    import sqlglot
+    from sqlglot import exp
+    from sqlglot.lineage import lineage
+
+    try:
+        parsed = sqlglot.parse_one(statement, read="postgres")
+        query = parsed if isinstance(parsed, exp.Query) else parsed.find(exp.Query)
+        if query is None:
+            return []
+        name = _select_name(parsed, query, column)
+        # The graph knows only the columns that carry lineage, so the schema is partial:
+        # qualify tolerantly rather than refuse, as the parser does (end-to-end gap 6).
+        root = lineage(
+            name,
+            query,
+            schema=schema,
+            dialect="postgres",
+            validate_qualify_columns=False,
+            allow_partial_qualification=True,
+            infer_schema=True,
+        )
+    except Exception:
+        return []
+
+    edges: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def node_id(node: Any) -> str | None:
+        if node.name.isdigit():  # GROUP BY 1: a position, not a column
+            return None
+        part = node.name.split(".")[-1]
+        if isinstance(node.source, exp.Table):
+            table = node.source.name.lower()
+            owners = [db for db, tables in schema.items() if table in tables]
+            db = node.source.db or (owners[0] if len(owners) == 1 else default_schema)
+            return f"{db}.{table}.{part}".lower()
+        if node.reference_node_name:
+            return f"cte.{node.reference_node_name}.{part}".lower()
+        return None
+
+    def walk(node: Any, target: str, seen: set[int]) -> None:
+        if id(node) in seen:
+            return
+        seen.add(id(node))
+        for child in node.downstream:
+            source = node_id(child)
+            if source is None:  # pass through a positional node to what it names
+                walk(child, target, seen)
+                continue
+            key = (source, target)
+            if key not in edges:
+                edges[key] = {
+                    "id": f"step:{len(edges)}",
+                    "type": "FEEDS",
+                    "source": source,
+                    "target": target,
+                    "transform": _step_transform(_expression_of(child, node)),
+                    "file": "",
+                    "line": 0,
+                    "depth": 1,
+                }
+            walk(child, source, seen)
+
+    walk(root, result, set())
+    return list(edges.values())
+
+
+def _select_name(parsed: Any, query: Any, column: str) -> str:
+    """The select-list name that produces `column`: itself, or - for INSERT (cols) SELECT -
+    the projection in the same position as `column` in the insert's column list."""
+    from sqlglot import exp
+
+    if isinstance(parsed, exp.Insert) and isinstance(parsed.this, exp.Schema):
+        names = [c.name.lower() for c in parsed.this.expressions]
+        if column.lower() in names:
+            selects = query.selects if hasattr(query, "selects") else []
+            index = names.index(column.lower())
+            if index < len(selects):
+                return str(selects[index].alias_or_name)
+    return column
+
+
+def _expression_of(child: Any, parent: Any) -> Any:
+    """The expression that computes the PARENT's column from the child: its select item."""
+    return parent.expression
+
+
+def _step_transform(expression: Any) -> str:
+    """identity / derived / conditional / aggregated, read off one select item."""
+    from sqlglot import exp
+
+    inner = expression.this if isinstance(expression, exp.Alias) else expression
+    if inner is None or isinstance(inner, exp.Column):
+        return "identity"
+    if inner.find(exp.AggFunc) is not None:
+        return "aggregated"
+    if inner.find(exp.Case, exp.Coalesce, exp.If, exp.Greatest, exp.Least) is not None:
+        return "conditional"
+    return "derived"
+
+
+def step_inputs(tools: Any, node: str) -> tuple[str, dict[str, Any]] | None:
+    """(the SQL of the statement that writes `node`, SQLGlot's schema from the graph).
+
+    None when nothing in the graph writes `node` (a base column has no steps to show).
+    """
+    from lineage.parsing.sqlscript import split_statements
+
+    rows = tools._read(
+        """
+        MATCH ()-[r:FEEDS|INFLUENCES]->(c {id: $id}) WITH r LIMIT 1
+        MATCH (f:File {id: r.file}) RETURN f.text AS text, r.line AS line
+        """,
+        id=node,
+    )
+    if not rows or not rows[0]["text"]:
+        return None
+    statement = next(
+        (text for line, text in split_statements(rows[0]["text"]) if line == rows[0]["line"]),
+        None,
+    )
+    if statement is None:
+        return None
+    schema: dict[str, Any] = {}
+    for row in tools._read(
+        "MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) RETURN t.id AS t, collect(c.id) AS cols"
+    ):
+        parts = row["t"].split(".")
+        if len(parts) != 2 or row["t"].startswith("<"):
+            continue
+        schema.setdefault(parts[0], {})[parts[1]] = {
+            col.rsplit(".", 1)[-1]: "text" for col in row["cols"]
+        }
+    return statement, schema
+
+
+# --- table-level summary (end-to-end gap 9) ------------------------------------------------
+#
+# A wide report - 49 result columns fed by 15 tables - drew 268 lines into one 49-row card:
+# correct and unreadable. The table view keeps one compact card per table and ONE line per
+# pair of tables, its badge the number of the source's columns behind it. The detail is a
+# switch away, and the edge table under the diagram always lists every fact.
+
+TABLE_ROW = "⟨columns⟩"
+"""The single row a card has in the table view; never a real column name."""
+
+
+def table_level(edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """ONE edge per (source table, target table), whatever mix of flows it carries.
+
+    Drawn in its strongest flow - value, else influence, else filter (a filter-only pair
+    meets the target's header) - with the number of the source table's columns behind it as
+    the badge, and the breakdown by flow in the tooltip.
+    """
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for edge in edges:
+        source = table_of(edge["source"])
+        target = edge["target"] if edge["type"] == "FILTERS" else table_of(edge["target"])
+        if source == target:
+            continue
+        groups.setdefault((source, target), []).append(edge)
+    words = {"FEEDS": "as values", "INFLUENCES": "as grouping or ordering", "FILTERS": "as filters"}
+    out = []
+    for (source, target), same in sorted(groups.items()):
+        kinds = {e["type"] for e in same}
+        kind = next(k for k in ("FEEDS", "INFLUENCES", "FILTERS") if k in kinds)
+        used = {e["source"] for e in same}
+        values = [e for e in same if e["type"] == "FEEDS"]
+        hardest = max(
+            (e["transform"] or "identity" for e in values),
+            key=lambda t: LADDER.index(t) if t in LADDER else 0,
+            default="identity",
+        )
+        parts = [
+            f"{len({e['source'] for e in same if e['type'] == k})} {words[k]}"
+            for k in ("FEEDS", "INFLUENCES", "FILTERS")
+            if k in kinds
+        ]
+        out.append(
+            {
+                "id": "table:" + "|".join(sorted(e["id"] for e in same))[:200],
+                "type": kind,
+                "source": f"{source}.{TABLE_ROW}",
+                "target": target if kind == "FILTERS" else f"{target}.{TABLE_ROW}",
+                "transform": hardest,
+                "badge": str(len(used)),
+                "file": same[0]["file"],
+                "line": same[0]["line"],
+                "where": sorted({f"{e['file']}:{e['line']}" for e in same}),
+                "depth": 1,
+                "count": len(same),
+                "breakdown": ", ".join(parts),
+            }
+        )
+    return out

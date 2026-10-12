@@ -636,10 +636,17 @@ def _query_of_scope(expression: Any) -> Any:
     return node
 
 
-def _qualify(parsed: Any, dictionary: Dictionary, search_path: list[str] | None = None) -> Any:
+def _qualify(
+    parsed: Any,
+    dictionary: Dictionary,
+    search_path: list[str] | None = None,
+    partial: bool = False,
+) -> Any:
     """SQLGlot's `qualify`, with the merged column of USING / NATURAL put right (B1-02).
 
     Every analysis entry point qualifies through here, so the correction has one home.
+    `partial` lets a reference to a column its relation lacks stay unqualified instead of
+    raising - only for the retry in `_analyse_parsed`, which declares it unresolved.
     """
     for written in parsed.find_all(exp.Coalesce):
         written.meta["written"] = True
@@ -657,6 +664,7 @@ def _qualify(parsed: Any, dictionary: Dictionary, search_path: list[str] | None 
         dialect=dictionary.dialect,
         validate_qualify_columns=False,
         infer_schema=True,
+        allow_partial_qualification=partial,
     )
     # A whole-row reference comes out of `qualify` as `TableColumn`, which no column walk
     # sees; restated here as columns so it is traced or declared, never dropped (B4-01).
@@ -4612,16 +4620,34 @@ def _analyse_parsed(
     # After view inlining, so a named window inside an expanded view is resolved too.
     parsed = _resolve_named_windows(parsed)
 
+    original = parsed.copy()
+    retried: Boundary | None = None
     try:
         parsed = _qualify(parsed, dictionary)
     except Exception as exc:
-        return (
-            [],
-            (
-                RefusalCode.NAME_NOT_RESOLVED,
-                f"could not qualify names: {str(exc).splitlines()[0]}",
+        message = str(exc).splitlines()[0]
+        # A qualified reference to a column its relation does not have - `fr.net_income`
+        # where `fr` is a CTE that never projects it - used to refuse the WHOLE statement:
+        # one bad name in a 49-column report cost all 49 columns their lineage. Retried
+        # with partial qualification, the trace declares that one reference unresolved and
+        # drops only it; every column that does not depend on it keeps its lineage.
+        if not message.startswith("Unknown column:"):
+            return [], (RefusalCode.NAME_NOT_RESOLVED, f"could not qualify names: {message}")
+        try:
+            parsed = _qualify(original, dictionary, partial=True)
+        except Exception as retry:
+            reason = str(retry).splitlines()[0]
+            return [], (RefusalCode.NAME_NOT_RESOLVED, f"could not qualify names: {reason}")
+        name = message.split(":", 1)[1].strip()
+        retried = Boundary(
+            kind=BoundaryKind.UNRESOLVED_IDENTIFIER,
+            subject=name.upper(),
+            detail=(
+                f"{name} (not a column of the relation it names - analysed without it; "
+                "the columns that depend on it lose that source)"
             ),
         )
+        unresolved.append(retried)
 
     if isinstance(parsed, exp.Insert):
         edges, refusal = _analyse_insert(parsed, dictionary, band, unresolved, origin, summaries)
@@ -4655,6 +4681,16 @@ def _analyse_parsed(
 
     if refusal is not None:
         return [], refusal
+
+    # The trace usually declares the reference itself, with where it failed; the retry's
+    # boundary then says it twice, so it stays only when the trace never reached the name.
+    if retried is not None and any(
+        b is not retried
+        and b.kind == retried.kind
+        and (b.subject == retried.subject or b.subject.endswith("." + retried.subject))
+        for b in unresolved
+    ):
+        unresolved.remove(retried)
 
     # Notes from view inlining are boundaries too - a view left unexpanded means the
     # lineage below it was not reached.

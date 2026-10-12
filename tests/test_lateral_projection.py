@@ -129,13 +129,11 @@ def test_a_lateral_projection_over_an_unknown_column_still_declares() -> None:
     turned unresolved references into confident edges would be strictly worse than the
     defect it replaced.
 
-    The declaration arrives as a REFUSAL rather than a boundary, and that is the captured
-    dictionary talking: it knows `src`'s full column list, so `qualify` cannot bind the name
-    at all and declines the statement. Against an INFERRED dictionary - which holds only the
-    columns the text mentions and so cannot tell a typo from an uncaptured column - the same
-    query yields a per-column boundary instead. Both are honest; which one you get depends
-    on how much the schema knows, so this asserts the property that matters (no edge, and
-    the statement is not silently counted as clean) rather than the spelling.
+    It used to arrive as a whole-statement REFUSAL - the captured dictionary knows `src`'s
+    full column list, so `qualify` could not bind the name and declined the statement. Since
+    end-to-end gap 6 the statement is analysed with that one reference declared instead, as
+    an inferred dictionary always did. The property that matters is unchanged: no edge, and
+    the statement is not silently counted as clean.
     """
     result = _result(
         """
@@ -147,7 +145,12 @@ def test_a_lateral_projection_over_an_unknown_column_still_declares() -> None:
     )
     assert result.edges == []
     assert result.refusals or result.boundaries, "an unresolvable name must be declared"
-    assert [r.code.value for r in result.refusals] == ["NAME_NOT_RESOLVED"]
+    # Since end-to-end gap 6 the statement is analysed with the bad reference declared,
+    # rather than refused whole: the name, with the table it was looked for in, once.
+    assert result.refusals == []
+    assert [(b.kind.value, b.subject) for b in result.boundaries] == [
+        ("unresolved_identifier", "SILVER.SRC.NONEXISTENT")
+    ]
 
 
 def test_nested_laterals_resolve_through_both_levels() -> None:

@@ -21,6 +21,8 @@ import explorer
 import streamlit as st
 
 MAX_EDGES = 300
+TABLE_VIEW_FROM = 120
+"""A file or the whole graph opens at table level above this many edges (gap 9)."""
 
 EXAMPLES = [
     "Which columns feed the value of mart.shipment_fact.gross_margin_usd?",
@@ -266,6 +268,7 @@ def graph_page() -> None:
         )
     all_flows = ["FEEDS", "FILTERS", "INFLUENCES"]
     node: str | None = None
+    detail = "Columns"
     upward = False
     if scope == "One column":
         with st.sidebar:
@@ -284,6 +287,12 @@ def graph_page() -> None:
                 help="Off: a filter is shown where it acts, but its own sources are not walked "
                 "- they decide which rows exist, not this column's value.",
             )
+            steps = st.checkbox(
+                "Step through the query (CTEs)",
+                value=False,
+                help="Walk this column back through each CTE and subquery of the statement "
+                "that produces it - how the value is computed, step by step.",
+            )
         matches = tools.find(name, limit=50) if name.strip() else []
         if not matches:
             st.info(f"No column or table in the current graph matches '{name}'.")
@@ -300,6 +309,9 @@ def graph_page() -> None:
                 f"'{name}' matches {len(matches)} nodes", [m["id"] for m in matches]
             )
         upward = direction != "downstream"
+        if steps:
+            _steps_view(tools, node)
+            return
         edges = explorer.explore(tools, node, direction, depth, tuple(flows), follow_filters)
         limit = MAX_EDGES
     else:
@@ -317,6 +329,15 @@ def graph_page() -> None:
                 help="Large graphs take a few seconds to lay out; the table lists every edge.",
             )
         edges = explorer.all_edges(tools, file, tuple(flows))
+        with st.sidebar:
+            detail = st.radio(
+                "Detail",
+                ["Tables", "Columns"],
+                index=0 if len(edges) > TABLE_VIEW_FROM else 1,
+                horizontal=True,
+                help="Tables: one card per table and one line per pair of tables, its badge "
+                "the number of columns behind it. Columns: every column and every edge.",
+            )
         direction = "whole graph" if scope == "Entire graph" else f"file {file}"
     candidates = explorer.hidable(edges, node or "")
     temps = [c for c in candidates if c.startswith("pg_temp.")]
@@ -351,6 +372,8 @@ def graph_page() -> None:
             st.warning(f"Showing the first {limit} of {len(edges)} edges - {hint}.")
         drawn, hidden, notes = explorer.collapse(shown, hide)
         marks = explorer.gap_marks(tools, explorer.cards_of(drawn))
+        if detail == "Tables":
+            drawn = explorer.table_level(drawn)
         focus = {node} if node else set()
         page = explorer.html(explorer.model(drawn, focus, marks, notes=notes), height=760)
         st.iframe(page, height=760)
@@ -370,6 +393,33 @@ def graph_page() -> None:
             st.warning(f"**{b['kind']}** - `{b['subject']}`")
         for r in gaps["refusals"]:
             st.error(f"Refused statement **{r['file']}:{r['line']}** ({r['code']}): {r['reason']}")
+
+
+def _steps_view(tools: Any, node: str) -> None:
+    """End-to-end gap 8: one column, walked back through the CTEs of its statement."""
+    inputs = explorer.step_inputs(tools, node)
+    if inputs is None:
+        st.info(f"Nothing in the graph writes `{node}`, so it has no steps to show.")
+        return
+    statement, schema = inputs
+    edges = explorer.cte_steps(statement, node.rsplit(".", 1)[-1], node, "public", schema)
+    if not edges:
+        st.info(
+            f"`{node}` is computed in one step - or its statement could not be walked. "
+            "Untick the option to see its lineage."
+        )
+        return
+    ctes = sorted({e["source"].split(".")[1] for e in edges if e["source"].startswith("cte.")})
+    top = st.columns(2)
+    top[0].metric("Steps (CTEs and subqueries)", len(ctes))
+    top[1].metric("Lines", len(edges))
+    st.iframe(explorer.html(explorer.model(edges, {node}), height=660), height=660)
+    st.caption(
+        "Purple cards are steps inside the query - its CTEs and subqueries - in the order the "
+        "value passes through them. **A reading aid:** it follows how the VALUE is computed "
+        "(SQLGlot's column lineage); filters and grouping are in the normal view, and the "
+        "lineage facts, Ask and the impact report are always the parser's."
+    )
 
 
 def ask_page() -> None:

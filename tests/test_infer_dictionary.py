@@ -94,9 +94,7 @@ def test_the_provenance_is_impossible_to_mistake_for_a_capture() -> None:
     book, _ = infer_dictionary("SELECT o.x FROM sales.orders o", default_schema="sales")
     assert book.captured_at == INFERRED_MARKER
     assert is_inferred(book)
-    assert not is_inferred(
-        book.model_copy(update={"captured_at": "2026-09-24T00:00:00Z"})
-    )
+    assert not is_inferred(book.model_copy(update={"captured_at": "2026-09-24T00:00:00Z"}))
 
 
 def test_select_star_is_warned_about_rather_than_expanded() -> None:
@@ -106,9 +104,7 @@ def test_select_star_is_warned_about_rather_than_expanded() -> None:
     against it would bind a handful of columns positionally and confidently - and be wrong
     wherever the real table has more.
     """
-    _book, warnings = infer_dictionary(
-        "SELECT * FROM sales.orders", default_schema="sales"
-    )
+    _book, warnings = infer_dictionary("SELECT * FROM sales.orders", default_schema="sales")
     assert any("SELECT *" in w for w in warnings)
 
 
@@ -256,3 +252,30 @@ def test_a_passthrough_over_two_relations_lends_nothing() -> None:
     )
     assert "mystery" not in book.columns.get("silver.a", [])
     assert "mystery" not in book.columns.get("silver.b", [])
+
+
+def test_cte_columns_are_not_reported_as_missing_schema() -> None:
+    """End-to-end gap 7: unqualified references to a CTE's columns resolve through the CTE;
+    counting them as "absent from the dictionary" told a user 47 columns were missing when
+    not one stored column was."""
+    sql = (
+        "WITH lifetime AS (SELECT o.customer_id, MAX(o.order_date) AS last_order "
+        "FROM sales.orders o GROUP BY o.customer_id) "
+        "SELECT customer_id, last_order FROM lifetime"
+    )
+    book, warnings = infer_dictionary(sql)
+    assert book.columns["sales.orders"] == ["customer_id", "order_date"]
+    assert warnings == []
+    _, joined = infer_dictionary(
+        "SELECT cust_id FROM sales.orders o JOIN sales.customers c ON c.id = o.cust_id"
+    )
+    assert any("name no table" in w for w in joined), "a real ambiguity is still reported"
+
+
+def test_the_star_warning_needs_a_star_over_a_stored_table() -> None:
+    computed = (
+        "WITH c AS (SELECT o.id, o.qty * 2 AS q FROM sales.orders o) "
+        "SELECT c.*, COUNT(*) FROM c GROUP BY 1, 2"
+    )
+    assert not any("SELECT *" in w for w in infer_dictionary(computed)[1])
+    assert any("SELECT *" in w for w in infer_dictionary("SELECT * FROM sales.orders")[1])

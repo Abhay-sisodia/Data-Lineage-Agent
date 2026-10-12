@@ -58,3 +58,23 @@ The temp table `pg_temp.stg_ship` is hidden. Every line through it is joined int
 | Teal header | a query's result (a SELECT with no target table) |
 | Grey header | a temp table |
 | ⚠ | a gap on that table; hover for the reason |
+
+## 4. A whole file at table level (gap 9)
+
+A 900-line analytics query: 49 result columns fed by 15 tables. In column detail that's 268 lines into one 49-row card. **Detail: Tables**, the default above 120 edges, shows one line per pair of tables. Each line's badge is the number of the source table's columns behind it, and hovering breaks that number down into values, grouping and filters.
+
+![tables](img/explorer/case4_tables.png)
+
+## 5. Stepping through the query's CTEs (gap 8)
+
+In the normal view, a single `SELECT` is always one hop: base column to result column. **Step through the query (CTEs)** walks one result column back through each CTE and subquery. Purple cards are the steps.
+
+`recency_score`: `orders` → `customer_lifetime` / `time_bounds` → `recency_score` → `final_preparation` → result.
+
+![steps](img/explorer/case5_steps.png)
+
+`adjusted_product_value`: three branches (payroll, revenue and financial margin) through 10 steps.
+
+![steps](img/explorer/case6_steps.png)
+
+This is a reading aid. It follows how the **value** is computed, using SQLGlot's column lineage. Filters and grouping stay in the normal view, and the lineage facts, Ask and the impact report always come from the parser.
