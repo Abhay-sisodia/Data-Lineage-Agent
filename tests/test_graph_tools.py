@@ -122,6 +122,14 @@ def test_the_tables_a_refused_statement_names() -> None:
     assert statement_tables("COPY staging.orders FROM STDIN") == {"staging.orders"}
     # unreadable SQL falls back to the qualified names in the text
     assert "mart.x" in statement_tables("FROBNICATE mart.x WITH ((")
+    # Unqualified tables take the default schema; CTE names and `alias.column` are not tables.
+    query = (
+        "WITH totals AS (SELECT o.customer_id, SUM(o.amount) AS s FROM orders o "
+        "GROUP BY o.customer_id) SELECT t.s, c.name FROM totals t JOIN customers c "
+        "ON c.id = t.customer_id"
+    )
+    assert statement_tables(query, "public") == {"public.orders", "public.customers"}
+    assert statement_tables(query) == set()
 
 
 def test_the_resolver_asks_only_about_bare_ambiguous_names(small: GraphTools) -> None:

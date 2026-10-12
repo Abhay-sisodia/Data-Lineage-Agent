@@ -97,6 +97,8 @@ flowchart LR
 ## 4. High-impact features
 
 ### F2. Readable lineage explorer (fixes today's graph)
+*Status 2026-10-10: F2.1 (cards, orthogonal ELK layout) and F2.2 (hide temp or chosen tables, lines joined) done in Streamlit - see [explorer-before-after.md](explorer-before-after.md).*
+
 - **Tables are cards** with their columns as rows; edges run column to column.
 - **Focus mode:** pick a column and see N hops up or down; everything else is hidden.
 - **Edge styles:**

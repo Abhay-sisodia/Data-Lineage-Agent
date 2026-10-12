@@ -114,7 +114,8 @@ def graph_build(
     from lineage.resolution.dictionary import Dictionary
 
     config = AnalysisConfig.load().model_copy(update={"dialect": dialect})
-    results = analyse_folder(folder, Dictionary.load(dictionary), config)
+    book = Dictionary.load(dictionary)
+    results = analyse_folder(folder, book, config)
     settings = Neo4jSettings.from_env()
     with connect(settings) as driver:
         report = load(
@@ -123,6 +124,7 @@ def graph_build(
             database=settings.database,
             replace=not keep,
             sources=folder_sources(folder),
+            default_schema=book.default_schema,
         )
         stored = graph_counts(driver, database=settings.database)
     typer.echo(f"snapshot {report.snapshot}: {report.files} files")

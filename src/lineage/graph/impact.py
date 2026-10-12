@@ -31,6 +31,9 @@ CHANGES = ("drop", "rename", "type")
 
 FLOW = {"FEEDS": "value", "INFLUENCES": "influence", "FILTERS": "filter"}
 
+LADDER = ("identity", "derived", "conditional", "aggregated")
+"""Transforms, weakest to strongest (D-7)."""
+
 CONSEQUENCE = {
     "drop": "Every statement in 'edit' fails until it is changed; every affected column "
     "loses this input.",
@@ -128,25 +131,50 @@ def impact(tools: GraphTools, node: str, change: str = "drop", depth: int = 15) 
 
 
 def _affected(tools: GraphTools, columns: list[str], depth: int) -> list[dict[str, Any]]:
-    """Each downstream node once, at its nearest hop, with the edge that reached it."""
-    best: dict[str, dict[str, Any]] = {}
+    """Each downstream node once, at its nearest hop, with EVERY way it is reached there.
+
+    A column can be both a value and an influence of its source (D-47) - `SUM(x)` grouped
+    by something derived from the same column. Keeping one edge would understate a value
+    dependency as an influence, so all flows at the nearest hop are kept: `flow` reads
+    "value + influence", `transform` is the hardest of the value edges, and the row points
+    at a value edge when there is one.
+    """
+    nearest: dict[str, list[dict[str, Any]]] = {}
     for column in columns:
         for edge in tools.downstream(column, depth):
-            row = {
-                "node": edge["target"],
-                "hops": edge["depth"],
-                "flow": FLOW[edge["type"]],
-                "transform": edge["transform"],
-                "from": edge["source"],
-                "edge": edge["id"],
-                "statement": edge["statement"],
-                "file": edge["file"],
-                "line": edge["line"],
+            kept = nearest.setdefault(edge["target"], [])
+            if kept and edge["depth"] > kept[0]["depth"]:
+                continue
+            if kept and edge["depth"] < kept[0]["depth"]:
+                kept.clear()
+            kept.append(edge)
+    rows = []
+    for node, edges in nearest.items():
+        kinds = {edge["type"] for edge in edges}
+        flows = [FLOW[kind] for kind in ("FEEDS", "INFLUENCES", "FILTERS") if kind in kinds]
+        values = [edge for edge in edges if edge["type"] == "FEEDS"]
+        lead = min(values or edges, key=lambda e: e["id"])
+        hardest = max(
+            (edge["transform"] or "identity" for edge in values),
+            key=lambda t: LADDER.index(t) if t in LADDER else 0,
+            default="identity",
+        )
+        rows.append(
+            {
+                "node": node,
+                "hops": lead["depth"],
+                "flow": " + ".join(flows),
+                "flows": flows,
+                "transform": hardest,
+                "from": lead["source"],
+                "edge": lead["id"],
+                "edges": sorted(edge["id"] for edge in edges),
+                "statement": lead["statement"],
+                "file": lead["file"],
+                "line": lead["line"],
             }
-            kept = best.get(row["node"])
-            if kept is None or (row["hops"], row["edge"]) < (kept["hops"], kept["edge"]):
-                best[row["node"]] = row
-    return sorted(best.values(), key=lambda r: (r["hops"], r["node"]))
+        )
+    return sorted(rows, key=lambda r: (r["hops"], r["node"]))
 
 
 def _edit(

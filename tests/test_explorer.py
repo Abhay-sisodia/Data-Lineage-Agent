@@ -14,7 +14,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "frontend"))
 
-from explorer import cards_of, explore, html, model
+from explorer import cards_of, collapse, explore, hidable, html, model, table_of
 
 
 def _edge(kind: str, source: str, target: str, transform: str = "identity", n: int = 0) -> dict:
@@ -53,7 +53,7 @@ def test_a_table_and_its_columns_share_one_card() -> None:
     cards = model(EDGES, {"m.sales.total"})["cards"]
     assert len(cards) == 2 == len(cards_of(EDGES))
     sales = next(c for c in cards if c["key"] == "m.sales")
-    assert sales["note"] == "rows filtered by its own total"
+    assert sales["notes"] == ["rows filtered by its own total"]
     assert [(r["label"], r["focus"]) for r in sales["rows"]] == [("total", True)]
 
 
@@ -124,3 +124,69 @@ def test_both_directions_and_flow_choice() -> None:
     }
     values_only = explore(graph, "m.sales.total", "both", 1, flows=("FEEDS",))
     assert all(e["type"] == "FEEDS" for e in values_only) and len(values_only) == 2
+
+
+def _joined(edges: list[dict], hide: set[str]) -> dict[tuple[str, str], tuple[str, str]]:
+    drawn, _, _ = collapse(edges, hide)
+    assert not any(
+        table_of(end) in hide or end in hide for e in drawn for end in (e["source"], e["target"])
+    ), "a hidden table is still on the diagram"
+    return {(e["source"], e["target"]): (e["type"], e["transform"]) for e in drawn}
+
+
+def test_value_through_a_hidden_table_keeps_the_hardest_transform() -> None:
+    edges = [
+        _edge("FEEDS", "s.a.x", "tmp.t.y", "derived"),
+        _edge("FEEDS", "tmp.t.y", "m.r.z", "aggregated"),
+    ]
+    assert _joined(edges, {"tmp.t"}) == {("s.a.x", "m.r.z"): ("FEEDS", "aggregated")}
+
+
+def test_mixed_paths_become_influence_or_filter() -> None:
+    edges = [
+        _edge("FEEDS", "s.a.v", "tmp.t.k"),
+        _edge("INFLUENCES", "tmp.t.k", "m.r.z"),  # value then influence -> influence
+        _edge("FEEDS", "tmp.t.k", "m.r.w"),
+        _edge("INFLUENCES", "s.a.g", "tmp.t.k"),  # influence then value -> influence
+        _edge("FEEDS", "s.a.f", "tmp.t.flag"),
+        _edge("FILTERS", "tmp.t.flag", "m.r"),  # value then filter -> filter on m.r
+        _edge("FILTERS", "s.a.d", "tmp.t"),  # filter into the hidden table: its rows
+    ]
+    joined = _joined(edges, {"tmp.t"})
+    assert joined[("s.a.v", "m.r.z")] == ("INFLUENCES", "identity")
+    assert joined[("s.a.v", "m.r.w")] == ("FEEDS", "identity")
+    assert joined[("s.a.g", "m.r.w")] == ("INFLUENCES", "identity")
+    assert joined[("s.a.f", "m.r")] == ("FILTERS", "identity")
+    assert joined[("s.a.d", "m.r")] == ("FILTERS", "identity")
+
+
+def test_a_chain_of_hidden_tables_joins_end_to_end() -> None:
+    edges = [
+        _edge("FEEDS", "s.a.x", "tmp.one.y", "identity"),
+        _edge("FEEDS", "tmp.one.y", "tmp.two.y", "conditional"),
+        _edge("FEEDS", "tmp.two.y", "m.r.z", "derived"),
+    ]
+    drawn, hidden, _ = collapse(edges, {"tmp.one", "tmp.two"})
+    assert hidden == ["tmp.one", "tmp.two"]
+    assert [(e["source"], e["target"], e["transform"], e["via"]) for e in drawn] == [
+        ("s.a.x", "m.r.z", "conditional", ["tmp.one.y", "tmp.two.y"])
+    ]
+    assert "via tmp.one.y, tmp.two.y" in model(drawn)["edges"][0]["tip"]
+
+
+def test_an_edge_no_visible_path_reaches_becomes_a_note() -> None:
+    edges = [
+        _edge("FEEDS", "s.a.x", "tmp.t.y"),
+        _edge("FEEDS", "tmp.t.y", "m.r.z"),
+        _edge("FILTERS", "tmp.t.flag", "m.r"),  # flag's own sources were not walked
+    ]
+    _, _, notes = collapse(edges, {"tmp.t"})
+    assert notes == {"m.r": ["rows also filtered by hidden t: flag"]}
+    card = next(
+        c for c in model(collapse(edges, {"tmp.t"})[0], notes=notes)["cards"] if c["key"] == "m.r"
+    )
+    assert card["notes"] == ["rows also filtered by hidden t: flag"]
+
+
+def test_the_focus_table_is_never_offered_for_hiding() -> None:
+    assert hidable(EDGES, "m.sales.total") == ["s.orders"]

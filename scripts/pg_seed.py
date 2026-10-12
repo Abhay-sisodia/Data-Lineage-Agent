@@ -40,6 +40,14 @@ SUITES = {  # database -> (DDL, default schema: the database's search_path)
 EXTENSION_TYPES = {"hstore": "hstore", "citext": "citext", "ltree": "ltree", "cube": "cube"}
 
 
+def _shown(path: Path) -> str:
+    """The path relative to the repository when it is inside it, else as given."""
+    try:
+        return path.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def extensions_needed(ddl: str) -> list[str]:
     """Extensions whose types the DDL uses: a real database refuses the type without them."""
     return sorted(
@@ -78,20 +86,20 @@ def seed(database: str, schema_sql: Path, default_schema: str) -> None:
         for extension in extensions_needed(ddl):
             connection.execute(f'CREATE EXTENSION IF NOT EXISTS "{extension}" SCHEMA public')
         for schema in schemas_needed(ddl):
-            connection.execute(f'CREATE SCHEMA "{schema}"')
+            connection.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
         connection.execute(ddl)  # no parameters, so the whole script runs as one batch
         tables = connection.execute(
             "SELECT count(*) FROM information_schema.tables "
             "WHERE table_schema NOT IN ('pg_catalog', 'information_schema')"
         ).fetchone()
     count = tables[0] if tables else 0
-    print(f"{database:<14} {count:>3} tables  <- {schema_sql.relative_to(ROOT)}")
+    print(f"{database:<14} {count:>3} tables  <- {_shown(schema_sql)}")
 
 
 def main() -> int:
     for database, (schema_sql, default_schema) in SUITES.items():
         if not schema_sql.exists():
-            print(f"{database:<14} skipped: {schema_sql.relative_to(ROOT)} not found")
+            print(f"{database:<14} skipped: {_shown(schema_sql)} not found")
             continue
         seed(database, schema_sql, default_schema)
     return 0

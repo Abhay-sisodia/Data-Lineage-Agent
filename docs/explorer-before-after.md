@@ -19,6 +19,21 @@ questions, drawn by the old renderer (Graphviz) and the new one (ELK).
 |---|---|
 | ![before](img/explorer/case1_before.png) | ![after](img/explorer/case1_after.png) |
 
+### 1b. The same, with temp tables hidden (F2.2, the default)
+
+The temp table `pg_temp.stg_ship` is hidden. Every line through it is joined into one line, keeping the hardest transform; hover a line to see what it passed through. Filters that came from the hidden table's own columns are stated on the card, not dropped.
+
+![hidden](img/explorer/case1_hidden.png)
+
+**Joining rules.** The hardest transform wins, as in the parser (D-7). The last row is a display choice: the hidden table's rows decide the rows of what is built from it.
+
+| Path through the hidden table | Joined line |
+|---|---|
+| value, then value | value, with the hardest transform (identity < derived < conditional < aggregated) |
+| value then influence, or influence then anything | influence |
+| anything, then a filter | filter on the final table |
+| a filter into the hidden table, then anything | filter on the table built from it (its rows decide those rows) |
+
 ## 2. What does `s2p.po_distribution.amount_cancelled` affect? (2 hops down)
 
 | Before | After |

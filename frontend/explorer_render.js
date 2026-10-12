@@ -21,10 +21,10 @@
 
   function geometry(card) {
     const widths = [textWidth(card.title, 13) + 34, textWidth(card.subtitle, 10) + 24];
-    if (card.note) widths.push(textWidth(card.note, 10) + 20);
+    for (const note of card.notes || []) widths.push(textWidth(note, 10) + 20);
     for (const row of card.rows) widths.push(textWidth(row.label, 12) + 28);
     const width = Math.max(150, Math.ceil(Math.max(...widths)));
-    const top = HEADER_H + (card.note ? NOTE_H : 0);
+    const top = HEADER_H + (card.notes || []).length * NOTE_H;
     return { width, top, height: top + card.rows.length * ROW_H + 4 };
   }
 
@@ -142,10 +142,11 @@
       if (card.warn) {
         out.push(`<g><title>${esc(card.warn)}</title><text x="${x + g.width - 20}" y="${y + 24}" font-size="15" fill="#fbbf24">⚠</text></g>`);
       }
-      if (card.note) {
-        out.push(`<rect x="${x + 1}" y="${y + HEADER_H}" width="${g.width - 2}" height="${NOTE_H}" fill="#fef2f2"/>`);
-        out.push(`<text x="${x + PAD}" y="${y + HEADER_H + 14}" font-size="10" fill="#b91c1c">${esc(card.note)}</text>`);
-      }
+      (card.notes || []).forEach((note, k) => {
+        const ny = y + HEADER_H + k * NOTE_H;
+        out.push(`<rect x="${x + 1}" y="${ny}" width="${g.width - 2}" height="${NOTE_H}" fill="#fef2f2"/>`);
+        out.push(`<text x="${x + PAD}" y="${ny + 14}" font-size="10" fill="#b91c1c">${esc(note)}</text>`);
+      });
       card.rows.forEach((row, i) => {
         const ry = y + g.top + i * ROW_H;
         if (i) out.push(`<line x1="${x + 1}" y1="${ry}" x2="${x + g.width - 1}" y2="${ry}" stroke="#f1f5f9"/>`);

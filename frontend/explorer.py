@@ -78,6 +78,7 @@ def model(
     focus: set[str] | None = None,
     warn: dict[str, str] | None = None,
     tables: set[str] | None = None,
+    notes: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """The diagram as data - cards and edges - for `explorer_render.js` to lay out and draw.
 
@@ -99,7 +100,7 @@ def model(
         e for e in edges if not (e["type"] == "FILTERS" and table_of(e["source"]) == e["target"])
     ]
 
-    members: dict[str, set[str]] = {card: set() for card in self_filters}
+    members: dict[str, set[str]] = {card: set() for card in [*self_filters, *(notes or {})]}
     for edge in edges:
         for end in (edge["source"], edge["target"]):
             if end in tables:
@@ -128,7 +129,8 @@ def model(
                 "subtitle": subtitle,
                 "colour": colour,
                 "warn": warn.get(card),
-                "note": f"rows filtered by its own {', '.join(own)}" if own else None,
+                "notes": ([f"rows filtered by its own {', '.join(own)}"] if own else [])
+                + (notes or {}).get(card, []),
                 "rows": rows,
             }
         )
@@ -138,17 +140,26 @@ def model(
         drawn.setdefault((edge["type"], edge["source"], edge["target"]), []).append(edge)
     lines = []
     for index, ((kind, source, target), same) in enumerate(sorted(drawn.items())):
-        where = "; ".join(sorted({f"{e['file']}:{e['line']}" for e in same}))
+        where = "; ".join(
+            sorted({w for e in same for w in e.get("where", [f"{e['file']}:{e['line']}"])})
+        )
+        via = sorted({v for e in same for v in e.get("via", [])})
+        transform = max(
+            (e["transform"] or "identity" for e in same),
+            key=lambda t: LADDER.index(t) if t in LADDER else 0,
+        )
         verb = {"FEEDS": "value", "INFLUENCES": "influence", "FILTERS": "filter"}[kind]
+        passed = f" via {', '.join(via)}" if via else ""
         lines.append(
             {
                 "id": f"e{index}",
                 "kind": kind,
                 "from": ports[source],
                 "to": ports[target],
-                "badge": BADGE.get(same[0]["transform"] or "", "") if kind == "FEEDS" else "",
-                "tip": f"{verb} {same[0]['transform'] or ''} - {source} -> {target} ({where})",
+                "badge": BADGE.get(transform, "") if kind == "FEEDS" else "",
+                "tip": f"{verb} {transform} - {source} -> {target}{passed} ({where})",
                 "ids": sorted(e["id"] for e in same),
+                "joined": bool(via),
             }
         )
     return {"cards": cards, "edges": lines}
@@ -282,3 +293,154 @@ def cards_of(edges: list[dict[str, Any]]) -> set[str]:
     return {
         end if end in tables else table_of(end) for e in edges for end in (e["source"], e["target"])
     }
+
+
+LADDER = ("identity", "derived", "conditional", "aggregated")
+"""Transforms, weakest to strongest: a joined edge carries the hardest on its path (D-7)."""
+
+
+def hidable(edges: list[dict[str, Any]], focus: str) -> list[str]:
+    """Cards that may be hidden: every card except the focus's own."""
+    return sorted(cards_of(edges) - {table_of(focus), focus})
+
+
+def collapse(
+    edges: list[dict[str, Any]], hide: set[str]
+) -> tuple[list[dict[str, Any]], list[str], dict[str, list[str]]]:
+    """The edges with the `hide` tables taken out and every path through them joined.
+
+    A path through hidden columns becomes one edge from its first visible node to its last:
+    value then value stays a value with the hardest transform; anything then a filter, or a
+    filter into a hidden table then anything, is a filter on the final table (the hidden
+    table's rows decide those rows); every other mix is an influence. Each joined edge keeps
+    what it passed through (`via`) and every statement on the way.
+
+    An edge out of a hidden column that no visible path reaches (its own sources were not
+    walked) cannot be joined; it is not dropped silently but becomes a note on the card it
+    lands on. Returns (edges, the hidden tables that were on the diagram, notes per card).
+    """
+
+    def hidden(node: str) -> bool:
+        return node in hide or table_of(node) in hide
+
+    present = sorted(t for t in hide if t in cards_of(edges))
+    if not present:
+        return edges, [], {}
+    out_of: dict[str, list[dict[str, Any]]] = {}
+    for edge in edges:
+        out_of.setdefault(edge["source"], []).append(edge)
+    columns_of: dict[str, set[str]] = {}
+    for edge in edges:
+        for end in (edge["source"], edge["target"]):
+            columns_of.setdefault(table_of(end), set()).add(end)
+
+    def onward(node: str) -> list[dict[str, Any]]:
+        """Edges leaving a hidden node; from a hidden TABLE, every edge of its columns."""
+        if node in hide:  # a filter reached the table itself: its rows go wherever it feeds
+            return [e for c in sorted(columns_of.get(node, ())) for e in out_of.get(c, [])]
+        return out_of.get(node, [])
+
+    joined: dict[tuple[str, str, str], dict[str, Any]] = {}
+    kept = [e for e in edges if not hidden(e["source"]) and not hidden(e["target"])]
+    reached: set[str] = set()
+    for start in edges:
+        if hidden(start["source"]) or not hidden(start["target"]):
+            continue
+        stack = [(start, start["type"], start["transform"] or "identity", [start])]
+        while stack:
+            edge, kind, transform, trail = stack.pop()
+            for nxt in onward(edge["target"]):
+                if nxt in trail:
+                    continue
+                if edge["target"] not in hide:  # reached the column itself, not via its table
+                    reached.add(nxt["id"])
+                k, t = _join(kind, transform, nxt["type"], nxt["transform"] or "identity")
+                if hidden(nxt["target"]):
+                    stack.append((nxt, k, t, [*trail, nxt]))
+                    continue
+                target = nxt["target"]
+                if k == "FILTERS" and nxt["type"] != "FILTERS":
+                    target = table_of(target)  # rows of the table it lands in
+                path = [*trail, nxt]
+                key = (k, start["source"], target)
+                found = joined.setdefault(
+                    key,
+                    {
+                        "id": "via:" + "|".join(e["id"] for e in path),
+                        "type": k,
+                        "source": start["source"],
+                        "target": target,
+                        "transform": t if k == "FEEDS" else "identity",
+                        "file": start["file"],
+                        "line": start["line"],
+                        "depth": start.get("depth", 1),
+                        "via": [],
+                        "where": [],
+                    },
+                )
+                if k == "FEEDS" and LADDER.index(t) > LADDER.index(found["transform"]):
+                    found["transform"] = t
+                for e in path[:-1]:
+                    if e["target"] not in found["via"]:
+                        found["via"].append(e["target"])
+                for e in path:
+                    where = f"{e['file']}:{e['line']}"
+                    if where not in found["where"]:
+                        found["where"].append(where)
+    unjoined: dict[tuple[str, str], set[str]] = {}
+    for edge in edges:
+        if hidden(edge["source"]) and not hidden(edge["target"]) and edge["id"] not in reached:
+            card = edge["target"] if edge["type"] == "FILTERS" else table_of(edge["target"])
+            unjoined.setdefault((card, edge["type"]), set()).add(edge["source"])
+    words = {
+        "FILTERS": "rows also filtered by",
+        "FEEDS": "values also from",
+        "INFLUENCES": "also influenced by",
+    }
+    notes: dict[str, list[str]] = {}
+    for (card, kind), sources in sorted(unjoined.items()):
+        by_table: dict[str, list[str]] = {}
+        for source in sorted(sources):
+            by_table.setdefault(table_of(source), []).append(_column_name(source, table_of(source)))
+        for table, names in by_table.items():
+            short = _header(table)[0]
+            notes.setdefault(card, []).append(f"{words[kind]} hidden {short}: {', '.join(names)}")
+    return kept + sorted(joined.values(), key=lambda e: e["id"]), present, notes
+
+
+def _join(kind: str, transform: str, nxt_kind: str, nxt_transform: str) -> tuple[str, str]:
+    if kind == "FILTERS" or nxt_kind == "FILTERS":
+        return "FILTERS", "identity"
+    if kind == "FEEDS" and nxt_kind == "FEEDS":
+        hardest = max(transform, nxt_transform, key=lambda t: LADDER.index(t) if t in LADDER else 0)
+        return "FEEDS", hardest
+    return "INFLUENCES", "identity"
+
+
+SCOPES = ("One column", "A file", "Entire graph")
+
+
+def all_edges(
+    tools: Any, file: str | None = None, flows: tuple[str, ...] = ("FEEDS", "INFLUENCES", "FILTERS")
+) -> list[dict[str, Any]]:
+    """Every lineage edge in the graph, or in one file - ordered by file and line, so a
+    cut-off keeps whole statements together."""
+    from lineage.graph.tools import _EDGE_FIELDS
+
+    rows = tools._read(
+        f"""
+        MATCH (a)-[r]->(b) WHERE type(r) IN $types AND ($file IS NULL OR r.file = $file)
+        RETURN {{{_EDGE_FIELDS}}} AS edge ORDER BY r.file, r.line, r.id
+        """,
+        types=list(flows),
+        file=file,
+    )
+    return [{**row["edge"], "depth": 1} for row in rows]
+
+
+def files(tools: Any) -> list[str]:
+    """The files in the graph that produced at least one lineage edge."""
+    rows = tools._read(
+        "MATCH ()-[r:FEEDS|FILTERS|INFLUENCES]->() RETURN DISTINCT r.file AS file ORDER BY file"
+    )
+    return [row["file"] for row in rows]

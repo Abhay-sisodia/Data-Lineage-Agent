@@ -151,3 +151,22 @@ def test_a_load_with_no_lineage_warns_instead_of_claiming_success(tools: GraphTo
     next(b for b in app.button if b.label == "Load into graph").click().run()
     assert not app.exception, app.exception
     assert not app.success and any("no lineage edges" in w.value for w in app.warning)
+
+
+def test_the_graph_view_shows_a_file_or_the_entire_graph(
+    neo4j_driver: Any, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    # Its own graph: earlier tests in this module replace the shared one.
+    folder = tmp_path_factory.mktemp("scope")
+    (folder / "a.sql").write_bytes(SQL.encode("utf-8"))
+    config = AnalysisConfig.load().model_copy(update={"dialect": "postgres"})
+    book = Dictionary.load(ROOT / "stress" / "pg" / "dictionary.json")
+    load(neo4j_driver, analyse_folder(folder, book, config), sources=folder_sources(folder))
+    for scope in ("A file", "Entire graph"):
+        app = _app("Lineage graph")
+        next(r for r in app.sidebar.radio if r.label == "Show").set_value(scope).run()
+        assert not app.exception, app.exception
+        frames = app.get("iframe")
+        assert frames, f"{scope}: no graph drawn"
+        assert "staging.orders" in str(frames[0].proto)
+        assert int(next(m for m in app.metric if m.label == "Edges").value) > 0

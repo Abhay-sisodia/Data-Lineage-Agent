@@ -114,8 +114,15 @@ def rebuild_demo(tools: Any) -> None:
         st.error("stress/pg/final is not on this machine.")
         return
     config = AnalysisConfig.load().model_copy(update={"dialect": "postgres"})
-    results = analyse_folder(folder, Dictionary.load(folder / "dictionary.json"), config)
-    load(tools._driver, results, database=tools._settings.database, sources=folder_sources(folder))
+    book = Dictionary.load(folder / "dictionary.json")
+    results = analyse_folder(folder, book, config)
+    load(
+        tools._driver,
+        results,
+        database=tools._settings.database,
+        sources=folder_sources(folder),
+        default_schema=book.default_schema,
+    )
 
 
 def best_dictionary(sql: str, choices: dict[str, Any]) -> str:
@@ -192,6 +199,7 @@ def load_sql(sql: str, name: str, book: Any, config: Any, replace: bool) -> Any:
         database=tools._settings.database,
         replace=replace,
         sources={result.source.path: sql},
+        default_schema=book.default_schema,
     )
 
 
@@ -241,43 +249,92 @@ def load_panel(sql: str, book: Any, config: Any) -> None:
 
 def graph_page() -> None:
     st.title("Lineage graph")
-    st.caption("A column's upstream lineage or downstream impact, read from the graph.")
+    st.caption(
+        "A column's upstream lineage or downstream impact, one file's lineage, or the whole "
+        "graph - read from the graph."
+    )
     tools = _connected()
     if tools is None:
         return
     with st.sidebar:
-        name = st.text_input("Column (partial names allowed)", value="gross_margin_usd")
-        direction = st.radio(
-            "Direction",
-            list(explorer.DIRECTIONS),
+        scope = st.radio(
+            "Show",
+            list(explorer.SCOPES),
             horizontal=True,
-            help="Upstream: where it comes from. Downstream: what it affects.",
+            help="One column: its lineage, hop by hop. A file: everything one SQL file "
+            "produces. Entire graph: every lineage edge loaded.",
         )
-        depth = st.slider("Hops", 1, 8, 2)
-        flows = st.multiselect(
-            "Flows", ["FEEDS", "FILTERS", "INFLUENCES"], default=["FEEDS", "FILTERS", "INFLUENCES"]
+    all_flows = ["FEEDS", "FILTERS", "INFLUENCES"]
+    node: str | None = None
+    upward = False
+    if scope == "One column":
+        with st.sidebar:
+            name = st.text_input("Column (partial names allowed)", value="gross_margin_usd")
+            direction = st.radio(
+                "Direction",
+                list(explorer.DIRECTIONS),
+                horizontal=True,
+                help="Upstream: where it comes from. Downstream: what it affects.",
+            )
+            depth = st.slider("Hops", 1, 8, 2)
+            flows = st.multiselect("Flows", all_flows, default=all_flows)
+            follow_filters = st.checkbox(
+                "Follow filters further upstream",
+                value=False,
+                help="Off: a filter is shown where it acts, but its own sources are not walked "
+                "- they decide which rows exist, not this column's value.",
+            )
+        matches = tools.find(name, limit=50) if name.strip() else []
+        if not matches:
+            st.info(f"No column or table in the current graph matches '{name}'.")
+            examples = tools._read(
+                "MATCH (c:Column)<-[:FEEDS]-() RETURN DISTINCT c.id AS id ORDER BY id LIMIT 12"
+            )
+            if examples:
+                st.caption("Columns with lineage in this graph, to try:")
+                st.code("\n".join(row["id"] for row in examples), language="text")
+            return
+        node = matches[0]["id"]
+        if len(matches) > 1:
+            node = st.selectbox(
+                f"'{name}' matches {len(matches)} nodes", [m["id"] for m in matches]
+            )
+        upward = direction != "downstream"
+        edges = explorer.explore(tools, node, direction, depth, tuple(flows), follow_filters)
+        limit = MAX_EDGES
+    else:
+        with st.sidebar:
+            file = None
+            if scope == "A file":
+                file = st.selectbox("File", explorer.files(tools))
+            flows = st.multiselect("Flows", all_flows, default=all_flows)
+            limit = st.slider(
+                "Most edges to draw",
+                100,
+                2000,
+                600,
+                step=100,
+                help="Large graphs take a few seconds to lay out; the table lists every edge.",
+            )
+        edges = explorer.all_edges(tools, file, tuple(flows))
+        direction = "whole graph" if scope == "Entire graph" else f"file {file}"
+    candidates = explorer.hidable(edges, node or "")
+    temps = [c for c in candidates if c.startswith("pg_temp.")]
+    with st.sidebar:
+        st.markdown("**Simplify**")
+        hide_temps = st.checkbox(
+            "Hide temp tables",
+            value=True,
+            help="Lines through a hidden table are joined into one, keeping the hardest "
+            "transform; hover a line to see what it passed through.",
+            disabled=not temps,
         )
-        follow_filters = st.checkbox(
-            "Follow filters further upstream",
-            value=False,
-            help="Off: a filter is shown where it acts, but its own sources are not walked - "
-            "they decide which rows exist, not this column's value.",
+        extra = st.multiselect(
+            "Also hide",
+            [c for c in candidates if c not in temps],
+            help="Any other intermediate table, e.g. a staging table.",
         )
-    matches = tools.find(name, limit=50) if name.strip() else []
-    if not matches:
-        st.info(f"No column or table in the current graph matches '{name}'.")
-        examples = tools._read(
-            "MATCH (c:Column)<-[:FEEDS]-() RETURN DISTINCT c.id AS id ORDER BY id LIMIT 12"
-        )
-        if examples:
-            st.caption("Columns with lineage in this graph, to try:")
-            st.code("\n".join(row["id"] for row in examples), language="text")
-        return
-    node = matches[0]["id"]
-    if len(matches) > 1:
-        node = st.selectbox(f"'{name}' matches {len(matches)} nodes", [m["id"] for m in matches])
-    upward = direction != "downstream"
-    edges = explorer.explore(tools, node, direction, depth, tuple(flows), follow_filters)
+    hide = set(temps if hide_temps else []) | set(extra)
 
     top = st.columns(4)
     top[0].metric("Edges", len(edges))
@@ -285,17 +342,28 @@ def graph_page() -> None:
     top[2].metric("Filter", sum(e["type"] == "FILTERS" for e in edges))
     top[3].metric("Influence", sum(e["type"] == "INFLUENCES" for e in edges))
     if not edges:
-        st.info(f"No {direction} lineage for `{node}` with these flows.")
+        subject = f" for `{node}`" if node else ""
+        st.info(f"No {direction} lineage{subject} with these flows.")
     else:
-        shown = edges[:MAX_EDGES]
-        if len(edges) > MAX_EDGES:
-            st.warning(f"Showing the first {MAX_EDGES} of {len(edges)} edges - lower the hops.")
-        marks = explorer.gap_marks(tools, explorer.cards_of(shown))
-        st.iframe(explorer.html(explorer.model(shown, {node}, marks)), height=660)
+        shown = edges[:limit]
+        if len(edges) > limit:
+            hint = "lower the hops" if node else "raise the limit, or show one file"
+            st.warning(f"Showing the first {limit} of {len(edges)} edges - {hint}.")
+        drawn, hidden, notes = explorer.collapse(shown, hide)
+        marks = explorer.gap_marks(tools, explorer.cards_of(drawn))
+        focus = {node} if node else set()
+        page = explorer.html(explorer.model(drawn, focus, marks, notes=notes), height=760)
+        st.iframe(page, height=760)
+        if hidden:
+            st.caption(
+                f"Hidden: {', '.join(f'`{t}`' for t in hidden)} - lines through them are "
+                "joined; hover a line to see what it passed through. The table below lists "
+                "every edge, hidden ones included."
+            )
         legend()
         st.dataframe(edge_rows(edges), use_container_width=True, hide_index=True)
 
-    gaps = tools.gaps(node=node) if upward else None
+    gaps = tools.gaps(node=node) if node and upward else None
     if gaps and (gaps["boundaries"] or gaps["refusals"]):
         st.subheader("Where knowledge stops on this lineage")
         for b in gaps["boundaries"]:

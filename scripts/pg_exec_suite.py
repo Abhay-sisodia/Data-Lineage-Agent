@@ -28,6 +28,14 @@ from lineage.resolution.postgres_connect import PgSettings, connect  # noqa: E40
 DEFAULT = [ROOT / "stress" / "pg" / "final" / "medium", ROOT / "stress" / "pg" / "final" / "hard"]
 
 
+def _shown(path: Path) -> str:
+    """The path relative to the repository when it is inside it, else as given."""
+    try:
+        return path.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def run_file(connection: object, path: Path) -> tuple[int, list[tuple[int, str]]]:
     """(statements run, [(line, first line of the error)]) - always rolled back."""
     statements = split_statements(path.read_text(encoding="utf-8"))
@@ -63,7 +71,7 @@ def main() -> int:
     with connect(PgSettings.from_env(database).conninfo, read_only=False) as connection:
         for path in files:
             count, failures = run_file(connection, path)
-            name = path.relative_to(ROOT).as_posix()
+            name = _shown(path)
             if not failures:
                 clean += 1
                 print(f"OK    {name}  ({count} statements)")

@@ -88,6 +88,7 @@ def load(
     database: str = "neo4j",
     replace: bool = True,
     sources: dict[str, str] | None = None,
+    default_schema: str | None = None,
 ) -> BuildReport:
     """Write the results to Neo4j. Returns the snapshot id and the row counts written.
 
@@ -105,7 +106,7 @@ def load(
             raise ValueError(f"{result.source.path} changed since it was analysed")
         batch.node("File", result.source.path, text=text)
     if sources:
-        add_refusal_mentions(batch, results, sources)
+        add_refusal_mentions(batch, results, sources, default_schema)
     snapshot = snapshot_id(results)
     with driver.session(database=database) as session:
         for label in _UNIQUE_LABELS:

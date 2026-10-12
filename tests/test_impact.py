@@ -137,3 +137,57 @@ def test_final_suite_impact_equals_downstream(neo4j_driver: Any) -> None:
         ("hard/h2_po_fact_load.sql", (103, 196)),
         ("medium/m1_procurement_savings.sql", (70, 139)),
     }
+
+
+def test_a_column_reached_as_value_and_influence_shows_both() -> None:
+    """D-47: one source can be a value AND an influence of the same column. The report must
+    say both, with the value's transform - keeping one edge understated a value as an
+    influence."""
+    from lineage.graph.impact import _affected
+
+    class _Tools:
+        def downstream(self, node: str, depth: int) -> list[dict[str, Any]]:
+            base = {"source": node, "statement": "s", "file": "f.sql", "line": 1}
+            return [
+                {
+                    **base,
+                    "id": "a",
+                    "type": "INFLUENCES",
+                    "target": "r.x",
+                    "transform": "identity",
+                    "depth": 1,
+                },
+                {
+                    **base,
+                    "id": "b",
+                    "type": "FEEDS",
+                    "target": "r.x",
+                    "transform": "aggregated",
+                    "depth": 1,
+                },
+                {
+                    **base,
+                    "id": "c",
+                    "type": "FEEDS",
+                    "target": "r.y",
+                    "transform": "derived",
+                    "depth": 1,
+                },
+                {
+                    **base,
+                    "id": "d",
+                    "type": "FEEDS",
+                    "target": "r.y",
+                    "transform": "derived",
+                    "depth": 2,
+                },
+            ]
+
+    rows = {r["node"]: r for r in _affected(_Tools(), ["s.t.c"], 2)}  # type: ignore[arg-type]
+    assert (rows["r.x"]["flow"], rows["r.x"]["transform"], rows["r.x"]["edge"]) == (
+        "value + influence",
+        "aggregated",
+        "b",
+    )
+    assert rows["r.x"]["edges"] == ["a", "b"]
+    assert (rows["r.y"]["flow"], rows["r.y"]["hops"], rows["r.y"]["edges"]) == ("value", 1, ["c"])

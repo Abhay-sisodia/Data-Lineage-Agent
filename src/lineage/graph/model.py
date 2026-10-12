@@ -112,7 +112,10 @@ def build_batch(results: list[ExportedResult]) -> GraphBatch:
 
 
 def add_refusal_mentions(
-    batch: GraphBatch, results: list[ExportedResult], sources: dict[str, str]
+    batch: GraphBatch,
+    results: list[ExportedResult],
+    sources: dict[str, str],
+    default_schema: str | None = None,
 ) -> None:
     """`MENTIONS` (Refusal -> Table) for each table a refused statement's own SQL names.
 
@@ -121,6 +124,7 @@ def add_refusal_mentions(
     question about `mart.shipment_fact` leave out a refusal that touches only
     `mart.load_audit`, instead of reporting every refusal in the same file. A refusal whose
     text names no table stays linked to its file only, and is still reported per file.
+    `default_schema` qualifies the unqualified names, as the dictionary does.
     """
     for result in results:
         text = sources.get(result.source.path)
@@ -131,7 +135,7 @@ def add_refusal_mentions(
             span = lines[refusal.line - 1 : (refusal.end_line or refusal.line)]
             statement = "\n".join(span)
             refusal_id = f"{result.source.path}#{refusal.unit}:{refusal.line}:{refusal.scope}"
-            for table in sorted(statement_tables(statement)):
+            for table in sorted(statement_tables(statement, default_schema)):
                 _table(batch, table)
                 batch.relationship(
                     "MENTIONS",
@@ -141,11 +145,13 @@ def add_refusal_mentions(
                 )
 
 
-def statement_tables(statement: str) -> set[str]:
+def statement_tables(statement: str, default_schema: str | None = None) -> set[str]:
     """`schema.table` names a statement's SQL refers to, lower-cased (PostgreSQL folding).
 
-    Parsed with SQLGlot when it can; a statement it cannot read (often why it was refused)
-    falls back to the qualified names in its text.
+    Parsed with SQLGlot when it can. An unqualified table is in `default_schema` (none:
+    left out); a CTE's name is not a table. Only a statement SQLGlot cannot read - often why
+    it was refused - or reads as an opaque command falls back to the qualified names in its
+    text: a parsed query's `alias.column` references must never pass for tables.
     """
     import re
 
@@ -154,12 +160,15 @@ def statement_tables(statement: str) -> set[str]:
 
     try:
         parsed = sqlglot.parse_one(statement, read="postgres")
-        found = {
-            f"{table.db}.{table.name}".lower()
-            for table in parsed.find_all(exp.Table)
-            if table.db and table.name
-        }
-        if found:
+        tables = [t for t in parsed.find_all(exp.Table) if t.name]
+        if tables and not isinstance(parsed, exp.Command):
+            ctes = {cte.alias_or_name.lower() for cte in parsed.find_all(exp.CTE)}
+            found = set()
+            for table in tables:
+                if table.db:
+                    found.add(f"{table.db}.{table.name}".lower())
+                elif default_schema and table.name.lower() not in ctes:
+                    found.add(f"{default_schema}.{table.name}".lower())
             return found
     except Exception:  # unreadable SQL: use the text
         pass
