@@ -5,7 +5,10 @@
 
 @ 18 S1 an IN inside a scalar subquery, correlated to the outermost query
 value staging.customers.id -> mart.customer_summary.customer_id identity
-value staging.payments.amount, staging.payments.order_id, staging.orders.id, staging.orders.customer_id, staging.customers.id, staging.orders.channel -> mart.customer_summary.lifetime_value aggregated
+value staging.payments.amount, staging.payments.order_id, staging.orders.id, staging.orders.channel -> mart.customer_summary.lifetime_value aggregated
+# D-58: staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.lifetime_value's - influence, as a GROUP BY is (was a value).
+influence staging.customers.id -> mart.customer_summary.lifetime_value
+# D-58: staging.orders.customer_id -> mart.customer_summary.lifetime_value is a lookup key (join_key, not scored; was an aggregated value).
 note D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments are summed.
 forbid filter staging.payments.order_id -> mart.customer_summary | inside a SELECT-list scalar subquery, however deep (D-12)
 
@@ -29,7 +32,9 @@ note `WHERE s4.net > 0` filters the SUM (D-6). The 'order'/'return' kind literal
 @ 107 S4 a UNION in a derived table in a CTE, then a correlated scalar subquery
 value staging.customers.id, core.dim_customer.customer_id -> mart.top_customers.customer_id identity
 value staging.customers.full_name, core.dim_customer.full_name -> mart.top_customers.full_name identity
-value staging.orders.amount, staging.orders.customer_id, staging.customers.id, core.dim_customer.customer_id -> mart.top_customers.revenue aggregated
+value staging.orders.amount -> mart.top_customers.revenue aggregated
+# D-58: staging.orders.customer_id, staging.customers.id, core.dim_customer.customer_id matched the aggregated lookup's rows to mart.top_customers.revenue's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id, core.dim_customer.customer_id -> mart.top_customers.revenue
 note D-12: the correlation operand pe.k is fed by BOTH union arms.
 filter core.dim_customer.is_current -> mart.top_customers
 forbid filter staging.orders.customer_id -> mart.top_customers | the scalar subquery's correlation removes no row (D-12)
@@ -65,7 +70,8 @@ filter core.fct_order_line.order_id -> mart.sales_daily post
 @ 224 S9 an ordered pick from a CTE inside a scalar subquery
 value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
 value staging.shipments.order_id -> mart.carrier_scorecard.carrier_name derived
-value staging.shipments.carrier_id, core.dim_carrier.id, staging.shipments.status -> mart.carrier_scorecard.carrier_name conditional
+value staging.shipments.status -> mart.carrier_scorecard.carrier_name conditional
+# D-58: staging.shipments.carrier_id, core.dim_carrier.id -> mart.carrier_scorecard.carrier_name is a lookup key (join_key, not scored; was a conditional value).
 note The CTE's `status <> 'LOST'` is reached only through the scalar subquery: D-12's reasoning makes it a value, not a filter.
 influence staging.shipments.shipped_at -> mart.carrier_scorecard.carrier_name
 forbid filter staging.shipments.status -> mart.carrier_scorecard | the CTE is read only inside a SELECT-list scalar subquery, so it removes no row (D-12)
@@ -73,5 +79,7 @@ forbid filter staging.shipments.shipped_at -> mart.carrier_scorecard | an ordere
 
 @ 243 S10 a UNION ALL inside a scalar subquery
 value core.dim_store.region -> mart.kpi_rollup.region identity
-value staging.orders.amount, staging.payments.amount, staging.orders.store_id, core.dim_store.id -> mart.kpi_rollup.revenue aggregated
+value staging.orders.amount, staging.payments.amount -> mart.kpi_rollup.revenue aggregated
+# D-58: staging.orders.store_id, core.dim_store.id matched the aggregated lookup's rows to mart.kpi_rollup.revenue's - influence, as a GROUP BY is (was a value).
+influence staging.orders.store_id, core.dim_store.id -> mart.kpi_rollup.revenue
 forbid filter staging.orders.store_id -> mart.kpi_rollup | a correlation inside a SELECT-list scalar subquery (D-12)

@@ -34,7 +34,10 @@ qualifier being discarded so a name bound to a relation the statement never ment
 is a table alias being discarded for the same result. The fix is the same principle: when
 the statement says WHICH relation it means, that is not a guess to be overridden.
 
-**The FLOW these tests assert changed on 2026-10-02 (decision D-12); the binding did not.**
+**The FLOW these tests assert changed on 2026-10-02 (D-12) and again on 2026-10-12 (D-58);
+the binding did not.** Under D-58 the correlation is a lookup key, and under the SUM it
+decides which rows are summed - INFLUENCE of `TGT.TOTAL`, as a GROUP BY is.
+
 A SELECT-list scalar subquery's correlation used to be a filter on the written relation
 (the s7 convention). D-12 made it a VALUE of the column the subquery feeds - here
 `TGT.TOTAL`, aggregated through the SUM - because it decides which rows feed that one
@@ -121,12 +124,12 @@ def test_both_operands_of_a_correlation_reach_their_own_relation(
 ) -> None:
     """`predicates.py`: "both of its operands stay". One of them could not get there.
 
-    Both are values of TGT.TOTAL under D-12; before D-12 both were filters on TGT.
+    Both influence TGT.TOTAL under D-58 (values under D-12; filters on TGT before that).
     """
     edges = _edges(CORRELATED_IN_MERGE, dictionary)
 
-    assert ("REV.RID", "TGT.TOTAL", Flow.VALUE.value) in edges, "the inner operand was lost"
-    assert ("SRC.SID", "TGT.TOTAL", Flow.VALUE.value) in edges, (
+    assert ("REV.RID", "TGT.TOTAL", Flow.INFLUENCE.value) in edges, "the inner operand was lost"
+    assert ("SRC.SID", "TGT.TOTAL", Flow.INFLUENCE.value) in edges, (
         "the correlated OUTER operand did not resolve to the relation it names"
     )
     assert ("REV.RID", "TGT", Flow.FILTER.value) not in edges, (
@@ -204,7 +207,7 @@ def test_the_insert_form_loses_its_spurious_boundary(dictionary: Dictionary) -> 
     """
     result = analyse_source(CORRELATED_IN_INSERT, dictionary)
 
-    assert ("SRC.SID", "TGT.TOTAL", Flow.VALUE.value) in [
+    assert ("SRC.SID", "TGT.TOTAL", Flow.INFLUENCE.value) in [
         (e.source.name, e.target.name, e.flow.value) for e in result.edges
     ]
     assert "REV.SID" not in {b.subject for b in result.boundaries}, (

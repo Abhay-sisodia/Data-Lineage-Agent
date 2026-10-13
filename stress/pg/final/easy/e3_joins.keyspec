@@ -33,7 +33,7 @@ forbid filter crm.customer_site.time_zone_name -> <result> | on a LEFT join's nu
 
 # --- org: LEFT join with a range ON (D-49 on the null side = values, D-48) ------------------
 value gold.dim_organization.org_name -> <result>.ship_from_org identity
-value gold.dim_organization.organization_start_date, gold.dim_organization.organization_end_date, lgx.shipment_header.created_at -> <result>.ship_from_org conditional
+# D-58: gold.dim_organization.organization_start_date, gold.dim_organization.organization_end_date, lgx.shipment_header.created_at -> <result>.ship_from_org is a lookup key (join_key, not scored; was a conditional value).
 note The key equality org.integration_id = hdr.ship_from_org_id::text stays structural (D-5, D-11).
 forbid filter gold.dim_organization.organization_start_date -> <result> | a range condition on a LEFT join's null side decides a value, not a row (D-49, D-48)
 

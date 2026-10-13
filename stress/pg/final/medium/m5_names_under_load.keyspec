@@ -46,7 +46,7 @@ value lgx.warehouse.region_code -> <result>.region_code identity
 
 # --- carrier_name: a scalar subquery whose WHERE holds another (alias x in both) -----------------
 value lgx.carrier.carrier_name -> <result>.carrier_name identity
-value lgx.carrier.carrier_code, lgx.shipment_header.carrier_code, lgx.shipment_header.shipment_id -> <result>.carrier_name conditional
+# D-58: lgx.carrier.carrier_code, lgx.shipment_header.carrier_code, lgx.shipment_header.shipment_id -> <result>.carrier_name is a lookup key (join_key, not scored; was a conditional value).
 note D-12 at both depths (D-45): the inner subquery's projected carrier_code is an operand of the outer WHERE, and its own WHERE reads shipment_id twice (inner x and the outer o."id").
 
 # --- last_touch: UNION ALL renaming event_ts / created_at to ts ----------------------------------

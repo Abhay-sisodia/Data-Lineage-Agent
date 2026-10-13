@@ -87,7 +87,12 @@ influence evt.activity.entity_id, evt.activity.created_at -> pg_temp.p9_a.runnin
 
 @ 186 P10 scalar subquery vs one-row LEFT LATERAL (D-12, D-14)
 value crm.customer.customer_id -> pg_temp.p10_a.customer_id, pg_temp.p10_b.customer_id identity
-value lgx.shipment_header.created_at, lgx.shipment_header.customer_id, crm.customer.customer_id -> pg_temp.p10_a.last_ship, pg_temp.p10_b.last_ship aggregated
+value lgx.shipment_header.created_at -> pg_temp.p10_a.last_ship aggregated
+value lgx.shipment_header.created_at -> pg_temp.p10_b.last_ship aggregated
+# D-58: lgx.shipment_header.customer_id, crm.customer.customer_id matched the aggregated lookup's rows to pg_temp.p10_a.last_ship's - influence, as a GROUP BY is (was a value).
+influence lgx.shipment_header.customer_id, crm.customer.customer_id -> pg_temp.p10_a.last_ship
+# D-58: lgx.shipment_header.customer_id, crm.customer.customer_id matched the aggregated lookup's rows to pg_temp.p10_b.last_ship's - influence, as a GROUP BY is (was a value).
+influence lgx.shipment_header.customer_id, crm.customer.customer_id -> pg_temp.p10_b.last_ship
 forbid filter lgx.shipment_header.customer_id -> pg_temp.p10_b | a one-row LEFT LATERAL's correlation removes no row (D-14)
 
 @ 204 P11 UNION ALL of two arms vs OR

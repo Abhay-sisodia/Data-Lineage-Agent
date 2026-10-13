@@ -44,16 +44,7 @@ questions:
     status: answered
     facts:
     - - FEEDS
-      - lgx.carrier.carrier_code
-      - <result:pasted/query11111.sql>.carrier_name
-    - - FEEDS
       - lgx.carrier.carrier_name
-      - <result:pasted/query11111.sql>.carrier_name
-    - - FEEDS
-      - lgx.shipment_header.carrier_code
-      - <result:pasted/query11111.sql>.carrier_name
-    - - FEEDS
-      - lgx.shipment_header.shipment_id
       - <result:pasted/query11111.sql>.carrier_name
     subject: <result:pasted/query11111.sql>.carrier_name
 - id: M5

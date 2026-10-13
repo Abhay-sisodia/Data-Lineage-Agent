@@ -366,8 +366,8 @@ edges:
   target:
     kind: column
     name: mart.carrier_scorecard.avg_transit_days
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -381,8 +381,8 @@ edges:
   target:
     kind: column
     name: mart.carrier_scorecard.avg_transit_days
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -411,32 +411,6 @@ edges:
     name: mart.sales_daily.net_amount
   flow: value
   transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 166
-  evidence: source_read
-- source:
-    kind: column
-    name: staging.payments.order_id
-  target:
-    kind: column
-    name: mart.sales_daily.net_amount
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 166
-  evidence: source_read
-- source:
-    kind: column
-    name: staging.orders.id
-  target:
-    kind: column
-    name: mart.sales_daily.net_amount
-  flow: value
-  transform: conditional
   band: 0
   origin:
     unit: <script>
@@ -494,32 +468,6 @@ edges:
     name: mart.carrier_scorecard.carrier_name
   flow: value
   transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 196
-  evidence: source_read
-- source:
-    kind: column
-    name: core.dim_carrier.id
-  target:
-    kind: column
-    name: mart.carrier_scorecard.carrier_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 196
-  evidence: source_read
-- source:
-    kind: column
-    name: core.fct_shipment.carrier_id
-  target:
-    kind: column
-    name: mart.carrier_scorecard.carrier_name
-  flow: value
-  transform: conditional
   band: 0
   origin:
     unit: <script>

@@ -42,14 +42,15 @@ note Spelling B only: the correlation's outer operand. In A, customers.id is the
 @ 143 P7 SEAM scalar subquery vs LEFT JOIN LATERAL
 value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
 value core.fct_shipment.transit_days -> mart.carrier_scorecard.avg_transit_days aggregated
-value core.fct_shipment.carrier_id, core.dim_carrier.id -> mart.carrier_scorecard.avg_transit_days aggregated
+# D-58: core.fct_shipment.carrier_id, core.dim_carrier.id matched the aggregated lookup's rows to mart.carrier_scorecard.avg_transit_days's - influence, as a GROUP BY is (was a value).
+influence core.fct_shipment.carrier_id, core.dim_carrier.id -> mart.carrier_scorecard.avg_transit_days
 note Spelling A only (D-12).
 note RELABELLED UNDER D-14: spelling B's LATERAL cannot remove a carrier, so its WHERE is the same value as A's (D-12). P7 is now a MUST-EQUAL pair.
 
 @ 166 P8 SEAM ordered pick vs LEFT JOIN to DISTINCT ON
 value staging.orders.id -> mart.sales_daily.orders identity
 value staging.payments.amount -> mart.sales_daily.net_amount identity
-value staging.payments.order_id, staging.orders.id -> mart.sales_daily.net_amount conditional
+# D-58: staging.payments.order_id, staging.orders.id -> mart.sales_daily.net_amount is a lookup key (join_key, not scored; was a conditional value).
 influence staging.payments.paid_at -> mart.sales_daily.net_amount
 note Spelling A only (D-12, D-13).
 @ 176 P8 B (spelling B's own facts, at its line - B4-04)
@@ -59,7 +60,7 @@ note RELABELLED UNDER D-14: under the LEFT JOIN the DISTINCT ON removes no order
 @ 196 R1 the monthly carrier scorecard
 value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity
 value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name identity
-value core.dim_carrier.id, core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_name conditional
+# D-58: core.dim_carrier.id, core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_name is a lookup key (join_key, not scored; was a conditional value).
 value core.fct_shipment.shipped_date -> mart.carrier_scorecard.period_month derived
 value core.fct_shipment.delivered_date, core.fct_shipment.promised_date -> mart.carrier_scorecard.on_time_pct aggregated
 value core.fct_shipment.cost, core.fct_shipment.weight_kg -> mart.carrier_scorecard.cost_per_kg aggregated

@@ -44,7 +44,9 @@ note D-17: the UPDATE's predicate decides which payments are settled and which a
 
 @ 117 S6 UPDATE SET CASE on a scalar subquery, EXISTS in WHERE
 value core.dim_customer.segment -> core.dim_customer.segment conditional
-value staging.orders.amount, staging.orders.customer_id, core.dim_customer.customer_id -> core.dim_customer.segment aggregated
+value staging.orders.amount -> core.dim_customer.segment aggregated
+# D-58: staging.orders.customer_id, core.dim_customer.customer_id matched the aggregated lookup's rows to core.dim_customer.segment's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, core.dim_customer.customer_id -> core.dim_customer.segment
 note D-18: the subquery decides the CASE branch, so its sum and its correlation are values of segment.
 filter staging.orders.customer_id, core.dim_customer.customer_id, staging.payments.status -> core.dim_customer
 forbid filter staging.orders.amount -> core.dim_customer | inside a SET subquery: a value, not a filter (D-18)

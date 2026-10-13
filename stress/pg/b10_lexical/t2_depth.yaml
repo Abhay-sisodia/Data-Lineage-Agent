@@ -346,21 +346,6 @@ edges:
     and so is the CASE over two columns (D-19).'
 - source:
     kind: column
-    name: staging.products.id
-  target:
-    kind: column
-    name: mart.product_performance.margin
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 153
-  evidence: source_read
-  note: 'D-12: the subquery''s WHERE (both operands of p2.id = p.id) feeds margin; a lookup is conditional,
-    and so is the CASE over two columns (D-19).'
-- source:
-    kind: column
     name: staging.events_log.id
   target:
     kind: column

@@ -57,6 +57,7 @@ from lineage.analysis.dynamic import resolve_dynamic_sql
 from lineage.analysis.predicates import (
     in_grouping_function,
     is_outer_join,
+    lookup_key_column_ids,
     on_condition_columns,
     predicate_columns,
 )
@@ -1499,9 +1500,12 @@ def _scalar_predicate_values(
     """
     found: list[tuple[str, str, Transform]] = []
     for root in _value_deciding_roots(projection, scope):
-        values, _ = _value_deciding_sweep(root, _statement_deciding(scope), dictionary, unresolved)
+        values, _, _ = _value_deciding_sweep(
+            root, _statement_deciding(scope), dictionary, unresolved
+        )
         found.extend(values)
-    found.extend(_null_side_on_values(projection, scope, dictionary, unresolved))
+    values, _ = _null_side_on_values(projection, scope, dictionary, unresolved)
+    found.extend(values)
     return found
 
 
@@ -1593,10 +1597,14 @@ def _value_deciding_roots(projection: Any, scope: Scope) -> list[Scope]:
 
 def _value_deciding_sweep(
     root: Scope, statement: set[int], dictionary: Dictionary, unresolved: list[Boundary]
-) -> tuple[list[tuple[str, str, Transform]], list[tuple[str, str, Transform]]]:
+) -> tuple[
+    list[tuple[str, str, Transform]],
+    list[tuple[str, str, Transform]],
+    list[tuple[str, str, Transform]],
+]:
     """What a scope that cannot remove a result row decides, ALL THE WAY DOWN (D-45).
 
-    Returns (values, influence). The scopes swept are the ones that can remove rows from
+    Returns (values, influence, join keys). The scopes swept are the ones that can remove rows from
     `root` - itself, what it inner-joins, its set-operation arms, the subqueries in its
     WHERE - at any depth (`_row_deciding_scopes`): exactly what the main path reads for
     filters, applied below a scope whose rows decide a value instead. In each:
@@ -1604,7 +1612,10 @@ def _value_deciding_sweep(
     * WHERE and HAVING columns are VALUES - `aggregated` when `root` aggregates, else
       `conditional` (D-12);
     * a ranking cut (`WHERE rn = 1`), DISTINCT ON keys and the ordering of a LIMIT are
-      INFLUENCE: they decide which value arrives without supplying it (D-13).
+      INFLUENCE: they decide which value arrives without supplying it (D-13);
+    * a comparison that matches the scope's rows to a row OUTSIDE it - a correlation, the
+      key of a LATERAL lookup - is a JOIN KEY when `root` picks a row, and INFLUENCE when
+      `root` aggregates: it then decides which rows are summed, as a GROUP BY does (D-58).
 
     Not swept: a scope the statement also reads where it CAN remove rows - its predicates
     are filters there, and only there - and what cannot remove rows of `root` itself (a
@@ -1622,12 +1633,18 @@ def _value_deciding_sweep(
     index = _scope_index(_statement_root(root))
     values: list[tuple[str, str, Transform]] = []
     influence: list[tuple[str, str, Transform]] = []
+    keys: list[tuple[str, str, Transform]] = []
+    # A window aggregate keeps every row: only a real grouping makes the key decide which
+    # rows are summed (influence); otherwise it picks the row (a join key).
+    keyed = influence if isinstance(root_query, exp.Select) and _groups_rows(root_query) else keys
+    inside = _relations_within(root_query)
     for current in _row_deciding_list(root):
         if id(current) in statement:
             continue
         query = _query_of_scope(current.expression)
         if not isinstance(query, exp.Select):
             continue
+        matching = _lookup_keys_within(query, inside | _relations_within(query))
         for clause in ("where", "having"):
             predicate = query.args.get(clause)
             if predicate is None:
@@ -1638,6 +1655,12 @@ def _value_deciding_sweep(
                 ):
                     continue
                 home = _home_scope(column, current, index)
+                if id(column) in matching:
+                    keyed.extend(
+                        (table, name, Transform.IDENTITY)
+                        for table, name, _ in _trace(column, home, dictionary, unresolved)
+                    )
+                    continue
                 for table, name, traced in _trace(column, home, dictionary, unresolved):
                     values.append((table, name, _combine(base, traced)))
                 if clause == "where":
@@ -1649,12 +1672,50 @@ def _value_deciding_sweep(
                 continue
             for column in on_condition_columns(join):
                 home = _home_scope(column, current, index)
+                if id(column) in matching:
+                    keyed.extend(
+                        (table, name, Transform.IDENTITY)
+                        for table, name, _ in _trace(column, home, dictionary, unresolved)
+                    )
+                    continue
                 for table, name, traced in _trace(column, home, dictionary, unresolved):
                     values.append((table, name, _combine(base, traced)))
                 influence.extend(_window_filter_sources(column, home, dictionary, unresolved))
         chosen = _row_choosing_expressions(query)
         influence.extend(_ordered_sources(chosen, current, dictionary, unresolved))
-    return values, influence
+    return values, influence, keys
+
+
+def _relations_within(query: Any) -> set[str]:
+    """Every alias bound by a FROM or JOIN anywhere inside `query`, its subqueries included."""
+    found: set[str] = set()
+    if query is None:
+        return found
+    for select in [query, *query.find_all(exp.Select)]:
+        source = select.args.get("from_") or select.args.get("from")
+        relations = [source.this if source is not None else None]
+        relations += [join.this for join in select.args.get("joins") or []]
+        found |= {relation.alias_or_name for relation in relations if relation is not None}
+    return found
+
+
+def _lookup_keys_within(query: Any, inside: set[str]) -> set[int]:
+    """D-58: columns of comparisons, anywhere in `query`, that reach a relation outside the lookup.
+
+    `inside` is every relation the lookup binds, at any depth: `o.customer_id = c.id` in an
+    IN nested in a scalar subquery matches the lookup to the outer `c`, while `o.k = p.k`
+    between two relations of the lookup stays internal - a filter of the lookup's own rows,
+    a value of what it returns (D-12). Nested WHEREs are classified here too, so the column
+    is one thing whichever scope's sweep reaches it.
+    """
+    found: set[int] = set()
+    for node in [query, *query.find_all(exp.Select)]:
+        for clause in ("where", "having"):
+            found |= lookup_key_column_ids(node.args.get(clause), inside)
+        for join in node.args.get("joins") or []:
+            if not is_outer_join(join):
+                found |= lookup_key_column_ids(join.args.get("on"), inside)
+    return found
 
 
 def _outer_join_conditions(select: Any) -> dict[str, list[Any]]:
@@ -1683,8 +1744,13 @@ def _outer_join_conditions(select: Any) -> dict[str, list[Any]]:
 
 def _null_side_on_values(
     projection: Any, scope: Scope, dictionary: Dictionary, unresolved: list[Boundary]
-) -> list[tuple[str, str, Transform]]:
+) -> tuple[list[tuple[str, str, Transform]], list[tuple[str, str, Transform]]]:
     """D-48 / D-49: the outer-join ON conditions that decide a value this projection reads.
+
+    Returns (values, join keys). A condition matching the null side's rows to another
+    relation's - `o.ship_date BETWEEN fx.valid_from AND fx.valid_to` - picks the row, so it
+    is a join key like the key equality beside it (D-58); one on the null side alone
+    (`g.rollup = 0`) is a `conditional` value.
 
     `LEFT JOIN g ON g.k = w.k AND g.rollup = 0` cannot remove a result row; `g.rollup` decides
     which g row - if any - supplies the columns read from g, so it is a `conditional` value of
@@ -1694,12 +1760,16 @@ def _null_side_on_values(
     """
     query = _query_of_scope(scope.expression)
     if not isinstance(query, exp.Select):
-        return []
+        return [], []
     conditions = _outer_join_conditions(query)
     if not conditions:
-        return []
+        return [], []
+    matching: set[int] = set()
+    for join in query.args.get("joins") or []:
+        matching |= lookup_key_column_ids(join.args.get("on"), {join.this.alias_or_name})
     index = _scope_index(_statement_root(scope))
     found: list[tuple[str, str, Transform]] = []
+    keys: list[tuple[str, str, Transform]] = []
     read: set[str] = set()
     for column in projection.find_all(exp.Column):
         alias = (column.table or "").upper()
@@ -1707,9 +1777,13 @@ def _null_side_on_values(
             read.add(alias)
             for condition in conditions[alias]:
                 home = _home_scope(condition, scope, index)
-                for table, name, traced in _trace(condition, home, dictionary, unresolved):
-                    found.append((table, name, _combine(Transform.CONDITIONAL, traced)))
-    return found
+                traced = _trace(condition, home, dictionary, unresolved)
+                if id(condition) in matching:
+                    keys.extend((table, name, Transform.IDENTITY) for table, name, _ in traced)
+                    continue
+                for table, name, how in traced:
+                    found.append((table, name, _combine(Transform.CONDITIONAL, how)))
+    return found, keys
 
 
 def _window_influence(
@@ -1776,7 +1850,7 @@ def _window_influence(
     # `_value_only_edges`, which also carries its values.
     if depth > 0:
         for root in _value_deciding_roots(projection, scope):
-            _, influence = _value_deciding_sweep(
+            _, influence, _ = _value_deciding_sweep(
                 root, _statement_deciding(scope), dictionary, unresolved
             )
             found.extend(influence)
@@ -1845,6 +1919,13 @@ def _join_key_influence(
             found.extend(_join_key_influence(inner, home, dictionary, unresolved, depth + 1))
     for nested_scope, nested in _scalar_subquery_projections(projection, scope):
         found.extend(_join_key_influence(nested, nested_scope, dictionary, unresolved, depth + 1))
+    # D-58 at a TRACED level: a lookup written as a LATERAL, a scalar subquery or an outer
+    # join's range, reached through a CTE or derived table. The target level is
+    # `_value_only_edges`, as for the influence half (`_window_influence`).
+    if depth > 0:
+        for root in _value_deciding_roots(projection, scope):
+            found.extend(_value_deciding_sweep(root, _statement_deciding(scope), dictionary, [])[2])
+        found.extend(_null_side_on_values(projection, scope, dictionary, [])[1])
     return _remember(scope, key, unresolved, first_declared, found)
 
 
@@ -2812,10 +2893,12 @@ def _value_only_edges(
             roots.append(source)
 
     edges: list[PredictedEdge] = []
-    for table, name, transform in _null_side_on_values(projection, scope, dictionary, unresolved):
+    values, keys = _null_side_on_values(projection, scope, dictionary, unresolved)
+    for table, name, transform in values:
         edges.append(_edge(table, name, target_name, target_column, transform, band, origin))
     for root in {id(root): root for root in roots}.values():
-        values, influence = _value_deciding_sweep(root, deciding, dictionary, unresolved)
+        values, influence, matched = _value_deciding_sweep(root, deciding, dictionary, unresolved)
+        keys.extend(matched)
         for table, name, transform in values:
             edges.append(_edge(table, name, target_name, target_column, transform, band, origin))
         for table, name, _ in influence:
@@ -2829,6 +2912,21 @@ def _value_only_edges(
                     band,
                     origin,
                     flow=Flow.INFLUENCE,
+                )
+            )
+    # D-58: the keys that matched a lookup's row, reported apart like D-57's (when asked).
+    if JOIN_KEYS.get():
+        for table, name, _ in keys:
+            edges.append(
+                _edge(
+                    table,
+                    name,
+                    target_name,
+                    target_column,
+                    Transform.IDENTITY,
+                    band,
+                    origin,
+                    flow=Flow.JOIN_KEY,
                 )
             )
     return edges

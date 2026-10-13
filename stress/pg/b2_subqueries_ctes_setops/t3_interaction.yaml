@@ -36,64 +36,10 @@ edges:
     unit: <script>
     line: 18
   evidence: source_read
+  note: 'D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.'
 - source:
     kind: column
     name: staging.fx_rates.rate_to_usd
-  target:
-    kind: column
-    name: mart.sales_daily.net_amount
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 18
-  evidence: source_read
-- source:
-    kind: column
-    name: staging.fx_rates.currency
-  target:
-    kind: column
-    name: mart.sales_daily.net_amount
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 18
-  evidence: source_read
-  note: 'D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.'
-- source:
-    kind: column
-    name: staging.orders.currency
-  target:
-    kind: column
-    name: mart.sales_daily.net_amount
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 18
-  evidence: source_read
-  note: 'D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.'
-- source:
-    kind: column
-    name: staging.fx_rates.rate_date
-  target:
-    kind: column
-    name: mart.sales_daily.net_amount
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 18
-  evidence: source_read
-  note: 'D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.'
-- source:
-    kind: column
-    name: staging.orders.order_ts
   target:
     kind: column
     name: mart.sales_daily.net_amount
@@ -556,8 +502,8 @@ edges:
   target:
     kind: column
     name: mart.top_customers.full_name
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -569,8 +515,8 @@ edges:
   target:
     kind: column
     name: mart.top_customers.full_name
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -589,15 +535,14 @@ edges:
     unit: <script>
     line: 112
   evidence: source_read
-  note: 'D-12 in a CASE condition: the count decides the branch, so its correlation is a value of full_name.'
 - source:
     kind: column
     name: staging.orders.customer_id
   target:
     kind: column
     name: mart.top_customers.revenue
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -610,8 +555,8 @@ edges:
   target:
     kind: column
     name: mart.top_customers.revenue
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -646,70 +591,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: core.fct_shipment.carrier_id
-  target:
-    kind: column
-    name: mart.kpi_rollup.orders
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 137
-  evidence: source_read
-  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
-    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
-    the values of the two columns it feeds - both aggregated.'
-- source:
-    kind: column
-    name: core.fct_shipment.carrier_id
-  target:
-    kind: column
-    name: mart.kpi_rollup.revenue
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 137
-  evidence: source_read
-  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
-    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
-    the values of the two columns it feeds - both aggregated.'
-- source:
-    kind: column
-    name: core.dim_carrier.id
-  target:
-    kind: column
-    name: mart.kpi_rollup.orders
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 137
-  evidence: source_read
-  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
-    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
-    the values of the two columns it feeds - both aggregated.'
-- source:
-    kind: column
-    name: core.dim_carrier.id
-  target:
-    kind: column
-    name: mart.kpi_rollup.revenue
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 137
-  evidence: source_read
-  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
-    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
-    the values of the two columns it feeds - both aggregated.'
-- source:
-    kind: column
     name: core.fct_shipment.shipment_id
   target:
     kind: column
@@ -721,25 +602,6 @@ edges:
     unit: <script>
     line: 137
   evidence: source_read
-  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
-    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
-    the values of the two columns it feeds - both aggregated.'
-- source:
-    kind: column
-    name: core.fct_shipment.shipment_id
-  target:
-    kind: column
-    name: mart.kpi_rollup.revenue
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 137
-  evidence: source_read
-  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
-    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
-    the values of the two columns it feeds - both aggregated.'
 - source:
     kind: column
     name: staging.shipments.id
@@ -753,25 +615,6 @@ edges:
     unit: <script>
     line: 137
   evidence: source_read
-  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
-    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
-    the values of the two columns it feeds - both aggregated.'
-- source:
-    kind: column
-    name: staging.shipments.id
-  target:
-    kind: column
-    name: mart.kpi_rollup.revenue
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 137
-  evidence: source_read
-  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
-    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
-    the values of the two columns it feeds - both aggregated.'
 - source:
     kind: column
     name: staging.shipments.status
@@ -785,9 +628,32 @@ edges:
     unit: <script>
     line: 137
   evidence: source_read
-  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
-    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
-    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: core.fct_shipment.shipment_id
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.id
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
 - source:
     kind: column
     name: staging.shipments.status
@@ -796,6 +662,61 @@ edges:
     name: mart.kpi_rollup.revenue
   flow: value
   transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_shipment.carrier_id
+  target:
+    kind: column
+    name: mart.kpi_rollup.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_carrier.id
+  target:
+    kind: column
+    name: mart.kpi_rollup.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_shipment.carrier_id
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 137
+  evidence: source_read
+  note: 'RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without
+    GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide
+    the values of the two columns it feeds - both aggregated.'
+- source:
+    kind: column
+    name: core.dim_carrier.id
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -999,45 +920,6 @@ edges:
     name: mart.carrier_scorecard.carrier_name
   flow: value
   transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 193
-  evidence: source_read
-- source:
-    kind: column
-    name: core.dim_carrier.id
-  target:
-    kind: column
-    name: mart.carrier_scorecard.carrier_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 193
-  evidence: source_read
-- source:
-    kind: column
-    name: core.fct_shipment.carrier_id
-  target:
-    kind: column
-    name: mart.carrier_scorecard.carrier_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 193
-  evidence: source_read
-- source:
-    kind: column
-    name: staging.shipments.carrier_id
-  target:
-    kind: column
-    name: mart.carrier_scorecard.carrier_name
-  flow: value
-  transform: conditional
   band: 0
   origin:
     unit: <script>

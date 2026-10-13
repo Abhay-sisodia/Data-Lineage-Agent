@@ -181,6 +181,10 @@ def test_a_correlated_predicate_does_not_become_a_value_source_through_a_subquer
     The original leak swept them in by a generic column walk with the wrong transform and
     alongside a filter; the assertions below pin the decided shape exactly, so a return of
     that leak still fails here.
+
+    **Decision D-58 (2026-10-12) moved them once more:** the correlation matches the
+    subquery's rows to the outer row, and under the SUM it decides which rows are summed -
+    INFLUENCE of TGT.AMT, as a GROUP BY is. LOOKUP.VAL stays the one value.
     """
     result = analyse_source(CORRELATED_IN_SUBQUERY, dictionary)
     into_amt = {
@@ -190,9 +194,11 @@ def test_a_correlated_predicate_does_not_become_a_value_source_through_a_subquer
     }
     filters = {edge.source.name for edge in result.edges if edge.flow is Flow.FILTER}
 
-    assert into_amt == {
-        ("LOOKUP.VAL", "aggregated"),
-        ("LOOKUP.ID", "aggregated"),
-        ("SRC.ID", "aggregated"),
+    assert into_amt == {("LOOKUP.VAL", "aggregated")}
+    influence = {
+        edge.source.name
+        for edge in result.edges
+        if edge.flow is Flow.INFLUENCE and edge.target.name == "TGT.AMT"
     }
+    assert {"LOOKUP.ID", "SRC.ID"} <= influence
     assert not filters & {"LOOKUP.ID", "SRC.ID"}, "a scalar correlation removes no row (D-12)"

@@ -49,7 +49,8 @@ value mart.ship_pick.cost -> mart.carrier_scorecard.cost_per_kg identity
 
 @ 153 S11 OPERATOR(pg_catalog.…) in a CASE in a scalar subquery
 value staging.products.id -> mart.product_performance.product_id identity
-value staging.products.list_price, staging.products.cost, staging.products.id -> mart.product_performance.margin conditional
+value staging.products.list_price, staging.products.cost -> mart.product_performance.margin conditional
+# D-58: staging.products.id -> mart.product_performance.margin is a lookup key (join_key, not scored; was a conditional value).
 note D-12: the subquery's WHERE (both operands of p2.id = p.id) feeds margin; a lookup is conditional, and so is the CASE over two columns (D-19).
 
 @ 166 S12 a run of short statements

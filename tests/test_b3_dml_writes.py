@@ -201,14 +201,18 @@ def test_default_values_is_counted_and_empty_not_refused() -> None:
 
 
 def test_a_set_scalar_subquery_predicate_is_a_value_not_a_filter() -> None:
-    """D-18: D-12 in SET. The correlation decides the value written, not which rows change."""
-    facts = _facts(
+    """D-18: D-12 in SET. The correlation decides the value written, not which rows change:
+    it matches the lookup's row, so it is a join key (D-58), not a value."""
+    sql = (
         "UPDATE core.dim_customer AS d SET full_name = (SELECT c.full_name "
         "FROM staging.customers AS c WHERE c.id = d.customer_id)"
     )
+    facts = _facts(sql)
     assert not any(f[2] == "filter" for f in facts)
-    assert ("column:staging.customers.id", "column:core.dim_customer.full_name", "value", "conditional",
-            PRE) in facts
+    target = "column:core.dim_customer.full_name"
+    assert not [f for f in facts if f[0] == "column:staging.customers.id" and f[1] == target]
+    keys = {(str(e.source), str(e.target)) for e in _result(sql).join_keys}
+    assert ("column:staging.customers.id", target) in keys
 
 
 def test_a_values_scalar_subquery_resolves() -> None:

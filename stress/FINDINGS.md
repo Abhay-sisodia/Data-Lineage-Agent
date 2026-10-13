@@ -4846,3 +4846,38 @@ through `ref."OrderStatusMap"` had no lineage to the order status it decides.
   `join_keys=true`. The default walk is the one the C3 gate checks, and stays as it was.
 * **Pilot:** recall over base columns 94.4% (454/481) by the default walk, 98.3% (473/481)
   with join keys; 484 join keys beside 3,928 edges.
+
+## Decision taken — 2026-10-12 (D-58)
+
+Taken by Abhay after the pilot's precision audit, which found one lookup answered two ways
+by spelling: `LEFT JOIN dim_product dp ON dp.sku = l.sku` gave a join key (D-57), while
+`LEFT JOIN LATERAL (... WHERE dp.sku = l.sku LIMIT 1)` gave `sku` as a scored conditional
+value of the cost - "the SKU feeds the cost" to any reader.
+
+* **D-58** - inside a scope that cannot remove a result row (a scalar subquery, a one-row
+  LATERAL, an outer join's null side: D-12, D-14, D-45), a comparison that **matches the
+  lookup's rows to a row outside it** - a correlation, at any depth of the lookup, or a range
+  in an outer join's ON - is the lookup's **key**:
+  - a `join_key` (D-57, unscored) when the lookup picks a row;
+  - an **influence** when the lookup aggregates (`(SELECT SUM(p.amount) ... WHERE
+    p.order_id = o.id)`): it decides which rows are summed, as a GROUP BY does (D-2).
+  A comparison with a constant (`g.rollup = 0`), or between two relations inside the
+  lookup, is unchanged: a value of what the lookup returns.
+* **Consequence:** what is traced through a column's VALUES no longer carries its lookup
+  keys, exactly as for a lookup written with ON: a window ordered by the value
+  (`rank_in_cust` in `h1` lost three influence facts, now keys of `ext_amount_usd`), and a
+  filter on it (the pilot's `ON CONFLICT ... WHERE ... IS DISTINCT FROM EXCLUDED.is_leaf`
+  lost `parent_id` and `category_id`, keys of `is_leaf`'s NOT EXISTS). The keys stay on the graph.
+* **A window aggregate is not a grouping:** `SUM(x) OVER (...)` in a one-row lookup keeps
+  every row, so its key is a join key; only a GROUP BY, HAVING or plain aggregate makes it
+  influence.
+* **Measured, then relabelled:** in the final suite 85 value facts moved (59 became join
+  keys, 26 influence) and 3 window influences went with them (1,369 -> 1,307 facts, 15/15
+  closed-world). Batch keys: 63 value facts removed, 36 influence added, 21 grid cells
+  re-pinned, every cell still FP 0 / FN 0. Authored eval answers regenerated from the graph:
+  golden A1 / A5 lost 6 facts, J1's candidates gained `crm.customer_site.customer_id` (now a
+  node, as a key's source), M5's M4 lost 3; the hard and business sets did not move.
+  `ground_truth/sq_06_self_join.yaml` (MAX lookup) relabelled to influence; 8 unit tests
+  restated, plus 6 window/count tests whose influence sets now include the key. Pilot:
+  recall unchanged (94.4% default, 98.3% with join keys); 202 value edges and 2 filters
+  became keys or influence; extras by the default walk 334 -> 311.

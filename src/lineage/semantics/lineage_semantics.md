@@ -49,6 +49,7 @@ Lineage relationship properties: `id`, `transform`, `phase`, `band`, `tier`, `me
 - `join_key`: the source is a **lookup join's key** - it chose which row of a joined table the target's value was read from (`LEFT JOIN ref.status_map m ON m.code = o.status` and `m.label` projected: `o.status` is a join key of the label). Relationship `KEYS` (D-57).
   - Not one of the scored flows: D-5 still gives a key no value, filter or influence edge. `upstream` / `downstream` walk `KEYS` only with `join_keys=true`; impact reports include them.
   - Say "the lookup is keyed on X", never "X feeds Y".
+  - The same holds however the lookup is written (D-58): a LATERAL or scalar subquery's correlation (`WHERE c.id = o.customer_id`), or a range in an outer join's ON (`o.ship_date BETWEEN fx.valid_from AND fx.valid_to`), is a `join_key` too. When the lookup **aggregates** (`(SELECT SUM(p.amount) FROM payments p WHERE p.order_id = o.id)`), its key decides which rows are summed and is an **influence**, as a GROUP BY is.
 
 ## 5. Transform (value edges)
 
@@ -124,7 +125,7 @@ A refused statement has **zero edges**; never guess what it does. It is tied to 
 - A non-key condition in an **inner** join's ON is a **filter**, as in WHERE (D-48). A non-equality condition between two tables (a range join) is a filter with both columns as sources (D-49).
 - `IN`, `EXISTS`, `NOT IN`, `NOT EXISTS` match keys are **filters**, both columns (D-52).
 - A row-choosing cut is a **filter** on what orders it: `rn = 1` over ROW_NUMBER, DISTINCT ON keys, ORDER BY under LIMIT (D-9). An ORDER BY without a limit gives nothing.
-- Where a predicate **cannot remove a result row**, its columns are **values** (or influence), not filters (D-12, D-14, D-45):
+- Where a predicate **cannot remove a result row**, its columns are **values** (or influence), not filters (D-12, D-14, D-45) - except a comparison that matches the lookup's rows to a row outside it, which is a join key, or an influence under an aggregate (D-58):
   - a scalar subquery in the select list;
   - the nullable side of an outer join;
   - a one-row LATERAL.

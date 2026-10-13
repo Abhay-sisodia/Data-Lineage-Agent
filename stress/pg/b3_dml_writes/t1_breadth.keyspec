@@ -51,12 +51,15 @@ forbid filter core.dim_customer.customer_id -> core.dim_customer | `c.id = d.cus
 
 @ 107 S8 UPDATE SET (a, b) = (row subquery) (D-18)
 value core.dim_warehouse.region -> core.dim_store.region identity
-value core.dim_warehouse.id, core.dim_store.id -> core.dim_store.region, core.dim_store.country_code conditional
+# D-58: core.dim_warehouse.id, core.dim_store.id -> core.dim_store.region is a lookup key (join_key, not scored; was a conditional value).
+# D-58: core.dim_warehouse.id, core.dim_store.id -> core.dim_store.country_code is a lookup key (join_key, not scored; was a conditional value).
 filter core.dim_store.status -> core.dim_store
 forbid filter core.dim_warehouse.id -> core.dim_store | a correlation inside a SET decides values, not rows (D-18)
 
 @ 118 S9 UPDATE SET = correlated aggregate (D-18)
-value staging.payments.amount, staging.payments.order_id, staging.payments.currency, core.fct_payment.order_id -> core.fct_payment.amount_usd aggregated
+value staging.payments.amount, staging.payments.currency -> core.fct_payment.amount_usd aggregated
+# D-58: staging.payments.order_id, core.fct_payment.order_id matched the aggregated lookup's rows to core.fct_payment.amount_usd's - influence, as a GROUP BY is (was a value).
+influence staging.payments.order_id, core.fct_payment.order_id -> core.fct_payment.amount_usd
 forbid filter staging.payments.currency -> core.fct_payment | a predicate inside a SET subquery removes no row (D-18)
 
 @ 130 S10 DELETE with OR and IN

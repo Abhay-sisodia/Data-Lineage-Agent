@@ -213,32 +213,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: core.dim_store.country_code
-  target:
-    kind: column
-    name: core.dim_customer.region
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 39
-  evidence: source_read
-- source:
-    kind: column
-    name: pg_temp.chg.country_code
-  target:
-    kind: column
-    name: core.dim_customer.region
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 39
-  evidence: source_read
-- source:
-    kind: column
     name: core.dim_store.opened_on
   target:
     kind: column

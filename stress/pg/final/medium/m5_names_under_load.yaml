@@ -288,49 +288,6 @@ edges:
     unit: <script>
     line: 23
   evidence: source_read
-- source:
-    kind: column
-    name: lgx.carrier.carrier_code
-  target:
-    kind: column
-    name: <result>.carrier_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 23
-  evidence: source_read
-  note: 'D-12 at both depths (D-45): the inner subquery''s projected carrier_code is an operand of the
-    outer WHERE, and its own WHERE reads shipment_id twice (inner x and the outer o."id").'
-- source:
-    kind: column
-    name: lgx.shipment_header.carrier_code
-  target:
-    kind: column
-    name: <result>.carrier_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 23
-  evidence: source_read
-  note: 'D-12 at both depths (D-45): the inner subquery''s projected carrier_code is an operand of the
-    outer WHERE, and its own WHERE reads shipment_id twice (inner x and the outer o."id").'
-- source:
-    kind: column
-    name: lgx.shipment_header.shipment_id
-  target:
-    kind: column
-    name: <result>.carrier_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 23
-  evidence: source_read
   note: 'D-12 at both depths (D-45): the inner subquery''s projected carrier_code is an operand of the
     outer WHERE, and its own WHERE reads shipment_id twice (inner x and the outer o."id").'
 - source:

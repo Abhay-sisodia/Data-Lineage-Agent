@@ -150,6 +150,10 @@ class Flow(StrEnum):
     this is a separate claim rather than a reinterpreted influence: it is reported in
     `AnalysisResult.join_keys`, beside the edges and never among them, and scored by
     nothing. The target is the output column, as for `INFLUENCE`.
+
+    D-58 makes it one answer for every spelling of a lookup: a LATERAL or scalar subquery's
+    correlation, and an outer join's range condition, are join keys too. Under an
+    aggregate the key decides which rows are summed, and is `INFLUENCE` instead.
     """
 
 

@@ -24,6 +24,8 @@ RANKED = (
     "(PARTITION BY p.order_id ORDER BY p.paid_at DESC) AS rn FROM staging.payments AS p)"
 )
 RANK_SOURCES = {"staging.payments.order_id", "staging.payments.paid_at"}
+# D-58: `r.order_id = o.id` matches the MAX's rows to the outer row - influence of `v`.
+KEY = {"staging.payments.order_id", "staging.orders.id"}
 
 
 def _influence(sql: str) -> set[str]:
@@ -36,13 +38,16 @@ def _influence(sql: str) -> set[str]:
 @pytest.mark.parametrize(
     ("inner", "expected"),
     [
-        ("SELECT MAX(r.amount) FROM {R} AS r WHERE r.order_id = o.id", set()),
-        ("SELECT MAX(r.amount) FROM {R} AS r WHERE r.order_id = o.id AND r.rn = 1", RANK_SOURCES),
-        ("SELECT MAX(r.rn) FROM {R} AS r WHERE r.order_id = o.id", RANK_SOURCES),
+        ("SELECT MAX(r.amount) FROM {R} AS r WHERE r.order_id = o.id", KEY),
+        (
+            "SELECT MAX(r.amount) FROM {R} AS r WHERE r.order_id = o.id AND r.rn = 1",
+            RANK_SOURCES | KEY,
+        ),
+        ("SELECT MAX(r.rn) FROM {R} AS r WHERE r.order_id = o.id", RANK_SOURCES | KEY),
         (
             "SELECT MAX(r.amount) FROM staging.orders AS x JOIN {R} AS r "
             "ON r.order_id = x.id AND r.rn = 1 WHERE x.customer_id = o.customer_id",
-            RANK_SOURCES,
+            RANK_SOURCES | {"staging.orders.customer_id"},  # the key (D-58); x.id is internal
         ),
     ],
     ids=["no cut", "WHERE cut", "reads the rank", "ON cut (FH-03)"],

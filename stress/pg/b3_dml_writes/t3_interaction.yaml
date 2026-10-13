@@ -578,15 +578,14 @@ edges:
     unit: <script>
     line: 117
   evidence: source_read
-  note: 'D-18: the subquery decides the CASE branch, so its sum and its correlation are values of segment.'
 - source:
     kind: column
     name: staging.orders.customer_id
   target:
     kind: column
     name: core.dim_customer.segment
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -599,8 +598,8 @@ edges:
   target:
     kind: column
     name: core.dim_customer.segment
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>

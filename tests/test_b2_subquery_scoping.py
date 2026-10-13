@@ -100,43 +100,37 @@ def test_an_exists_ordering_decides_nothing() -> None:
 
 
 def test_a_scalar_subquerys_predicate_is_a_value_of_its_column() -> None:
+    """D-12, with D-58: the correlation decides which rows are summed - influence."""
     facts = _facts(
         "INSERT INTO mart.customer_summary (customer_id, lifetime_value) "
         "SELECT c.id, (SELECT SUM(p.amount) FROM staging.payments AS p "
         "WHERE p.order_id = c.id AND p.status = 'SETTLED') FROM staging.customers AS c"
     )
-    for column in ("staging.payments.order_id", "staging.customers.id", "staging.payments.status"):
-        assert (
-            f"column:{column}",
-            "column:mart.customer_summary.lifetime_value",
-            "value",
-            "aggregated",
-            PRE,
-        ) in facts
+    target = "column:mart.customer_summary.lifetime_value"
+    assert ("column:staging.payments.status", target, "value", "aggregated", PRE) in facts
+    for column in ("staging.payments.order_id", "staging.customers.id"):
+        assert (f"column:{column}", target, "influence", "identity", PRE) in facts
+        assert (f"column:{column}", target, "value", "aggregated", PRE) not in facts
     assert not [f for f in facts if f[2] == "filter"], "no row of the target is removed"
 
 
-def test_a_lookup_keys_are_conditional_and_its_column_identity() -> None:
-    """D-12 for a lookup, and B2-01: the looked-up column arrives unchanged."""
-    facts = _facts(
+def test_a_lookup_keys_are_join_keys_and_its_column_identity() -> None:
+    """D-58 for a lookup (was D-12's conditional value), and B2-01: the looked-up column
+    arrives unchanged."""
+    sql = (
         "INSERT INTO mart.top_customers (customer_id, full_name) SELECT o.id, "
         "(SELECT c.full_name FROM staging.customers AS c WHERE c.id = o.customer_id) "
         "FROM staging.orders AS o"
     )
-    assert (
-        "column:staging.customers.full_name",
-        "column:mart.top_customers.full_name",
-        "value",
-        "identity",
-        PRE,
-    ) in facts
-    assert (
-        "column:staging.customers.id",
-        "column:mart.top_customers.full_name",
-        "value",
-        "conditional",
-        PRE,
-    ) in facts
+    facts = _facts(sql)
+    target = "column:mart.top_customers.full_name"
+    assert ("column:staging.customers.full_name", target, "value", "identity", PRE) in facts
+    assert not [f for f in facts if f[0] == "column:staging.customers.id" and f[1] == target]
+    keys = {(str(e.source), str(e.target)) for e in _result(sql).join_keys}
+    assert keys == {
+        ("column:staging.customers.id", target),
+        ("column:staging.orders.customer_id", target),
+    }
 
 
 def test_a_left_joined_sides_predicate_is_a_value_of_what_it_feeds() -> None:

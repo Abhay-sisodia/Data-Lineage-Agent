@@ -437,8 +437,8 @@ edges:
   target:
     kind: column
     name: <result>.business_days_late
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -452,8 +452,8 @@ edges:
   target:
     kind: column
     name: <result>.business_days_late
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -554,32 +554,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: gold.fx_rate.from_ccy
-  target:
-    kind: column
-    name: <result>.ext_amount_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.from_ccy
-  target:
-    kind: column
-    name: <result>.gross_margin_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
     name: gold.fx_rate.to_ccy
   target:
     kind: column
@@ -594,84 +568,6 @@ edges:
 - source:
     kind: column
     name: gold.fx_rate.to_ccy
-  target:
-    kind: column
-    name: <result>.gross_margin_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.rate_date
-  target:
-    kind: column
-    name: <result>.ext_amount_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.rate_date
-  target:
-    kind: column
-    name: <result>.gross_margin_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.currency_code
-  target:
-    kind: column
-    name: <result>.ext_amount_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.currency_code
-  target:
-    kind: column
-    name: <result>.gross_margin_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.ship_date
-  target:
-    kind: column
-    name: <result>.ext_amount_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.ship_date
   target:
     kind: column
     name: <result>.gross_margin_usd
@@ -762,6 +658,45 @@ edges:
   evidence: source_read
 - source:
     kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.cust_total_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.conversion_rate
+  target:
+    kind: column
+    name: <result>.cust_total_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.to_ccy
+  target:
+    kind: column
+    name: <result>.cust_total_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
     name: lgx.shipment_line.shipped_qty
   target:
     kind: column
@@ -775,6 +710,45 @@ edges:
   evidence: source_read
 - source:
     kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.share_of_cust
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.conversion_rate
+  target:
+    kind: column
+    name: <result>.share_of_cust
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.to_ccy
+  target:
+    kind: column
+    name: <result>.share_of_cust
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
     name: lgx.shipment_line.shipped_qty
   target:
     kind: column
@@ -791,32 +765,6 @@ edges:
     name: lgx.shipment_line.unit_selling_price
   target:
     kind: column
-    name: <result>.cust_total_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.unit_selling_price
-  target:
-    kind: column
-    name: <result>.share_of_cust
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.unit_selling_price
-  target:
-    kind: column
     name: <result>.cust_running_usd
   flow: value
   transform: aggregated
@@ -830,71 +778,6 @@ edges:
     name: gold.fx_rate.conversion_rate
   target:
     kind: column
-    name: <result>.cust_total_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.conversion_rate
-  target:
-    kind: column
-    name: <result>.share_of_cust
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.conversion_rate
-  target:
-    kind: column
-    name: <result>.cust_running_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.from_ccy
-  target:
-    kind: column
-    name: <result>.cust_total_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.from_ccy
-  target:
-    kind: column
-    name: <result>.share_of_cust
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.from_ccy
-  target:
-    kind: column
     name: <result>.cust_running_usd
   flow: value
   transform: aggregated
@@ -906,149 +789,6 @@ edges:
 - source:
     kind: column
     name: gold.fx_rate.to_ccy
-  target:
-    kind: column
-    name: <result>.cust_total_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.to_ccy
-  target:
-    kind: column
-    name: <result>.share_of_cust
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.to_ccy
-  target:
-    kind: column
-    name: <result>.cust_running_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.rate_date
-  target:
-    kind: column
-    name: <result>.cust_total_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.rate_date
-  target:
-    kind: column
-    name: <result>.share_of_cust
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.rate_date
-  target:
-    kind: column
-    name: <result>.cust_running_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.currency_code
-  target:
-    kind: column
-    name: <result>.cust_total_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.currency_code
-  target:
-    kind: column
-    name: <result>.share_of_cust
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.currency_code
-  target:
-    kind: column
-    name: <result>.cust_running_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.ship_date
-  target:
-    kind: column
-    name: <result>.cust_total_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.ship_date
-  target:
-    kind: column
-    name: <result>.share_of_cust
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.ship_date
   target:
     kind: column
     name: <result>.cust_running_usd
@@ -1145,21 +885,6 @@ edges:
     (D-4).'
 - source:
     kind: column
-    name: gold.fx_rate.from_ccy
-  target:
-    kind: column
-    name: <result>.rank_in_cust
-  flow: influence
-  transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-  note: 'RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank
-    (D-4).'
-- source:
-    kind: column
     name: gold.fx_rate.to_ccy
   target:
     kind: column
@@ -1176,36 +901,6 @@ edges:
 - source:
     kind: column
     name: gold.fx_rate.rate_date
-  target:
-    kind: column
-    name: <result>.rank_in_cust
-  flow: influence
-  transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-  note: 'RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank
-    (D-4).'
-- source:
-    kind: column
-    name: lgx.shipment_header.currency_code
-  target:
-    kind: column
-    name: <result>.rank_in_cust
-  flow: influence
-  transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-  note: 'RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank
-    (D-4).'
-- source:
-    kind: column
-    name: lgx.shipment_line.ship_date
   target:
     kind: column
     name: <result>.rank_in_cust
@@ -1922,6 +1617,9 @@ edges:
     unit: <script>
     line: 26
   evidence: source_read
+  note: 'param_grid''s columns are literals; its ON range `hdr_created_at::date BETWEEN eff_from AND eff_to`
+    sits on a LEFT join''s null side: a value of what that side feeds, with the only operand that has
+    a source (D-49, D-48). The region equality is the key (D-5).'
 - source:
     kind: column
     name: lgx.carrier.active_flag
@@ -1935,6 +1633,9 @@ edges:
     unit: <script>
     line: 26
   evidence: source_read
+  note: 'param_grid''s columns are literals; its ON range `hdr_created_at::date BETWEEN eff_from AND eff_to`
+    sits on a LEFT join''s null side: a value of what that side feeds, with the only operand that has
+    a source (D-49, D-48). The region equality is the key (D-5).'
 - source:
     kind: column
     name: lgx.carrier.end_date
@@ -1948,25 +1649,15 @@ edges:
     unit: <script>
     line: 26
   evidence: source_read
+  note: 'param_grid''s columns are literals; its ON range `hdr_created_at::date BETWEEN eff_from AND eff_to`
+    sits on a LEFT join''s null side: a value of what that side feeds, with the only operand that has
+    a source (D-49, D-48). The region equality is the key (D-5).'
 - source:
     kind: column
     name: lgx.carrier.end_date
   target:
     kind: column
     name: <result>.transit_days
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 26
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.created_at
-  target:
-    kind: column
-    name: <result>.fx_floor
   flow: value
   transform: conditional
   band: 0

@@ -38,7 +38,9 @@ forbid filter staging.orders.id -> mart.customer_summary | `AS id` names orders.
 
 @ 91 S6 a scalar subquery aliased `amount`, ordered by that alias under a LIMIT
 value staging.customers.id -> mart.sales_daily.orders identity
-value staging.payments.amount, staging.orders.customer_id, staging.customers.id -> mart.sales_daily.gross_amount aggregated
+value staging.payments.amount -> mart.sales_daily.gross_amount aggregated
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.sales_daily.gross_amount's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.sales_daily.gross_amount
 filter staging.payments.amount, staging.orders.customer_id, staging.customers.id -> mart.sales_daily post
 note ORDER BY amount is the OUTPUT column. Its sources are the subquery's value and its D-12 correlation; the MAX makes the cut post-aggregation (D-9, D-6).
 
@@ -52,7 +54,8 @@ forbid value staging.payments.id -> mart.channel_mix.orders | `s.id` is payments
 value staging.orders.store_id -> mart.carrier_scorecard.carrier_id identity
 value staging.payments.paid_at -> mart.carrier_scorecard.avg_transit_days aggregated
 value staging.orders.order_ts -> mart.carrier_scorecard.avg_transit_days derived
-value staging.payments.order_id, staging.orders.id -> mart.carrier_scorecard.avg_transit_days aggregated
+# D-58: staging.payments.order_id, staging.orders.id matched the aggregated lookup's rows to mart.carrier_scorecard.avg_transit_days's - influence, as a GROUP BY is (was a value).
+influence staging.payments.order_id, staging.orders.id -> mart.carrier_scorecard.avg_transit_days
 note order_ts is outside the MAX: derived on its own path (D-7). The correlation is D-12's, aggregated because the subquery aggregates.
 
 @ 137 S9 an ORDER BY ... LIMIT inside an EXISTS

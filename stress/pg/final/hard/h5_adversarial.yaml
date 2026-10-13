@@ -1127,21 +1127,8 @@ edges:
   target:
     kind: column
     name: pg_temp.p10_a.last_ship
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 186
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.customer_id
-  target:
-    kind: column
-    name: pg_temp.p10_b.last_ship
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -1153,8 +1140,21 @@ edges:
   target:
     kind: column
     name: pg_temp.p10_a.last_ship
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 186
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: pg_temp.p10_b.last_ship
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -1166,8 +1166,8 @@ edges:
   target:
     kind: column
     name: pg_temp.p10_b.last_ship
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>

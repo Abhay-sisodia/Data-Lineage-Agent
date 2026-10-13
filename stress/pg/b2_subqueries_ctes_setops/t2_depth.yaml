@@ -36,8 +36,6 @@ edges:
     unit: <script>
     line: 18
   evidence: source_read
-  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
-    are summed.'
 - source:
     kind: column
     name: staging.payments.order_id
@@ -51,8 +49,6 @@ edges:
     unit: <script>
     line: 18
   evidence: source_read
-  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
-    are summed.'
 - source:
     kind: column
     name: staging.orders.id
@@ -66,38 +62,6 @@ edges:
     unit: <script>
     line: 18
   evidence: source_read
-  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
-    are summed.'
-- source:
-    kind: column
-    name: staging.orders.customer_id
-  target:
-    kind: column
-    name: mart.customer_summary.lifetime_value
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 18
-  evidence: source_read
-  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
-    are summed.'
-- source:
-    kind: column
-    name: staging.customers.id
-  target:
-    kind: column
-    name: mart.customer_summary.lifetime_value
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 18
-  evidence: source_read
-  note: 'D-12 covers the whole scalar subquery, the nested IN included: it all decides which payments
-    are summed.'
 - source:
     kind: column
     name: staging.orders.channel
@@ -106,6 +70,19 @@ edges:
     name: mart.customer_summary.lifetime_value
   flow: value
   transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -474,15 +451,14 @@ edges:
     unit: <script>
     line: 107
   evidence: source_read
-  note: 'D-12: the correlation operand pe.k is fed by BOTH union arms.'
 - source:
     kind: column
     name: staging.orders.customer_id
   target:
     kind: column
     name: mart.top_customers.revenue
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -495,8 +471,8 @@ edges:
   target:
     kind: column
     name: mart.top_customers.revenue
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -509,8 +485,8 @@ edges:
   target:
     kind: column
     name: mart.top_customers.revenue
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -861,36 +837,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: staging.shipments.carrier_id
-  target:
-    kind: column
-    name: mart.carrier_scorecard.carrier_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 224
-  evidence: source_read
-  note: 'The CTE''s `status <> ''LOST''` is reached only through the scalar subquery: D-12''s reasoning
-    makes it a value, not a filter.'
-- source:
-    kind: column
-    name: core.dim_carrier.id
-  target:
-    kind: column
-    name: mart.carrier_scorecard.carrier_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 224
-  evidence: source_read
-  note: 'The CTE''s `status <> ''LOST''` is reached only through the scalar subquery: D-12''s reasoning
-    makes it a value, not a filter.'
-- source:
-    kind: column
     name: staging.shipments.status
   target:
     kind: column
@@ -962,8 +908,8 @@ edges:
   target:
     kind: column
     name: mart.kpi_rollup.revenue
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -975,8 +921,8 @@ edges:
   target:
     kind: column
     name: mart.kpi_rollup.revenue
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>

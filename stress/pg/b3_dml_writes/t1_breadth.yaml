@@ -399,58 +399,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: core.dim_warehouse.id
-  target:
-    kind: column
-    name: core.dim_store.region
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 107
-  evidence: source_read
-- source:
-    kind: column
-    name: core.dim_warehouse.id
-  target:
-    kind: column
-    name: core.dim_store.country_code
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 107
-  evidence: source_read
-- source:
-    kind: column
-    name: core.dim_store.id
-  target:
-    kind: column
-    name: core.dim_store.region
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 107
-  evidence: source_read
-- source:
-    kind: column
-    name: core.dim_store.id
-  target:
-    kind: column
-    name: core.dim_store.country_code
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 107
-  evidence: source_read
-- source:
-    kind: column
     name: core.dim_store.status
   target:
     kind: relation
@@ -477,19 +425,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: staging.payments.order_id
-  target:
-    kind: column
-    name: core.fct_payment.amount_usd
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 118
-  evidence: source_read
-- source:
-    kind: column
     name: staging.payments.currency
   target:
     kind: column
@@ -503,12 +438,25 @@ edges:
   evidence: source_read
 - source:
     kind: column
+    name: staging.payments.order_id
+  target:
+    kind: column
+    name: core.fct_payment.amount_usd
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 118
+  evidence: source_read
+- source:
+    kind: column
     name: core.fct_payment.order_id
   target:
     kind: column
     name: core.fct_payment.amount_usd
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>

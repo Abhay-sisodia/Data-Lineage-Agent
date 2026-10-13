@@ -347,8 +347,8 @@ edges:
   target:
     kind: column
     name: mart.sales_daily.gross_amount
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -360,8 +360,8 @@ edges:
   target:
     kind: column
     name: mart.sales_daily.gross_amount
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -499,8 +499,8 @@ edges:
   target:
     kind: column
     name: mart.carrier_scorecard.avg_transit_days
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -514,8 +514,8 @@ edges:
   target:
     kind: column
     name: mart.carrier_scorecard.avg_transit_days
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>

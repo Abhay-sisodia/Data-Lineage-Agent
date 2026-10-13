@@ -34,6 +34,36 @@ def _structural_column_ids(node: Any) -> set[int]:
     return found
 
 
+_LOOKUP_COMPARISONS = (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE, exp.Between)
+
+
+def lookup_key_column_ids(condition: Any, local: set[str]) -> set[int]:
+    """Columns of the comparisons that MATCH a lookup's rows to a row outside it (D-58).
+
+    `local` is the lookup's own relations. A top-level conjunct comparing one of their
+    columns with a column from elsewhere (`=`, `<>` or a range) - `dp.sku = l.sku` in a
+    LATERAL's WHERE, `ship_date BETWEEN fx.valid_from AND fx.valid_to` in an outer join's
+    ON - picks which lookup row arrives: it is a key, as an ON equality is (D-5, D-57). A
+    comparison with a constant (`g.rollup = 0`) or between two local relations stays what
+    it was.
+    """
+    if isinstance(condition, (exp.Where, exp.Having)):
+        condition = condition.this
+    found: set[int] = set()
+    if condition is None:
+        return found
+    for conjunct in _conjuncts(condition):
+        if not isinstance(conjunct, _LOOKUP_COMPARISONS):
+            continue
+        columns = list(conjunct.find_all(exp.Column))
+        if not columns or any(not column.table for column in columns):
+            continue
+        tables = {column.table for column in columns}
+        if tables & local and tables - local:
+            found.update(id(column) for column in columns)
+    return found
+
+
 def is_outer_join(join: Any) -> bool:
     """LEFT, RIGHT or FULL: a join with a null-supplying side."""
     return (join.side or "").upper() in ("LEFT", "RIGHT", "FULL")

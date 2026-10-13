@@ -144,12 +144,25 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: staging.orders.customer_id
+    name: staging.orders.payload
   target:
     kind: column
     name: mart.customer_summary.lifetime_orders
   flow: value
   transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -161,21 +174,8 @@ edges:
   target:
     kind: column
     name: mart.customer_summary.lifetime_orders
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 47
-  evidence: source_read
-- source:
-    kind: column
-    name: staging.orders.payload
-  target:
-    kind: column
-    name: mart.customer_summary.lifetime_orders
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>

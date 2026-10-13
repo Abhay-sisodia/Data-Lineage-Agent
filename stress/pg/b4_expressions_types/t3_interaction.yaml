@@ -388,8 +388,8 @@ edges:
   target:
     kind: column
     name: mart.customer_summary.status
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -402,8 +402,8 @@ edges:
   target:
     kind: column
     name: mart.customer_summary.status
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -451,19 +451,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: staging.orders.customer_id
-  target:
-    kind: column
-    name: mart.customer_summary.avg_basket
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 65
-  evidence: source_read
-- source:
-    kind: column
     name: staging.orders.status
   target:
     kind: column
@@ -477,12 +464,25 @@ edges:
   evidence: source_read
 - source:
     kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 65
+  evidence: source_read
+- source:
+    kind: column
     name: staging.customers.id
   target:
     kind: column
     name: mart.customer_summary.avg_basket
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>

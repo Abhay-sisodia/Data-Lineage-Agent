@@ -11,12 +11,6 @@ questions:
       - gold.fx_rate.conversion_rate
       - mart.fact_po_line.savings_amt
     - - FEEDS
-      - gold.fx_rate.from_ccy
-      - mart.fact_po_line.savings_amt
-    - - FEEDS
-      - gold.fx_rate.rate_date
-      - mart.fact_po_line.savings_amt
-    - - FEEDS
       - gold.fx_rate.to_ccy
       - mart.fact_po_line.savings_amt
     - - FEEDS
@@ -30,12 +24,6 @@ questions:
       - mart.fact_po_line.savings_amt
     - - FEEDS
       - s2p.po_distribution.quantity_ordered
-      - mart.fact_po_line.savings_amt
-    - - FEEDS
-      - s2p.po_header.created_at
-      - mart.fact_po_line.savings_amt
-    - - FEEDS
-      - s2p.po_header.currency_code
       - mart.fact_po_line.savings_amt
     - - FEEDS
       - s2p.po_line.amount
@@ -113,13 +101,7 @@ questions:
     status: answered
     facts:
     - - FEEDS
-      - evt.entity_event.entity_id
-      - mart.mv_entity_status.last_flag_at
-    - - FEEDS
       - evt.flag.active_at
-      - mart.mv_entity_status.last_flag_at
-    - - FEEDS
-      - evt.flag.entity_id
       - mart.mv_entity_status.last_flag_at
 - id: A6
   question: Which columns feed the value of mart.customer_snapshot.segment?
@@ -558,8 +540,8 @@ questions:
     - pg_temp.p10_a.customer_id
     - pg_temp.p10_b.customer_id
     - pg_temp.stg_ship.customer_id
+    - crm.customer_site.customer_id
     - mart.shipment_fact.customer_id
-    - lgx.shipment_header.customer_id
 - id: K1
   question: Where does mart.shipment_fact.load_ts come from?
   intent: value_sources

@@ -112,8 +112,8 @@ edges:
   target:
     kind: column
     name: mart.customer_summary.lifetime_value
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -125,8 +125,8 @@ edges:
   target:
     kind: column
     name: mart.customer_summary.lifetime_value
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -138,8 +138,8 @@ edges:
   target:
     kind: column
     name: mart.customer_summary.lifetime_orders
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -152,8 +152,8 @@ edges:
   target:
     kind: column
     name: mart.customer_summary.lifetime_orders
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -188,65 +188,12 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: staging.customers.id
-  target:
-    kind: column
-    name: mart.top_customers.full_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 55
-  evidence: source_read
-- source:
-    kind: column
-    name: staging.orders.customer_id
-  target:
-    kind: column
-    name: mart.top_customers.full_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 55
-  evidence: source_read
-- source:
-    kind: column
     name: core.dim_store.region
   target:
     kind: column
     name: mart.top_customers.region
   flow: value
   transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 55
-  evidence: source_read
-- source:
-    kind: column
-    name: core.dim_store.id
-  target:
-    kind: column
-    name: mart.top_customers.region
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 55
-  evidence: source_read
-  note: 'D-12: a lookup''s keys select which value arrives - conditional, like a CASE condition.'
-- source:
-    kind: column
-    name: staging.orders.store_id
-  target:
-    kind: column
-    name: mart.top_customers.region
-  flow: value
-  transform: conditional
   band: 0
   origin:
     unit: <script>
@@ -287,32 +234,6 @@ edges:
     name: mart.customer_summary.lifetime_value
   flow: value
   transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 68
-  evidence: source_read
-- source:
-    kind: column
-    name: staging.payments.order_id
-  target:
-    kind: column
-    name: mart.customer_summary.lifetime_value
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 68
-  evidence: source_read
-- source:
-    kind: column
-    name: staging.shipments.order_id
-  target:
-    kind: column
-    name: mart.customer_summary.lifetime_value
-  flow: value
-  transform: conditional
   band: 0
   origin:
     unit: <script>
@@ -1288,8 +1209,8 @@ edges:
   target:
     kind: column
     name: <result>.stock_units
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -1301,8 +1222,8 @@ edges:
   target:
     kind: column
     name: <result>.stock_units
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>

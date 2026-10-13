@@ -26,6 +26,9 @@ PG = STRESS / "pg"
 
 # (batch/test, flow) -> (true positives, false positives, false negatives), band 0.
 EXPECTED = {
+    # D-58 (2026-10-12): a lookup's matching key - a LATERAL's or scalar subquery's
+    # correlation, an outer join's range ON - is a join key, not a value; an aggregating
+    # lookup's key is influence (as GROUP BY). Cells marked `# D-58` moved with their keys.
     # B1 core SELECT - agreed 2026-10-01 after every fix in REPORT.md section 8.
     # GROUPING() was B1-Q1: its 4 false positives in T1 S10a and 2 in T2 S5 went when D-50
     # decided it (2026-10-06: no lineage). T1 S3 and S4a moved under D-48 (an inner join's
@@ -50,33 +53,33 @@ EXPECTED = {
     # section 6, under D-12, D-13 and D-14. Every cell 100%. Three T5 pairs (P5, P6, P8's
     # match key) still DIFFER by decision - the semi-join / anti-join seam left open - and
     # their keys hold the union of both spellings, so the grid does not see it.
-    ("b2_subqueries_ctes_setops/t1_breadth", Flow.VALUE): (58, 0, 0),
+    ("b2_subqueries_ctes_setops/t1_breadth", Flow.VALUE): (46, 0, 0),  # D-58
     ("b2_subqueries_ctes_setops/t1_breadth", Flow.FILTER): (34, 0, 0),
-    ("b2_subqueries_ctes_setops/t1_breadth", Flow.INFLUENCE): (5, 0, 0),
-    ("b2_subqueries_ctes_setops/t2_depth", Flow.VALUE): (41, 0, 0),
+    ("b2_subqueries_ctes_setops/t1_breadth", Flow.INFLUENCE): (11, 0, 0),  # D-58
+    ("b2_subqueries_ctes_setops/t2_depth", Flow.VALUE): (32, 0, 0),  # D-58
     ("b2_subqueries_ctes_setops/t2_depth", Flow.FILTER): (21, 0, 0),
-    ("b2_subqueries_ctes_setops/t2_depth", Flow.INFLUENCE): (10, 0, 0),
-    ("b2_subqueries_ctes_setops/t3_interaction", Flow.VALUE): (50, 0, 0),
+    ("b2_subqueries_ctes_setops/t2_depth", Flow.INFLUENCE): (16, 0, 0),  # D-58
+    ("b2_subqueries_ctes_setops/t3_interaction", Flow.VALUE): (35, 0, 0),  # D-58
     ("b2_subqueries_ctes_setops/t3_interaction", Flow.FILTER): (16, 0, 0),
-    ("b2_subqueries_ctes_setops/t3_interaction", Flow.INFLUENCE): (16, 0, 0),
-    ("b2_subqueries_ctes_setops/t4_adversarial", Flow.VALUE): (32, 0, 0),
+    ("b2_subqueries_ctes_setops/t3_interaction", Flow.INFLUENCE): (24, 0, 0),  # D-58
+    ("b2_subqueries_ctes_setops/t4_adversarial", Flow.VALUE): (28, 0, 0),  # D-58
     ("b2_subqueries_ctes_setops/t4_adversarial", Flow.FILTER): (17, 0, 0),
-    ("b2_subqueries_ctes_setops/t4_adversarial", Flow.INFLUENCE): (4, 0, 0),
-    ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.VALUE): (28, 0, 0),
+    ("b2_subqueries_ctes_setops/t4_adversarial", Flow.INFLUENCE): (8, 0, 0),  # D-58
+    ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.VALUE): (22, 0, 0),  # D-58
     ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.FILTER): (21, 0, 0),
-    ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.INFLUENCE): (8, 0, 0),
+    ("b2_subqueries_ctes_setops/t5_metamorphic", Flow.INFLUENCE): (10, 0, 0),  # D-58
     # B3 DML writes - agreed 2026-10-02 after every fix in REPORT.md section 6. No false
     # positive and no miss. T4 has no influence fact. T5's P6 differs by the open
     # semi-join seam, which no key scores.
-    ("b3_dml_writes/t1_breadth", Flow.VALUE): (38, 0, 0),
+    ("b3_dml_writes/t1_breadth", Flow.VALUE): (32, 0, 0),  # D-58
     ("b3_dml_writes/t1_breadth", Flow.FILTER): (23, 0, 0),
-    ("b3_dml_writes/t1_breadth", Flow.INFLUENCE): (4, 0, 0),
+    ("b3_dml_writes/t1_breadth", Flow.INFLUENCE): (6, 0, 0),  # D-58
     ("b3_dml_writes/t2_depth", Flow.VALUE): (16, 0, 0),
     ("b3_dml_writes/t2_depth", Flow.FILTER): (28, 0, 0),
     ("b3_dml_writes/t2_depth", Flow.INFLUENCE): (10, 0, 0),
-    ("b3_dml_writes/t3_interaction", Flow.VALUE): (25, 0, 0),
+    ("b3_dml_writes/t3_interaction", Flow.VALUE): (23, 0, 0),  # D-58
     ("b3_dml_writes/t3_interaction", Flow.FILTER): (19, 0, 0),
-    ("b3_dml_writes/t3_interaction", Flow.INFLUENCE): (17, 0, 0),
+    ("b3_dml_writes/t3_interaction", Flow.INFLUENCE): (19, 0, 0),  # D-58
     ("b3_dml_writes/t4_adversarial", Flow.VALUE): (17, 0, 0),
     ("b3_dml_writes/t4_adversarial", Flow.FILTER): (11, 0, 0),
     ("b3_dml_writes/t5_metamorphic", Flow.VALUE): (18, 0, 0),
@@ -91,9 +94,9 @@ EXPECTED = {
     ("b4_expressions_types/t2_depth", Flow.VALUE): (49, 0, 0),
     ("b4_expressions_types/t2_depth", Flow.FILTER): (10, 0, 0),
     ("b4_expressions_types/t2_depth", Flow.INFLUENCE): (16, 0, 0),
-    ("b4_expressions_types/t3_interaction", Flow.VALUE): (48, 0, 0),
+    ("b4_expressions_types/t3_interaction", Flow.VALUE): (44, 0, 0),  # D-58
     ("b4_expressions_types/t3_interaction", Flow.FILTER): (10, 0, 0),
-    ("b4_expressions_types/t3_interaction", Flow.INFLUENCE): (30, 0, 0),
+    ("b4_expressions_types/t3_interaction", Flow.INFLUENCE): (34, 0, 0),  # D-58
     ("b4_expressions_types/t4_adversarial", Flow.VALUE): (48, 0, 0),
     # T4 S3's self-join inequality is a filter under D-49 (2026-10-06).
     ("b4_expressions_types/t4_adversarial", Flow.FILTER): (14, 0, 0),
@@ -143,9 +146,9 @@ EXPECTED = {
     ("b5_semi_structured/t2_depth", Flow.VALUE): (11, 0, 0),
     ("b5_semi_structured/t2_depth", Flow.FILTER): (2, 0, 0),
     ("b5_semi_structured/t2_depth", Flow.INFLUENCE): (4, 0, 0),
-    ("b5_semi_structured/t3_interaction", Flow.VALUE): (17, 0, 0),
+    ("b5_semi_structured/t3_interaction", Flow.VALUE): (15, 0, 0),  # D-58
     ("b5_semi_structured/t3_interaction", Flow.FILTER): (4, 0, 0),
-    ("b5_semi_structured/t3_interaction", Flow.INFLUENCE): (3, 0, 0),
+    ("b5_semi_structured/t3_interaction", Flow.INFLUENCE): (5, 0, 0),  # D-58
     ("b5_semi_structured/t4_adversarial", Flow.VALUE): (14, 0, 0),
     ("b5_semi_structured/t4_adversarial", Flow.FILTER): (4, 0, 0),
     ("b5_semi_structured/t5_metamorphic", Flow.VALUE): (14, 0, 0),
@@ -168,7 +171,7 @@ EXPECTED = {
     ("b7_ddl_lineage/t5_metamorphic", Flow.INFLUENCE): (6, 0, 0),
     ("b10_lexical/t1_breadth", Flow.VALUE): (29, 0, 0),
     ("b10_lexical/t1_breadth", Flow.FILTER): (10, 0, 0),
-    ("b10_lexical/t2_depth", Flow.VALUE): (26, 0, 0),
+    ("b10_lexical/t2_depth", Flow.VALUE): (25, 0, 0),  # D-58
     ("b10_lexical/t2_depth", Flow.FILTER): (4, 0, 0),
     ("b10_lexical/t2_depth", Flow.INFLUENCE): (2, 0, 0),
     ("b10_lexical/t3_interaction", Flow.VALUE): (17, 0, 0),
@@ -197,7 +200,7 @@ EXPECTED = {
     ("b11_integration/t1_models", Flow.VALUE): (44, 0, 0),
     ("b11_integration/t2_scd2", Flow.FILTER): (6, 0, 0),
     ("b11_integration/t2_scd2", Flow.INFLUENCE): (1, 0, 0),
-    ("b11_integration/t2_scd2", Flow.VALUE): (17, 0, 0),
+    ("b11_integration/t2_scd2", Flow.VALUE): (15, 0, 0),  # D-58
     ("b11_integration/t3_semistructured", Flow.FILTER): (5, 0, 0),
     ("b11_integration/t3_semistructured", Flow.INFLUENCE): (2, 0, 0),
     ("b11_integration/t3_semistructured", Flow.VALUE): (22, 0, 0),
@@ -248,7 +251,7 @@ EXPECTED_BANDS = {
     ("b11_integration/t1_models", 0, Flow.VALUE): (44, 0, 0),
     ("b11_integration/t2_scd2", 0, Flow.FILTER): (6, 0, 0),
     ("b11_integration/t2_scd2", 0, Flow.INFLUENCE): (1, 0, 0),
-    ("b11_integration/t2_scd2", 0, Flow.VALUE): (17, 0, 0),
+    ("b11_integration/t2_scd2", 0, Flow.VALUE): (15, 0, 0),  # D-58
     ("b11_integration/t2_scd2", 1, Flow.FILTER): (2, 0, 0),
     ("b11_integration/t2_scd2", 1, Flow.INFLUENCE): (1, 0, 0),
     ("b11_integration/t2_scd2", 1, Flow.VALUE): (1, 0, 0),

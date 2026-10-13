@@ -90,15 +90,22 @@ def test_a_nested_distinct_on_is_influence() -> None:
 
 
 def test_a_nested_in_inside_a_scalar_subquery_keeps_the_subquery_transform() -> None:
-    """The IN is reached by its parent's sweep: no second, `conditional` copy."""
+    """The IN is reached by its parent's sweep: no second, `conditional` copy.
+
+    D-58: `o.customer_id = c.id` reaches outside the whole lookup, so both operands are
+    keys - influence, under the SUM - from the outer sweep and the nested one alike."""
     result = _result(
         "SELECT c.id, (SELECT sum(p.amount) FROM staging.payments AS p "
         "WHERE p.order_id IN (SELECT o.id FROM staging.orders AS o "
-        "WHERE o.customer_id = c.id)) AS paid FROM staging.customers AS c;"
+        "WHERE o.customer_id = c.id AND o.channel = 'WEB')) AS paid "
+        "FROM staging.customers AS c;"
     )
     edges = _edges(result, "paid")
-    assert ("value", "staging.orders.customer_id", "aggregated") in edges
-    assert ("value", "staging.orders.customer_id", "conditional") not in edges
+    assert ("value", "staging.orders.channel", "aggregated") in edges
+    assert ("value", "staging.orders.channel", "conditional") not in edges
+    for column in ("staging.orders.customer_id", "staging.customers.id"):
+        assert ("influence", column, "identity") in edges
+        assert not [e for e in edges if e[0] == "value" and e[1] == column]
 
 
 # --- D-46 -----------------------------------------------------------------------------------
@@ -149,16 +156,18 @@ def test_a_distinct_on_key_in_a_two_relation_scope_is_bound() -> None:
 
 
 def test_one_column_can_be_both_value_and_influence_of_one_target() -> None:
-    """orders.customer_id is the scalar subquery's correlation (a value, D-12) and the
-    GROUP BY key (an influence, D-2) of the same column: both facts stand (D-47)."""
+    """orders.customer_id is summed (a value) and the GROUP BY key (an influence, D-2) of
+    the same column: both facts stand (D-47). The scalar subquery's correlation is a key
+    under the aggregate - influence (D-58)."""
     result = _result(
         "SELECT o.customer_id, sum((SELECT count(*) FROM staging.payments AS p "
-        "WHERE p.order_id = o.id AND p.method = o.channel)) AS paid_count "
+        "WHERE p.order_id = o.id) * o.customer_id) AS paid_count "
         "FROM staging.orders AS o GROUP BY o.customer_id;"
     )
     edges = _edges(result, "paid_count")
     assert ("influence", "staging.orders.customer_id", "identity") in edges
-    assert ("value", "staging.orders.channel", "aggregated") in edges
+    assert ("value", "staging.orders.customer_id", "aggregated") in edges
+    assert ("influence", "staging.orders.id", "identity") in edges
 
 
 def test_string_agg_ordered_by_its_own_column_is_both() -> None:

@@ -15,8 +15,11 @@ forbid filter core.fct_order_line.status -> mart.kpi_rollup | a SELECT-list scal
 @ 34 S2 correlated aggregating scalar subqueries
 value staging.customers.id -> mart.customer_summary.customer_id identity
 value staging.customers.full_name -> mart.customer_summary.full_name identity
-value staging.payments.amount, staging.payments.status, staging.orders.customer_id, staging.customers.id -> mart.customer_summary.lifetime_value aggregated
-value staging.orders.customer_id, staging.customers.id -> mart.customer_summary.lifetime_orders aggregated
+value staging.payments.amount, staging.payments.status -> mart.customer_summary.lifetime_value aggregated
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.lifetime_value's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.customer_summary.lifetime_value
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.lifetime_orders's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.customer_summary.lifetime_orders
 note COUNT(*) has no value source; only its correlation feeds lifetime_orders (D-12).
 forbid filter staging.payments.status -> mart.customer_summary | inside a SELECT-list scalar subquery: a value of lifetime_value (D-12)
 forbid filter staging.customers.id -> mart.customer_summary | a correlation operand of a SELECT-list scalar subquery (D-12)
@@ -26,9 +29,9 @@ forbid filter staging.payments.order_id -> mart.customer_summary | the join insi
 @ 55 S3 lookup scalar subqueries
 value staging.orders.id -> mart.top_customers.customer_id identity
 value staging.customers.full_name -> mart.top_customers.full_name identity
-value staging.customers.id, staging.orders.customer_id -> mart.top_customers.full_name conditional
+# D-58: staging.customers.id, staging.orders.customer_id -> mart.top_customers.full_name is a lookup key (join_key, not scored; was a conditional value).
 value core.dim_store.region -> mart.top_customers.region identity
-value core.dim_store.id, staging.orders.store_id -> mart.top_customers.region conditional
+# D-58: core.dim_store.id, staging.orders.store_id -> mart.top_customers.region is a lookup key (join_key, not scored; was a conditional value).
 note D-12: a lookup's keys select which value arrives - conditional, like a CASE condition.
 filter staging.orders.channel -> mart.top_customers
 forbid filter core.dim_store.id -> mart.top_customers | a lookup key in a SELECT-list scalar subquery removes no row (D-12)
@@ -37,7 +40,7 @@ forbid filter staging.orders.store_id -> mart.top_customers | a lookup key in a 
 @ 68 S4 an ordered pick (D-13)
 value staging.shipments.order_id -> mart.customer_summary.customer_id identity
 value staging.payments.amount -> mart.customer_summary.lifetime_value identity
-value staging.payments.order_id, staging.shipments.order_id -> mart.customer_summary.lifetime_value conditional
+# D-58: staging.payments.order_id, staging.shipments.order_id -> mart.customer_summary.lifetime_value is a lookup key (join_key, not scored; was a conditional value).
 influence staging.payments.paid_at -> mart.customer_summary.lifetime_value
 forbid filter staging.payments.paid_at -> mart.customer_summary | ORDER BY ... LIMIT 1 in a scalar subquery picks a value, it removes no row (D-13)
 forbid value staging.payments.paid_at -> mart.customer_summary.lifetime_value | paid_at decides which amount, no part of it is in the amount (D-13)
@@ -119,5 +122,7 @@ note D-9: ORDER BY 2 is the second output column, which both arms supply.
 
 @ 323 S13 bare SELECT with a correlated scalar subquery
 value core.dim_warehouse.name -> <result>.warehouse_name identity
-value staging.inventory_snapshots.on_hand, staging.inventory_snapshots.warehouse_id, core.dim_warehouse.id -> <result>.stock_units aggregated
+value staging.inventory_snapshots.on_hand -> <result>.stock_units aggregated
+# D-58: staging.inventory_snapshots.warehouse_id, core.dim_warehouse.id matched the aggregated lookup's rows to <result>.stock_units's - influence, as a GROUP BY is (was a value).
+influence staging.inventory_snapshots.warehouse_id, core.dim_warehouse.id -> <result>.stock_units
 forbid filter staging.inventory_snapshots.warehouse_id -> <result> | a SELECT-list scalar subquery's correlation removes no row (D-12)

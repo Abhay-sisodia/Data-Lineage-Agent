@@ -25,7 +25,7 @@ value pg_temp.chg.full_name -> core.dim_customer.full_name identity
 value pg_temp.chg.country_code -> core.dim_customer.country_code identity
 value pg_temp.chg.segment -> core.dim_customer.segment identity
 value core.dim_store.region -> core.dim_customer.region identity
-value core.dim_store.country_code, pg_temp.chg.country_code -> core.dim_customer.region conditional
+# D-58: core.dim_store.country_code, pg_temp.chg.country_code -> core.dim_customer.region is a lookup key (join_key, not scored; was a conditional value).
 influence core.dim_store.opened_on -> core.dim_customer.region
 note The lookup's projected column passes through (B2-01); its WHERE, both correlation operands, is a conditional value (D-12); its ORDER BY ... LIMIT 1 is influence (D-13).
 

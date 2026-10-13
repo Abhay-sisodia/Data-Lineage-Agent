@@ -233,47 +233,6 @@ edges:
     unit: <script>
     line: 17
   evidence: source_read
-- source:
-    kind: column
-    name: gold.dim_organization.organization_start_date
-  target:
-    kind: column
-    name: <result>.ship_from_org
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 17
-  evidence: source_read
-  note: The key equality org.integration_id = hdr.ship_from_org_id::text stays structural (D-5, D-11).
-- source:
-    kind: column
-    name: gold.dim_organization.organization_end_date
-  target:
-    kind: column
-    name: <result>.ship_from_org
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 17
-  evidence: source_read
-  note: The key equality org.integration_id = hdr.ship_from_org_id::text stays structural (D-5, D-11).
-- source:
-    kind: column
-    name: lgx.shipment_header.created_at
-  target:
-    kind: column
-    name: <result>.ship_from_org
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 17
-  evidence: source_read
   note: The key equality org.integration_id = hdr.ship_from_org_id::text stays structural (D-5, D-11).
 - source:
     kind: column

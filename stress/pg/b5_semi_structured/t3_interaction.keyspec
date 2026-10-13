@@ -20,7 +20,9 @@ filter staging.customers.attributes -> mart.top_customers
 
 @ 47 S4 a jsonpath test in a scalar subquery
 value staging.customers.id -> mart.customer_summary.customer_id identity
-value staging.orders.customer_id, staging.customers.id, staging.orders.payload -> mart.customer_summary.lifetime_orders aggregated
+value staging.orders.payload -> mart.customer_summary.lifetime_orders aggregated
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.lifetime_orders's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.customer_summary.lifetime_orders
 forbid filter staging.orders.payload -> mart.customer_summary | a scalar subquery's WHERE decides one value, not which rows land (D-12)
 
 @ 60 S5 UPDATE ... SET payload = jsonb_set(...)

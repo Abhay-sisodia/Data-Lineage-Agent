@@ -44,18 +44,28 @@ value lgx.shipment_header.status_code, lgx.shipment_line.line_status, lgx.shipme
 value lgx.shipment_line.unit_selling_price, lgx.item_master.std_cost -> <result>.margin_class conditional
 value lgx.shipment_line.ordered_qty, lgx.shipment_line.shipped_qty, lgx.shipment_line.cancelled_qty -> <result>.open_qty derived
 value lgx.shipment_line.ordered_qty, lgx.shipment_line.shipped_qty, lgx.shipment_line.cancelled_qty, lgx.shipment_line.promise_date -> <result>.overdue_days conditional
-value lgx.shipment_line.promise_date, lgx.shipment_line.ship_date -> <result>.business_days_late aggregated
+# D-58: lgx.shipment_line.promise_date, lgx.shipment_line.ship_date matched the aggregated lookup's rows to <result>.business_days_late's - influence, as a GROUP BY is (was a value).
+influence lgx.shipment_line.promise_date, lgx.shipment_line.ship_date -> <result>.business_days_late
 note A SELECT-list COUNT(*) over the literal calendar: its WHERE's columns are aggregated values (D-12); cal_date and is_weekend have no source.
 
 # --- money (the FX LATERAL, D-14) ------------------------------------------------------------------
 value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate -> <result>.ext_amount_usd, <result>.gross_margin_usd derived
 value lgx.item_master.std_cost -> <result>.gross_margin_usd derived
-value gold.fx_rate.from_ccy, gold.fx_rate.to_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.ext_amount_usd, <result>.gross_margin_usd conditional
+value gold.fx_rate.to_ccy -> <result>.ext_amount_usd conditional
+value gold.fx_rate.to_ccy -> <result>.gross_margin_usd conditional
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.ext_amount_usd is a lookup key (join_key, not scored; was a conditional value).
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.gross_margin_usd is a lookup key (join_key, not scored; was a conditional value).
 influence gold.fx_rate.rate_date -> <result>.ext_amount_usd, <result>.gross_margin_usd, <result>.cust_total_usd, <result>.share_of_cust, <result>.cust_running_usd
 forbid filter gold.fx_rate.rate_date -> <result> | a one-row LATERAL removes no row (D-14)
-value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.from_ccy, gold.fx_rate.to_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.cust_total_usd, <result>.share_of_cust, <result>.cust_running_usd aggregated
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.to_ccy -> <result>.cust_total_usd aggregated
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.to_ccy -> <result>.share_of_cust aggregated
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.to_ccy -> <result>.cust_running_usd aggregated
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.cust_total_usd is a lookup key (join_key, not scored; was a aggregated value).
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.share_of_cust is a lookup key (join_key, not scored; was a aggregated value).
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.cust_running_usd is a lookup key (join_key, not scored; was a aggregated value).
 influence lgx.shipment_header.customer_id -> <result>.cust_total_usd, <result>.share_of_cust, <result>.rank_in_cust
-influence lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.from_ccy, gold.fx_rate.to_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.rank_in_cust
+influence lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.to_ccy, gold.fx_rate.rate_date -> <result>.rank_in_cust
+# D-58: gold.fx_rate.from_ccy, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date match the FX lookup's row - join keys of ext_amount_usd, so no longer values the ranking orders by.
 note RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank (D-4).
 
 # --- line windows (line_running, line_ranked, final named windows) ---------------------------------
@@ -92,7 +102,7 @@ value lgx.carrier.carrier_name -> <result>.carrier_name identity
 value lgx.carrier_service.transit_days -> <result>.transit_days identity
 value lgx.carrier.active_flag, lgx.carrier.end_date -> <result>.carrier_name, <result>.transit_days conditional
 forbid filter lgx.carrier.active_flag -> <result> | carrier_dim is reached only through a LEFT join (D-45)
-value lgx.shipment_header.created_at -> <result>.fx_floor conditional
+# D-58: lgx.shipment_header.created_at -> <result>.fx_floor is a lookup key (join_key, not scored; was a conditional value).
 note param_grid's columns are literals; its ON range `hdr_created_at::date BETWEEN eff_from AND eff_to` sits on a LEFT join's null side: a value of what that side feeds, with the only operand that has a source (D-49, D-48). The region equality is the key (D-5).
 
 # --- LEFT-joined aggregates -----------------------------------------------------------------------

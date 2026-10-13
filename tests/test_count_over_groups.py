@@ -70,7 +70,9 @@ def test_a_count_in_a_scalar_subquery_counts_its_own_rows() -> None:
         "(SELECT COUNT(*) FROM staging.payments AS p WHERE p.order_id = x.customer_id) AS n "
         "FROM g AS x"
     )
-    assert _influence(sql, "n") == set()
+    # g's GROUP BY does not reach the count; the subquery's own key does - it decides which
+    # payments are counted (D-58), both operands.
+    assert _influence(sql, "n") == {"staging.payments.order_id", "staging.orders.customer_id"}
 
 
 def test_a_cte_merely_in_view_is_not_counted() -> None:

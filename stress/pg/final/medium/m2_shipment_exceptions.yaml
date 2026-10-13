@@ -70,64 +70,12 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: crm.customer.customer_id
-  target:
-    kind: column
-    name: <result>.customer_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.customer_id
-  target:
-    kind: column
-    name: <result>.customer_name
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
     name: crm.contact.email
   target:
     kind: column
     name: <result>.primary_email
   flow: value
   transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: crm.contact.customer_id
-  target:
-    kind: column
-    name: <result>.primary_email
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.customer_id
-  target:
-    kind: column
-    name: <result>.primary_email
-  flow: value
-  transform: conditional
   band: 0
   origin:
     unit: <script>
@@ -161,12 +109,25 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: lgx.package_event.shipment_id
+    name: lgx.package_event.event_type
   target:
     kind: column
     name: <result>.exception_count
   flow: value
   transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.package_event.shipment_id
+  target:
+    kind: column
+    name: <result>.exception_count
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -178,21 +139,8 @@ edges:
   target:
     kind: column
     name: <result>.exception_count
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.package_event.event_type
-  target:
-    kind: column
-    name: <result>.exception_count
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -217,8 +165,8 @@ edges:
   target:
     kind: column
     name: <result>.last_scan_ts
-  flow: value
-  transform: aggregated
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -230,34 +178,8 @@ edges:
   target:
     kind: column
     name: <result>.last_scan_ts
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.package_event.shipment_id
-  target:
-    kind: column
-    name: <result>.is_delivered
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.shipment_id
-  target:
-    kind: column
-    name: <result>.is_delivered
-  flow: value
-  transform: conditional
+  flow: influence
+  transform: identity
   band: 0
   origin:
     unit: <script>
@@ -276,36 +198,6 @@ edges:
     unit: <script>
     line: 22
   evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.shipment_id
-  target:
-    kind: column
-    name: <result>.hazmat_lines
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-  note: 'The IN nested inside the counting subquery decides a value, not a row: every column of it is
-    an aggregated value (D-45), never a filter.'
-- source:
-    kind: column
-    name: lgx.shipment_header.shipment_id
-  target:
-    kind: column
-    name: <result>.hazmat_lines
-  flow: value
-  transform: aggregated
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-  note: 'The IN nested inside the counting subquery decides a value, not a row: every column of it is
-    an aggregated value (D-45), never a filter.'
 - source:
     kind: column
     name: lgx.shipment_line.item_id
@@ -319,8 +211,6 @@ edges:
     unit: <script>
     line: 22
   evidence: source_read
-  note: 'The IN nested inside the counting subquery decides a value, not a row: every column of it is
-    an aggregated value (D-45), never a filter.'
 - source:
     kind: column
     name: lgx.item_master.item_id
@@ -334,8 +224,6 @@ edges:
     unit: <script>
     line: 22
   evidence: source_read
-  note: 'The IN nested inside the counting subquery decides a value, not a row: every column of it is
-    an aggregated value (D-45), never a filter.'
 - source:
     kind: column
     name: lgx.item_master.item_class
@@ -349,41 +237,39 @@ edges:
     unit: <script>
     line: 22
   evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_id
+  target:
+    kind: column
+    name: <result>.hazmat_lines
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+  note: 'The IN nested inside the counting subquery decides a value, not a row: every column of it is
+    an aggregated value (D-45), never a filter.'
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.hazmat_lines
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
   note: 'The IN nested inside the counting subquery decides a value, not a row: every column of it is
     an aggregated value (D-45), never a filter.'
 - source:
     kind: column
     name: lgx.package_event.event_type
-  target:
-    kind: column
-    name: <result>.last_event_type
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-  note: 'event_type is projected AND tested in the lateral''s WHERE: one fact at the hardest transform
-    (D-51).'
-- source:
-    kind: column
-    name: lgx.package_event.shipment_id
-  target:
-    kind: column
-    name: <result>.last_event_type
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-  note: 'event_type is projected AND tested in the lateral''s WHERE: one fact at the hardest transform
-    (D-51).'
-- source:
-    kind: column
-    name: lgx.shipment_header.shipment_id
   target:
     kind: column
     name: <result>.last_event_type
@@ -417,58 +303,6 @@ edges:
     name: <result>.last_location
   flow: value
   transform: identity
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.package_event.shipment_id
-  target:
-    kind: column
-    name: <result>.last_event_ts
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.package_event.shipment_id
-  target:
-    kind: column
-    name: <result>.last_location
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.shipment_id
-  target:
-    kind: column
-    name: <result>.last_event_ts
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.shipment_id
-  target:
-    kind: column
-    name: <result>.last_location
-  flow: value
-  transform: conditional
   band: 0
   origin:
     unit: <script>
@@ -593,32 +427,6 @@ edges:
   evidence: source_read
 - source:
     kind: column
-    name: gold.fx_rate.from_ccy
-  target:
-    kind: column
-    name: <result>.usd_rate
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.from_ccy
-  target:
-    kind: column
-    name: <result>.ext_amount_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
     name: gold.fx_rate.to_ccy
   target:
     kind: column
@@ -633,84 +441,6 @@ edges:
 - source:
     kind: column
     name: gold.fx_rate.to_ccy
-  target:
-    kind: column
-    name: <result>.ext_amount_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.rate_date
-  target:
-    kind: column
-    name: <result>.usd_rate
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.rate_date
-  target:
-    kind: column
-    name: <result>.ext_amount_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.currency_code
-  target:
-    kind: column
-    name: <result>.usd_rate
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_header.currency_code
-  target:
-    kind: column
-    name: <result>.ext_amount_usd
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.ship_date
-  target:
-    kind: column
-    name: <result>.usd_rate
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 22
-  evidence: source_read
-- source:
-    kind: column
-    name: lgx.shipment_line.ship_date
   target:
     kind: column
     name: <result>.ext_amount_usd

@@ -638,59 +638,7 @@ edges:
     in (derived), while should_cost and line_amt arrive conditional.'
 - source:
     kind: column
-    name: gold.fx_rate.from_ccy
-  target:
-    kind: column
-    name: mart.fact_po_line.savings_amt
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 31
-  evidence: source_read
-- source:
-    kind: column
     name: gold.fx_rate.to_ccy
-  target:
-    kind: column
-    name: mart.fact_po_line.savings_amt
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 31
-  evidence: source_read
-- source:
-    kind: column
-    name: gold.fx_rate.rate_date
-  target:
-    kind: column
-    name: mart.fact_po_line.savings_amt
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 31
-  evidence: source_read
-- source:
-    kind: column
-    name: s2p.po_header.currency_code
-  target:
-    kind: column
-    name: mart.fact_po_line.savings_amt
-  flow: value
-  transform: conditional
-  band: 0
-  origin:
-    unit: <script>
-    line: 31
-  evidence: source_read
-- source:
-    kind: column
-    name: s2p.po_header.created_at
   target:
     kind: column
     name: mart.fact_po_line.savings_amt

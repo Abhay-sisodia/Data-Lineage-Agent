@@ -27,10 +27,13 @@ forbid filter staging.fx_rates.rate_date -> mart.channel_mix | an expression in 
 
 @ 65 S3 scalar subquery in a CASE test, CASE in a scalar subquery (D-12)
 value staging.customers.id -> mart.customer_summary.customer_id identity
-value staging.orders.customer_id, staging.customers.id -> mart.customer_summary.status aggregated
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.status's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.customer_summary.status
 note The COUNT(*) subquery's correlation: values of status, aggregated (D-12).
 value staging.customers.status -> mart.customer_summary.status conditional
-value staging.orders.currency, staging.orders.amount, staging.orders.customer_id, staging.orders.status, staging.customers.id -> mart.customer_summary.avg_basket aggregated
+value staging.orders.currency, staging.orders.amount, staging.orders.status -> mart.customer_summary.avg_basket aggregated
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.avg_basket's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.customer_summary.avg_basket
 forbid filter staging.orders.status -> mart.customer_summary | a scalar subquery's WHERE decides one value, never which rows land (D-12)
 forbid filter staging.customers.id -> mart.customer_summary | a scalar subquery's correlation is a value (D-12)
 

@@ -105,3 +105,65 @@ def test_join_keys_round_trip_and_load_as_keys(tmp_path: Path) -> None:
     # A document written before D-57 has no join keys, and still reads.
     del document["join_keys"]
     assert from_document(document).join_keys == []
+
+
+# --- D-58: a lookup's matching key, whichever way the lookup is written --------------------
+
+
+def _into(edges: list, target: str, flow: Flow | None = None) -> set[tuple[str, str]]:
+    return {k for k in _facts([e for e in edges if flow in (None, e.flow)]) if k[1] == target}
+
+
+def test_a_lateral_lookup_gives_the_keys_its_on_spelling_gives() -> None:
+    joined = (
+        TARGET + "SELECT c.country_code, o.customer_id, c.full_name, o.amount, 1\n"
+        "FROM staging.orders AS o LEFT JOIN staging.customers AS c ON c.id = o.customer_id;\n"
+    )
+    lateral = (
+        TARGET + "SELECT 'x', o.customer_id, l.full_name, o.amount, 1\n"
+        "FROM staging.orders AS o\n"
+        "LEFT JOIN LATERAL (SELECT c.full_name FROM staging.customers AS c\n"
+        "                   WHERE c.id = o.customer_id\n"
+        "                   ORDER BY c.signup_ts DESC LIMIT 1) AS l ON true;\n"
+    )
+    full_name = "mart.top_customers.full_name"
+    on_keys = _into(analyse_source(joined, BOOK, POSTGRES).join_keys, full_name)
+    result = analyse_source(lateral, BOOK, POSTGRES)
+    lateral_keys = _into(result.join_keys, full_name)
+    assert ("staging.orders.customer_id", full_name) in on_keys & lateral_keys
+    # Not a scored value any more (it was a conditional one under D-12/D-14).
+    assert not [e for e in result.edges if _facts([e]) <= lateral_keys and e.flow is Flow.VALUE]
+
+
+def test_an_outer_join_range_is_a_key_and_a_constant_condition_a_value() -> None:
+    sql = (
+        TARGET + "SELECT 'x', o.customer_id, 'n', o.amount * f.rate_to_usd, 1\n"
+        "FROM staging.orders AS o\n"
+        "LEFT JOIN staging.fx_rates AS f\n"
+        "  ON f.currency = o.currency\n"
+        " AND o.order_ts::date >= f.rate_date AND f.rate_to_usd > 0;\n"
+    )
+    result = analyse_source(sql, BOOK, POSTGRES)
+    revenue = "mart.top_customers.revenue"
+    keys = _into(result.join_keys, revenue)
+    assert {("staging.orders.order_ts", revenue), ("staging.fx_rates.rate_date", revenue)} <= keys
+    values = _into(result.edges, revenue, Flow.VALUE)
+    assert ("staging.fx_rates.rate_to_usd", revenue) in values  # `> 0` is the row's own test
+    assert ("staging.fx_rates.rate_date", revenue) not in values
+
+
+def test_an_aggregating_lookups_key_is_influence() -> None:
+    """Under SUM the correlation decides which rows are summed, as a GROUP BY does."""
+    sql = (
+        "INSERT INTO mart.customer_summary (customer_id, lifetime_value)\n"
+        "SELECT c.id, (SELECT SUM(p.amount) FROM staging.payments AS p\n"
+        "              WHERE p.order_id = c.id) FROM staging.customers AS c;\n"
+    )
+    result = analyse_source(sql, BOOK, POSTGRES)
+    target = "mart.customer_summary.lifetime_value"
+    influence = _facts([e for e in result.edges if e.flow is Flow.INFLUENCE])
+    assert {("staging.payments.order_id", target), ("staging.customers.id", target)} <= influence
+    assert ("staging.payments.amount", target) in _facts(
+        [e for e in result.edges if e.flow is Flow.VALUE]
+    )
+    assert not [k for k in _facts(result.join_keys) if k[1] == target]
