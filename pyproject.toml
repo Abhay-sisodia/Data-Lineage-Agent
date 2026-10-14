@@ -20,6 +20,7 @@ dependencies = [
     "typer",
     "rich",
     "oracledb",
+    "pglast",
 ]
 
 # The knowledge graph and agentic Q&A. Optional, so the core analyser installs without a

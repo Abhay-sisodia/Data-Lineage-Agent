@@ -1,5 +1,9 @@
 # PostgreSQL — what is in scope, and what is refused
 
+> **The systematic statement is now [pg-coverage.md](pg-coverage.md):** every construct
+> PostgreSQL's own parser can produce (416, read from libpg_query), each with a measured
+> outcome. The 44 hand-picked constructs below are kept as production-shaped examples.
+
 **Measured, not asserted.** Every row below comes from `scripts/probe_postgres.py`, which
 runs 44 production-shaped constructs through `analyse_source` and buckets each one. Re-run it
 after any change:
