@@ -323,7 +323,7 @@
  },
  "extra:attach_partition": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
   "status": "EFFECT",
   "target": "effect"
@@ -416,14 +416,14 @@
  },
  "extra:delete_all_rows": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
   "status": "EFFECT",
   "target": "effect"
  },
  "extra:detach_partition": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
   "status": "EFFECT",
   "target": "effect"
@@ -704,11 +704,11 @@
  },
  "extra:plpgsql_truncate_then_reload": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [
    "src.a.v -> tgt.t.v"
   ],
-  "status": "PARTIAL:UNSUPPORTED_CONSTRUCT",
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:prefix_operator": {
@@ -776,7 +776,7 @@
  },
  "extra:rename_table": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
   "status": "EFFECT",
   "target": "effect"
@@ -1306,7 +1306,7 @@
  },
  "node:PartitionCmd": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
   "status": "EFFECT",
   "target": "effect"
@@ -1766,7 +1766,7 @@
  },
  "stmt:AlterObjectSchemaStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
   "status": "EFFECT",
   "target": "effect"
@@ -1878,7 +1878,7 @@
  },
  "stmt:AlterTableStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
   "status": "EFFECT",
   "target": "effect"
@@ -2232,7 +2232,7 @@
  },
  "stmt:DropStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
   "status": "EFFECT",
   "target": "effect"
@@ -2409,7 +2409,7 @@
  },
  "stmt:RenameStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
   "status": "EFFECT",
   "target": "effect"
@@ -2470,9 +2470,9 @@
  },
  "stmt:TruncateStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "status": "EFFECT",
   "target": "effect"
  },
  "stmt:UnlistenStmt": {

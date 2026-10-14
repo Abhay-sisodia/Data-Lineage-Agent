@@ -275,8 +275,9 @@ PINNED = sorted({name for name, _ in EXPECTED})
 
 # Refusals a test makes on purpose, by code. Anything else refused is a regression.
 REFUSED_ON_PURPOSE = {
-    # TRUNCATE (no column has a source) and COPY (rows from outside the database).
-    "b3_dml_writes/t1_breadth": ["SOURCE_UNAVAILABLE", "UNSUPPORTED_CONSTRUCT"],
+    # COPY (rows from outside the database). TRUNCATE was refused here too until D-62
+    # (plan step 6) made it an effect - an Operation, RESETS mart.channel_mix.
+    "b3_dml_writes/t1_breadth": ["SOURCE_UNAVAILABLE"],
     # psql \copy, refused by name as COPY is (D-37).
     "b10_lexical/t1_breadth": ["SOURCE_UNAVAILABLE"],
     # psql \copy in the legacy deploy script (D-37).

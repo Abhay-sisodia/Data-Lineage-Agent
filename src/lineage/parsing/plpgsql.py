@@ -96,6 +96,11 @@ Node = Stmt | Loop | If | Block
 _WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*")
 _ASSIGN = re.compile(r"^([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*(?::=|=)\s*(.*)$", re.DOTALL)
 _SQL_START = {"select", "with", "insert", "update", "delete", "merge", "values", "table"}
+_DDL = {
+    "truncate", "drop", "alter", "create", "analyze", "analyse", "vacuum", "grant", "revoke",
+    "comment", "lock", "set", "reset", "notify", "listen", "unlisten", "discard", "refresh",
+    "cluster", "reindex",
+}  # fmt: skip
 _NOOPS = {
     "raise",
     "null",
@@ -490,6 +495,12 @@ def classify(text: str, start: int) -> Stmt:
                 )
         return Stmt("sql", stripped, start)
     if word == "perform":
+        return Stmt("noop", stripped, start)
+    if word == "create" and re.search(r"(?is)\bAS\s*\(?\s*(SELECT|WITH|VALUES|TABLE)\b", stripped):
+        return Stmt("sql", stripped, start)  # CREATE [TEMP] TABLE ... AS <query>: lineage
+    if word in _DDL:
+        # Plan step 6 (D-62): TRUNCATE / DROP / ALTER ... move no column; their effect on a
+        # relation is recorded from PostgreSQL's own parse (`analysis.effects`).
         return Stmt("noop", stripped, start)
     if word in _NOOPS:
         found = find_word(stripped, "for") if word == "open" else -1

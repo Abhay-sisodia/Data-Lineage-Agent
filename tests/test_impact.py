@@ -41,7 +41,7 @@ FILES = {
         "GROUP BY o.customer_id, s.region;\n"
     ),
     "b.sql": "SELECT t.customer_id, t.revenue * 2 AS doubled FROM mart.top_customers AS t;\n",
-    "c.sql": "TRUNCATE mart.top_customers;\n",
+    "c.sql": "COPY mart.top_customers FROM '/data/top.csv';\n",
     "d.sql": (  # the join only keeps matching rows: the customers table supplies no value
         "INSERT INTO mart.events_log (id, kind)\n"
         "SELECT w.id, w.event_type FROM staging.web_events AS w\n"

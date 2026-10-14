@@ -35,9 +35,10 @@ def _pairs(result) -> set[tuple[str, str]]:
 
 
 RELOAD = """CREATE PROCEDURE tgt.reload() LANGUAGE plpgsql AS $$
+DECLARE r tgt.t%ROWTYPE;
 BEGIN
   INSERT INTO tgt.t (k) SELECT b.k FROM src.b AS b;
-  TRUNCATE tgt.t;
+  r.v := (SELECT max(a.v) FROM src.a AS a);
   INSERT INTO tgt.t (v) SELECT a.v FROM src.a AS a;
 END $$;
 """
@@ -48,7 +49,7 @@ def test_an_unreadable_statement_is_refused_alone_and_the_routine_is_read(book) 
     assert {("column:src.b.k", "column:tgt.t.k"), ("column:src.a.v", "column:tgt.t.v")} <= _pairs(
         result
     )
-    assert [(r.line, r.end_line) for r in result.refusals] == [(4, 4)]
+    assert [(r.line, r.end_line) for r in result.refusals] == [(5, 5)]
     assert "the rest of tgt.reload is analysed" in result.refusals[0].reason
     assert [e.status for e in result.ledger] == ["partial"]
 

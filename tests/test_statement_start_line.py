@@ -43,7 +43,7 @@ def test_a_refusal_points_at_the_statement_not_its_comment_block() -> None:
         "-- S8 · clear the audit table\n"
         "-- (a second line of explanation)\n"
         "\n"
-        "TRUNCATE mart.load_audit;\n"
+        "COPY mart.load_audit FROM '/data/audit.csv';\n"
     )
     config = AnalysisConfig.load().model_copy(update={"dialect": "postgres"})
     result = analyse_source(source, Dictionary.load(BOOK), config, None)

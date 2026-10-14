@@ -3,7 +3,8 @@
 # Answer key for H4 (h4_nightly_load.sql): the nightly load script, 18 statements.
 #
 # WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
-# CLOSED WORLD: every written column, every filter, every repeated fact and the one refusal.
+# CLOSED WORLD: every written column, every filter and every repeated fact. The one refusal
+# (S7, TRUNCATE) is an effect since D-62 (plan step 6): an Operation, not a refusal.
 # Conventions D-1..D-53 and the B3 / B7 key conventions.
 #
 # ST = pg_temp.stg_ship, CM = pg_temp.cust_metrics, SE = pg_temp.stg_entity (temp tables are
@@ -2176,8 +2177,4 @@ forbidden:
     name: pg_temp.stg_entity
   flow: filter
   reason: acts is reached only through a LEFT join (D-45)
-expected_boundaries:
-- kind: refusal
-  subject: <SCRIPT>:196
-  reason: TRUNCATE is in the refusal register (B3); nothing in front of it on its own line block, so F0-08
-    does not apply
+expected_boundaries: []

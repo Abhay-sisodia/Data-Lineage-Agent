@@ -19,7 +19,7 @@ import re
 import sqlglot
 from sqlglot import exp
 
-from lineage.analysis import band0, fallback, ledger, plpgsql
+from lineage.analysis import band0, effects, fallback, ledger, plpgsql
 from lineage.analysis.band0 import AnalysisResult, Refusal
 from lineage.analysis.cfg import Cfg, build_all
 from lineage.analysis.cfg import NodeKind as CfgNodeKind
@@ -422,6 +422,8 @@ def analyse_source(
     # Plan step 4, rungs 3-4 (D-60): a statement refused whole still connects the columns
     # and tables PostgreSQL's tree says it touches - apart from the scored edges.
     result.fallback = fallback.build(verdicts, result, dictionary)
+    # Plan step 6 (D-62): TRUNCATE, DROP, a rename ... recorded as what they do to a relation.
+    result.operations = effects.build(verdicts, dictionary)
     # Plan step 3: every statement, with what became of it - never silent.
     result.ledger = ledger.build(verdicts, result)
     return result

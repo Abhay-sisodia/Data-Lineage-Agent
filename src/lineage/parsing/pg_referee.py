@@ -83,21 +83,26 @@ def _walk(node: Any, out: set[str], ctes: set[str], tables: set[str]) -> None:
         _walk(value, out, ctes, tables)
 
 
-def _walk_plpgsql(node: Any, out: set[str], sql: list[str]) -> None:
+def _walk_plpgsql(
+    node: Any, out: set[str], sql: list[str], located: list[tuple[int, str]] | None = None
+) -> None:
     if isinstance(node, list):
         for item in node:
-            _walk_plpgsql(item, out, sql)
+            _walk_plpgsql(item, out, sql, located)
     elif isinstance(node, dict):
         for key, value in node.items():
             if key.startswith("PLpgSQL_stmt_"):
                 out.add(f"plpgsql:{key}")
                 if key == "PLpgSQL_stmt_execsql" and isinstance(value, dict):
                     _into(value, out)
+                    if located is not None:
+                        query = value.get("sqlstmt", {}).get("PLpgSQL_expr", {}).get("query")
+                        located.append((int(value.get("lineno", 1)), str(query or "")))
             if key == "PLpgSQL_stmt_assign" and isinstance(value, dict) and _assigns_a_field(value):
                 out.add("extra:plpgsql_record_field_assignment")
             if key == "PLpgSQL_expr" and isinstance(value, dict):
                 sql.append(_as_statement(value))
-            _walk_plpgsql(value, out, sql)
+            _walk_plpgsql(value, out, sql, located)
 
 
 def _assigns_a_field(assign: dict[str, Any]) -> bool:
@@ -169,8 +174,13 @@ def _routine_constructs(
     tables: set[str],
     ctes: set[str] | None = None,
     writes: list[str] | None = None,
+    body: list[tuple[int, Any]] | None = None,
 ) -> None:
-    """The constructs, tables and written tables of a routine's body (or none, if not one)."""
+    """The constructs, tables and written tables of a routine's body (or none, if not one).
+
+    `body` collects each SQL statement the body runs, parsed, with its line counted from
+    the body's opening dollar quote (1 = that line), as PL/pgSQL numbers them.
+    """
     if isinstance(statement, ast.CreateFunctionStmt):
         if _language(statement) == "sql" and not statement.sql_body:
             out.add("extra:sql_function_body")
@@ -188,7 +198,14 @@ def _routine_constructs(
         out.add("plpgsql:unreadable_offline")
         return
     embedded: list[str] = []
-    _walk_plpgsql(tree, out, embedded)
+    located: list[tuple[int, str]] = []
+    _walk_plpgsql(tree, out, embedded, located)
+    if body is not None:
+        for lineno, query in located:
+            try:
+                body.extend((lineno, raw.stmt) for raw in pg_parser.parse_sql(query))
+            except pg_parser.ParseError:
+                continue
     for sql in embedded:
         try:
             parsed = pg_parser.parse_sql(sql)
@@ -234,6 +251,8 @@ class Verdict:
     constructs: set[str] = field(default_factory=set)
     tree: Any = field(default=None, compare=False, repr=False)
     """PostgreSQL's parse of the statement (a pglast node), for what reads it further."""
+    body: list[tuple[int, Any]] = field(default_factory=list, compare=False, repr=False)
+    """A routine's (or DO block's) statements, parsed, each with its line in the FILE."""
 
 
 def _writes(statement: Any) -> list[str]:
@@ -302,12 +321,19 @@ def verdict(text: str, line: int = 1) -> Verdict:
     _walk(statement, out, ctes, tables)
     writes = _writes(statement)
     # A routine's writes are its body's: `CREATE PROCEDURE ... INSERT INTO x` writes x.
-    _routine_constructs(statement, text_read, out, tables, ctes, writes)
+    body: list[tuple[int, Any]] = []
+    _routine_constructs(statement, text_read, out, tables, ctes, writes, body)
     reads = sorted(t for t in tables if t not in writes and t not in ctes)
+    quote = _DOLLAR_QUOTE.search(text)
+    first = line + (text.count("\n", 0, quote.start()) if quote else 0)
     return Verdict(
         line, end_line, text, valid=True, kind=type(statement).__name__,
         writes=writes, reads=reads, constructs=out, tree=statement,
+        body=[(first + lineno - 1, inner) for lineno, inner in body],
     )  # fmt: skip
+
+
+_DOLLAR_QUOTE = re.compile(r"\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$")
 
 
 def verdicts(source: str) -> list[Verdict]:

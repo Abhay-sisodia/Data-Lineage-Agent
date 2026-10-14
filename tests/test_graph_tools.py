@@ -37,7 +37,7 @@ FILES = {
     "b.sql": "SELECT t.customer_id, t.revenue * 2 AS doubled FROM mart.top_customers AS t;\n",
     "c.sql": (
         "SELECT o.id, calc_margin(o.amount) AS m FROM staging.orders AS o;\n"
-        "TRUNCATE mart.events_log;\n"
+        "COPY mart.events_log FROM '/data/events.csv';\n"
     ),
 }
 
@@ -99,13 +99,14 @@ def test_snippet_shows_the_whole_statement_up_to_its_cap() -> None:
 def test_gaps_name_the_boundary_and_the_refusal(small: GraphTools) -> None:
     by_file = small.gaps(file="c.sql")
     assert {b["kind"] for b in by_file["boundaries"]} == {"source_unavailable", "refusal"}
-    assert [r["code"] for r in by_file["refusals"]] == ["UNSUPPORTED_CONSTRUCT"]
+    assert [r["code"] for r in by_file["refusals"]] == ["SOURCE_UNAVAILABLE"]
     by_node = small.gaps(node="<result:c.sql>.m")
     assert "SOURCE_UNAVAILABLE:CALC_MARGIN" in {b["id"] for b in by_node["boundaries"]}
 
 
 def test_a_refusal_is_reported_only_for_lineage_it_names(small: GraphTools) -> None:
-    """Baseline finding: `TRUNCATE mart.events_log` was reported for every column of c.sql.
+    """Baseline finding: a refused `TRUNCATE mart.events_log` (a COPY since D-62) was
+    reported for every column of c.sql.
 
     It names only mart.events_log, so it is no unknown for `m` (read from staging.orders);
     the file still declares it, and a question about mart.events_log still gets it.

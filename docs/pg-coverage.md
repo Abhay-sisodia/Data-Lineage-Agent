@@ -8,17 +8,17 @@ its snippet through `analyse_source`. Rows: `stress/pg/grammar/checklist.yaml`.
 `lineage scan <folder>` uses this table to predict, before analysing, what the analyser
 will make of every statement in a folder - and names the row behind each gap.
 
-**395 / 416 constructs meet their target (95.0%).** Extra combinations: 56 / 71.
+**401 / 416 constructs meet their target (96.4%).** Extra combinations: 61 / 71.
 
 | area | constructs | meet target | % |
 |---|---|---|---|
-| statement | 114 | 102 | 89.5% |
+| statement | 114 | 107 | 93.9% |
 | clause | 41 | 41 | 100.0% |
-| expression / clause | 100 | 96 | 96.0% |
+| expression / clause | 100 | 97 | 97.0% |
 | variant | 134 | 130 | 97.0% |
 | PL/pgSQL | 27 | 26 | 96.3% |
 
-Measured outcomes over all rows: COUNTED 107, DECLARED 5, EFFECT 10, HANG 1, LINEAGE 265, NOT_ANALYSED 4, PARTIAL 2, REFUSED 9, TABLE_LEVEL 1, UNCLASSIFIED 4
+Measured outcomes over all rows: COUNTED 107, DECLARED 5, EFFECT 11, HANG 1, LINEAGE 266, NOT_ANALYSED 4, PARTIAL 1, REFUSED 8, TABLE_LEVEL 1, UNCLASSIFIED 4
 
 ## Targets and outcomes
 
@@ -26,7 +26,7 @@ Measured outcomes over all rows: COUNTED 107, DECLARED 5, EFFECT 10, HANG 1, LIN
 |---|---|---|
 | lineage | column lineage; every listed pair among it | LINEAGE |
 | no_lineage | nothing to trace (DDL, settings, grants) | COUNTED |
-| effect | changes what a table holds or is (TRUNCATE, DROP) | an Operation fact - not built yet |
+| effect | changes what a table holds or is (TRUNCATE, DROP) | EFFECT - an Operation fact (D-62) |
 | refused:C / declared:K | honestly unknowable, named | REFUSED:C / DECLARED:K |
 
 COUNTED, EFFECT and NOT_ANALYSED come from the statement ledger (plan step 3), which
@@ -37,16 +37,6 @@ move data and produced nothing. PARTIAL means lineage came out and a part was re
 
 | construct | target | measured | note |
 |---|---|---|---|
-| `extra:attach_partition` | effect | EFFECT | the partition's rows become the parent's |
-| `extra:delete_all_rows` | effect | EFFECT | no predicate - every row goes, as TRUNCATE |
-| `extra:detach_partition` | effect | EFFECT |  |
-| `extra:rename_table` | effect | EFFECT |  |
-| `node:PartitionCmd` | effect | EFFECT |  |
-| `stmt:AlterObjectSchemaStmt` | effect | EFFECT |  |
-| `stmt:AlterTableStmt` | effect | EFFECT |  |
-| `stmt:DropStmt` | effect | EFFECT |  |
-| `stmt:RenameStmt` | effect | EFFECT |  |
-| `stmt:TruncateStmt` | effect | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:alter_column_type_using` | lineage | EFFECT | USING recomputes every row's value from its old one |
 | `extra:column_alias_list` | lineage | DECLARED:unresolved_identifier | the alias renames the columns by position |
 | `extra:explain_analyze_runs_the_write` | lineage | NOT_ANALYSED | EXPLAIN ANALYZE executes the statement - the write happens |
@@ -54,7 +44,6 @@ move data and produced nothing. PARTIAL means lineage came out and a part was re
 | `extra:plpgsql_record_field_assignment` | lineage | TABLE_LEVEL:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_returning_into` | lineage | PARTIAL:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_subquery_then_self_assignment` | lineage | HANG | a value assigned from a subquery and then from itself - the analysis does not finish |
-| `extra:plpgsql_truncate_then_reload` | lineage | PARTIAL:UNSUPPORTED_CONSTRUCT | the TRUNCATE in the middle must not cost the routine its lineage |
 | `extra:rows_from_several_functions` | lineage | UNCLASSIFIED:PARSE_FAILED | valid PostgreSQL SQLGlot cannot parse - found in plan step 4 |
 | `extra:sql_function_body` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:table_shorthand` | lineage | NOT_ANALYSED |  |

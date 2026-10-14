@@ -161,6 +161,10 @@ class AnalysisResult:
     PostgreSQL only. Kept OUT of `edges`, like `join_keys`: unclassified, never scored.
     """
 
+    operations: list[Any] = field(default_factory=list)
+    """`Operation` facts: what statements do to whole relations - TRUNCATE, DROP, a rename
+    (D-62, `analysis.effects`). PostgreSQL only; not lineage edges, never scored."""
+
     ledger: list[Any] = field(default_factory=list)
     """Every top-level statement and what became of it (plan step 3, `analysis.ledger`).
 

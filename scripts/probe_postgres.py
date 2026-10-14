@@ -74,6 +74,7 @@ COLUMNS = {
 IN_SCOPE = "in"        # must produce edges
 NO_LINEAGE = "none"    # in scope, counted, and correctly has nothing to trace
 OUT_OF_SCOPE = "out"   # must be refused or declared, never silent
+EFFECT = "effect"      # changes what a table holds; recorded as an Operation (D-62)
 
 CONSTRUCTS: list[tuple[str, str, str]] = [
     # ---- core DML -------------------------------------------------------------------
@@ -255,7 +256,7 @@ CONSTRUCTS: list[tuple[str, str, str]] = [
     (OUT_OF_SCOPE, "CREATE TRIGGER of a function not in the script", """
         CREATE TRIGGER trg_audit AFTER INSERT ON fct_revenue
         FOR EACH ROW EXECUTE FUNCTION audit_fn();"""),
-    (OUT_OF_SCOPE, "TRUNCATE", "TRUNCATE TABLE gtt_stage;"),
+    (EFFECT, "TRUNCATE", "TRUNCATE TABLE gtt_stage;"),
     # PG-09. Silent until 2026-09-24, refused for part of that day, and now IN SCOPE: a
     # query's own projections are the target. Read-only analytical SQL - dbt and Databricks
     # models, view bodies, BI queries - is a large share of what a lineage tool is pointed
@@ -314,6 +315,9 @@ def bucket(source: str, book: Dictionary) -> tuple[str, str]:
     explained = [b for b in result.boundaries if b.kind in EXPLANATORY]
     if explained:
         return "DECLARED", explained[0].kind.value
+    if getattr(result, "operations", None):
+        operation = result.operations[0]
+        return "EFFECT", f"{operation.kind.value} {operation.relation} - {operation.detail}"
     if result.statements_seen:
         return "NO-SOURCE", f"{result.statements_seen} counted, nothing to trace"
     return "SILENT", "not even counted"
@@ -329,6 +333,8 @@ def main() -> int:
             agreed = verdict == "EDGES"
         elif expectation == NO_LINEAGE:
             agreed = verdict == "NO-SOURCE"
+        elif expectation == EFFECT:
+            agreed = verdict == "EFFECT"
         else:
             agreed = verdict in ("REFUSED", "DECLARED")
         rows.append((expectation, name, verdict, detail, agreed))
@@ -338,7 +344,9 @@ def main() -> int:
     print("-" * (width + 40))
     for expectation, name, verdict, detail, agreed in rows:
         mark = "  " if agreed else "<<"
-        tag = {IN_SCOPE: "in ", NO_LINEAGE: "nil", OUT_OF_SCOPE: "out"}[expectation]
+        tag = {IN_SCOPE: "in ", NO_LINEAGE: "nil", OUT_OF_SCOPE: "out", EFFECT: "eff"}[
+            expectation
+        ]
         print(f"{mark} {tag} {name:{width}}  {verdict:10} {detail}")
 
     surprises = [r for r in rows if not r[4]]

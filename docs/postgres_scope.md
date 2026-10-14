@@ -109,7 +109,7 @@ measured: the probe asks per statement and cannot see a per-column silence (PG-0
 | a PL/pgSQL routine or DO block the reader cannot read | `UNSUPPORTED_CONSTRUCT` | since batch B8 a body is read by `parsing/plpgsql` (D-39..D-42). A form it does not know - a CASE statement, `RETURN QUERY EXECUTE`, OUT parameters, `FOR … IN EXECUTE`, and the others it names - keeps the WHOLE routine refused by name, never half-read |
 | `CREATE TRIGGER` naming a function the script does not define | `UNSUPPORTED_CONSTRUCT` | the lineage is in that function's body, which is not in the analysis. A trigger whose function is in the script is analysed (D-41) |
 | `COPY … FROM/TO` | `SOURCE_UNAVAILABLE` | moves rows between a relation and something outside the database; the contents depend on data no static analysis can see |
-| `TRUNCATE` | `UNSUPPORTED_CONSTRUCT` | empties a relation unconditionally — no column has a source to name, but the statement decides what the table contains afterwards, so it is recorded rather than skipped |
+| `TRUNCATE` | an effect since D-62 — not refused | empties a relation unconditionally — no column has a source to name, but the statement decides what the table contains afterwards: recorded as an Operation (`RESETS`) on the relation |
 
 ## What this scope does NOT cover, by construction
 

@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from probe_postgres import (  # noqa: E402
     CONSTRUCTS,
+    EFFECT,
     IN_SCOPE,
     NO_LINEAGE,
     OUT_OF_SCOPE,
@@ -50,6 +51,8 @@ def test_every_construct_lands_where_the_scope_says(
         assert verdict == "EDGES", f"{name}: in scope but {verdict} ({detail})"
     elif expectation == NO_LINEAGE:
         assert verdict == "NO-SOURCE", f"{name}: expected counted-and-empty, got {verdict}"
+    elif expectation == EFFECT:
+        assert verdict == "EFFECT", f"{name}: expected an Operation (D-62), got {verdict}"
     else:
         assert verdict in ("REFUSED", "DECLARED"), (
             f"{name}: out of scope and {verdict} - out of scope must still be declared"
@@ -84,8 +87,9 @@ def test_the_scope_has_not_quietly_shrunk(book) -> None:
         counts[verdict] = counts.get(verdict, 0) + 1
 
     # Grown deliberately by batch B8: a PL/pgSQL body is read (one construct to EDGES, two
-    # that move only literals to NO-SOURCE), so three fewer are refused.
-    assert counts == {"EDGES": 37, "NO-SOURCE": 5, "REFUSED": 3}
+    # that move only literals to NO-SOURCE), so three fewer are refused. D-62: TRUNCATE is an
+    # effect (an Operation), no longer a refusal.
+    assert counts == {"EDGES": 37, "NO-SOURCE": 5, "REFUSED": 2, "EFFECT": 1}
 
 
 def test_out_of_scope_refusals_are_postgresql_only(book) -> None:
@@ -101,7 +105,6 @@ def test_out_of_scope_refusals_are_postgresql_only(book) -> None:
         "DO $$ BEGIN NULL; END; $$;",
         "COPY t (a) FROM '/tmp/x.csv';",
         "CREATE TRIGGER trg AFTER INSERT ON t FOR EACH ROW EXECUTE FUNCTION f();",
-        "TRUNCATE TABLE t;",
     ]
     for sql in postgres_only:
         assert classify_statement(sql, "postgres") is not None, sql

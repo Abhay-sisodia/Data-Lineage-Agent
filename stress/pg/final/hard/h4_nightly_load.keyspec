@@ -1,7 +1,8 @@
 # Answer key for H4 (h4_nightly_load.sql): the nightly load script, 18 statements.
 #
 # WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
-# CLOSED WORLD: every written column, every filter, every repeated fact and the one refusal.
+# CLOSED WORLD: every written column, every filter and every repeated fact. The one refusal
+# (S7, TRUNCATE) is an effect since D-62 (plan step 6): an Operation, not a refusal.
 # Conventions D-1..D-53 and the B3 / B7 key conventions.
 #
 # ST = pg_temp.stg_ship, CM = pg_temp.cust_metrics, SE = pg_temp.stg_entity (temp tables are
@@ -78,10 +79,9 @@ filter mart.shipment_fact.ext_amount_usd -> mart.customer_snapshot post
 filter mart.customer_snapshot.lifetime_revenue, mart.customer_snapshot.status -> mart.customer_snapshot
 note USING's WHERE (restated from S5); MATCHED AND s.lifetime_revenue (a SUM: post, D-6) vs t.lifetime_revenue; BY SOURCE AND t.status.
 
-@ 196 S7 TRUNCATE - refused by name
-expect refusal <SCRIPT>:196 | TRUNCATE is in the refusal register (B3); nothing in front of it on its own line block, so F0-08 does not apply
+@ 196 S7 TRUNCATE - an effect (RESETS mart.load_audit) since D-62, not a refusal
 
-@ 201 S8 audit INSERT after the refusal
+@ 201 S8 audit INSERT after the TRUNCATE
 value mart.shipment_fact.load_ts -> mart.load_audit.run_ts aggregated
 filter mart.shipment_fact.load_ts -> mart.load_audit
 note run_id (epoch of now()), table_name and COUNT(*) read no column.

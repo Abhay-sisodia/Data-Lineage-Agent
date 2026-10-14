@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from lineage.export import ExportedResult
-from lineage.ir.model import Flow, IREdge, Node, NodeKind
+from lineage.ir.model import Flow, IREdge, Node, NodeKind, OperationKind
 from lineage.parsing.sqlscript import SCRIPT_UNIT
 
 SCHEMA_VERSION = "lineage-graph/1"
@@ -62,6 +62,13 @@ FLOW_TYPES = {
 }
 """Lineage relationship type per parser flow."""
 
+OPERATION_TYPES = {
+    OperationKind.RESETS: "RESETS",
+    OperationKind.DROPS: "DROPS",
+    OperationKind.ALTERS: "ALTERS",
+}
+"""Statement -> Table relationship type per effect (D-62)."""
+
 NODE_LABELS = (*sorted(set(_LABELS.values())), "File", "Refusal")
 """Every node label the build writes (besides `Snapshot`)."""
 
@@ -75,6 +82,7 @@ STRUCTURAL_TYPES = (
     "BOUNDS",
     "REFUSED",
     "MENTIONS",
+    *OPERATION_TYPES.values(),
 )
 """Every non-lineage relationship type the build writes."""
 
@@ -293,6 +301,21 @@ def _add_file(batch: GraphBatch, result: ExportedResult) -> None:
             batch.relationship(
                 "BOUNDS", _hash("BOUNDS", node.name, *bounded), ("Boundary", node.name), bounded
             )
+
+    # Plan step 6 (D-62): what a statement does to a whole relation - Statement -> Table.
+    for operation in result.operations:
+        statement = _statement(batch, file, operation.unit, operation.line)
+        _table(batch, operation.relation)
+        verb = OPERATION_TYPES[operation.kind]
+        batch.relationship(
+            verb,
+            _hash(verb, statement, operation.relation, operation.detail),
+            ("Statement", statement),
+            ("Table", operation.relation),
+            detail=operation.detail,
+            file=file,
+            line=operation.line,
+        )
 
     # Plan step 3: every statement, with its ledger status - the ones that produced no edge
     # (an effect, DDL, a refused statement) are on the graph too, never only in a side list.

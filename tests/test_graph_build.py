@@ -28,7 +28,7 @@ FILE_A = (  # writes mart.top_customers from staging.orders
 )
 FILE_B = (  # reads mart.top_customers - the link between the two files
     "SELECT t.customer_id, t.revenue * 2 AS doubled FROM mart.top_customers AS t;\n"
-    "TRUNCATE mart.events_log;\n"
+    "COPY mart.events_log FROM '/data/events.csv';\n"
 )
 FILE_C = "SELECT o.id, calc_margin(o.amount) AS m FROM staging.orders AS o;\n"
 

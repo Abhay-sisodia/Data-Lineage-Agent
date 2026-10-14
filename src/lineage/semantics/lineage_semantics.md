@@ -39,6 +39,9 @@ Node labels: `Table`, `Column`, `Variable`, `File`, `Statement`, `Boundary`, `Re
 | `BOUNDS` | Boundary → Column/Table | the node whose lineage stops there |
 | `REFUSED` | Statement → Refusal | the statement was refused |
 | `MENTIONS` | Refusal → Table | a table the refused statement's SQL names (what the refusal may affect) |
+| `RESETS` | Statement → Table | the statement empties the table - TRUNCATE, DELETE with no WHERE (D-62) |
+| `DROPS` | Statement → Table | the statement drops the table or view (D-62) |
+| `ALTERS` | Statement → Table | the statement changes what the table is or holds - a column dropped or retyped, a partition attached or detached, a rename, a schema move (D-62) |
 
 Lineage relationship properties: `id`, `transform`, `phase`, `band`, `tier`, `mechanism`, `guard`, `file`, `unit`, `line`, `statement`.
 
@@ -56,6 +59,8 @@ Lineage relationship properties: `id`, `transform`, `phase`, `band`, `tier`, `me
 - `mention` (D-60): the statement was **refused**, and PostgreSQL's own parse still shows the target column's expression **names** the source column. Relationship `MENTIONS_COL`. No claim about how it is used - value, filter or key. A column named elsewhere in the statement (a WHERE, a join) mentions the written **table**.
 - `opaque` (D-60): the statement was **refused** and its columns could not be named (a refused routine, an unstated target column list): it read the source table and wrote the target table. Relationship `OPAQUE`, table to table.
   - Neither is scored, and neither is lineage in the full sense: say "the refused statement at FILE:LINE names X" or "reads X and writes Y (table-level)", and report the refusal itself as the unknown.
+
+- **Effects are not flows** (D-62): `RESETS`, `DROPS` and `ALTERS` (operation kinds `resets`, `drops`, `alters`) say what a statement does to a WHOLE table, with `detail` and `line`. Report them where they change the answer: "mart.x is emptied (TRUNCATE) at load.sql:88, before the INSERT at :90 - it holds only what that INSERT wrote".
 
 ## 5. Transform (value edges)
 
@@ -119,7 +124,7 @@ A refused statement has **zero edges**; never guess what it does. It is tied to 
 | Code | Meaning |
 |---|---|
 | `PARSE_FAILED` | the text did not parse as SQL |
-| `UNSUPPORTED_CONSTRUCT` | it parses, but has no lineage semantics here (e.g. TRUNCATE, COPY, a DO block) |
+| `UNSUPPORTED_CONSTRUCT` | it parses, but has no lineage semantics here (e.g. a CREATE FUNCTION ... LANGUAGE sql body, a PL/pgSQL statement the reader cannot follow) - TRUNCATE is an effect since D-62, not a refusal |
 | `SHAPE_NOT_DECIDABLE` | output columns are not fixed by the text |
 | `NAME_NOT_RESOLVED` | an object or column is missing from the schema |
 | `DYNAMIC_NOT_CONSTANT` | executed text is not constant |

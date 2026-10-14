@@ -279,6 +279,37 @@ class Origin(BaseModel):
         return f"{self.unit}:{self.line}"
 
 
+class OperationKind(StrEnum):
+    """What a statement does to a relation, as opposed to the columns flowing into it (D-62)."""
+
+    RESETS = "resets"
+    """Empties it: TRUNCATE, or a DELETE with no WHERE. What it held before is gone."""
+
+    DROPS = "drops"
+    """Removes it: DROP TABLE / VIEW / MATERIALIZED VIEW / FOREIGN TABLE."""
+
+    ALTERS = "alters"
+    """Changes what it is or holds: a column dropped or retyped, a partition attached or
+    detached, a rename, a move to another schema."""
+
+
+class Operation(BaseModel):
+    """A statement's effect on a whole relation (plan step 6, D-62).
+
+    Not a lineage edge: no column's value comes from it. But a TRUNCATE before a reload, or
+    a DROP between two loads, decides what a table contains - an answer that leaves it out
+    describes a different program.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: OperationKind
+    relation: str = Field(min_length=1, description="schema.name of the relation affected")
+    detail: str = Field(description="What it does, for a reader: `emptied (TRUNCATE)` ...")
+    unit: str = Field(min_length=1)
+    line: int = Field(ge=1)
+
+
 class Boundary(BaseModel):
     """Where knowledge stops, as a first-class fact rather than a sentence.
 

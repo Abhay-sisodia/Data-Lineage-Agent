@@ -228,16 +228,9 @@ CONSTRUCTS: tuple[Construct, ...] = (
         "one dialect",
         dialects=frozenset({"postgres"}),
     ),
-    Construct(
-        name="TRUNCATE_PG",
-        pattern=_rx(r"\bTRUNCATE\s+(?:TABLE\s+)?[A-Za-z_0-9.$\"]+"),
-        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
-        reason="TRUNCATE empties a relation unconditionally. No column has a source to "
-        "name - the same "
-        "shape as a DELETE with no predicate - but the statement decides what the table contains "
-        "afterwards, so it is recorded rather than skipped",
-        dialects=frozenset({"postgres"}),
-    ),
+    # TRUNCATE_PG lived here until D-62 (plan step 6): it empties a relation and moves no
+    # column, so it is not refused but recorded as an `Operation` (RESETS) by
+    # `analysis.effects`, with the relation and the line, from PostgreSQL's own parse.
     Construct(
         name="DOLLAR_QUOTED_ROUTINE_BODY",
         pattern=_rx(r"CREATE(?:\s+OR\s+REPLACE)?\s+(?:FUNCTION|PROCEDURE)\s[\s\S]{0,2000}?\bAS\s*\$[A-Za-z_0-9]*\$"),

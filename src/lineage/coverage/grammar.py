@@ -222,7 +222,8 @@ def measure(sql: str, book: Dictionary) -> tuple[str, list[str]]:
     if "not_analysed" in statuses:
         return "NOT_ANALYSED", pairs
     if statuses == {"effect"}:
-        return "EFFECT", pairs
+        # Recorded only if an Operation fact names it (D-62); otherwise labelled, not modelled.
+        return ("EFFECT" if result.operations else "EFFECT_UNRECORDED"), pairs
     return "COUNTED", pairs
 
 
@@ -296,7 +297,7 @@ def met(target: str, status: str, pairs: list[str], reach: list[str]) -> bool:
     lineage     column lineage, and every `reach` pair among it
     no_lineage  counted, nothing to trace (DDL, settings, grants ...)
     effect      the statement changes what a table holds or is (TRUNCATE, DROP ...) - an
-                Operation fact; nothing produces one yet, so no such row is met yet
+                Operation fact on the relation (D-62)
     refused:C   refused with code C, honestly (dynamic SQL that is not constant ...)
     declared:K  a boundary of kind K names what stopped it
     """
@@ -309,7 +310,7 @@ def met(target: str, status: str, pairs: list[str], reach: list[str]) -> bool:
         return status == f"REFUSED:{detail}"
     if kind == "declared":
         return status == f"DECLARED:{detail}"
-    return False  # effect: no Operation facts yet
+    return status == "EFFECT"  # effect: an Operation fact on the relation (D-62)
 
 
 @dataclass

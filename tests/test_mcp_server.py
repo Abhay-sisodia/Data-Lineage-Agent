@@ -34,7 +34,7 @@ FILES = {
     "b.sql": "SELECT t.customer_id, t.revenue * 2 AS doubled FROM mart.top_customers AS t;\n",
     "c.sql": (
         "SELECT o.id, calc_margin(o.amount) AS m FROM staging.orders AS o;\n"
-        "TRUNCATE mart.events_log;\n"
+        "COPY mart.events_log FROM '/data/events.csv';\n"
     ),
 }
 

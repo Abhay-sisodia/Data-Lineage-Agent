@@ -22,11 +22,12 @@ from lineage.resolution.dictionary import Dictionary
 ROOT = Path(__file__).resolve().parent.parent
 BOOK = ROOT / "stress" / "pg" / "dictionary.json"
 
-# Edges, a boundary (an unknown function, D-53) and a refusal (TRUNCATE) in one script.
+# Edges, a boundary (an unknown function, D-53) and a refusal (COPY FROM a file) in one
+# script. It was a TRUNCATE until D-62 made TRUNCATE an effect, not a refusal.
 SCRIPT = (
     "INSERT INTO core.ledger (id, balance)\n"
     "SELECT o.id, calc_margin(o.amount) FROM staging.orders AS o WHERE o.status = 'PAID';\n"
-    "TRUNCATE mart.load_audit;\n"
+    "COPY mart.load_audit FROM '/data/audit.csv';\n"
 )
 
 
@@ -53,7 +54,7 @@ def test_the_document_carries_edges_boundaries_and_refusals() -> None:
     assert document["format"] == FORMAT
     assert document["edges"] and document["boundaries"] and document["refusals"]
     assert document["statements"]["seen"] == 2
-    assert document["refusals"][0]["code"] == "UNSUPPORTED_CONSTRUCT"
+    assert document["refusals"][0]["code"] == "SOURCE_UNAVAILABLE"
 
 
 def test_round_trip_is_exact() -> None:

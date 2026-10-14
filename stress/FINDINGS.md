@@ -4977,3 +4977,30 @@ Taken by Abhay with plan step 5 - PL/pgSQL: refuse one statement, not the whole 
   SELECT * INTO); they now use a record field set from a query (refused alone, the rest
   read) and an `ALIAS FOR` declaration (a declaration still refuses the routine whole -
   there is no statement to isolate).
+
+## Decision taken — 2026-10-15 (D-62)
+
+Taken by Abhay with plan step 6 - effects modelled, not refused.
+
+* **D-62** - what a statement does to a WHOLE relation is an `Operation` fact
+  (`analysis/effects.py`, from PostgreSQL's own parse), never a refusal and never silence:
+  `resets` (TRUNCATE; DELETE with no WHERE and no USING), `drops` (DROP TABLE / VIEW /
+  MATERIALIZED VIEW / FOREIGN TABLE), `alters` (a column dropped or retyped, a partition
+  attached or detached, a rename of the table or a column, a move to another schema).
+  Each carries the relation, a `detail` and its file line - inside a routine or DO block
+  too, at the body statement's own line. Graph: `Statement -[RESETS|DROPS|ALTERS]-> Table`.
+  Not lineage edges, never scored: no column's value comes from them, but a TRUNCATE
+  before a reload decides that the table holds ONLY what the reload wrote.
+* **TRUNCATE leaves the refusal register** (`TRUNCATE_PG` removed): it was refused
+  `UNSUPPORTED_CONSTRUCT` "so it is recorded rather than skipped" - it is now recorded, as
+  what it is. The ledger says `effect`.
+* **Inside routines:** TRUNCATE / DROP / ALTER / ANALYZE / GRANT ... are no-ops for the
+  PL/pgSQL reader (their effects come from the parse), and `CREATE [TEMP] TABLE ... AS
+  <query>` is read as SQL - it carries lineage, and was refused (whole routine before D-61,
+  the statement alone after).
+* Checklist 401/416 (96.4%): every `effect` row met.
+* **Tests and keys restated:** seven fixtures used TRUNCATE as "the refused statement"
+  (export, graph build, graph tools, impact, MCP server, statement start line); they use
+  `COPY ... FROM '<file>'` - still refused, `SOURCE_UNAVAILABLE`, still naming its table.
+  The scope probe has an `EFFECT` bucket (TRUNCATE: REFUSED -> EFFECT). The final suite's
+  h4 key loses its one refusal (S7, TRUNCATE at 196); b3 `t1_breadth` keeps only COPY's.

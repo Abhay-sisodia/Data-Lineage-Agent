@@ -123,7 +123,7 @@ def render(items: dict, rows: list, measured: dict, missing: list[str]) -> str:
         "| lineage | column lineage; every listed pair among it | LINEAGE |",
         "| no_lineage | nothing to trace (DDL, settings, grants) | COUNTED |",
         "| effect | changes what a table holds or is (TRUNCATE, DROP) |"
-        " an Operation fact - not built yet |",
+        " EFFECT - an Operation fact (D-62) |",
         "| refused:C / declared:K | honestly unknowable, named | REFUSED:C / DECLARED:K |",
         "",
         "COUNTED, EFFECT and NOT_ANALYSED come from the statement ledger (plan step 3), which",

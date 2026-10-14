@@ -24,7 +24,7 @@ from typing import Any
 
 from lineage import __version__
 from lineage.analysis.refusal import Refusal, RefusalCode
-from lineage.ir.model import Boundary, IREdge
+from lineage.ir.model import Boundary, IREdge, Operation
 
 FORMAT = "lineage-result/1"
 """Bump the number on any change a reader of the previous version would misread."""
@@ -55,6 +55,8 @@ class ExportedResult:
     """Lookup-join keys (D-57), apart from `edges`. Absent from older documents."""
     fallback: list[IREdge] = field(default_factory=list)
     """`mention` / `opaque` edges of refused statements (D-60). Absent from older documents."""
+    operations: list[Operation] = field(default_factory=list)
+    """What statements do to whole relations (D-62). Absent from older documents."""
     ledger: list[dict[str, Any]] = field(default_factory=list)
     """Every statement and what became of it (plan step 3). Absent from older documents."""
 
@@ -98,6 +100,7 @@ def to_document(
         "refusals": [_refusal_row(refusal) for refusal in result.refusals],
         "join_keys": [edge.model_dump(mode="json") for edge in getattr(result, "join_keys", [])],
         "fallback": [edge.model_dump(mode="json") for edge in getattr(result, "fallback", [])],
+        "operations": [op.model_dump(mode="json") for op in getattr(result, "operations", [])],
         "ledger": [dataclasses.asdict(entry) for entry in getattr(result, "ledger", [])],
     }
 
@@ -122,6 +125,7 @@ def from_document(document: dict[str, Any]) -> ExportedResult:
         ],
         join_keys=[IREdge.model_validate(row) for row in document.get("join_keys", [])],
         fallback=[IREdge.model_validate(row) for row in document.get("fallback", [])],
+        operations=[Operation.model_validate(row) for row in document.get("operations", [])],
         ledger=list(document.get("ledger", [])),
     )
 
