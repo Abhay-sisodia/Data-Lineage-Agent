@@ -5,7 +5,10 @@ out of PostgreSQL's own parser (libpg_query, via pglast), not written by hand, s
 construct nobody thought of still has a row. Each row's outcome is measured by running
 its snippet through `analyse_source`. Rows: `stress/pg/grammar/checklist.yaml`.
 
-**298 / 416 constructs meet their target (71.6%).** Extra combinations: 49 / 68.
+`lineage scan <folder>` uses this table to predict, before analysing, what the analyser
+will make of every statement in a folder - and names the row behind each gap.
+
+**299 / 416 constructs meet their target (71.9%).** Extra combinations: 49 / 70.
 
 | area | constructs | meet target | % |
 |---|---|---|---|
@@ -13,9 +16,9 @@ its snippet through `analyse_source`. Rows: `stress/pg/grammar/checklist.yaml`.
 | clause | 41 | 41 | 100.0% |
 | expression / clause | 100 | 85 | 85.0% |
 | variant | 134 | 130 | 97.0% |
-| PL/pgSQL | 27 | 19 | 70.4% |
+| PL/pgSQL | 27 | 20 | 74.1% |
 
-Measured outcomes over all rows: COUNTED 23, DECLARED 5, HANG 1, LINEAGE 255, REFUSED 22, SILENT 99
+Measured outcomes over all rows: COUNTED 23, DECLARED 5, HANG 1, LINEAGE 256, REFUSED 22, SILENT 100
 
 ## Targets and outcomes
 
@@ -47,6 +50,7 @@ ledger (plan step 3) ends. PARTIAL means lineage came out and a part was refused
 | `extra:boolean_value_in_update_set` | lineage | REFUSED:PARSE_FAILED | holdout gap G1 - a boolean expression as an UPDATE SET value |
 | `extra:column_alias_list` | lineage | DECLARED:unresolved_identifier | the alias renames the columns by position |
 | `extra:explain_analyze_runs_the_write` | lineage | SILENT | EXPLAIN ANALYZE executes the statement - the write happens |
+| `extra:json_table_without_alias` | lineage | SILENT | PostgreSQL does not require JSON_TABLE's alias; the restatement does (found in step 2) |
 | `extra:plpgsql_out_parameter` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_parameters_flow` | lineage | LINEAGE | the caller's value flows through the parameter into the write |
 | `extra:plpgsql_record_field_assignment` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
@@ -54,11 +58,11 @@ ledger (plan step 3) ends. PARTIAL means lineage came out and a part was refused
 | `extra:plpgsql_rowtype_variable` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_scalar_function_return` | lineage | COUNTED |  |
 | `extra:plpgsql_select_star_into_record` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT | holdout gap G2 - `*` into a record, then a field of it |
+| `extra:plpgsql_subquery_then_self_assignment` | lineage | HANG | a value assigned from a subquery and then from itself - the analysis does not finish |
 | `extra:plpgsql_truncate_then_reload` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT | the TRUNCATE in the middle must not cost the routine its lineage |
 | `extra:sql_function_body` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:table_shorthand` | lineage | COUNTED |  |
 | `node:TriggerTransition` | lineage | DECLARED:dangling_reference |  |
-| `plpgsql:PLpgSQL_stmt_assign` | lineage | HANG |  |
 | `plpgsql:PLpgSQL_stmt_case` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `plpgsql:PLpgSQL_stmt_dynfors` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `plpgsql:PLpgSQL_stmt_foreach_a` | lineage | LINEAGE |  |

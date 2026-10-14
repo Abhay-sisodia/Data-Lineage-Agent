@@ -26,18 +26,17 @@ typed by hand, and a generated snapshot catches any change in what we do.
 from __future__ import annotations
 
 import enum
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pglast import ast, enums, parse_plpgsql
-from pglast import parser as pg_parser
+from pglast import ast, enums
 from pglast.printers import NODE_PRINTERS
 
 from lineage.analysis.procedure import analyse_source
 from lineage.config import AnalysisConfig
+from lineage.parsing.pg_referee import CLAUSE_SKIP, DML, _slots
 from lineage.resolution.dictionary import Dictionary
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -53,10 +52,6 @@ EXCLUDED = {
     "stmt:PLAssignStmt": "PL/pgSQL's internal form of `x := expr` - plpgsql:PLpgSQL_stmt_assign",
     "stmt:RawStmt": "the wrapper around every parsed statement",
 }
-
-# The five statements that move data: each of their clauses is an inventory item.
-DML = ("SelectStmt", "InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt")
-CLAUSE_SKIP = {"location", "stmt_location", "stmt_len"}
 
 # Enum fields that only describe DDL - which constraint, which ALTER TABLE action, which
 # role, which partition strategy. None of their values moves a column; each node is still
@@ -136,11 +131,6 @@ def _printable() -> list[type]:
     return sorted((k for k in NODE_PRINTERS if isinstance(k, type)), key=lambda c: c.__name__)
 
 
-def _slots(cls: Any) -> dict[str, Any]:
-    """A pglast node class's fields, each with its C type (`SlotTypeInfo`)."""
-    return dict(cls.__slots__)
-
-
 def _enum_of(info: Any) -> type[enum.Enum] | None:
     kind = getattr(enums, info.c_type, None)
     return kind if isinstance(kind, type) and issubclass(kind, enum.Enum) else None
@@ -177,94 +167,6 @@ def inventory() -> dict[str, str]:
     for key in (*EXCLUDED, *UNREACHABLE):
         items.pop(key, None)
     return items
-
-
-# --- what a piece of SQL contains ----------------------------------------------------------
-
-
-def _walk(node: Any, out: set[str]) -> None:
-    if isinstance(node, (list, tuple)):
-        for item in node:
-            _walk(item, out)
-        return
-    if not isinstance(node, ast.Node):
-        return
-    name = type(node).__name__
-    out.add(f"stmt:{name}" if name.endswith("Stmt") else f"node:{name}")
-    for field_name in _slots(type(node)):
-        value = getattr(node, field_name, None)
-        if value is None:
-            continue
-        if isinstance(value, enum.Enum):
-            out.add(f"variant:{name}.{field_name}={value.name}")
-        elif name in DML and field_name not in CLAUSE_SKIP and value not in (False, 0, "", ()):
-            out.add(f"clause:{name}.{field_name}")
-        _walk(value, out)
-
-
-def _walk_plpgsql(node: Any, out: set[str], sql: list[str]) -> None:
-    if isinstance(node, list):
-        for item in node:
-            _walk_plpgsql(item, out, sql)
-    elif isinstance(node, dict):
-        for key, value in node.items():
-            if key.startswith("PLpgSQL_stmt_"):
-                out.add(f"plpgsql:{key}")
-            if key == "PLpgSQL_expr" and isinstance(value, dict):
-                sql.append(_as_statement(value))
-            _walk_plpgsql(value, out, sql)
-
-
-def _as_statement(expr: dict[str, Any]) -> str:
-    """An embedded PL/pgSQL expression as a statement PostgreSQL's parser accepts."""
-    query = str(expr.get("query", ""))
-    mode = expr.get("parseMode", 0)
-    if mode in (0, "RAW_PARSE_DEFAULT"):
-        return query
-    if mode in (2, "RAW_PARSE_PLPGSQL_EXPR"):
-        return f"SELECT {query}"
-    for operator in (":=", "="):  # RAW_PARSE_PLPGSQL_ASSIGNn - "target := expression"
-        if operator in query:
-            return f"SELECT {query.split(operator, 1)[1]}"
-    return f"SELECT {query}"
-
-
-def _routine_body(statement: Any, text: str) -> str | None:
-    """The CREATE FUNCTION/PROCEDURE text to hand `parse_plpgsql`, DO wrapped as one."""
-    if isinstance(statement, ast.DoStmt):
-        body = next((o.arg.sval for o in statement.args or () if o.defname == "as"), None)
-        if body is None:
-            return None
-        return f"CREATE FUNCTION pg_temp.do_block() RETURNS void LANGUAGE plpgsql AS $do${body}$do$"
-    if isinstance(statement, ast.CreateFunctionStmt):
-        language = next(
-            (o.arg.sval for o in statement.options or () if o.defname == "language"), ""
-        )
-        return text if language.lower() == "plpgsql" else None
-    return None
-
-
-def constructs(sql: str) -> set[str]:
-    """Every inventory id `sql` contains - PL/pgSQL bodies and their embedded SQL included.
-
-    Raises `pglast.parser.ParseError` when PostgreSQL itself would reject `sql`.
-    """
-    out: set[str] = set()
-    for raw in pg_parser.parse_sql(sql):
-        _walk(raw.stmt, out)
-        location, length = raw.stmt_location or 0, raw.stmt_len or len(sql)
-        routine = _routine_body(raw.stmt, sql[location : location + length])
-        if routine is None:
-            continue
-        embedded: list[str] = []
-        _walk_plpgsql(json.loads(json.dumps(parse_plpgsql(routine))), out, embedded)
-        for text in embedded:
-            try:
-                for inner in pg_parser.parse_sql(text):
-                    _walk(inner.stmt, out)
-            except pg_parser.ParseError:
-                continue  # a fragment (a cursor's name, a RAISE format) - not SQL
-    return out
 
 
 # --- what the analyser does with it --------------------------------------------------------

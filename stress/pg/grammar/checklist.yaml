@@ -1866,6 +1866,12 @@
   note: PASSING - the construct SQLGlot cannot parse at all (D-30)
   sql: INSERT INTO tgt.t (n) SELECT jt.n FROM src.a AS a, JSON_TABLE(a.j, '$.items[*] ? (@.k == $k)' PASSING a.k AS k COLUMNS (n text PATH '$.name')) AS jt
 
+- id: extra:json_table_without_alias
+  target: lineage
+  reach: [src.a.j -> tgt.t.n]
+  note: PostgreSQL does not require JSON_TABLE's alias; the restatement does (found in step 2)
+  sql: INSERT INTO tgt.t (n) SELECT n FROM src.a AS a CROSS JOIN JSON_TABLE(a.j, '$.items[*]' COLUMNS (n text PATH '$.name'))
+
 - id: variant:JsonTableColumn.coltype=JTC_FOR_ORDINALITY
   target: lineage
   reach: [src.a.j -> tgt.t.n]
@@ -1990,6 +1996,18 @@
   reach: [src.a.v -> tgt.t.v]
   sql: |
     CREATE FUNCTION tgt.p_assign() RETURNS void LANGUAGE plpgsql AS $$
+    DECLARE total numeric;
+    BEGIN
+      total := (SELECT sum(a.v) FROM src.a AS a);
+      INSERT INTO tgt.t (v) VALUES (total);
+    END $$;
+
+- id: extra:plpgsql_subquery_then_self_assignment
+  target: lineage
+  reach: [src.a.v -> tgt.t.v]
+  note: a value assigned from a subquery and then from itself - the analysis does not finish
+  sql: |
+    CREATE FUNCTION tgt.p_assign2() RETURNS void LANGUAGE plpgsql AS $$
     DECLARE total numeric;
     BEGIN
       total := (SELECT sum(a.v) FROM src.a AS a);

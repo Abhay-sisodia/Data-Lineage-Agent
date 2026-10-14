@@ -26,10 +26,10 @@ from lineage.coverage.grammar import (
     REPORT,
     SNAPSHOT,
     UNREACHABLE,
-    constructs,
     inventory,
     load_rows,
 )
+from lineage.parsing.pg_referee import constructs
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))

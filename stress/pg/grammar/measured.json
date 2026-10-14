@@ -498,6 +498,13 @@
   "status": "LINEAGE",
   "target": "lineage"
  },
+ "extra:json_table_without_alias": {
+  "covers": [],
+  "met": false,
+  "pairs": [],
+  "status": "SILENT",
+  "target": "lineage"
+ },
  "extra:lateral_subquery": {
   "covers": [],
   "met": true,
@@ -668,6 +675,13 @@
   "met": false,
   "pairs": [],
   "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "target": "lineage"
+ },
+ "extra:plpgsql_subquery_then_self_assignment": {
+  "covers": [],
+  "met": false,
+  "pairs": [],
+  "status": "HANG",
   "target": "lineage"
  },
  "extra:plpgsql_truncate_then_reload": {
@@ -1422,9 +1436,12 @@
  },
  "plpgsql:PLpgSQL_stmt_assign": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "HANG",
+  "met": true,
+  "pairs": [
+   "src.a.v -> variable:total",
+   "variable:total -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "plpgsql:PLpgSQL_stmt_call": {

@@ -29,12 +29,12 @@ from lineage.coverage.grammar import (
     REPORT,
     SNAPSHOT,
     UNREACHABLE,
-    constructs,
     inventory,
     load_rows,
     measure_all,
     met,
 )
+from lineage.parsing.pg_referee import constructs
 
 AREAS = ("statement", "clause", "expression / clause", "variant", "PL/pgSQL")
 
@@ -98,6 +98,9 @@ def render(items: dict, rows: list, measured: dict, missing: list[str]) -> str:
         "out of PostgreSQL's own parser (libpg_query, via pglast), not written by hand, so a",
         "construct nobody thought of still has a row. Each row's outcome is measured by running",
         "its snippet through `analyse_source`. Rows: `stress/pg/grammar/checklist.yaml`.",
+        "",
+        "`lineage scan <folder>` uses this table to predict, before analysing, what the analyser",
+        "will make of every statement in a folder - and names the row behind each gap.",
         "",
         f"**{total_met} / {total} constructs meet their target ({100 * total_met / total:.1f}%).**"
         f" Extra combinations: {extras_met} / {len(extras)}.",
@@ -171,7 +174,7 @@ def main() -> int:
         return 1 if stale or problems else 0
     SNAPSHOT.write_text(snapshot, encoding="utf-8", newline="\n")
     REPORT.write_text(report, encoding="utf-8", newline="\n")
-    print(report.split("\n\n")[2])
+    print(next(line for line in report.splitlines() if "constructs meet their target" in line))
     return 1 if problems else 0
 
 

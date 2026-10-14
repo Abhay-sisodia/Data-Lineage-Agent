@@ -35,7 +35,19 @@ import lineage.analysis.band0 as band0
 from lineage.analysis.procedure import analyse_source
 from lineage.analysis.refusal import PoisonedCte, RefusalCode, cte_bodies, cte_scoped_construct
 from lineage.config import AnalysisConfig
+from lineage.parsing import pg_referee
 from lineage.resolution.dictionary import Dictionary, ObjectInfo
+
+
+@pytest.fixture(autouse=True)
+def _without_the_referee(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests isolate the CTE-scoped refusal MECHANISM, and their poison - a PIVOT over a
+    subquery - is not PostgreSQL. Since plan step 2, PostgreSQL's own parser (`pg_referee`)
+    refuses such a statement whole before this mechanism ever sees it, which is the right
+    answer for real PostgreSQL. No construct PostgreSQL accepts reaches the mechanism today
+    (an alias-less JSON_TABLE is refused earlier, by SQLGlot), so the referee is set aside
+    here rather than the tests being lost."""
+    monkeypatch.setattr(pg_referee, "set_aside", lambda source: (source, []))
 
 
 def _book() -> Dictionary:

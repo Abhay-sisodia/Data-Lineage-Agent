@@ -19,7 +19,7 @@ import re
 import sqlglot
 from sqlglot import exp
 
-from lineage.analysis import band0
+from lineage.analysis import band0, plpgsql
 from lineage.analysis.band0 import AnalysisResult, Refusal
 from lineage.analysis.cfg import Cfg, build_all
 from lineage.analysis.cfg import NodeKind as CfgNodeKind
@@ -30,11 +30,10 @@ from lineage.analysis.defuse import (
     definitions_and_uses,
 )
 from lineage.analysis.document_tables import restate as restate_document_tables
-from lineage.analysis import plpgsql
 from lineage.analysis.dynamic import Resolution, resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
-from lineage.analysis.refusal import classify_program, enclosing_unit_at
+from lineage.analysis.refusal import RefusalCode, classify_program, enclosing_unit_at
 from lineage.analysis.relations import is_path_change, search_path_change
 from lineage.analysis.scratch import find_fusion_hazards
 from lineage.analysis.triggers import inherited_edges
@@ -42,12 +41,46 @@ from lineage.config import AnalysisConfig
 from lineage.dialects import resolve_dialect
 from lineage.evidence.witness import ExecutionWitness
 from lineage.ir.model import Boundary, BoundaryKind, Flow, IREdge, Node, NodeKind
-from lineage.parsing import pg_grammar, psql
-from lineage.parsing.plsql import Program, parse_program, source_slice
+from lineage.parsing import pg_grammar, pg_referee, psql
+from lineage.parsing.plsql import Program, source_slice
+from lineage.parsing.sqlscript import SCRIPT_UNIT
 from lineage.resolution.dictionary import Dictionary
 from lineage.resolution.views import resolve_views
 
-__all__ = ["AnalysisResult", "Refusal", "analyse_source"]
+__all__ = ["AnalysisResult", "Refusal", "analyse_source", "restate_postgres"]
+
+
+def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_referee.Verdict]]:
+    """A PostgreSQL script as the analyser reads it, every line number unchanged.
+
+    Returns the restated source, the psql includes, and the statements PostgreSQL's own
+    parser rejects - blanked out of the source, for the caller to refuse by name.
+    """
+    # D-36, D-37: a psql script restated as the SQL the server receives - meta-commands
+    # blanked, `:'v'` substituted, `U&""` decoded - before anything splits or parses
+    # it (B10-03, B10-05). Same lines, so every later line number holds.
+    source, includes = psql.restate(source)
+    # Plan step 2: PostgreSQL's own grammar referees every statement before anything else
+    # reads it. One it rejects is not SQL the server would run - SQLGlot accepts some such
+    # (`TIMESTAMP('...')`, a Spark spelling) and would answer for it with confident edges.
+    source, rejected = pg_referee.set_aside(source)
+    # D-30: JSON_TABLE / XMLTABLE restated as LATERAL subqueries in the SOURCE, before
+    # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
+    # (B5-04), and the refusal register scans the raw text. Line counts are kept.
+    source = restate_document_tables(source)
+    # B7-07: SQLGlot cannot parse OVERRIDING {SYSTEM|USER} VALUE. It decides whether an
+    # identity column takes the supplied value and changes nothing about lineage, so it
+    # is blanked - same length, so every line and column stays where it was.
+    source = re.sub(
+        r"\bOVERRIDING\s+(?:SYSTEM|USER)\s+VALUE\b",
+        lambda m: re.sub(r"\S", " ", m.group(0)),
+        source,
+        flags=re.IGNORECASE,
+    )
+    # TT-5: PostgreSQL grammar SQLGlot has no rule for (SEARCH / CYCLE, SQL/JSON and XML
+    # keyword forms, typed and radix literals, geometric operators ...), restated as SQL
+    # that reads the same columns. Same lines, so every later line number holds.
+    return pg_grammar.restate(source), includes, rejected
 
 
 def analyse_source(
@@ -70,29 +103,10 @@ def analyse_source(
     dialect = resolve_dialect(settings, dictionary)
 
     includes: list[psql.Include] = []
+    rejected: list[pg_referee.Verdict] = []
     desugared: plpgsql.Desugared | None = None
     if dialect.name == "postgres":
-        # D-36, D-37: a psql script restated as the SQL the server receives - meta-commands
-        # blanked, `:'v'` substituted, `U&""` decoded - before anything splits or parses
-        # it (B10-03, B10-05). Same lines, so every later line number holds.
-        source, includes = psql.restate(source)
-        # D-30: JSON_TABLE / XMLTABLE restated as LATERAL subqueries in the SOURCE, before
-        # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
-        # (B5-04), and the refusal register scans the raw text. Line counts are kept.
-        source = restate_document_tables(source)
-        # B7-07: SQLGlot cannot parse OVERRIDING {SYSTEM|USER} VALUE. It decides whether an
-        # identity column takes the supplied value and changes nothing about lineage, so it
-        # is blanked - same length, so every line and column stays where it was.
-        source = re.sub(
-            r"\bOVERRIDING\s+(?:SYSTEM|USER)\s+VALUE\b",
-            lambda m: re.sub(r"\S", " ", m.group(0)),
-            source,
-            flags=re.IGNORECASE,
-        )
-        # TT-5: PostgreSQL grammar SQLGlot has no rule for (SEARCH / CYCLE, SQL/JSON and XML
-        # keyword forms, typed and radix literals, geometric operators ...), restated as SQL
-        # that reads the same columns. Same lines, so every later line number holds.
-        source = pg_grammar.restate(source)
+        source, includes, rejected = restate_postgres(source)
         # B8 (D-39..D-42): every PL/pgSQL routine and DO block the reader can read becomes
         # the SQL its body runs, at its own lines; what it cannot read stays as written and
         # is refused by name, as before. `plpgsql.finish` restates the result afterwards.
@@ -137,6 +151,23 @@ def analyse_source(
                 desugared,
                 dictionary,
             )
+
+    # Plan step 2: each statement PostgreSQL's own parser rejected was blanked before any
+    # front end read it - counted here, and refused by name, so it is never silent.
+    for rejection in rejected:
+        result.statements_seen += 1
+        result.refusals.append(
+            Refusal(
+                kind=(rejection.text.split() or ["?"])[0].upper(),
+                line=rejection.line,
+                reason=f"PostgreSQL's own parser rejects this statement ({rejection.error}) - it "
+                "is not SQL the server would run, so nothing is claimed from it",
+                excerpt=" ".join(rejection.text.split())[:80],
+                code=RefusalCode.PARSE_FAILED,
+                unit=SCRIPT_UNIT,
+                end_line=rejection.end_line,
+            )
+        )
 
     # The unanalysable-construct classifier (T3.1), run over the whole program rather than
     # over one module's statement list. A `MODEL` clause is refused whether it appears in a

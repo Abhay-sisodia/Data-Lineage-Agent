@@ -4881,3 +4881,33 @@ value of the cost - "the SKU feeds the cost" to any reader.
   restated, plus 6 window/count tests whose influence sets now include the key. Pilot:
   recall unchanged (94.4% default, 98.3% with join keys); 202 value edges and 2 filters
   became keys or influence; extras by the default walk 334 -> 311.
+
+## Decision taken — 2026-10-14 (D-59)
+
+Taken by Abhay with plan step 2 (`docs/pg-coverage.md`, `lineage scan`).
+
+* **D-59** - PostgreSQL's own parser (libpg_query, via pglast) referees every PostgreSQL
+  statement before anything else reads it (`parsing/pg_referee.py`). A statement it rejects
+  is not SQL the server would run: it is blanked out of the source (lines kept) and refused
+  `PARSE_FAILED`, "PostgreSQL's own parser rejects this statement", so nothing is ever
+  claimed from it. SQLGlot accepted some such statements and answered for them with
+  confident edges - `TIMESTAMP('1900-01-01')`, a Spark spelling, in `torture_po`.
+  - An unquoted psql variable (`WHERE id > :lo`, `FROM :tbl`) never makes a statement
+    invalid: psql substitutes it before the server sees the statement, so validation
+    retries with it as a value, then as a name. The source is not changed.
+  - A PL/pgSQL body is not refereed: PostgreSQL checks it against a live catalogue, and a
+    valid body (`%ROWTYPE` of a table this process cannot see) can fail offline.
+* **`lineage scan <folder>`** predicts, before analysis, what the analyser makes of every
+  statement - column-level, gap (with the checklist row and measured outcome behind it),
+  effect, no lineage, not counted, not valid PostgreSQL - from the grammar checklist plus a
+  whole-statement SQLGlot parse after our pre-pass (which catches combinations such as G1).
+  Measured against what `analyse_source` actually refuses: holdout 56/56 data-moving
+  statements predicted right (both refusals named with their cause - G1, and G2's
+  `SELECT * INTO` a `%ROWTYPE`), final suite 88/88; batches and torture 817/823, the six
+  being five warnings on statements that were analysed but lose part of their lineage (a
+  false boundary, a missed edge) and one name-resolution refusal from scanning the final
+  suite against the batch dictionary.
+* **Tests:** `test_cte_scoped_refusal.py` poisons a CTE with a PIVOT over a subquery, which
+  is not PostgreSQL and is now refused whole by the referee. No construct PostgreSQL accepts
+  reaches the CTE-scoped mechanism today (an alias-less `JSON_TABLE`, valid PostgreSQL, is
+  refused earlier by SQLGlot - now a checklist row), so those tests set the referee aside.

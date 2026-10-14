@@ -417,6 +417,28 @@ def config_show(
 
 
 @app.command()
+def scan(
+    folder: Annotated[Path, typer.Argument(help="A PostgreSQL .sql file or a folder of them.")],
+    output: Annotated[
+        Path | None, typer.Option("--output", help="Write every statement's prediction as JSON.")
+    ] = None,
+) -> None:
+    """Predict, before analysing, what the analyser will make of every statement.
+
+    PostgreSQL's own parser reads each statement; each construct in it is looked up in the
+    grammar checklist (docs/pg-coverage.md). Statements predicted as gaps are listed with
+    the construct and its checklist row.
+    """
+    from lineage.coverage.scan import scan_folder, summary, to_json
+
+    scans = scan_folder(folder)
+    typer.echo(summary(scans))
+    if output is not None:
+        output.write_text(to_json(scans) + "\n", encoding="utf-8")
+        typer.echo(f"wrote {output}")
+
+
+@app.command()
 def analyse(
     package: Annotated[Path, typer.Argument(help="Corpus .sql file to analyse.")],
     dictionary: Annotated[
