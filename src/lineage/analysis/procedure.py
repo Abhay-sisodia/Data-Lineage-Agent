@@ -104,6 +104,7 @@ def analyse_source(
     ``<result>``.
     """
     settings = config or AnalysisConfig()
+    original_lines = source.split("\n")
     dialect = resolve_dialect(settings, dictionary)
 
     includes: list[psql.Include] = []
@@ -155,6 +156,24 @@ def analyse_source(
                 desugared,
                 dictionary,
             )
+
+    # Plan step 5: a statement inside a routine the PL/pgSQL reader could not follow is
+    # refused ALONE, at its own lines - the routine around it was read.
+    for line, end_line, unit, why in desugared.opaque if desugared is not None else ():
+        result.statements_seen += 1
+        excerpt = " ".join(" ".join(original_lines[line - 1 : end_line]).split())[:80]
+        result.refusals.append(
+            Refusal(
+                kind="plpgsql_statement",
+                line=line,
+                reason=f"a PL/pgSQL statement the reader could not follow - {why}; the rest "
+                f"of {unit} is analysed",
+                excerpt=excerpt,
+                code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+                unit=unit,
+                end_line=end_line,
+            )
+        )
 
     # Plan step 2: each statement PostgreSQL's own parser rejected was blanked before any
     # front end read it - counted here, and refused by name, so it is never silent.

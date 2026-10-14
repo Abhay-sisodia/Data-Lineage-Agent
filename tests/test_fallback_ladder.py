@@ -126,11 +126,13 @@ def test_rung3_a_refused_write_keeps_the_columns_it_names(book) -> None:
     assert [e.status for e in result.ledger] == ["unclassified"]
 
 
-ROUTINE = """CREATE PROCEDURE tgt.reload() LANGUAGE plpgsql AS $$
-DECLARE r record;
+# A declaration the PL/pgSQL reader cannot read still refuses the routine whole (D-61
+# refuses single STATEMENTS alone; a header or declaration has no statement to isolate).
+ROUTINE = """CREATE PROCEDURE tgt.reload(p integer) LANGUAGE plpgsql AS $$
+DECLARE k ALIAS FOR p;
 BEGIN
-  SELECT * INTO r FROM src.b AS b WHERE b.id = 1;
-  INSERT INTO tgt.t (v) SELECT a.v FROM src.a AS a WHERE a.k = r.k;
+  INSERT INTO tgt.t (k) SELECT b.k FROM src.b AS b;
+  INSERT INTO tgt.t (v) SELECT a.v FROM src.a AS a;
 END $$;
 """
 

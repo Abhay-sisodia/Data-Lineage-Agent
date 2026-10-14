@@ -103,11 +103,15 @@ class Desugared:
         default_factory=dict
     )  # scalar function -> its RETURN expressions' symbols, per RETURN
     units: dict[str, str] = field(default_factory=dict)  # scalar function -> unit
+    params: dict[str, list[str]] = field(default_factory=dict)  # function -> its IN params
     trigger_filters: dict[str, list[Use]] = field(default_factory=dict)
     trigger_tables: dict[str, list[str]] = field(default_factory=dict)
     unsupported: dict[int, str] = field(default_factory=dict)
     """Routine line -> why the reader gave up on it. The refusal says so, rather than the
     generic "no grammar" - the cause is what a person needs to act on."""
+    opaque: list[tuple[int, int, str, str]] = field(default_factory=list)
+    """Plan step 5: (line, end line, unit, why) of each statement INSIDE a routine the reader
+    could not follow. The statement is refused alone; the routine around it is read."""
 
 
 @dataclass
@@ -276,7 +280,7 @@ class _Desugarer:
         backup = (list(self.out.lines), {k: list(v) for k, v in self.out.placed.items()})
         context = _Context(
             unit=unit,
-            variables=set(routine.params) | set(routine.out_columns),
+            variables=set(routine.params) | set(routine.out_columns) | set(routine.out_params),
             band=2 if routine.returns == "trigger" else 0,
             trigger=unit if routine.returns == "trigger" else "",
         )
@@ -305,6 +309,12 @@ class _Desugarer:
             self.phantoms = saved[2]
             self.out.lines, self.out.placed = backup
             return
+        if routine.returns == "scalar" and len(routine.out_params) == 1:
+            # One OUT parameter: its final value is what the function returns.
+            returned = routine.out_params[0]
+            self.result.returns.setdefault(unit, []).append(
+                (returned, [(("", returned), Transform.IDENTITY)])
+            )
         if bindings:
             self.result.trigger_tables[unit] = [b.table for b in bindings]
             for binding in bindings:
@@ -319,6 +329,7 @@ class _Desugarer:
         elif routine.kind == "function":
             self.functions[routine.name] = function
             self.result.units[routine.name] = unit
+            self.result.params[routine.name] = list(routine.params)
 
     def block(self, block: pl.Block, context: _Context, function: _Function) -> None:
         for declaration in block.declarations:
@@ -357,12 +368,80 @@ class _Desugarer:
             elif isinstance(node, pl.Loop):
                 self.loop(node, context, function)
             else:
-                self.simple(node, context, function)
+                self._isolated(node, context, function)
+
+    def _isolated(self, stmt: pl.Stmt, context: _Context, function: _Function) -> None:
+        """One statement, refused ALONE if it cannot be followed (plan step 5).
+
+        Whatever it had placed is taken back, its INTO targets become plain variables - so a
+        later use is traced from a variable with no named source rather than misread - and it
+        is recorded at its own lines for `procedure` to refuse by name.
+        """
+        if stmt.kind == "opaque":
+            self._opaque(stmt.start, stmt.text, stmt.expression, context)
+            return
+        saved = (len(self.result.emitted), len(self.result.boundaries), self.phantoms)
+        backup = (list(self.out.lines), {k: list(v) for k, v in self.out.placed.items()})
+        try:
+            self.simple(stmt, context, function)
+        except pl.UnsupportedError as error:
+            del self.result.emitted[saved[0] :]
+            del self.result.boundaries[saved[1] :]
+            self.phantoms = saved[2]
+            self.out.lines, self.out.placed = backup
+            self._opaque(stmt.start, stmt.text, str(error), context)
+
+    def _opaque(self, start: int, text: str, reason: str, context: _Context) -> None:
+        line = self._line(start)
+        self.result.opaque.append((line, self._line(start + len(text)), context.unit, reason))
+        into = re.search(r"(?is)\bINTO\s+(?:STRICT\s+)?([\w$.]+(?:\s*,\s*[\w$.]+)*)", text)
+        for target in into.group(1).split(",") if into else ():
+            name = target.strip().lower()
+            if name and "." not in name:
+                context.variables.add(name)
+                context.constants.pop(name, None)
 
     def loop(self, loop: pl.Loop, context: _Context, function: _Function) -> None:
         self.loops += 1
         number = self.loops
         inner = context.inside_loop(number)
+        if loop.kind == "execute":
+            folded = _fold(loop.query, context.constants)
+            line = self._line(loop.start)
+            if folded is None:
+                self.result.boundaries.append(
+                    Boundary(
+                        kind=BoundaryKind.DYNAMIC_SQL,
+                        subject=f"EXECUTE:{line}",
+                        detail=f"{context.unit}: line {line} loops over text that does not "
+                        "fold to a constant, so its rows are not decidable (D-42)",
+                        unit=context.unit,
+                        line=line,
+                    )
+                )
+                inner.variables.add(loop.variable.lower())
+            else:
+                record = loop.variable.lower()
+                phantom = self._phantom(
+                    re.sub(r"\$\d+", "NULL", folded),
+                    loop.query_start or loop.start,
+                    inner.dynamic(),
+                    "loop",
+                    (),
+                    names=True,
+                    record=record,
+                )
+                inner.records[record] = [phantom.phantom]
+                inner.loop_phantoms[number] = phantom.phantom
+            self.nodes(loop.body, inner, function)
+            return
+        if loop.kind == "opaque":
+            # A header the reader cannot follow: refused at its own line; the body is read.
+            self._opaque(loop.start, "FOR", loop.reason, context)
+            if loop.variable:
+                inner.variables.add(loop.variable.lower())
+            self.nodes(loop.body, inner, function)
+            return
         if loop.kind in ("query", "cursor"):
             query = loop.query if loop.kind == "query" else context.cursors.get(loop.cursor.lower())
             if query is None:
@@ -376,6 +455,21 @@ class _Desugarer:
         else:
             inner.variables.add(loop.variable.lower())
             context.constants.pop(loop.variable.lower(), None)
+            if loop.kind == "foreach" and loop.query:
+                # `FOREACH x IN ARRAY ks`: each x is an element of ks (plan step 5).
+                variable = loop.variable.lower()
+                uses = self._uses(f"SELECT {loop.query}", context, "into", targets=(variable,))
+                self.result.emitted.append(
+                    Emitted(
+                        line=self._line(loop.query_start or loop.start),
+                        unit=context.unit,
+                        band=inner.band,
+                        kind="assign",
+                        loops=inner.loop_stack,
+                        trigger=context.trigger,
+                        uses=uses,
+                    )
+                )
         self.nodes(loop.body, inner, function)
 
     def simple(self, stmt: pl.Stmt, context: _Context, function: _Function) -> None:
@@ -398,9 +492,12 @@ class _Desugarer:
             if query is None:
                 raise pl.UnsupportedError(f"FETCH from an unknown cursor {stmt.cursor}")
             targets = tuple(t.lower() for t in stmt.targets)
-            self._phantom(query, stmt.start, context, "into", targets)
+            self._into(query, stmt.start, context, targets)
         elif kind == "execute":
             self._execute(stmt, context)
+        elif kind == "open":
+            # `OPEN c FOR <query>`: from here on, FETCH c reads that query.
+            context.cursors[stmt.cursor.lower()] = stmt.expression
         elif kind == "return_query":
             function.queries.append(stmt.expression)
         elif kind == "return_next":
@@ -448,19 +545,35 @@ class _Desugarer:
             raise pl.UnsupportedError("DML ... RETURNING ... INTO on one line")
         self._sql(stmt.text, stmt.start, context)
         targets = tuple(t.lower() for t in stmt.targets)
-        self._phantom(
-            f"SELECT {stmt.expression} FROM {written}", stmt.at, context, "into", targets
-        )
+        self._phantom(f"SELECT {stmt.expression} FROM {written}", stmt.at, context, "into", targets)
 
     def _select_into(self, text: str, start: int, context: _Context) -> None:
-        parsed = _parse(text)
+        # `INTO STRICT` only adds a run-time check that exactly one row came back.
+        parsed = _parse(re.sub(r"(?i)\bINTO\s+STRICT\b", "INTO", text))
         if not isinstance(parsed, exp.Select) or parsed.args.get("into") is None:
             raise pl.UnsupportedError("SELECT INTO that SQLGlot reads otherwise")
         into = parsed.args["into"]
         names = [into.this, *(into.expressions or [])] if into.this else list(into.expressions)
         targets = tuple(_name_of(n) for n in names)
         parsed.set("into", None)
-        self._phantom(parsed.sql(dialect=DIALECT), start, context, "into", targets)
+        self._into(parsed.sql(dialect=DIALECT), start, context, targets)
+
+    def _into(self, query: str, start: int, context: _Context, targets: tuple[str, ...]) -> None:
+        """`<query> INTO targets` - SELECT INTO and FETCH alike.
+
+        One target for `*`, or for several columns, is a record (holdout gap G2: `SELECT *
+        INTO rec`, a `%ROWTYPE`, `FETCH c INTO rec`) - its fields are the query's columns,
+        read as a FOR loop's record is. Otherwise each target takes one column.
+        """
+        parsed = _parse(query)
+        selects = parsed.selects if isinstance(parsed, exp.Query) else []
+        star = any(isinstance(s, exp.Star) or isinstance(s.this, exp.Star) for s in selects)
+        if len(targets) == 1 and selects and (star or len(selects) != 1):
+            record = targets[0]
+            phantom = self._phantom(query, start, context, "record", (), names=True, record=record)
+            context.records[record] = [*context.records.get(record, []), phantom.phantom]
+            return
+        self._phantom(query, start, context, "into", targets)
 
     def _assign(self, stmt: pl.Stmt, context: _Context) -> None:
         target = stmt.targets[0].lower()
@@ -1047,7 +1160,9 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
         owner = target_name.split(".")[1] if target_name.startswith("pg_temp.") else ""
         if owner in phantoms:
             emitted = phantoms[owner]
-            if emitted.kind == "loop":
+            if emitted.kind == "record" and edge.flow is Flow.FILTER:
+                into_edges.append((emitted, edge))  # it chose the row read (rule 2)
+            elif emitted.kind in ("loop", "record"):
                 if edge.flow is Flow.FILTER:
                     loop_filters.setdefault(owner, []).append(edge.source)
                 else:
@@ -1246,6 +1361,12 @@ def _record_phantoms(desugared: Desugared, emitted: Emitted, record: str) -> lis
             and candidate.unit == emitted.unit
             and candidate.loops
             and candidate.loops[-1] in emitted.loops
+        ) or (
+            # `SELECT * INTO rec` earlier in the routine (G2): every one that may have run.
+            candidate.kind == "record"
+            and candidate.record == record
+            and candidate.unit == emitted.unit
+            and candidate.line <= emitted.line
         ):
             found.append(candidate.phantom)
     return found
@@ -1295,12 +1416,15 @@ def summaries(result: Any, desugared: Desugared) -> dict[str, Summary]:
     out: dict[str, Summary] = {}
     for unit in desugared.units:
         summary = Summary(unit=unit.split(".")[-1].upper())
+        params = desugared.params.get(unit, [])
         for _, symbols in desugared.returns.get(unit, []):
             for (record, name), transform in symbols:
                 if record:
                     continue
                 for column, inner in provenance.get((unit, name), []):
                     summary.returns_from.append(ReturnSource(column, _combine(inner, transform)))
+                if name in params:  # plan step 5: `RETURN x * 2` is computed from argument x
+                    summary.from_arguments.append((params.index(name), transform))
         out[summary.unit] = summary
     return out
 

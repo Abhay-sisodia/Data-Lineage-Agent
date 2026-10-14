@@ -143,8 +143,10 @@ def test_a_trigger_field_set_from_a_clock_carries_no_lineage() -> None:
 
 
 def test_a_routine_the_reader_cannot_follow_says_why() -> None:
-    sql = _routine(
-        "  FOR v_r IN EXECUTE 'SELECT 1' LOOP\n    NULL;\n  END LOOP;\n", declare="v_r record;"
-    )
-    reasons = [r.reason for r in analyse_source(sql, _book(), POSTGRES).refusals]
-    assert any("stopped at: FOR ... IN EXECUTE" in reason for reason in reasons), reasons
+    """Whole (a declaration it cannot read) or one statement (D-61): the reason names it."""
+    whole = _routine("  NULL;\n", declare="v_r ALIAS FOR $1;")
+    reasons = [r.reason for r in analyse_source(whole, _book(), POSTGRES).refusals]
+    assert any("stopped at: ALIAS FOR declarations" in reason for reason in reasons), reasons
+    alone = _routine("  v_r.kind := (SELECT 'x');\n", declare="v_r mart.events_log%ROWTYPE;")
+    reasons = [r.reason for r in analyse_source(alone, _book(), POSTGRES).refusals]
+    assert any("assignment to a record field; the rest of" in reason for reason in reasons)

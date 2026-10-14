@@ -57,6 +57,10 @@ class Summary:
     returns_from: list[ReturnSource] = field(default_factory=list)
     reads: set[str] = field(default_factory=set)  # relations the callee filters
     truncated: bool = False  # depth cap or recursion stopped the analysis
+    from_arguments: list[tuple[int, Transform]] = field(default_factory=list)
+    """Argument positions (0-based) the return value is computed from, and how (plan step
+    5): `RETURN x * 2` depends on its first argument, derived. At the call site the
+    caller's argument is then a value source of the result - not a row selector."""
 
     def consolidated(self) -> list[ReturnSource]:
         """One entry per column, keeping the WEAKEST transform found.
@@ -96,9 +100,7 @@ def _return_expressions(program: Program, unit_ctx: Any) -> list[str]:
 
 def _unit_contexts(program: Program, dialect: str) -> dict[str, Any]:
     """Every callable unit in the source, by name, folded with the dialect's rule."""
-    return {
-        fold(unit.name, dialect): unit.ctx for unit in program.frontend.units(program.tree)
-    }
+    return {fold(unit.name, dialect): unit.ctx for unit in program.frontend.units(program.tree)}
 
 
 class SummaryBuilder:

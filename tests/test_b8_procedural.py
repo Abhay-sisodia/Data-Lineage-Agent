@@ -101,17 +101,22 @@ def test_call_is_counted() -> None:
     assert result.statements_seen == 1 and result.edges == [] and result.refusals == []
 
 
-def test_a_routine_with_a_form_the_reader_does_not_know_stays_refused_whole() -> None:
-    """The control: a CASE statement is not read, so nothing of the routine is claimed."""
+def test_a_statement_the_reader_does_not_know_is_refused_alone() -> None:
+    """The control, since D-61 (plan step 5): a statement the reader cannot follow - a
+    record field set from a query - is refused at its own line; the INSERT beside it in
+    the same routine is still read. Until then it refused the whole routine."""
     result = _result(
         _routine(
-            "DECLARE\n    v integer;\nBEGIN\n"
+            "DECLARE\n    r mart.kpi_rollup%ROWTYPE;\nBEGIN\n"
             "    INSERT INTO mart.kpi_rollup (level) SELECT o.channel FROM staging.orders AS o;\n"
-            "    CASE v WHEN 1 THEN NULL; END CASE;\nEND;"
+            "    r.level := (SELECT o.channel FROM staging.orders AS o LIMIT 1);\nEND;"
         )
     )
-    assert result.edges == []
-    assert [r.code.value for r in result.refusals] == ["UNSUPPORTED_CONSTRUCT"]
+    assert ("column:staging.orders.channel", "column:mart.kpi_rollup.level") in {
+        (str(e.source), str(e.target)) for e in result.edges
+    }
+    assert [(r.code.value, r.line) for r in result.refusals] == [("UNSUPPORTED_CONSTRUCT", 7)]
+    assert [e.status for e in result.ledger] == ["partial"]
 
 
 def test_a_routines_own_search_path_binds_its_unqualified_names() -> None:

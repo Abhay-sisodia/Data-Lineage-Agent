@@ -623,9 +623,12 @@
  },
  "extra:plpgsql_out_parameter": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.v -> variable:total"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:plpgsql_parameters_flow": {
@@ -647,22 +650,29 @@
  "extra:plpgsql_returning_into": {
   "covers": [],
   "met": false,
-  "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "pairs": [
+   "variable:new_v -> tgt.t.v"
+  ],
+  "status": "PARTIAL:UNSUPPORTED_CONSTRUCT",
   "target": "lineage"
  },
  "extra:plpgsql_rowtype_variable": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
+  "met": true,
+  "pairs": [
+   "src.a.id -> relation:src.a",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:plpgsql_scalar_function_return": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "NOT_ANALYSED",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:plpgsql_select_into_scalar": {
@@ -677,9 +687,12 @@
  },
  "extra:plpgsql_select_star_into_record": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
+  "met": true,
+  "pairs": [
+   "src.a.id -> relation:src.a",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:plpgsql_subquery_then_self_assignment": {
@@ -692,8 +705,10 @@
  "extra:plpgsql_truncate_then_reload": {
   "covers": [],
   "met": false,
-  "pairs": [],
-  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "PARTIAL:UNSUPPORTED_CONSTRUCT",
   "target": "lineage"
  },
  "extra:prefix_operator": {
@@ -1467,9 +1482,11 @@
  },
  "plpgsql:PLpgSQL_stmt_case": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "plpgsql:PLpgSQL_stmt_commit": {
@@ -1495,9 +1512,12 @@
  },
  "plpgsql:PLpgSQL_stmt_dynfors": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "plpgsql:PLpgSQL_stmt_execsql": {
@@ -1524,10 +1544,11 @@
  },
  "plpgsql:PLpgSQL_stmt_foreach_a": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [
    "src.a.arr -> variable:ks",
    "src.a.id -> relation:src.a",
+   "variable:ks -> variable:x",
    "variable:x -> tgt.t.k"
   ],
   "status": "LINEAGE",
@@ -1591,9 +1612,12 @@
    "plpgsql:PLpgSQL_stmt_fetch",
    "plpgsql:PLpgSQL_stmt_close"
   ],
-  "met": false,
-  "pairs": [],
-  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "plpgsql:PLpgSQL_stmt_perform": {

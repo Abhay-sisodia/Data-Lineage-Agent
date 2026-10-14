@@ -4943,3 +4943,37 @@ own parser accepts and SQLGlot cannot read.
   poisoned by two different constructs was refused whole. With `START WITH` (which SQLGlot
   cannot parse) set aside by rung 2, the PIVOT is confined by PG-20 as before - each CTE is
   refused alone and the clean CTE keeps its two edges. The test now states that.
+
+## Decision taken — 2026-10-15 (D-61)
+
+Taken by Abhay with plan step 5 - PL/pgSQL: refuse one statement, not the whole routine.
+
+* **D-61** - a statement inside a routine the PL/pgSQL reader cannot follow is refused
+  ALONE, at its own lines (`UNSUPPORTED_CONSTRUCT`, "the rest of <unit> is analysed"); the
+  routine around it is read and the ledger says `partial`. Before, one such statement
+  refused the routine whole "so nothing half-read is reported" - a TRUNCATE in the middle
+  of a reload procedure cost every write in it. What the statement placed is taken back,
+  and its INTO targets become plain variables: a later use is traced from a variable with
+  no named source, never misread. A loop header the reader cannot follow is refused at
+  its line and its body is still read.
+* **Forms now read** (each was a whole-routine refusal): `CASE ... END CASE` (arms as an
+  IF's), `OPEN c FOR <query>` (FETCH c then reads it), `FOR r IN EXECUTE <constant>` (as a
+  query loop; non-constant text is a `dynamic_sql` boundary), OUT / INOUT parameters (one
+  OUT parameter is the value returned), `INTO STRICT`, and **holdout gap G2**: `SELECT *
+  INTO rec` / `%ROWTYPE` / `FETCH c INTO rec` - one target for `*` or for several columns
+  is a record whose fields are the query's columns, as a FOR loop's record is; every
+  earlier assignment in the routine is a source (both IF arms).
+* **Two silent losses closed:** a scalar function whose RETURN is computed from its
+  parameters (`RETURN x * 2`) summarised to nothing, so `INSERT ... SELECT f(a.v)` produced
+  no edge at all (`Summary.from_arguments`: the argument is now a derived value of the
+  result); `FOREACH x IN ARRAY ks` now links x to ks.
+* **Holdout, measured after steps 4-5:** 0 refusals (02:360 G1 and 05:123 G2 both analysed);
+  recall by the default walk 268/275 = 97.5% (91.3% cold), with join keys 269/275 = 97.8%
+  (96.4% cold); values 51/51, filters 183/183. What is left: G4 (a lookup keyed through a
+  deduplicated lookup) and one final ORDER BY without a limit (convention). Checklist
+  395/416 (95.0%); PL/pgSQL 26/27 statement types.
+* **Tests restated (4):** three asserted the old whole-routine refusal through forms D-61
+  now reads (`test_b8` used CASE, `test_pilot_fixes` FOR ... IN EXECUTE, `test_fallback_ladder`
+  SELECT * INTO); they now use a record field set from a query (refused alone, the rest
+  read) and an `ALIAS FOR` declaration (a declaration still refuses the routine whole -
+  there is no statement to isolate).

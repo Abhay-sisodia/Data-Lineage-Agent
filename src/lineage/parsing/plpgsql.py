@@ -36,7 +36,8 @@ class Stmt:
     """One PL/pgSQL statement. `kind` names the form; `text` is its source, unparsed."""
 
     kind: str  # sql | select_into | assign | execute | fetch | return | return_query |
-    #            return_next | diagnostics | noop
+    #            return_next | diagnostics | open | noop | opaque (plan step 5: a statement
+    #            this reader cannot follow, kept in place - `expression` says why)
     text: str
     start: int  # absolute offset of its first character
     targets: tuple[str, ...] = ()  # assignment / INTO / FETCH targets, as written
@@ -49,12 +50,13 @@ class Stmt:
 @dataclass
 class Loop:
     start: int
-    kind: str  # query | cursor | range | foreach | while | loop
+    kind: str  # query | cursor | range | foreach | while | loop | execute | opaque
     variable: str = ""  # the record or index variable
     query: str = ""  # FOR rec IN <query>
     query_start: int = 0
     cursor: str = ""
     body: list[Node] = field(default_factory=list)
+    reason: str = ""  # opaque: why the header could not be followed (its body still is)
 
 
 @dataclass
@@ -94,8 +96,19 @@ Node = Stmt | Loop | If | Block
 _WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*")
 _ASSIGN = re.compile(r"^([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*(?::=|=)\s*(.*)$", re.DOTALL)
 _SQL_START = {"select", "with", "insert", "update", "delete", "merge", "values", "table"}
-_NOOPS = {"raise", "null", "commit", "rollback", "close", "call", "assert", "move", "open",
-          "exit", "continue"}
+_NOOPS = {
+    "raise",
+    "null",
+    "commit",
+    "rollback",
+    "close",
+    "call",
+    "assert",
+    "move",
+    "open",
+    "exit",
+    "continue",
+}
 """Statements that move no data. EXIT / CONTINUE end an iteration or a loop early; the
 loop's own reads and writes are where its lineage is."""
 
@@ -293,7 +306,7 @@ class _Reader:
             elif word in ("for", "foreach", "while", "loop"):
                 nodes.append(self.loop())
             elif word == "case":
-                raise UnsupportedError("CASE statements")
+                nodes.append(self.case_())
             else:
                 nodes.append(self.simple())
 
@@ -315,6 +328,27 @@ class _Reader:
         self.end_of_piece()
         return node
 
+    def case_(self) -> If:
+        """`CASE [x] WHEN ... THEN stmts ... [ELSE stmts] END CASE;` - one arm per WHEN, as an
+        IF reads: which arm runs is decided at run time, so each arm's writes are guarded."""
+        self._skip_space()
+        node = If(start=self.position)
+        self.take("case")
+        self.until("when")
+        self.until("then")
+        node.arms.append(self.statements({"when", "else", "end"}))
+        while self.peek() == "when":
+            self.take("when")
+            self.until("then")
+            node.arms.append(self.statements({"when", "else", "end"}))
+        if self.peek() == "else":
+            self.take("else")
+            node.arms.append(self.statements({"end"}))
+        self.take("end")
+        self.take("case")
+        self.end_of_piece()
+        return node
+
     def loop(self) -> Loop:
         self._skip_space()
         start = self.position
@@ -329,7 +363,12 @@ class _Reader:
         else:
             self.take(word)
             header_start, header = self.until("loop")
-            node = _loop_header(word, header, header_start)
+            try:
+                node = _loop_header(word, header, header_start)
+            except UnsupportedError as error:
+                # Plan step 5: a header this reader cannot follow costs the header only - the
+                # body is read as usual, and the loop is refused at its own line.
+                node = Loop(start=start, kind="opaque", reason=str(error))
             node.start = start
         node.body = self.statements({"end"})
         self.take("end")
@@ -339,7 +378,12 @@ class _Reader:
 
     def simple(self) -> Stmt:
         start, text = self.rest()
-        return classify(text, start)
+        try:
+            return classify(text, start)
+        except UnsupportedError as error:
+            # Plan step 5: one statement this reader cannot follow is refused alone, at its
+            # own line; the routine around it is still read.
+            return Stmt("opaque", text.strip(), start, expression=str(error))
 
 
 def _top_level(text: str, marker: str) -> int:
@@ -369,7 +413,14 @@ def _loop_header(word: str, header: str, header_start: int) -> Loop:
         found = find_word(header, "in")
         if found < 0:
             raise UnsupportedError("FOREACH without IN")
-        return Loop(start=header_start, kind="foreach", variable=header[:found].split()[0])
+        array = re.sub(r"(?is)^\s*ARRAY\b", "", header[found + 2 :]).strip()
+        return Loop(
+            start=header_start,
+            kind="foreach",
+            variable=header[:found].split()[0],
+            query=array,
+            query_start=header_start + found + 2,
+        )
     found = find_word(header, "in")
     if found < 0:
         raise UnsupportedError("FOR without IN")
@@ -390,7 +441,15 @@ def _loop_header(word: str, header: str, header_start: int) -> Loop:
             query_start=offset,
         )
     if first_word == "execute":
-        raise UnsupportedError("FOR ... IN EXECUTE")
+        text = lead[len("execute") :]
+        using = find_word(text, "using")
+        return Loop(
+            start=header_start,
+            kind="execute",
+            variable=variable,
+            query=(text[:using] if using >= 0 else text).strip(),
+            query_start=offset,
+        )
     if _top_level(lead, "..") >= 0:
         return Loop(start=header_start, kind="range", variable=variable)
     if first_word and _WORD.fullmatch(lead.split("(")[0].strip()):
@@ -433,8 +492,15 @@ def classify(text: str, start: int) -> Stmt:
     if word == "perform":
         return Stmt("noop", stripped, start)
     if word in _NOOPS:
-        if word == "open" and find_word(stripped, "for") >= 0:
-            raise UnsupportedError("OPEN ... FOR")
+        found = find_word(stripped, "for") if word == "open" else -1
+        if found >= 0:
+            query = stripped[found + 3 :].strip()
+            opener = _WORD.match(query)
+            if opener is not None and opener.group(0).lower() == "execute":
+                raise UnsupportedError("OPEN ... FOR EXECUTE")
+            head = stripped[len("open") : found].split()
+            cursor = head[0] if head else ""
+            return Stmt("open", stripped, start, cursor=cursor, expression=query)
         return Stmt("noop", stripped, start)
     if word == "execute":
         body = stripped[len("execute") :]
@@ -532,6 +598,8 @@ class Routine:
     search_path: str | None
     body_start: int
     body_end: int
+    out_params: list[str] = field(default_factory=list)
+    """OUT / INOUT parameters: variables the body sets; with one, it is the value returned."""
 
 
 def _matching(text: str, opening: int) -> int:
@@ -603,12 +671,17 @@ def read_routine(source: str, start: int, end: int) -> Routine | None:
     opening = routine.end() - 1
     closing = _matching(text, opening)
     params: list[str] = []
+    out_params: list[str] = []
     for part in _split_top(text[opening + 1 : closing]):
         words = part.split()
         if not words:
             continue
-        if words[0].lower() in ("out", "inout"):
-            raise UnsupportedError("OUT / INOUT parameters")
+        if words[0].lower() in ("out", "inout") and len(words) >= 2:
+            # Plan step 5: an OUT parameter is a variable the routine sets and returns.
+            out_params.append(words[1].lower())
+            if words[0].lower() == "out":
+                continue
+            words = words[1:]
         if words[0].lower() in ("in", "variadic"):
             words = words[1:]
         if len(words) >= 2 and words[1].lower() not in ("default",):
@@ -643,6 +716,8 @@ def read_routine(source: str, start: int, end: int) -> Routine | None:
         else:
             kind = returns_match.group(2).lower()
             returns = kind if kind in ("trigger", "void") else "scalar"
+    elif out_params:
+        returns = "scalar" if len(out_params) == 1 else "record"
     return Routine(
         kind=routine.group("kind").lower(),
         name=fold_name(routine.group("name")),
@@ -653,6 +728,7 @@ def read_routine(source: str, start: int, end: int) -> Routine | None:
         search_path=fold_name(path.group(1)) if path else None,
         body_start=body_start,
         body_end=body_end,
+        out_params=out_params,
     )
 
 

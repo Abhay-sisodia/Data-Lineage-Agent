@@ -2295,8 +2295,34 @@ def _without_user_calls(projection: Any, summaries: dict[str, Any], dialect: str
     for node in list(reduced.find_all(exp.Anonymous)):
         name = (getattr(node, "name", "") or "").upper()
         if name and name in summaries:
-            node.replace(exp.Null())
+            call = node
+            while isinstance(call.parent, exp.Dot) and call.parent.expression is call:
+                call = call.parent  # `schema.f(x)`: the whole qualified call goes
+            call.replace(_from_arguments(node, summaries[name]))
     return reduced
+
+
+def _from_arguments(call: Any, summary: Any) -> Any:
+    """What a summarised call's VALUE is made of, as an expression the value rule traces.
+
+    NULL when it reads no argument (its columns come from the summary); otherwise the
+    arguments it is computed from (plan step 5) - itself for `RETURN x`, `x + 0` (derived)
+    for anything computed, so the transform the body applied is kept.
+    """
+    arguments = list(call.expressions or [])
+    used = [
+        (arguments[index], transform)
+        for index, transform in getattr(summary, "from_arguments", [])
+        if index < len(arguments)
+    ]
+    if not used:
+        return exp.Null()
+    if len(used) == 1 and used[0][1] is Transform.IDENTITY:
+        return used[0][0].copy()
+    combined: Any = exp.Literal.number(0)
+    for argument, _ in used:
+        combined = exp.Add(this=argument.copy(), expression=combined)
+    return combined
 
 
 def _unsummarised_call(name: str) -> Boundary:
