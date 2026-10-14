@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from pglast import ast, parse_plpgsql
+from pglast import ast, enums, parse_plpgsql
 from pglast import parser as pg_parser
 
 from lineage.parsing.sqlscript import split_statements
@@ -64,11 +64,14 @@ def _walk(node: Any, out: set[str], ctes: set[str], tables: set[str]) -> None:
         tables.add(_name(node))
     elif isinstance(node, ast.CommonTableExpr):
         ctes.add(str(node.ctename))
-    elif isinstance(node, ast.UpdateStmt) and any(
-        isinstance(t.val, ast.BoolExpr) for t in node.targetList or ()
+    elif isinstance(node, (ast.UpdateStmt, ast.OnConflictClause, ast.MergeWhenClause)) and any(
+        isinstance(t.val, ast.BoolExpr) and t.val.boolop is not enums.BoolExprType.NOT_EXPR
+        for t in node.targetList or ()
     ):
-        # Holdout gap G1: a boolean expression as a SET value - SQLGlot cannot parse it.
+        # Holdout gap G1: AND / OR as a SET value - SQLGlot cannot parse it (`pg_restate`).
         out.add("extra:boolean_value_in_update_set")
+    elif isinstance(node, ast.JsonTable) and node.alias is None:
+        out.add("extra:json_table_without_alias")
     for field_name in _slots(type(node)):
         value = getattr(node, field_name, None)
         if value is None:
@@ -159,7 +162,15 @@ def _routine_body(statement: Any, text: str) -> str | None:
     return None
 
 
-def _routine_constructs(statement: Any, text: str, out: set[str], tables: set[str]) -> None:
+def _routine_constructs(
+    statement: Any,
+    text: str,
+    out: set[str],
+    tables: set[str],
+    ctes: set[str] | None = None,
+    writes: list[str] | None = None,
+) -> None:
+    """The constructs, tables and written tables of a routine's body (or none, if not one)."""
     if isinstance(statement, ast.CreateFunctionStmt):
         if _language(statement) == "sql" and not statement.sql_body:
             out.add("extra:sql_function_body")
@@ -186,7 +197,9 @@ def _routine_constructs(statement: Any, text: str, out: set[str], tables: set[st
         for inner in parsed:
             if isinstance(inner.stmt, ast.TruncateStmt):
                 out.add("extra:plpgsql_truncate_then_reload")
-            _walk(inner.stmt, out, set(), tables)
+            _walk(inner.stmt, out, ctes if ctes is not None else set(), tables)
+            if writes is not None:
+                writes.extend(t for t in _writes(inner.stmt) if t not in writes)
 
 
 def constructs(sql: str) -> set[str]:
@@ -219,6 +232,8 @@ class Verdict:
     writes: list[str] = field(default_factory=list)
     reads: list[str] = field(default_factory=list)
     constructs: set[str] = field(default_factory=set)
+    tree: Any = field(default=None, compare=False, repr=False)
+    """PostgreSQL's parse of the statement (a pglast node), for what reads it further."""
 
 
 def _writes(statement: Any) -> list[str]:
@@ -285,12 +300,13 @@ def verdict(text: str, line: int = 1) -> Verdict:
     ctes: set[str] = set()
     tables: set[str] = set()
     _walk(statement, out, ctes, tables)
-    _routine_constructs(statement, text_read, out, tables)
     writes = _writes(statement)
+    # A routine's writes are its body's: `CREATE PROCEDURE ... INSERT INTO x` writes x.
+    _routine_constructs(statement, text_read, out, tables, ctes, writes)
     reads = sorted(t for t in tables if t not in writes and t not in ctes)
     return Verdict(
         line, end_line, text, valid=True, kind=type(statement).__name__,
-        writes=writes, reads=reads, constructs=out,
+        writes=writes, reads=reads, constructs=out, tree=statement,
     )  # fmt: skip
 
 

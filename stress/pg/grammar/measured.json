@@ -330,9 +330,12 @@
  },
  "extra:boolean_value_in_update_set": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "REFUSED:PARSE_FAILED",
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b",
+   "src.a.v -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:cast_function_form": {
@@ -500,9 +503,11 @@
  },
  "extra:json_table_without_alias": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "NOT_ANALYSED",
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:lateral_subquery": {
@@ -636,7 +641,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
   "target": "lineage"
  },
  "extra:plpgsql_returning_into": {
@@ -650,7 +655,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
   "target": "lineage"
  },
  "extra:plpgsql_scalar_function_return": {
@@ -674,7 +679,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
   "target": "lineage"
  },
  "extra:plpgsql_subquery_then_self_assignment": {
@@ -688,7 +693,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
   "target": "lineage"
  },
  "extra:prefix_operator": {
@@ -784,6 +789,13 @@
    "src.a.v -> tgt.t.v"
   ],
   "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:rows_from_several_functions": {
+  "covers": [],
+  "met": false,
+  "pairs": [],
+  "status": "UNCLASSIFIED:PARSE_FAILED",
   "target": "lineage"
  },
  "extra:rows_from_with_ordinality": {
@@ -1457,7 +1469,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
   "target": "lineage"
  },
  "plpgsql:PLpgSQL_stmt_commit": {
@@ -1581,7 +1593,7 @@
   ],
   "met": false,
   "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
   "target": "lineage"
  },
  "plpgsql:PLpgSQL_stmt_perform": {
@@ -3164,7 +3176,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "REFUSED:NAME_NOT_RESOLVED",
+  "status": "UNCLASSIFIED:NAME_NOT_RESOLVED",
   "target": "lineage"
  },
  "variant:LockingClause.strength=LCS_FORNOKEYUPDATE": {
@@ -3307,7 +3319,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "REFUSED:PARSE_FAILED",
+  "status": "UNCLASSIFIED:PARSE_FAILED",
   "target": "lineage"
  },
  "variant:ReturningOption.option=RETURNING_OPTION_OLD": {
@@ -3316,7 +3328,7 @@
   ],
   "met": false,
   "pairs": [],
-  "status": "REFUSED:PARSE_FAILED",
+  "status": "UNCLASSIFIED:PARSE_FAILED",
   "target": "lineage"
  },
  "variant:RowExpr.row_format=COERCE_EXPLICIT_CALL": {

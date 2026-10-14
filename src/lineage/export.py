@@ -53,6 +53,8 @@ class ExportedResult:
     refusals: list[Refusal] = field(default_factory=list)
     join_keys: list[IREdge] = field(default_factory=list)
     """Lookup-join keys (D-57), apart from `edges`. Absent from older documents."""
+    fallback: list[IREdge] = field(default_factory=list)
+    """`mention` / `opaque` edges of refused statements (D-60). Absent from older documents."""
     ledger: list[dict[str, Any]] = field(default_factory=list)
     """Every statement and what became of it (plan step 3). Absent from older documents."""
 
@@ -95,6 +97,7 @@ def to_document(
         "boundaries": [boundary.model_dump(mode="json") for boundary in result.boundaries],
         "refusals": [_refusal_row(refusal) for refusal in result.refusals],
         "join_keys": [edge.model_dump(mode="json") for edge in getattr(result, "join_keys", [])],
+        "fallback": [edge.model_dump(mode="json") for edge in getattr(result, "fallback", [])],
         "ledger": [dataclasses.asdict(entry) for entry in getattr(result, "ledger", [])],
     }
 
@@ -118,6 +121,7 @@ def from_document(document: dict[str, Any]) -> ExportedResult:
             Refusal(**{**row, "code": RefusalCode(row["code"])}) for row in document["refusals"]
         ],
         join_keys=[IREdge.model_validate(row) for row in document.get("join_keys", [])],
+        fallback=[IREdge.model_validate(row) for row in document.get("fallback", [])],
         ledger=list(document.get("ledger", [])),
     )
 

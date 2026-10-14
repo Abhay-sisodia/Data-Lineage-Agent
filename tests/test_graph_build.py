@@ -55,7 +55,9 @@ def _lineage_by_file(batch: Any) -> dict[str, int]:
 def test_one_lineage_relationship_per_parser_edge_per_file(results: list[Any]) -> None:
     batch = build_batch(results)
     assert _lineage_by_file(batch) == {
-        r.source.path: len(r.edges) + len(r.join_keys) for r in results if r.edges
+        r.source.path: len(r.edges) + len(r.join_keys) + len(r.fallback)
+        for r in results
+        if r.edges or r.fallback
     }
 
 

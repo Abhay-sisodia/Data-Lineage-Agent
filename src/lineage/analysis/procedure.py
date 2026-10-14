@@ -19,7 +19,7 @@ import re
 import sqlglot
 from sqlglot import exp
 
-from lineage.analysis import band0, ledger, plpgsql
+from lineage.analysis import band0, fallback, ledger, plpgsql
 from lineage.analysis.band0 import AnalysisResult, Refusal
 from lineage.analysis.cfg import Cfg, build_all
 from lineage.analysis.cfg import NodeKind as CfgNodeKind
@@ -41,7 +41,7 @@ from lineage.config import AnalysisConfig
 from lineage.dialects import resolve_dialect
 from lineage.evidence.witness import ExecutionWitness
 from lineage.ir.model import Boundary, BoundaryKind, Flow, IREdge, Node, NodeKind
-from lineage.parsing import pg_grammar, pg_referee, psql
+from lineage.parsing import pg_grammar, pg_referee, pg_restate, psql
 from lineage.parsing.plsql import Program, source_slice
 from lineage.parsing.sqlscript import SCRIPT_UNIT
 from lineage.resolution.dictionary import Dictionary
@@ -65,6 +65,9 @@ def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_refe
     # reads it. One it rejects is not SQL the server would run - SQLGlot accepts some such
     # (`TIMESTAMP('...')`, a Spark spelling) and would answer for it with confident edges.
     source, verdicts = pg_referee.set_aside(source)
+    # Plan step 4, rung 1: PostgreSQL SQLGlot cannot parse, restated by PostgreSQL's own
+    # tree (a boolean SET value, an alias-less JSON_TABLE). Same lines.
+    source = pg_restate.restate_source(source, verdicts)
     # D-30: JSON_TABLE / XMLTABLE restated as LATERAL subqueries in the SOURCE, before
     # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
     # (B5-04), and the refusal register scans the raw text. Line counts are kept.
@@ -397,18 +400,26 @@ def analyse_source(
 
     if desugared is not None:
         result = plpgsql.explain_refusals(result, desugared)
+    # Plan step 4, rungs 3-4 (D-60): a statement refused whole still connects the columns
+    # and tables PostgreSQL's tree says it touches - apart from the scored edges.
+    result.fallback = fallback.build(verdicts, result, dictionary)
     # Plan step 3: every statement, with what became of it - never silent.
     result.ledger = ledger.build(verdicts, result)
     return result
 
 
 def _refused_at(result: AnalysisResult) -> set[tuple[str, int]]:
-    """`(UNIT, line)` of every statement refused whole, units upper-cased to compare."""
-    return {
+    """`(UNIT, line)` of every statement refused whole or in part, units upper-cased.
+
+    In part (PG-20, plan step 4 rung 2): band 0 read the rest of the statement, so def-use's
+    parse failure for it would declare the whole statement unreadable when it was not.
+    """
+    whole = {
         ((refusal.unit or "").upper(), refusal.line)
         for refusal in result.refusals
         if refusal.scope == "statement"
     }
+    return whole | {(unit.upper(), line) for unit, line in result.scoped_statements}
 
 
 def _in_unit(unit: str, item: Boundary | str, default: BoundaryKind) -> Boundary:

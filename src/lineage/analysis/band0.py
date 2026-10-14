@@ -73,10 +73,12 @@ from lineage.analysis.transforms import (
     transform_of_path as _transform_of_path,
 )
 from lineage.analysis.refusal import (
+    PoisonedCte,
     Refusal,
     RefusalCode,
     classify_statement,
     conditional_compilation_spans,
+    cte_bodies,
     cte_scoped_construct,
     last_line,
     not_cross_checkable,
@@ -151,6 +153,12 @@ class AnalysisResult:
     D-5 gives a join key no edge and every closed-world key is written against `edges`, so
     a key here changes no score. Filled by `procedure.analyse_source` only; a direct band-0
     call leaves it empty.
+    """
+
+    fallback: list[PredictedEdge] = field(default_factory=list)
+    """`mention` / `opaque` edges for statements refused whole (D-60, `analysis.fallback`).
+
+    PostgreSQL only. Kept OUT of `edges`, like `join_keys`: unclassified, never scored.
     """
 
     ledger: list[Any] = field(default_factory=list)
@@ -4489,6 +4497,31 @@ def analyse_source(
         # `cte_scoped_construct` returns None for everything it cannot prove confined, so
         # the fall-through below is the original behaviour unchanged.
         drop_ctes: frozenset[str] = frozenset()
+        # Plan step 4, rung 2: SQLGlot could not parse the statement. If what it cannot read
+        # is confined to CTE bodies, each such CTE is refused on its own - as PG-20 does for
+        # a refused construct - and the rest of the statement is analysed.
+        if unparsed:
+            isolated = _isolate_unparseable_ctes(statement.text, program.dialect)
+            if isolated is not None:
+                readable, unreadable, kind = isolated
+                statement = dataclasses.replace(statement, text=readable, kind=kind)
+                for cte in unreadable:
+                    result.refusals.append(
+                        Refusal(
+                            kind=kind,
+                            line=statement.line + cte.line - 1,
+                            reason=f"SQLGlot could not parse CTE {cte.name}; its columns are "
+                            "withheld while the rest of the statement is analysed",
+                            excerpt=" ".join(statement.text.split())[:80],
+                            code=RefusalCode.PARSE_FAILED,
+                            unit=unit,
+                            scope="cte",
+                            end_line=statement.line + cte.end_line - 1,
+                        )
+                    )
+                result.partial_statements += 1
+                result.scoped_statements.add((unit, statement.line))
+                drop_ctes = frozenset(cte.name.upper() for cte in unreadable)
         construct = classify_statement(statement.text, program.dialect)
         if construct is not None:
             scoped = cte_scoped_construct(statement.text, program.dialect)
@@ -4529,7 +4562,7 @@ def analyse_source(
                 )
             result.partial_statements += 1
             result.scoped_statements.add((unit, statement.line))
-            drop_ctes = frozenset(cte.name.upper() for cte in poisoned)
+            drop_ctes |= frozenset(cte.name.upper() for cte in poisoned)
 
         edges, refusal, unresolved = _analyse_statement(
             statement,
@@ -4682,6 +4715,49 @@ def _node_depth(node: Any) -> int:
 _CREATE_AS_QUERY = re.compile(
     r"^\s*CREATE\b.*?\bAS\s*(?:\(|SELECT\b|WITH\b|VALUES\b|TABLE\b)", re.IGNORECASE | re.DOTALL
 )
+
+
+def _isolate_unparseable_ctes(
+    text: str, dialect: str
+) -> tuple[str, list[PoisonedCte], str] | None:
+    """`text` with each CTE body SQLGlot cannot parse replaced by `SELECT NULL`, those CTEs,
+    and the statement's kind - or None unless that makes the whole statement parse.
+
+    The replacement keeps every newline, so lines hold; the CTEs are then dropped from the
+    tree by name (`drop_ctes`), so nothing of the placeholder is ever read as lineage.
+    """
+    bodies = cte_bodies(text)
+    unreadable = []
+    for name, start, end in bodies:
+        try:
+            sqlglot.parse_one(text[start:end], read=dialect)
+        except Exception:  # SQLGlot's verdict on this body is the question
+            unreadable.append((name, start, end))
+    if not unreadable:
+        return None
+    readable = text
+    for _, start, end in sorted(unreadable, key=lambda item: -item[1]):
+        body = readable[start:end]
+        if len(body) < len(" SELECT NULL "):
+            return None
+        blank = "".join(ch if ch == "\n" else " " for ch in body)
+        placeholder = " SELECT NULL " + blank[len(" SELECT NULL ") :]
+        readable = readable[:start] + placeholder + readable[end:]
+    kind = statement_kind(readable, dialect)
+    if kind == "unparsed_statement":
+        return None
+    return (
+        readable,
+        [
+            PoisonedCte(
+                name=name,
+                line=text.count("\n", 0, start) + 1,
+                end_line=text.count("\n", 0, end) + 1,
+            )
+            for name, start, end in unreadable
+        ],
+        kind,
+    )
 
 
 def _creates_from_query(text: str) -> bool:

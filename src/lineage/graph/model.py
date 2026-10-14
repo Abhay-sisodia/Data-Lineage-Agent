@@ -57,6 +57,8 @@ FLOW_TYPES = {
     Flow.FILTER: "FILTERS",
     Flow.INFLUENCE: "INFLUENCES",
     Flow.JOIN_KEY: "KEYS",
+    Flow.MENTION: "MENTIONS_COL",
+    Flow.OPAQUE: "OPAQUE",
 }
 """Lineage relationship type per parser flow."""
 
@@ -166,6 +168,18 @@ def statement_tables(statement: str, default_schema: str | None = None) -> set[s
     import sqlglot
     from sqlglot import exp
 
+    from lineage.parsing.pg_referee import verdict
+
+    # PostgreSQL's own parse first (plan step 4): exact relations, CTEs left out, and a
+    # routine's tables are its body's - never the routine's own name (holdout gap G5, where
+    # `core.build_commission_statements` became a Table).
+    read = verdict(statement)
+    if read.valid and (read.reads or read.writes):
+        return {
+            name.lower() if "." in name else f"{default_schema}.{name}".lower()
+            for name in [*read.reads, *read.writes]
+            if "." in name or default_schema
+        }
     try:
         parsed = sqlglot.parse_one(statement, read="postgres")
         tables = [t for t in parsed.find_all(exp.Table) if t.name]
@@ -228,7 +242,7 @@ def _add_file(batch: GraphBatch, result: ExportedResult) -> None:
         statements_analysed=result.statements_analysed,
     )
 
-    for edge in [*result.edges, *result.join_keys]:
+    for edge in [*result.edges, *result.join_keys, *result.fallback]:
         source = _endpoint(batch, edge.source, file)
         target = _endpoint(batch, edge.target, file)
         statement = _statement(batch, file, edge.origin.unit, edge.origin.line)

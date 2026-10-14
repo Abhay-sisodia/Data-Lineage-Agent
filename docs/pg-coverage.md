@@ -8,7 +8,7 @@ its snippet through `analyse_source`. Rows: `stress/pg/grammar/checklist.yaml`.
 `lineage scan <folder>` uses this table to predict, before analysing, what the analyser
 will make of every statement in a folder - and names the row behind each gap.
 
-**389 / 416 constructs meet their target (93.5%).** Extra combinations: 50 / 70.
+**389 / 416 constructs meet their target (93.5%).** Extra combinations: 52 / 71.
 
 | area | constructs | meet target | % |
 |---|---|---|---|
@@ -18,7 +18,7 @@ will make of every statement in a folder - and names the row behind each gap.
 | variant | 134 | 130 | 97.0% |
 | PL/pgSQL | 27 | 20 | 74.1% |
 
-Measured outcomes over all rows: COUNTED 107, DECLARED 5, EFFECT 10, HANG 1, LINEAGE 256, NOT_ANALYSED 6, REFUSED 22
+Measured outcomes over all rows: COUNTED 107, DECLARED 5, EFFECT 10, HANG 1, LINEAGE 258, NOT_ANALYSED 5, REFUSED 12, TABLE_LEVEL 6, UNCLASSIFIED 4
 
 ## Targets and outcomes
 
@@ -48,31 +48,30 @@ move data and produced nothing. PARTIAL means lineage came out and a part was re
 | `stmt:RenameStmt` | effect | EFFECT |  |
 | `stmt:TruncateStmt` | effect | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:alter_column_type_using` | lineage | EFFECT | USING recomputes every row's value from its old one |
-| `extra:boolean_value_in_update_set` | lineage | REFUSED:PARSE_FAILED | holdout gap G1 - a boolean expression as an UPDATE SET value |
 | `extra:column_alias_list` | lineage | DECLARED:unresolved_identifier | the alias renames the columns by position |
 | `extra:explain_analyze_runs_the_write` | lineage | NOT_ANALYSED | EXPLAIN ANALYZE executes the statement - the write happens |
-| `extra:json_table_without_alias` | lineage | NOT_ANALYSED | PostgreSQL does not require JSON_TABLE's alias; the restatement does (found in step 2) |
 | `extra:plpgsql_out_parameter` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_parameters_flow` | lineage | LINEAGE | the caller's value flows through the parameter into the write |
-| `extra:plpgsql_record_field_assignment` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
+| `extra:plpgsql_record_field_assignment` | lineage | TABLE_LEVEL:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_returning_into` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
-| `extra:plpgsql_rowtype_variable` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
+| `extra:plpgsql_rowtype_variable` | lineage | TABLE_LEVEL:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_scalar_function_return` | lineage | NOT_ANALYSED |  |
-| `extra:plpgsql_select_star_into_record` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT | holdout gap G2 - `*` into a record, then a field of it |
+| `extra:plpgsql_select_star_into_record` | lineage | TABLE_LEVEL:UNSUPPORTED_CONSTRUCT | holdout gap G2 - `*` into a record, then a field of it |
 | `extra:plpgsql_subquery_then_self_assignment` | lineage | HANG | a value assigned from a subquery and then from itself - the analysis does not finish |
-| `extra:plpgsql_truncate_then_reload` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT | the TRUNCATE in the middle must not cost the routine its lineage |
+| `extra:plpgsql_truncate_then_reload` | lineage | TABLE_LEVEL:UNSUPPORTED_CONSTRUCT | the TRUNCATE in the middle must not cost the routine its lineage |
+| `extra:rows_from_several_functions` | lineage | UNCLASSIFIED:PARSE_FAILED | valid PostgreSQL SQLGlot cannot parse - found in plan step 4 |
 | `extra:sql_function_body` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:table_shorthand` | lineage | NOT_ANALYSED |  |
 | `node:TriggerTransition` | lineage | DECLARED:dangling_reference |  |
-| `plpgsql:PLpgSQL_stmt_case` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
+| `plpgsql:PLpgSQL_stmt_case` | lineage | TABLE_LEVEL:UNSUPPORTED_CONSTRUCT |  |
 | `plpgsql:PLpgSQL_stmt_dynfors` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `plpgsql:PLpgSQL_stmt_foreach_a` | lineage | LINEAGE |  |
-| `plpgsql:PLpgSQL_stmt_open` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
+| `plpgsql:PLpgSQL_stmt_open` | lineage | TABLE_LEVEL:UNSUPPORTED_CONSTRUCT |  |
 | `plpgsql:PLpgSQL_stmt_return_next` | lineage | DECLARED:dangling_reference |  |
 | `stmt:RuleStmt` | lineage | NOT_ANALYSED | a rule rewrites every INSERT on src.a into a second write |
-| `variant:LockingClause.strength=LCS_FORKEYSHARE` | lineage | REFUSED:NAME_NOT_RESOLVED |  |
-| `variant:ReturningOption.option=RETURNING_OPTION_NEW` | lineage | REFUSED:PARSE_FAILED | PostgreSQL 18 |
-| `variant:ReturningOption.option=RETURNING_OPTION_OLD` | lineage | REFUSED:PARSE_FAILED | PostgreSQL 18 |
+| `variant:LockingClause.strength=LCS_FORKEYSHARE` | lineage | UNCLASSIFIED:NAME_NOT_RESOLVED |  |
+| `variant:ReturningOption.option=RETURNING_OPTION_NEW` | lineage | UNCLASSIFIED:PARSE_FAILED | PostgreSQL 18 |
+| `variant:ReturningOption.option=RETURNING_OPTION_OLD` | lineage | UNCLASSIFIED:PARSE_FAILED | PostgreSQL 18 |
 | `variant:XmlExpr.op=IS_XMLPI` | lineage | NOT_ANALYSED |  |
 | `node:SetToDefault` | no_lineage | DECLARED:unresolved_identifier | DEFAULT writes the column's default, not a value from anywhere |
 | `stmt:ClusterStmt` | no_lineage | REFUSED:PARSE_FAILED |  |

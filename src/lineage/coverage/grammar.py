@@ -182,6 +182,8 @@ def measure(sql: str, book: Dictionary) -> tuple[str, list[str]]:
     LINEAGE      edges came out, nothing refused
     PARTIAL:c    edges came out, and a part was refused with code c
     REFUSED:c    refused, code c
+    UNCLASSIFIED:c  refused, but its columns are kept as `mention` edges (D-60)
+    TABLE_LEVEL:c   refused, but its tables are kept as `opaque` edges (D-60)
     DECLARED:k   no edge, no refusal, a boundary names what stopped it
     COUNTED      nothing to trace, and the statement ledger says why (DDL, settings ...)
     EFFECT       the ledger lists it as an effect (DROP, TRUNCATE ...) - not modelled yet
@@ -205,7 +207,13 @@ def measure(sql: str, book: Dictionary) -> tuple[str, list[str]]:
             return f"PARTIAL:{result.refusals[0].code.value}", pairs
         return "LINEAGE", pairs
     if result.refusals:
-        return f"REFUSED:{result.refusals[0].code.value}", pairs
+        code = result.refusals[0].code.value
+        statuses = {entry.status for entry in result.ledger}
+        if "unclassified" in statuses:  # refused, columns kept as mentions (D-60)
+            return f"UNCLASSIFIED:{code}", pairs
+        if "table_level" in statuses:  # refused, tables kept as opaque links (D-60)
+            return f"TABLE_LEVEL:{code}", pairs
+        return f"REFUSED:{code}", pairs
     if result.boundaries:
         return f"DECLARED:{result.boundaries[0].kind.value}", pairs
     statuses = {entry.status for entry in result.ledger}

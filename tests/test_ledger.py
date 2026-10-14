@@ -51,7 +51,7 @@ def test_every_statement_of_a_load_script_is_listed_with_its_status(grammar_book
         (2, "CreateTableAsStmt", "column_level"),
         (3, "InsertStmt", "column_level"),
         (5, "DeleteStmt", "no_lineage"),  # key-only match (D-5)
-        (6, "UpdateStmt", "refused"),  # holdout gap G1
+        (6, "UpdateStmt", "column_level"),  # holdout gap G1, restated since step 4 (rung 1)
         (7, "VacuumStmt", "no_lineage"),
         (8, "InsertStmt", "no_lineage"),  # constants only
         (9, "DeleteStmt", "effect"),  # every row

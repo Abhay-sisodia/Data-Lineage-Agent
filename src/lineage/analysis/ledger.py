@@ -12,7 +12,9 @@ and its status is decided from the analyser's own output first and the statement
     not_valid      PostgreSQL's own parser rejects it - refused, never analysed (D-59)
     column_level   edges came out of it, nothing refused
     partial        edges came out, and a part of it was refused
-    refused        refused, by code
+    unclassified   refused, but PostgreSQL's tree still names its columns (`mention`, D-60)
+    table_level    refused, but PostgreSQL's tree still names its tables (`opaque`, D-60)
+    refused        refused, by code, and nothing more could be read
     declared       no edge, no refusal, a boundary names what stopped it
     effect         changes what a table holds or is (DROP, TRUNCATE, RENAME, ALTER ...)
     no_lineage     nothing to trace: DDL, settings, maintenance, constants only, a key match
@@ -33,8 +35,8 @@ from typing import Any
 from lineage.parsing.pg_referee import Verdict
 
 STATUSES = (
-    "column_level", "partial", "refused", "declared", "effect", "no_lineage", "not_analysed",
-    "not_valid",
+    "column_level", "partial", "unclassified", "table_level", "refused", "declared", "effect",
+    "no_lineage", "not_analysed", "not_valid",
 )  # fmt: skip
 
 # Statements that change what a table holds or is, rather than moving column values.
@@ -178,6 +180,13 @@ def build(verdicts: list[Verdict], result: Any) -> list[LedgerEntry]:
             status, reason = "column_level", _edges(mine)
         elif refused:
             status, reason = "refused", f"{refused[0].code.value} - {refused[0].reason}"
+            kept = [e for e in result.fallback if _in(e.origin.line, verdict)]
+            if any(e.flow.value == "mention" for e in kept):
+                status = "unclassified"
+                reason += f" - column-level, unclassified: {len(kept)} mentions kept (D-60)"
+            elif kept:
+                status = "table_level"
+                reason += f" - table-level: {len(kept)} relation links kept (D-60)"
         else:
             declared = [b for b in result.boundaries if b.line and _in(b.line, verdict)]
             if declared:

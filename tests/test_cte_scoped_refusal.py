@@ -244,15 +244,19 @@ SELECT c.id, c.amount FROM clean_orders c
 """
 
 
-def test_two_different_constructs_fall_back_to_refusing_the_whole_statement() -> None:
-    """A stated limitation rather than an accident: the confinement check classifies the
-    FIRST construct, so a statement poisoned by two of them is refused whole. Narrowing
-    that further means classifying every construct, which is a separate measurement. The
-    cost is one refusal broader than it needs to be - the safe direction."""
+def test_two_different_constructs_are_each_refused_at_their_own_cte() -> None:
+    """Until plan step 4 a stated limitation: the confinement check classifies the FIRST
+    construct, so a statement poisoned by two of them was refused whole. `START WITH` is a
+    construct SQLGlot cannot parse at all, so rung 2 (D-60) now sets its CTE aside first;
+    the PIVOT is then the only construct left, confined to its own CTE as before. Each is
+    refused alone, and `clean_orders` - which reads neither - keeps its lineage."""
     result = _result(TWO_DIFFERENT_CONSTRUCTS)
 
-    assert result.edges == []
-    assert [r.scope for r in result.refusals] == ["statement"]
+    assert sorted((r.scope, r.line) for r in result.refusals) == [("cte", 3), ("cte", 8)]
+    assert {(str(e.source), str(e.target)) for e in result.edges} == {
+        ("column:silver.orders.id", "column:gold.tgt.a"),
+        ("column:silver.orders.amount", "column:gold.tgt.b"),
+    }
 
 
 PROVABLE_COLUMN_INSIDE_THE_POISONED_CTE = """

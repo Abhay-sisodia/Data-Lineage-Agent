@@ -29,6 +29,8 @@ Node labels: `Table`, `Column`, `Variable`, `File`, `Statement`, `Boundary`, `Re
 | `FILTERS` | Column/Variable → Table | filter flow: decides which rows of the table land |
 | `INFLUENCES` | Column/Variable → Column/Variable | influence flow |
 | `KEYS` | Column/Variable → Column/Variable | join-key flow: the key that chose a lookup's row (section 4) |
+| `MENTIONS_COL` | Column → Column/Table | a refused statement's column names this column - unclassified (section 4, D-60) |
+| `OPAQUE` | Table → Table | a refused statement read this table and wrote that one - table-level (section 4, D-60) |
 | `HAS_COLUMN` | Table → Column | the column belongs to the table |
 | `CONTAINS` | File → Statement | the statement is in the file |
 | `READS` / `WRITES` | Statement → Table | tables a statement reads / writes |
@@ -50,6 +52,10 @@ Lineage relationship properties: `id`, `transform`, `phase`, `band`, `tier`, `me
   - Not one of the scored flows: D-5 still gives a key no value, filter or influence edge. `upstream` / `downstream` walk `KEYS` only with `join_keys=true`; impact reports include them.
   - Say "the lookup is keyed on X", never "X feeds Y".
   - The same holds however the lookup is written (D-58): a LATERAL or scalar subquery's correlation (`WHERE c.id = o.customer_id`), or a range in an outer join's ON (`o.ship_date BETWEEN fx.valid_from AND fx.valid_to`), is a `join_key` too. When the lookup **aggregates** (`(SELECT SUM(p.amount) FROM payments p WHERE p.order_id = o.id)`), its key decides which rows are summed and is an **influence**, as a GROUP BY is.
+
+- `mention` (D-60): the statement was **refused**, and PostgreSQL's own parse still shows the target column's expression **names** the source column. Relationship `MENTIONS_COL`. No claim about how it is used - value, filter or key. A column named elsewhere in the statement (a WHERE, a join) mentions the written **table**.
+- `opaque` (D-60): the statement was **refused** and its columns could not be named (a refused routine, an unstated target column list): it read the source table and wrote the target table. Relationship `OPAQUE`, table to table.
+  - Neither is scored, and neither is lineage in the full sense: say "the refused statement at FILE:LINE names X" or "reads X and writes Y (table-level)", and report the refusal itself as the unknown.
 
 ## 5. Transform (value edges)
 
@@ -105,7 +111,10 @@ The statement was analysed; one part of it could not be proven. Edges may still 
 
 ## 9. Refusals: statements not analysed at all
 
-A refused statement has **zero edges**; never guess what it does. It is tied to its file and line, and through `MENTIONS` to the tables its SQL names - report it for a question only when it names a table on that lineage.
+A refused statement has **zero edges**; never guess what it does. It is tied to its file and line, and through `MENTIONS` to the tables its SQL names - report it for a question only when it names a table on that lineage. Since D-60 it may also carry `mention` / `opaque` fallback relationships (section 4): what PostgreSQL's parse says it touches, never how.
+
+- `PARSE_FAILED` covers both readers: SQLGlot could not parse it, or **PostgreSQL's own parser rejects it** (D-59: not SQL the server would run, so nothing is claimed from it).
+- Every statement is on the graph as a `Statement` node with a ledger `status` (plan step 3): `column_level`, `partial`, `unclassified` (refused, columns kept as mentions), `table_level` (refused, tables kept as opaque links), `refused`, `declared`, `effect` (DROP, TRUNCATE, RENAME, a data-changing ALTER), `no_lineage` (DDL, settings, a key-only DELETE ...), `not_analysed` (it can move data and nothing came of it), `not_valid`, with a `reason`. Report a statement with no edges by its status and reason - never as if it were not there.
 
 | Code | Meaning |
 |---|---|

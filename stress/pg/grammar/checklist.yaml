@@ -1267,6 +1267,12 @@
   reach: [src.a.arr -> tgt.t.k]
   sql: INSERT INTO tgt.t (k, id) SELECT u.e, u.ord::int FROM src.a AS a, ROWS FROM (unnest(a.arr)) WITH ORDINALITY AS u(e, ord)
 
+- id: extra:rows_from_several_functions
+  target: lineage
+  reach: [src.a.arr -> tgt.t.k]
+  note: valid PostgreSQL SQLGlot cannot parse - found in plan step 4
+  sql: INSERT INTO tgt.t (k) SELECT g.y FROM src.a AS a, LATERAL ROWS FROM (generate_series(1, 2), unnest(a.arr)) AS g(x, y)
+
 - id: extra:generate_series_source
   target: lineage
   reach: [src.a.d -> tgt.t.d]
@@ -1870,7 +1876,7 @@
   target: lineage
   reach: [src.a.j -> tgt.t.n]
   note: PostgreSQL does not require JSON_TABLE's alias; the restatement does (found in step 2)
-  sql: INSERT INTO tgt.t (n) SELECT n FROM src.a AS a CROSS JOIN JSON_TABLE(a.j, '$.items[*]' COLUMNS (n text PATH '$.name'))
+  sql: INSERT INTO tgt.t (n) SELECT item_name FROM src.a AS a CROSS JOIN JSON_TABLE(a.j, '$.items[*]' COLUMNS (item_name text PATH '$.name'))
 
 - id: variant:JsonTableColumn.coltype=JTC_FOR_ORDINALITY
   target: lineage

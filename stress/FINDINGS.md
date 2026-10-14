@@ -4911,3 +4911,35 @@ Taken by Abhay with plan step 2 (`docs/pg-coverage.md`, `lineage scan`).
   is not PostgreSQL and is now refused whole by the referee. No construct PostgreSQL accepts
   reaches the CTE-scoped mechanism today (an alias-less `JSON_TABLE`, valid PostgreSQL, is
   refused earlier by SQLGlot - now a checklist row), so those tests set the referee aside.
+
+## Decision taken — 2026-10-15 (D-60)
+
+Taken by Abhay with plan step 4 - the fallback ladder for PostgreSQL that PostgreSQL's
+own parser accepts and SQLGlot cannot read.
+
+* **Rung 1 - restated by the tree** (`parsing/pg_restate.py`): positions from libpg_query,
+  never patterns. An AND / OR SET value (UPDATE, ON CONFLICT DO UPDATE, MERGE UPDATE) is
+  wrapped in the parentheses PostgreSQL's tree already implies - holdout gap G1, now
+  analysed in full (02:360: 0 -> lineage). An alias-less JSON_TABLE gets its implicit name
+  written out (`AS json_table`) - it was dropped in silence before the ledger showed it.
+* **Rung 2 - the unreadable CTE alone:** when SQLGlot cannot parse a statement and what it
+  cannot read is confined to CTE bodies, each such body is replaced by `SELECT NULL` (lines
+  kept) and the CTE refused `PARSE_FAILED` at `scope="cte"` (the PG-20 mechanism); the rest
+  of the statement is analysed and the ledger says `partial`.
+* **Rungs 3 and 4 - `mention` and `opaque`**, two new flows, kept in
+  `AnalysisResult.fallback` beside the scored edges (as join keys are) and never scored.
+  For a statement refused whole, PostgreSQL's tree still says which columns a written
+  column's expression NAMES (`mention`, graph `MENTIONS_COL`; a column named elsewhere in
+  the statement mentions the written table) and which tables it reads and writes
+  (`opaque`, graph `OPAQUE`, for refused routines and any table no mention connects). A
+  name resolves only through the statement's own aliases and the dictionary - an ambiguous
+  alias or column resolves to nothing. Ledger statuses `unclassified` / `table_level`.
+* **Holdout gap G5 closed:** a refused statement's tables come from PostgreSQL's parse
+  first, so a routine's own name (`core.build_commission_statements`) is never a Table.
+* Holdout after step 4: 02:360 analysed; the refused commission procedure (05:123, G2) now
+  keeps 10 table-level links. Checklist: 10 refused rows now keep columns or tables; new
+  row `ROWS FROM (f(), g())` with several functions - valid PostgreSQL SQLGlot cannot parse.
+* **One stated limitation narrowed:** `test_cte_scoped_refusal` recorded that a statement
+  poisoned by two different constructs was refused whole. With `START WITH` (which SQLGlot
+  cannot parse) set aside by rung 2, the PIVOT is confined by PG-20 as before - each CTE is
+  refused alone and the clean CTE keeps its two edges. The test now states that.

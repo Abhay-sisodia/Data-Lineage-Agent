@@ -156,6 +156,24 @@ class Flow(StrEnum):
     aggregate the key decides which rows are summed, and is `INFLUENCE` instead.
     """
 
+    MENTION = "mention"
+    """The target column's expression NAMES this column, in a statement the analyser refused
+    (plan step 4, rung 3; D-60).
+
+    Read from PostgreSQL's own parse tree when the column-lineage analysis could not run, so
+    no claim is made about HOW the column is used - value, filter or key - only that it is
+    there. Column-level and unclassified: reported in `AnalysisResult.fallback`, never among
+    the scored edges, and shown as such, so a refused statement still connects its columns.
+    """
+
+    OPAQUE = "opaque"
+    """A refused statement read this relation and wrote that one (plan step 4, rung 4; D-60).
+
+    Relation to relation, from PostgreSQL's own parse tree - the last rung, for a statement
+    whose columns cannot even be named (a refused routine, a write whose target columns are
+    not stated). Table-level and unverified: in `AnalysisResult.fallback`, never scored.
+    """
+
 
 class FilterPhase(StrEnum):
     """WHEN a filter acts, relative to aggregation. Part of the match key.

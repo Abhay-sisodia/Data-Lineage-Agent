@@ -92,14 +92,22 @@ def _predict(sql: str) -> list[tuple[int, str]]:
     return [(s.line, s.prediction) for s in scan_source(sql, "x.sql", checklist_outcomes())]
 
 
+ROWS_FROM = (
+    "INSERT INTO tgt.t (k) SELECT g.y FROM src.a AS a, "
+    "LATERAL ROWS FROM (generate_series(1, 2), unnest(a.arr)) AS g(x, y)"
+)
+G1 = "UPDATE tgt.t AS t SET b = a.b AND a.v < 1 FROM src.a AS a WHERE a.id = t.id"
+
+
 def test_scan_predicts_each_kind_of_statement() -> None:
     sql = "\n".join(
         [
             "INSERT INTO tgt.t (v) SELECT a.v FROM src.a AS a;",
-            "UPDATE tgt.t AS t SET b = a.b AND a.v < 1 FROM src.a AS a WHERE a.id = t.id;",
+            f"{ROWS_FROM};",
             "DROP TABLE IF EXISTS tgt.old;",
             f"{SPARK};",
             "CREATE INDEX t_v ON tgt.t (v);",
+            f"{G1};",
         ]
     )
     assert _predict(sql) == [
@@ -108,11 +116,10 @@ def test_scan_predicts_each_kind_of_statement() -> None:
         (3, "effect"),
         (4, "not valid PostgreSQL"),
         (5, "no lineage"),
+        (6, "column-level"),  # holdout G1 - restated by the tree since step 4
     ]
 
 
 def test_scan_names_the_gap_and_its_checklist_row() -> None:
-    sql = "UPDATE tgt.t AS t SET b = a.b AND a.v < 1 FROM src.a AS a WHERE a.id = t.id;"
-    (scan,) = scan_source(sql, "x.sql", checklist_outcomes())
-    assert any(gap.startswith("extra:boolean_value_in_update_set") for gap in scan.gaps)
+    (scan,) = scan_source(f"{ROWS_FROM};", "x.sql", checklist_outcomes())
     assert any(gap.startswith("SQLGlot cannot parse it") for gap in scan.gaps)
