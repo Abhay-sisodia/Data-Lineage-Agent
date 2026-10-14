@@ -486,6 +486,14 @@ def analyse(
         f"parse coverage {'n/a' if coverage is None else f'{coverage * 100:.1f}%'} "
         f"({result.statements_analysed}/{result.statements_seen} statements)"
     )
+    if result.ledger:
+        from lineage.analysis import ledger
+
+        # Plan step 3: every statement, and what became of each one that is not lineage.
+        typer.echo(ledger.summary(result.ledger))
+        for entry in result.ledger:
+            if entry.status != "column_level":
+                typer.echo(f"  L{entry.line} {entry.kind} {entry.status}: {entry.reason}")
 
     if output is not None:
         document = to_document(

@@ -291,7 +291,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "SILENT",
+  "status": "EFFECT",
   "target": "lineage"
  },
  "extra:array_slice": {
@@ -325,7 +325,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "COUNTED",
+  "status": "EFFECT",
   "target": "effect"
  },
  "extra:boolean_value_in_update_set": {
@@ -363,9 +363,9 @@
  },
  "extra:copy_to_file": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "extra:create_materialized_view": {
@@ -415,21 +415,21 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "COUNTED",
+  "status": "EFFECT",
   "target": "effect"
  },
  "extra:detach_partition": {
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "COUNTED",
+  "status": "EFFECT",
   "target": "effect"
  },
  "extra:explain_analyze_runs_the_write": {
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "SILENT",
+  "status": "NOT_ANALYSED",
   "target": "lineage"
  },
  "extra:generate_series_source": {
@@ -502,7 +502,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "SILENT",
+  "status": "NOT_ANALYSED",
   "target": "lineage"
  },
  "extra:lateral_subquery": {
@@ -657,7 +657,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "COUNTED",
+  "status": "NOT_ANALYSED",
   "target": "lineage"
  },
  "extra:plpgsql_select_into_scalar": {
@@ -758,7 +758,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "SILENT",
+  "status": "EFFECT",
   "target": "effect"
  },
  "extra:rollup_of_a_composite": {
@@ -848,7 +848,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "COUNTED",
+  "status": "NOT_ANALYSED",
   "target": "lineage"
  },
  "extra:trim_overlay_position": {
@@ -900,9 +900,9 @@
  },
  "node:ATAlterConstraint": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:A_ArrayExpr": {
@@ -961,16 +961,16 @@
  },
  "node:AccessPriv": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:AlterTableCmd": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:BitString": {
@@ -1062,9 +1062,9 @@
  },
  "node:CreateOpClassItem": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:CurrentOfExpr": {
@@ -1094,9 +1094,9 @@
  },
  "node:FunctionParameter": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:GroupingFunc": {
@@ -1256,9 +1256,9 @@
  },
  "node:ObjectWithArgs": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:ParamRef": {
@@ -1281,7 +1281,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "COUNTED",
+  "status": "EFFECT",
   "target": "effect"
  },
  "node:PartitionElem": {
@@ -1300,16 +1300,16 @@
  },
  "node:PublicationObjSpec": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:PublicationTable": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:RangeFunction": {
@@ -1352,9 +1352,9 @@
  },
  "node:RoleSpec": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:SetToDefault": {
@@ -1366,9 +1366,9 @@
  },
  "node:StatsElem": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:TableLikeClause": {
@@ -1398,9 +1398,9 @@
  },
  "node:VacuumRelation": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:WindowDef": {
@@ -1632,233 +1632,233 @@
  },
  "stmt:AlterCollationStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterDatabaseRefreshCollStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterDatabaseSetStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterDatabaseStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterDefaultPrivilegesStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterDomainStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterEnumStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterEventTrigStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterExtensionContentsStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterExtensionStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterFdwStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterForeignServerStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterFunctionStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterObjectDependsStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterObjectSchemaStmt": {
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "SILENT",
+  "status": "EFFECT",
   "target": "effect"
  },
  "stmt:AlterOpFamilyStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterOperatorStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterOwnerStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterPolicyStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterPublicationStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterRoleSetStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterRoleStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterSeqStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterStatsStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterSubscriptionStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterSystemStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterTSConfigurationStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterTSDictionaryStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterTableMoveAllStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterTableSpaceOptionsStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterTableStmt": {
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "SILENT",
+  "status": "EFFECT",
   "target": "effect"
  },
  "stmt:AlterTypeStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:AlterUserMappingStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CallStmt": {
@@ -1872,16 +1872,16 @@
  },
  "stmt:CheckPointStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:ClosePortalStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:ClusterStmt": {
@@ -1893,9 +1893,9 @@
  },
  "stmt:CommentStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CompositeTypeStmt": {
@@ -1907,9 +1907,9 @@
  },
  "stmt:ConstraintsSetStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CopyStmt": {
@@ -1921,30 +1921,30 @@
  },
  "stmt:CreateAmStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateCastStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateConversionStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateDomainStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateEnumStmt": {
@@ -1956,37 +1956,37 @@
  },
  "stmt:CreateEventTrigStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateExtensionStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateFdwStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateForeignServerStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateForeignTableStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateFunctionStmt": {
@@ -2000,51 +2000,51 @@
  },
  "stmt:CreateOpClassStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateOpFamilyStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreatePLangStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreatePolicyStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreatePublicationStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateRangeStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateRoleStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateSchemaStmt": {
@@ -2063,9 +2063,9 @@
  },
  "stmt:CreateStatsStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateStmt": {
@@ -2077,9 +2077,9 @@
  },
  "stmt:CreateSubscriptionStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateTableAsStmt": {
@@ -2094,9 +2094,9 @@
  },
  "stmt:CreateTableSpaceStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateTransformStmt": {
@@ -2118,16 +2118,16 @@
  },
  "stmt:CreateUserMappingStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreatedbStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:DeallocateStmt": {
@@ -2139,16 +2139,16 @@
  },
  "stmt:DeclareCursorStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:DefineStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:DeleteStmt": {
@@ -2166,9 +2166,9 @@
  },
  "stmt:DiscardStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:DoStmt": {
@@ -2182,51 +2182,51 @@
  },
  "stmt:DropOwnedStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:DropRoleStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:DropStmt": {
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "SILENT",
+  "status": "EFFECT",
   "target": "effect"
  },
  "stmt:DropSubscriptionStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:DropTableSpaceStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:DropUserMappingStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:DropdbStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:ExecuteStmt": {
@@ -2240,30 +2240,30 @@
  },
  "stmt:ExplainStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:FetchStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:GrantRoleStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:GrantStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:ImportForeignSchemaStmt": {
@@ -2295,23 +2295,23 @@
  },
  "stmt:ListenStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:LoadStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:LockStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:MergeStmt": {
@@ -2366,23 +2366,23 @@
  },
  "stmt:ReindexStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:RenameStmt": {
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "SILENT",
+  "status": "EFFECT",
   "target": "effect"
  },
  "stmt:ReplicaIdentityStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:ReturnStmt": {
@@ -2398,7 +2398,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "SILENT",
+  "status": "NOT_ANALYSED",
   "target": "lineage"
  },
  "stmt:SecLabelStmt": {
@@ -2427,9 +2427,9 @@
  },
  "stmt:TransactionStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:TruncateStmt": {
@@ -2441,9 +2441,9 @@
  },
  "stmt:UnlistenStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:UpdateStmt": {
@@ -2462,23 +2462,23 @@
  },
  "stmt:VacuumStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:VariableSetStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:VariableShowStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "SILENT",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:ViewStmt": {
@@ -3674,7 +3674,7 @@
   "covers": [],
   "met": false,
   "pairs": [],
-  "status": "COUNTED",
+  "status": "NOT_ANALYSED",
   "target": "lineage"
  },
  "variant:XmlExpr.op=IS_XMLROOT": {

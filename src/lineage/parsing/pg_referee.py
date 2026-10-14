@@ -300,12 +300,14 @@ def verdicts(source: str) -> list[Verdict]:
 
 
 def set_aside(source: str) -> tuple[str, list[Verdict]]:
-    """`source` with every statement PostgreSQL rejects blanked, and those statements.
+    """`source` with every statement PostgreSQL rejects blanked, and EVERY statement's verdict.
 
     Blanked to whitespace with its newlines kept, so every later line number holds and no
-    front end, classifier or SQLGlot ever reads it. The caller refuses each one by name.
+    front end, classifier or SQLGlot ever reads it. The caller refuses each rejected one by
+    name, and the statement ledger is built from all of them.
     """
-    rejected = [v for v in verdicts(source) if not v.valid]
+    found = verdicts(source)
+    rejected = [v for v in found if not v.valid]
     starts = [0] + [index + 1 for index, char in enumerate(source) if char == "\n"]
     for item in rejected:
         at = source.find(item.text, starts[item.line - 1])
@@ -313,4 +315,4 @@ def set_aside(source: str) -> tuple[str, list[Verdict]]:
             continue
         blank = "".join(ch if ch == "\n" else " " for ch in item.text)
         source = source[:at] + blank + source[at + len(item.text) :]
-    return source, rejected
+    return source, found

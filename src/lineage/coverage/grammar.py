@@ -183,8 +183,10 @@ def measure(sql: str, book: Dictionary) -> tuple[str, list[str]]:
     PARTIAL:c    edges came out, and a part was refused with code c
     REFUSED:c    refused, code c
     DECLARED:k   no edge, no refusal, a boundary names what stopped it
-    COUNTED      seen and counted, nothing to trace
-    SILENT       not even counted - the case the statement ledger exists to end
+    COUNTED      nothing to trace, and the statement ledger says why (DDL, settings ...)
+    EFFECT       the ledger lists it as an effect (DROP, TRUNCATE ...) - not modelled yet
+    NOT_ANALYSED it can move data and nothing came of it - listed loudly by the ledger
+    SILENT       not even in the ledger - cannot happen for PostgreSQL since plan step 3
     CRASH        the analyser raised
     HANG         the analyser did not finish within the timeout (`measure_all` only)
     """
@@ -206,9 +208,14 @@ def measure(sql: str, book: Dictionary) -> tuple[str, list[str]]:
         return f"REFUSED:{result.refusals[0].code.value}", pairs
     if result.boundaries:
         return f"DECLARED:{result.boundaries[0].kind.value}", pairs
-    if result.statements_seen:
-        return "COUNTED", pairs
-    return "SILENT", pairs
+    statuses = {entry.status for entry in result.ledger}
+    if not statuses:
+        return "SILENT", pairs
+    if "not_analysed" in statuses:
+        return "NOT_ANALYSED", pairs
+    if statuses == {"effect"}:
+        return "EFFECT", pairs
+    return "COUNTED", pairs
 
 
 TARGETS = ("lineage", "no_lineage", "effect", "refused", "declared")

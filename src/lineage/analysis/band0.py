@@ -153,6 +153,13 @@ class AnalysisResult:
     call leaves it empty.
     """
 
+    ledger: list[Any] = field(default_factory=list)
+    """Every top-level statement and what became of it (plan step 3, `analysis.ledger`).
+
+    PostgreSQL only, filled by `procedure.analyse_source`: one `LedgerEntry` per statement,
+    so a statement the analyser said nothing about is still listed, with its reason.
+    """
+
     scoped_statements: set[tuple[str, int]] = field(default_factory=set)
     """`(unit, line)` of each statement whose refusal was narrowed to a CTE.
 

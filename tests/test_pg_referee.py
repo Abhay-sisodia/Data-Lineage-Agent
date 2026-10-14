@@ -48,7 +48,8 @@ def test_a_psql_variable_does_not_make_a_statement_invalid() -> None:
 
 def test_set_aside_blanks_only_the_rejected_statement_and_keeps_every_line() -> None:
     source = f"INSERT INTO tgt.t (v) SELECT a.v FROM src.a AS a;\n{SPARK}\n  ;\nSELECT 1;\n"
-    kept, rejected = set_aside(source)
+    kept, found = set_aside(source)
+    rejected = [v for v in found if not v.valid]
     assert [r.line for r in rejected] == [2]
     assert kept.count("\n") == source.count("\n")
     assert "TIMESTAMP" not in kept and "SELECT a.v" in kept

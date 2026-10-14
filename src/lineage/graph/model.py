@@ -36,6 +36,7 @@ from typing import Any
 
 from lineage.export import ExportedResult
 from lineage.ir.model import Flow, IREdge, Node, NodeKind
+from lineage.parsing.sqlscript import SCRIPT_UNIT
 
 SCHEMA_VERSION = "lineage-graph/1"
 
@@ -278,6 +279,20 @@ def _add_file(batch: GraphBatch, result: ExportedResult) -> None:
             batch.relationship(
                 "BOUNDS", _hash("BOUNDS", node.name, *bounded), ("Boundary", node.name), bounded
             )
+
+    # Plan step 3: every statement, with its ledger status - the ones that produced no edge
+    # (an effect, DDL, a refused statement) are on the graph too, never only in a side list.
+    for entry in result.ledger:
+        statement = _statement(batch, file, SCRIPT_UNIT, entry["line"])
+        batch.node(
+            "Statement",
+            statement,
+            status=entry["status"],
+            kind=entry["kind"],
+            reason=entry["reason"],
+            end_line=entry["end_line"],
+            edges=entry["edges"],
+        )
 
     for refusal in result.refusals:
         statement = _statement(batch, file, refusal.unit, refusal.line)

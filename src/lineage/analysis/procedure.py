@@ -19,7 +19,7 @@ import re
 import sqlglot
 from sqlglot import exp
 
-from lineage.analysis import band0, plpgsql
+from lineage.analysis import band0, ledger, plpgsql
 from lineage.analysis.band0 import AnalysisResult, Refusal
 from lineage.analysis.cfg import Cfg, build_all
 from lineage.analysis.cfg import NodeKind as CfgNodeKind
@@ -53,8 +53,9 @@ __all__ = ["AnalysisResult", "Refusal", "analyse_source", "restate_postgres"]
 def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_referee.Verdict]]:
     """A PostgreSQL script as the analyser reads it, every line number unchanged.
 
-    Returns the restated source, the psql includes, and the statements PostgreSQL's own
-    parser rejects - blanked out of the source, for the caller to refuse by name.
+    Returns the restated source, the psql includes, and PostgreSQL's own verdict on every
+    statement - those it rejects are blanked out of the source, for the caller to refuse by
+    name; all of them are the statement ledger's rows.
     """
     # D-36, D-37: a psql script restated as the SQL the server receives - meta-commands
     # blanked, `:'v'` substituted, `U&""` decoded - before anything splits or parses
@@ -63,7 +64,7 @@ def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_refe
     # Plan step 2: PostgreSQL's own grammar referees every statement before anything else
     # reads it. One it rejects is not SQL the server would run - SQLGlot accepts some such
     # (`TIMESTAMP('...')`, a Spark spelling) and would answer for it with confident edges.
-    source, rejected = pg_referee.set_aside(source)
+    source, verdicts = pg_referee.set_aside(source)
     # D-30: JSON_TABLE / XMLTABLE restated as LATERAL subqueries in the SOURCE, before
     # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
     # (B5-04), and the refusal register scans the raw text. Line counts are kept.
@@ -80,7 +81,7 @@ def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_refe
     # TT-5: PostgreSQL grammar SQLGlot has no rule for (SEARCH / CYCLE, SQL/JSON and XML
     # keyword forms, typed and radix literals, geometric operators ...), restated as SQL
     # that reads the same columns. Same lines, so every later line number holds.
-    return pg_grammar.restate(source), includes, rejected
+    return pg_grammar.restate(source), includes, verdicts
 
 
 def analyse_source(
@@ -103,10 +104,10 @@ def analyse_source(
     dialect = resolve_dialect(settings, dictionary)
 
     includes: list[psql.Include] = []
-    rejected: list[pg_referee.Verdict] = []
+    verdicts: list[pg_referee.Verdict] = []
     desugared: plpgsql.Desugared | None = None
     if dialect.name == "postgres":
-        source, includes, rejected = restate_postgres(source)
+        source, includes, verdicts = restate_postgres(source)
         # B8 (D-39..D-42): every PL/pgSQL routine and DO block the reader can read becomes
         # the SQL its body runs, at its own lines; what it cannot read stays as written and
         # is refused by name, as before. `plpgsql.finish` restates the result afterwards.
@@ -154,7 +155,7 @@ def analyse_source(
 
     # Plan step 2: each statement PostgreSQL's own parser rejected was blanked before any
     # front end read it - counted here, and refused by name, so it is never silent.
-    for rejection in rejected:
+    for rejection in (v for v in verdicts if not v.valid):
         result.statements_seen += 1
         result.refusals.append(
             Refusal(
@@ -396,6 +397,8 @@ def analyse_source(
 
     if desugared is not None:
         result = plpgsql.explain_refusals(result, desugared)
+    # Plan step 3: every statement, with what became of it - never silent.
+    result.ledger = ledger.build(verdicts, result)
     return result
 
 

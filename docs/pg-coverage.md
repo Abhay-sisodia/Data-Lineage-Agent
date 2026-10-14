@@ -8,17 +8,17 @@ its snippet through `analyse_source`. Rows: `stress/pg/grammar/checklist.yaml`.
 `lineage scan <folder>` uses this table to predict, before analysing, what the analyser
 will make of every statement in a folder - and names the row behind each gap.
 
-**299 / 416 constructs meet their target (71.9%).** Extra combinations: 49 / 70.
+**389 / 416 constructs meet their target (93.5%).** Extra combinations: 50 / 70.
 
 | area | constructs | meet target | % |
 |---|---|---|---|
-| statement | 114 | 23 | 20.2% |
+| statement | 114 | 102 | 89.5% |
 | clause | 41 | 41 | 100.0% |
-| expression / clause | 100 | 85 | 85.0% |
+| expression / clause | 100 | 96 | 96.0% |
 | variant | 134 | 130 | 97.0% |
 | PL/pgSQL | 27 | 20 | 74.1% |
 
-Measured outcomes over all rows: COUNTED 23, DECLARED 5, HANG 1, LINEAGE 256, REFUSED 22, SILENT 100
+Measured outcomes over all rows: COUNTED 107, DECLARED 5, EFFECT 10, HANG 1, LINEAGE 256, NOT_ANALYSED 6, REFUSED 22
 
 ## Targets and outcomes
 
@@ -29,148 +29,58 @@ Measured outcomes over all rows: COUNTED 23, DECLARED 5, HANG 1, LINEAGE 256, RE
 | effect | changes what a table holds or is (TRUNCATE, DROP) | an Operation fact - not built yet |
 | refused:C / declared:K | honestly unknowable, named | REFUSED:C / DECLARED:K |
 
-SILENT means the analyser did not even count the statement - the case the statement
-ledger (plan step 3) ends. PARTIAL means lineage came out and a part was refused.
+COUNTED, EFFECT and NOT_ANALYSED come from the statement ledger (plan step 3), which
+lists every statement with what became of it - NOT_ANALYSED is a statement that can
+move data and produced nothing. PARTIAL means lineage came out and a part was refused.
 
 ## Not meeting target
 
 | construct | target | measured | note |
 |---|---|---|---|
-| `extra:attach_partition` | effect | COUNTED | the partition's rows become the parent's |
-| `extra:delete_all_rows` | effect | COUNTED | no predicate - every row goes, as TRUNCATE |
-| `extra:detach_partition` | effect | COUNTED |  |
-| `extra:rename_table` | effect | SILENT |  |
-| `node:PartitionCmd` | effect | COUNTED |  |
-| `stmt:AlterObjectSchemaStmt` | effect | SILENT |  |
-| `stmt:AlterTableStmt` | effect | SILENT |  |
-| `stmt:DropStmt` | effect | SILENT |  |
-| `stmt:RenameStmt` | effect | SILENT |  |
+| `extra:attach_partition` | effect | EFFECT | the partition's rows become the parent's |
+| `extra:delete_all_rows` | effect | EFFECT | no predicate - every row goes, as TRUNCATE |
+| `extra:detach_partition` | effect | EFFECT |  |
+| `extra:rename_table` | effect | EFFECT |  |
+| `node:PartitionCmd` | effect | EFFECT |  |
+| `stmt:AlterObjectSchemaStmt` | effect | EFFECT |  |
+| `stmt:AlterTableStmt` | effect | EFFECT |  |
+| `stmt:DropStmt` | effect | EFFECT |  |
+| `stmt:RenameStmt` | effect | EFFECT |  |
 | `stmt:TruncateStmt` | effect | REFUSED:UNSUPPORTED_CONSTRUCT |  |
-| `extra:alter_column_type_using` | lineage | SILENT | USING recomputes every row's value from its old one |
+| `extra:alter_column_type_using` | lineage | EFFECT | USING recomputes every row's value from its old one |
 | `extra:boolean_value_in_update_set` | lineage | REFUSED:PARSE_FAILED | holdout gap G1 - a boolean expression as an UPDATE SET value |
 | `extra:column_alias_list` | lineage | DECLARED:unresolved_identifier | the alias renames the columns by position |
-| `extra:explain_analyze_runs_the_write` | lineage | SILENT | EXPLAIN ANALYZE executes the statement - the write happens |
-| `extra:json_table_without_alias` | lineage | SILENT | PostgreSQL does not require JSON_TABLE's alias; the restatement does (found in step 2) |
+| `extra:explain_analyze_runs_the_write` | lineage | NOT_ANALYSED | EXPLAIN ANALYZE executes the statement - the write happens |
+| `extra:json_table_without_alias` | lineage | NOT_ANALYSED | PostgreSQL does not require JSON_TABLE's alias; the restatement does (found in step 2) |
 | `extra:plpgsql_out_parameter` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_parameters_flow` | lineage | LINEAGE | the caller's value flows through the parameter into the write |
 | `extra:plpgsql_record_field_assignment` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_returning_into` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `extra:plpgsql_rowtype_variable` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
-| `extra:plpgsql_scalar_function_return` | lineage | COUNTED |  |
+| `extra:plpgsql_scalar_function_return` | lineage | NOT_ANALYSED |  |
 | `extra:plpgsql_select_star_into_record` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT | holdout gap G2 - `*` into a record, then a field of it |
 | `extra:plpgsql_subquery_then_self_assignment` | lineage | HANG | a value assigned from a subquery and then from itself - the analysis does not finish |
 | `extra:plpgsql_truncate_then_reload` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT | the TRUNCATE in the middle must not cost the routine its lineage |
 | `extra:sql_function_body` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
-| `extra:table_shorthand` | lineage | COUNTED |  |
+| `extra:table_shorthand` | lineage | NOT_ANALYSED |  |
 | `node:TriggerTransition` | lineage | DECLARED:dangling_reference |  |
 | `plpgsql:PLpgSQL_stmt_case` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `plpgsql:PLpgSQL_stmt_dynfors` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `plpgsql:PLpgSQL_stmt_foreach_a` | lineage | LINEAGE |  |
 | `plpgsql:PLpgSQL_stmt_open` | lineage | REFUSED:UNSUPPORTED_CONSTRUCT |  |
 | `plpgsql:PLpgSQL_stmt_return_next` | lineage | DECLARED:dangling_reference |  |
-| `stmt:RuleStmt` | lineage | SILENT | a rule rewrites every INSERT on src.a into a second write |
+| `stmt:RuleStmt` | lineage | NOT_ANALYSED | a rule rewrites every INSERT on src.a into a second write |
 | `variant:LockingClause.strength=LCS_FORKEYSHARE` | lineage | REFUSED:NAME_NOT_RESOLVED |  |
 | `variant:ReturningOption.option=RETURNING_OPTION_NEW` | lineage | REFUSED:PARSE_FAILED | PostgreSQL 18 |
 | `variant:ReturningOption.option=RETURNING_OPTION_OLD` | lineage | REFUSED:PARSE_FAILED | PostgreSQL 18 |
-| `variant:XmlExpr.op=IS_XMLPI` | lineage | COUNTED |  |
-| `extra:copy_to_file` | no_lineage | SILENT | an export - nothing in the database changes |
-| `node:ATAlterConstraint` | no_lineage | SILENT |  |
-| `node:AccessPriv` | no_lineage | SILENT |  |
-| `node:AlterTableCmd` | no_lineage | SILENT |  |
-| `node:CreateOpClassItem` | no_lineage | SILENT |  |
-| `node:FunctionParameter` | no_lineage | SILENT |  |
-| `node:ObjectWithArgs` | no_lineage | SILENT |  |
-| `node:PublicationObjSpec` | no_lineage | SILENT |  |
-| `node:PublicationTable` | no_lineage | SILENT |  |
-| `node:RoleSpec` | no_lineage | SILENT |  |
+| `variant:XmlExpr.op=IS_XMLPI` | lineage | NOT_ANALYSED |  |
 | `node:SetToDefault` | no_lineage | DECLARED:unresolved_identifier | DEFAULT writes the column's default, not a value from anywhere |
-| `node:StatsElem` | no_lineage | SILENT |  |
-| `node:VacuumRelation` | no_lineage | SILENT |  |
-| `stmt:AlterCollationStmt` | no_lineage | SILENT |  |
-| `stmt:AlterDatabaseRefreshCollStmt` | no_lineage | SILENT |  |
-| `stmt:AlterDatabaseSetStmt` | no_lineage | SILENT |  |
-| `stmt:AlterDatabaseStmt` | no_lineage | SILENT |  |
-| `stmt:AlterDefaultPrivilegesStmt` | no_lineage | SILENT |  |
-| `stmt:AlterDomainStmt` | no_lineage | SILENT |  |
-| `stmt:AlterEnumStmt` | no_lineage | SILENT |  |
-| `stmt:AlterEventTrigStmt` | no_lineage | SILENT |  |
-| `stmt:AlterExtensionContentsStmt` | no_lineage | SILENT |  |
-| `stmt:AlterExtensionStmt` | no_lineage | SILENT |  |
-| `stmt:AlterFdwStmt` | no_lineage | SILENT |  |
-| `stmt:AlterForeignServerStmt` | no_lineage | SILENT |  |
-| `stmt:AlterFunctionStmt` | no_lineage | SILENT |  |
-| `stmt:AlterObjectDependsStmt` | no_lineage | SILENT |  |
-| `stmt:AlterOpFamilyStmt` | no_lineage | SILENT |  |
-| `stmt:AlterOperatorStmt` | no_lineage | SILENT |  |
-| `stmt:AlterOwnerStmt` | no_lineage | SILENT |  |
-| `stmt:AlterPolicyStmt` | no_lineage | SILENT |  |
-| `stmt:AlterPublicationStmt` | no_lineage | SILENT |  |
-| `stmt:AlterRoleSetStmt` | no_lineage | SILENT |  |
-| `stmt:AlterRoleStmt` | no_lineage | SILENT |  |
-| `stmt:AlterSeqStmt` | no_lineage | SILENT |  |
-| `stmt:AlterStatsStmt` | no_lineage | SILENT |  |
-| `stmt:AlterSubscriptionStmt` | no_lineage | SILENT |  |
-| `stmt:AlterSystemStmt` | no_lineage | SILENT |  |
-| `stmt:AlterTSConfigurationStmt` | no_lineage | SILENT |  |
-| `stmt:AlterTSDictionaryStmt` | no_lineage | SILENT |  |
-| `stmt:AlterTableMoveAllStmt` | no_lineage | SILENT |  |
-| `stmt:AlterTableSpaceOptionsStmt` | no_lineage | SILENT |  |
-| `stmt:AlterTypeStmt` | no_lineage | SILENT |  |
-| `stmt:AlterUserMappingStmt` | no_lineage | SILENT |  |
-| `stmt:CheckPointStmt` | no_lineage | SILENT |  |
-| `stmt:ClosePortalStmt` | no_lineage | SILENT |  |
 | `stmt:ClusterStmt` | no_lineage | REFUSED:PARSE_FAILED |  |
-| `stmt:CommentStmt` | no_lineage | SILENT |  |
-| `stmt:ConstraintsSetStmt` | no_lineage | SILENT |  |
-| `stmt:CreateAmStmt` | no_lineage | SILENT |  |
-| `stmt:CreateCastStmt` | no_lineage | SILENT |  |
-| `stmt:CreateConversionStmt` | no_lineage | SILENT |  |
-| `stmt:CreateDomainStmt` | no_lineage | SILENT |  |
-| `stmt:CreateEventTrigStmt` | no_lineage | SILENT |  |
-| `stmt:CreateExtensionStmt` | no_lineage | SILENT |  |
-| `stmt:CreateFdwStmt` | no_lineage | SILENT |  |
-| `stmt:CreateForeignServerStmt` | no_lineage | SILENT |  |
-| `stmt:CreateForeignTableStmt` | no_lineage | SILENT |  |
-| `stmt:CreateOpClassStmt` | no_lineage | SILENT |  |
-| `stmt:CreateOpFamilyStmt` | no_lineage | SILENT |  |
-| `stmt:CreatePLangStmt` | no_lineage | SILENT |  |
-| `stmt:CreatePolicyStmt` | no_lineage | SILENT | row security decides which rows a role sees at run time |
-| `stmt:CreatePublicationStmt` | no_lineage | SILENT |  |
-| `stmt:CreateRangeStmt` | no_lineage | SILENT |  |
-| `stmt:CreateRoleStmt` | no_lineage | SILENT |  |
-| `stmt:CreateStatsStmt` | no_lineage | SILENT |  |
-| `stmt:CreateSubscriptionStmt` | no_lineage | SILENT |  |
-| `stmt:CreateTableSpaceStmt` | no_lineage | SILENT |  |
 | `stmt:CreateTransformStmt` | no_lineage | REFUSED:PARSE_FAILED |  |
-| `stmt:CreateUserMappingStmt` | no_lineage | SILENT |  |
-| `stmt:CreatedbStmt` | no_lineage | SILENT |  |
-| `stmt:DeclareCursorStmt` | no_lineage | SILENT | a client-side cursor - rows go to the client, not to a table |
-| `stmt:DefineStmt` | no_lineage | SILENT |  |
-| `stmt:DiscardStmt` | no_lineage | SILENT |  |
-| `stmt:DropOwnedStmt` | no_lineage | SILENT |  |
-| `stmt:DropRoleStmt` | no_lineage | SILENT |  |
-| `stmt:DropSubscriptionStmt` | no_lineage | SILENT |  |
-| `stmt:DropTableSpaceStmt` | no_lineage | SILENT |  |
-| `stmt:DropUserMappingStmt` | no_lineage | SILENT |  |
-| `stmt:DropdbStmt` | no_lineage | SILENT |  |
-| `stmt:ExplainStmt` | no_lineage | SILENT | plain EXPLAIN does not run the statement |
-| `stmt:FetchStmt` | no_lineage | SILENT |  |
-| `stmt:GrantRoleStmt` | no_lineage | SILENT |  |
-| `stmt:GrantStmt` | no_lineage | SILENT |  |
 | `stmt:ImportForeignSchemaStmt` | no_lineage | REFUSED:PARSE_FAILED |  |
-| `stmt:ListenStmt` | no_lineage | SILENT |  |
-| `stmt:LoadStmt` | no_lineage | SILENT |  |
-| `stmt:LockStmt` | no_lineage | SILENT |  |
 | `stmt:NotifyStmt` | no_lineage | REFUSED:PARSE_FAILED |  |
 | `stmt:ReassignOwnedStmt` | no_lineage | REFUSED:PARSE_FAILED |  |
-| `stmt:ReindexStmt` | no_lineage | SILENT |  |
-| `stmt:ReplicaIdentityStmt` | no_lineage | SILENT |  |
 | `stmt:SecLabelStmt` | no_lineage | REFUSED:PARSE_FAILED |  |
-| `stmt:TransactionStmt` | no_lineage | SILENT |  |
-| `stmt:UnlistenStmt` | no_lineage | SILENT |  |
-| `stmt:VacuumStmt` | no_lineage | SILENT |  |
-| `stmt:VariableSetStmt` | no_lineage | SILENT | decides what an unqualified name means later - the resolver reads it |
-| `stmt:VariableShowStmt` | no_lineage | SILENT |  |
 
 ## Left out of the inventory, by name
 
