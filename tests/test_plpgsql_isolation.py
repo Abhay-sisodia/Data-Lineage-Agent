@@ -35,10 +35,10 @@ def _pairs(result) -> set[tuple[str, str]]:
 
 
 RELOAD = """CREATE PROCEDURE tgt.reload() LANGUAGE plpgsql AS $$
-DECLARE r tgt.t%ROWTYPE;
+DECLARE c refcursor;
 BEGIN
   INSERT INTO tgt.t (k) SELECT b.k FROM src.b AS b;
-  r.v := (SELECT max(a.v) FROM src.a AS a);
+  OPEN c FOR EXECUTE 'SELECT 1';
   INSERT INTO tgt.t (v) SELECT a.v FROM src.a AS a;
 END $$;
 """

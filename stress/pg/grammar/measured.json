@@ -289,9 +289,11 @@
  },
  "extra:alter_column_type_using": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "EFFECT",
+  "met": true,
+  "pairs": [
+   "tgt.t.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:array_slice": {
@@ -349,9 +351,11 @@
  },
  "extra:column_alias_list": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "DECLARED:unresolved_identifier",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:composite_field_access": {
@@ -430,9 +434,11 @@
  },
  "extra:explain_analyze_runs_the_write": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "NOT_ANALYSED",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:generate_series_source": {
@@ -633,8 +639,9 @@
  },
  "extra:plpgsql_parameters_flow": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [
+   "src.a.v -> variable:p_v",
    "variable:p_v -> tgt.t.v"
   ],
   "status": "LINEAGE",
@@ -642,18 +649,23 @@
  },
  "extra:plpgsql_record_field_assignment": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "TABLE_LEVEL:UNSUPPORTED_CONSTRUCT",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:plpgsql_returning_into": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [
+   "src.a.id -> relation:src.a",
+   "src.a.v -> src.a.v",
+   "src.a.v -> variable:new_v",
    "variable:new_v -> tgt.t.v"
   ],
-  "status": "PARTIAL:UNSUPPORTED_CONSTRUCT",
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:plpgsql_rowtype_variable": {
@@ -697,9 +709,13 @@
  },
  "extra:plpgsql_subquery_then_self_assignment": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "HANG",
+  "met": true,
+  "pairs": [
+   "src.a.v -> variable:total",
+   "variable:total -> tgt.t.v",
+   "variable:total -> variable:total"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:plpgsql_truncate_then_reload": {
@@ -848,9 +864,11 @@
  },
  "extra:sql_function_body": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "REFUSED:UNSUPPORTED_CONSTRUCT",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:substring_from_for": {
@@ -873,9 +891,15 @@
  },
  "extra:table_shorthand": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "NOT_ANALYSED",
+  "met": true,
+  "pairs": [
+   "src.b.d -> tgt.t.d",
+   "src.b.id -> tgt.t.id",
+   "src.b.k -> tgt.t.k",
+   "src.b.n -> tgt.t.n",
+   "src.b.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "extra:trim_overlay_position": {
@@ -1386,9 +1410,9 @@
  },
  "node:SetToDefault": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "DECLARED:unresolved_identifier",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "node:StatsElem": {
@@ -1407,9 +1431,12 @@
  },
  "node:TriggerTransition": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "DECLARED:dangling_reference",
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "node:TypeCast": {
@@ -1922,9 +1949,9 @@
  },
  "stmt:ClusterStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "REFUSED:PARSE_FAILED",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CommentStmt": {
@@ -2137,9 +2164,9 @@
  },
  "stmt:CreateTransformStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "REFUSED:PARSE_FAILED",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:CreateTrigStmt": {
@@ -2304,9 +2331,9 @@
  },
  "stmt:ImportForeignSchemaStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "REFUSED:PARSE_FAILED",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:IndexStmt": {
@@ -2368,9 +2395,9 @@
  },
  "stmt:NotifyStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "REFUSED:PARSE_FAILED",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:PrepareStmt": {
@@ -2385,9 +2412,9 @@
  },
  "stmt:ReassignOwnedStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "REFUSED:PARSE_FAILED",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:RefreshMatViewStmt": {
@@ -2432,16 +2459,19 @@
  },
  "stmt:RuleStmt": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "NOT_ANALYSED",
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "stmt:SecLabelStmt": {
   "covers": [],
-  "met": false,
+  "met": true,
   "pairs": [],
-  "status": "REFUSED:PARSE_FAILED",
+  "status": "COUNTED",
   "target": "no_lineage"
  },
  "stmt:SelectStmt": {
@@ -3198,9 +3228,11 @@
  },
  "variant:LockingClause.strength=LCS_FORKEYSHARE": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "UNCLASSIFIED:NAME_NOT_RESOLVED",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "variant:LockingClause.strength=LCS_FORNOKEYUPDATE": {
@@ -3341,18 +3373,22 @@
  },
  "variant:ReturningOption.option=RETURNING_OPTION_NEW": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "UNCLASSIFIED:PARSE_FAILED",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "variant:ReturningOption.option=RETURNING_OPTION_OLD": {
   "covers": [
    "node:ReturningOption"
   ],
-  "met": false,
-  "pairs": [],
-  "status": "UNCLASSIFIED:PARSE_FAILED",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "variant:RowExpr.row_format=COERCE_EXPLICIT_CALL": {
@@ -3708,9 +3744,11 @@
  },
  "variant:XmlExpr.op=IS_XMLPI": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "NOT_ANALYSED",
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "variant:XmlExpr.op=IS_XMLROOT": {

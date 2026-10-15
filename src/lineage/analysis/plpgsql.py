@@ -91,6 +91,7 @@ class Emitted:
     record: str = ""  # loop: the record variable
     uses: list[Use] = field(default_factory=list)
     written: str = ""  # sql: the relation written, as the statement names it
+    binding: bool = False  # a caller's arguments bound to a routine's parameters (step 8)
 
 
 @dataclass
@@ -211,6 +212,7 @@ class _Desugarer:
         self.loops = 0
         self.bindings: dict[str, list[pl.TriggerBinding]] = {}
         self.trigger_functions: set[str] = set()
+        self.transitions: dict[str, str] = {}  # in a trigger body: transition table -> table
 
     # --- the script -------------------------------------------------------------------------
 
@@ -247,14 +249,135 @@ class _Desugarer:
             self._gave_up(start, error)
             return  # left as written: refused by name, as before B8
         if routine is not None:
-            if routine.language != "plpgsql":
+            if routine.language not in ("plpgsql", "sql"):
                 return
             self.routine(routine, start, end, previous)
             return
+        self._bind_arguments(text, start)
         rewritten = self._inline_reads(text, start)
         if rewritten is not None:
             self.out.blank(start, end + 1)  # its `;` too: the rewrite carries its own
             self.out.put(start, rewritten)
+
+    def _bind_arguments(self, text: str, start: int) -> None:
+        """A call to a routine read earlier binds the caller's arguments to its parameters.
+
+        Plan step 8: `SELECT tgt.load_one(a.v) FROM src.a AS a` with `load_one(p_v)` writing
+        `p_v` into a table - the value written is `a.v`. Each argument is read as the value
+        of its parameter (`variable:p_v`), from the caller's own FROM, so a path runs from
+        the caller's column through the parameter to what the routine writes. Only a routine
+        called for what it DOES (void): a scalar function's value already flows through its
+        summary (`Summary.from_arguments`).
+        """
+        if not self.functions or not any(
+            name.split(".")[-1] in text.lower() for name in self.functions
+        ):
+            return
+        parsed = _parse(text)
+        if parsed is None:
+            return
+        for call in list(parsed.find_all(exp.Anonymous)):
+            qualified = call.parent if isinstance(call.parent, exp.Dot) else None
+            name = pl.fold_name(
+                f"{qualified.this.name}.{call.name}" if qualified is not None else call.name
+            )
+            function = self.functions.get(name)
+            if function is None or function.routine.returns not in ("void", ""):
+                continue
+            params = function.routine.params
+            arguments = list(call.expressions)[: len(params)]
+            select = call.find_ancestor(exp.Select)
+            if not arguments or select is None:
+                continue
+            query = select.copy()
+            query.set(
+                "expressions",
+                [exp.alias_(argument.copy(), f"__c{i}") for i, argument in enumerate(arguments)],
+            )
+            for clause in ("order", "limit", "offset", "group", "having"):
+                query.set(clause, None)
+            context = _Context(unit=function.routine.name, variables=set(params), band=1)
+            try:
+                emitted = self._phantom(
+                    query.sql(dialect=DIALECT), start, context, "into",
+                    tuple(params[: len(arguments)]),
+                )  # fmt: skip
+            except pl.UnsupportedError:
+                continue
+            emitted.binding = True
+
+    def _sql_body(self, routine: pl.Routine) -> pl.Block:
+        """A LANGUAGE sql routine's body, as the block a PL/pgSQL one would be (step 8).
+
+        Each statement is read as SQL, `$1`-style references as the parameters they name.
+        The LAST statement, when it is a query, is what a function returns: its value for a
+        scalar function, its rows for a SETOF / TABLE one (as RETURN QUERY, D-40); a void
+        function or a procedure returns nothing, so a final query there is read for nothing.
+        """
+        body: list[pl.Node] = []
+        for first, last in pl._chunks(self.source, routine.body_start, routine.body_end):
+            text = self.source[first:last]
+            if not text.strip():
+                continue
+            text = re.sub(
+                r"\$(\d+)",
+                lambda m: (
+                    routine.params[int(m.group(1)) - 1]
+                    if int(m.group(1)) <= len(routine.params)
+                    else m.group(0)
+                ),
+                text,
+            )
+            lead = len(text) - len(text.lstrip())
+            body.append(
+                pl.classify(text, first + lead) if text.strip() else pl.Stmt("noop", "", first)
+            )
+        last_query = next(
+            (
+                index
+                for index in range(len(body) - 1, -1, -1)
+                if getattr(body[index], "kind", "noop") != "noop"
+            ),
+            None,
+        )
+        if last_query is not None:
+            stmt = body[last_query]
+            assert isinstance(stmt, pl.Stmt)
+            is_query = stmt.kind == "sql" and re.match(
+                r"(?is)\s*(SELECT|WITH|VALUES|TABLE)\b", stmt.text
+            )
+            if is_query and routine.kind == "function":
+                if routine.returns in ("table", "setof"):
+                    body[last_query] = pl.Stmt(
+                        "return_query", stmt.text, stmt.start, expression=stmt.text
+                    )
+                elif routine.returns == "scalar" and pl.find_word(stmt.text, "from") < 0:
+                    # `SELECT $1 * 2`: an expression of the parameters - its RETURN.
+                    expression = re.sub(r"(?is)^\s*SELECT\s+", "", stmt.text).strip()
+                    body[last_query] = pl.Stmt(
+                        "return", stmt.text, stmt.start, expression=expression
+                    )
+                elif routine.returns == "scalar":
+                    body[last_query] = pl.Stmt(
+                        "select_into",
+                        re.sub(
+                            r"(?is)^(\s*SELECT\b.*?)(\s+FROM\b|$)",
+                            r"\1 INTO __result\2",
+                            stmt.text,
+                            count=1,
+                        ),
+                        stmt.start,
+                    )
+                    body.append(
+                        pl.Stmt("return", "RETURN __result", stmt.start, expression="__result")
+                    )
+                else:
+                    body[last_query] = pl.Stmt("noop", stmt.text, stmt.start)
+            elif is_query:
+                body[last_query] = pl.Stmt("noop", stmt.text, stmt.start)
+        block = pl.Block(start=routine.body_start, body=body)
+        block.declarations.append(pl.Declaration(name="__result", start=routine.body_start))
+        return block
 
     def _gave_up(self, start: int, error: Exception) -> None:
         """Record why the routine starting at `start` stays refused, by its CREATE line."""
@@ -270,7 +393,10 @@ class _Desugarer:
 
     def routine(self, routine: pl.Routine, start: int, end: int, previous: int = 0) -> None:
         try:
-            block = pl.read_body(self.source, routine.body_start, routine.body_end)
+            if routine.language == "sql":
+                block = self._sql_body(routine)
+            else:
+                block = pl.read_body(self.source, routine.body_start, routine.body_end)
         except pl.UnsupportedError as error:
             self._gave_up(start, error)
             return
@@ -287,6 +413,11 @@ class _Desugarer:
         if bindings:
             context.records["new"] = []
             context.records["old"] = []
+        # Plan step 8: a transition table (`REFERENCING NEW TABLE AS new_rows`) holds rows of
+        # the table the trigger is on - read from that table.
+        self.transitions = {
+            name: binding.table for binding in bindings for name in binding.transitions
+        }
         # The comments above the routine go too: band 0 numbers a statement from the first
         # content after the previous `;`, and the routine's first body statement must be
         # numbered from its own line.
@@ -309,6 +440,8 @@ class _Desugarer:
             self.phantoms = saved[2]
             self.out.lines, self.out.placed = backup
             return
+        finally:
+            self.transitions = {}  # a transition table is named only inside its trigger
         if routine.returns == "scalar" and len(routine.out_params) == 1:
             # One OUT parameter: its final value is what the function returns.
             returned = routine.out_params[0]
@@ -541,8 +674,6 @@ class _Desugarer:
         written = _written(parsed) if parsed is not None else ""
         if not written:
             raise pl.UnsupportedError("DML ... RETURNING ... INTO on an unknown relation")
-        if self._line(stmt.at) == self._line(stmt.start):
-            raise pl.UnsupportedError("DML ... RETURNING ... INTO on one line")
         self._sql(stmt.text, stmt.start, context)
         targets = tuple(t.lower() for t in stmt.targets)
         self._phantom(f"SELECT {stmt.expression} FROM {written}", stmt.at, context, "into", targets)
@@ -587,7 +718,17 @@ class _Desugarer:
             # a column or a variable still stops the reader: that write is not traced yet.
             if query.find(exp.Column) is None and query.find(exp.Subquery) is None:
                 return
-            raise pl.UnsupportedError("assignment to a record field")
+            record, _, name = target.partition(".")
+            if record in ("new", "old"):
+                raise pl.UnsupportedError("assignment to a record field")
+            # Plan step 8: `r.v := <expr>` is a one-field record value, read as `SELECT * INTO
+            # rec` is (G2) - a later `r.v` is traced from it.
+            phantom = self._phantom(
+                f"SELECT {expression} AS {name}", stmt.start, context, "record", (),
+                names=True, record=record,
+            )  # fmt: skip
+            context.records[record] = [*context.records.get(record, []), phantom.phantom]
+            return
         constant = _literal(expression)
         if constant is not None:
             context.constants[target] = constant
@@ -696,6 +837,15 @@ class _Desugarer:
 
     def _inline_tree(self, tree: Any, start: int) -> bool:
         changed = False
+        for table in list(tree.find_all(exp.Table)):
+            bound = self.transitions.get(table.name.lower()) if not table.db else None
+            if bound is not None:
+                schema, _, name = bound.rpartition(".")
+                table.set("this", exp.to_identifier(name))
+                table.set("db", exp.to_identifier(schema) if schema else None)
+                if not table.alias:
+                    table.set("alias", exp.TableAlias(this=exp.to_identifier(table.name)))
+                changed = True
         for table in list(tree.find_all(exp.Table)):
             call = table.this
             if not isinstance(call, exp.Anonymous):
@@ -1146,7 +1296,8 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
     """Restate band 0's result in procedural terms (see the module docstring)."""
     by_line: dict[int, list[Emitted]] = {}
     for emitted in desugared.emitted:
-        by_line.setdefault(emitted.line, []).append(emitted)
+        if not emitted.binding:  # a binding shares its caller's line, not its statement
+            by_line.setdefault(emitted.line, []).append(emitted)
     phantoms = {e.phantom: e for e in desugared.emitted if e.phantom}
 
     kept: list[PredictedEdge] = []
@@ -1277,10 +1428,15 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
                                 (source.name, _combine(transform, use.transform))
                             )
                         else:
-                            for column, inner in provenance.get((emitted.unit, source.name), []):
-                                provenance.setdefault(provenance_key, []).append(
-                                    (column, _combine(inner, use.transform))
-                                )
+                            # A copy: `x := x * 2` reads and writes the same list, and
+                            # appending to what is being iterated never ended (step 8).
+                            known = provenance.setdefault(provenance_key, [])
+                            for column, inner in list(
+                                provenance.get((emitted.unit, source.name), [])
+                            ):
+                                entry = (column, _combine(inner, use.transform))
+                                if entry not in known:
+                                    known.append(entry)
                     continue
                 if flow is not Flow.VALUE:
                     continue

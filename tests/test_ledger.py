@@ -30,6 +30,7 @@ ANALYZE tgt.t;
 INSERT INTO tgt.t (k, n) VALUES (1, 'one');
 DELETE FROM tgt.t;
 CREATE RULE r AS ON INSERT TO src.a DO ALSO INSERT INTO tgt.t (v) VALUES (NEW.v);
+CREATE RULE s AS ON INSERT TO src.a DO INSTEAD SELECT NEW.v;
 INSERT INTO tgt.t (ts) SELECT TIMESTAMP('1900-01-01') FROM src.a AS a;
 """
 
@@ -55,8 +56,9 @@ def test_every_statement_of_a_load_script_is_listed_with_its_status(grammar_book
         (7, "VacuumStmt", "no_lineage"),
         (8, "InsertStmt", "no_lineage"),  # constants only
         (9, "DeleteStmt", "effect"),  # every row
-        (10, "RuleStmt", "not_analysed"),  # can move data, nothing came of it
-        (11, "?", "not_valid"),  # not PostgreSQL (D-59)
+        (10, "RuleStmt", "column_level"),  # its one action, restated since step 8
+        (11, "RuleStmt", "not_analysed"),  # can move data, nothing came of it
+        (12, "?", "not_valid"),  # not PostgreSQL (D-59)
     ]
     assert "D-5" in ledger[3].reason
     assert ledger[1].edges == 2
@@ -94,4 +96,4 @@ def test_the_ledger_survives_export_and_reaches_the_graph(grammar_book) -> None:
     assert [row["status"] for row in exported.ledger] == [e.status for e in result.ledger]
     statements = build_batch([exported]).nodes["Statement"]
     assert statements["load.sql#<script>:1"]["status"] == "effect"
-    assert statements["load.sql#<script>:10"]["status"] == "not_analysed"
+    assert statements["load.sql#<script>:11"]["status"] == "not_analysed"

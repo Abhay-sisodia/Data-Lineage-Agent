@@ -103,13 +103,13 @@ def test_call_is_counted() -> None:
 
 def test_a_statement_the_reader_does_not_know_is_refused_alone() -> None:
     """The control, since D-61 (plan step 5): a statement the reader cannot follow - a
-    record field set from a query - is refused at its own line; the INSERT beside it in
+    cursor opened on dynamic SQL - is refused at its own line; the INSERT beside it in
     the same routine is still read. Until then it refused the whole routine."""
     result = _result(
         _routine(
-            "DECLARE\n    r mart.kpi_rollup%ROWTYPE;\nBEGIN\n"
+            "DECLARE\n    c refcursor;\nBEGIN\n"
             "    INSERT INTO mart.kpi_rollup (level) SELECT o.channel FROM staging.orders AS o;\n"
-            "    r.level := (SELECT o.channel FROM staging.orders AS o LIMIT 1);\nEND;"
+            "    OPEN c FOR EXECUTE 'SELECT 1';\nEND;"
         )
     )
     assert ("column:staging.orders.channel", "column:mart.kpi_rollup.level") in {

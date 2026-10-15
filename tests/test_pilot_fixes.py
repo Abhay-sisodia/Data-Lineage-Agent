@@ -147,6 +147,6 @@ def test_a_routine_the_reader_cannot_follow_says_why() -> None:
     whole = _routine("  NULL;\n", declare="v_r ALIAS FOR $1;")
     reasons = [r.reason for r in analyse_source(whole, _book(), POSTGRES).refusals]
     assert any("stopped at: ALIAS FOR declarations" in reason for reason in reasons), reasons
-    alone = _routine("  v_r.kind := (SELECT 'x');\n", declare="v_r mart.events_log%ROWTYPE;")
+    alone = _routine("  OPEN c FOR EXECUTE 'SELECT 1';\n", declare="c refcursor;")
     reasons = [r.reason for r in analyse_source(alone, _book(), POSTGRES).refusals]
-    assert any("assignment to a record field; the rest of" in reason for reason in reasons)
+    assert any("OPEN ... FOR EXECUTE; the rest of" in reason for reason in reasons)

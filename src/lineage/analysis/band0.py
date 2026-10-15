@@ -1932,6 +1932,7 @@ def _join_key_influence(
                     continue
                 for column in sides[other].find_all(exp.Column):
                     found.extend(_trace(column, scope, dictionary, [], depth + 1))
+                    found.extend(_key_context(column, scope, dictionary))
 
     for column in _value_columns(projection):
         for inner, home in _projections_behind(column, scope):
@@ -1946,6 +1947,60 @@ def _join_key_influence(
             found.extend(_value_deciding_sweep(root, _statement_deciding(scope), dictionary, [])[2])
         found.extend(_null_side_on_values(projection, scope, dictionary, [])[1])
     return _remember(scope, key, unresolved, first_declared, found)
+
+
+def _key_context(
+    column: Any, scope: Scope, dictionary: Dictionary
+) -> list[tuple[str, str, Transform]]:
+    """What decided the VALUE of a lookup's key column, when that column comes from another
+    lookup (plan step 8, holdout gap G4) - all of it keys of the first lookup's row.
+
+    `LEFT JOIN ref.territories ter ON ter.country_code = ins.country_code` where `ins` is
+    itself a lookup (`LEFT JOIN insured ins ON ins.insured_ref = p.insured_ref`, a
+    DISTINCT ON over `raw.insureds` ordered by `updated_at`): which territory row is read
+    depends on which insured row supplied the country code - `p.insured_ref` matched it,
+    and `updated_at` / `id` chose it among duplicates. The second lookup's ON keys
+    (`_null_side_on_values`) and the deciding scope it reads (`_value_deciding_sweep`:
+    its filters, its row-choosing orderings, its own keys) are reported as join keys.
+    """
+    found: list[tuple[str, str, Transform]] = list(
+        _null_side_on_values(column, scope, dictionary, [])[1]
+    )
+    # The second lookup's own key equality (`ins.insured_ref = p.insured_ref`): D-5 keeps it
+    # out of `_null_side_on_values`, but here it chose the row the first lookup is keyed by.
+    own = _query_of_scope(scope.expression)
+    for join in (own.args.get("joins") or []) if isinstance(own, exp.Select) else []:
+        condition = join.args.get("on")
+        if join.this is None or join.this.alias_or_name != column.table or condition is None:
+            continue
+        for equality in condition.find_all(exp.EQ):
+            sides = (equality.this, equality.expression)
+            owners = [{c.table for c in side.find_all(exp.Column)} for side in sides]
+            for mine, other in ((0, 1), (1, 0)):
+                theirs = owners[other]
+                if owners[mine] == {column.table} and theirs and column.table not in theirs:
+                    for key in sides[other].find_all(exp.Column):
+                        found.extend(_trace(key, scope, dictionary, [], 1))
+    source = scope.sources.get(column.table) if column.table else None
+    if isinstance(source, Scope) and _is_lookup_side(column.table, scope):
+        values, influence, keys = _value_deciding_sweep(
+            source, _statement_deciding(scope), dictionary, []
+        )
+        found.extend([*values, *influence, *keys])
+    return found
+
+
+def _is_lookup_side(alias: str, scope: Scope) -> bool:
+    """Whether `alias` is joined into this query as a lookup (LEFT / INNER JOIN ... ON)."""
+    own = _query_of_scope(scope.expression)
+    joins = (own.args.get("joins") or []) if isinstance(own, exp.Select) else []
+    return any(
+        join.this is not None
+        and join.this.alias_or_name == alias
+        and join.side not in ("RIGHT", "FULL")
+        and join.args.get("on") is not None
+        for join in joins
+    )
 
 
 def _projections_behind(column: Any, scope: Scope) -> list[tuple[Any, Scope]]:

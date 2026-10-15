@@ -749,6 +749,7 @@ class TriggerBinding:
     table: str
     function: str
     when: str  # the WHEN condition's text, or ""
+    transitions: tuple[str, ...] = ()  # REFERENCING NEW / OLD TABLE AS name (plan step 8)
 
 
 def read_trigger(text: str) -> TriggerBinding | None:
@@ -761,9 +762,16 @@ def read_trigger(text: str) -> TriggerBinding | None:
         rest = match.group("rest")
         opening = found.end() - 1
         when = rest[opening + 1 : _matching(rest, opening)]
+    transitions = tuple(
+        fold_name(name)
+        for name in re.findall(
+            r"(?i)\b(?:NEW|OLD)\s+TABLE\s+(?:AS\s+)?([\w\"]+)", match.group("rest")
+        )
+    )
     return TriggerBinding(
         name=fold_name(match.group("name")),
         table=fold_name(match.group("table")),
         function=fold_name(match.group("function")),
         when=when.strip(),
+        transitions=transitions,
     )

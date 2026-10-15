@@ -426,8 +426,8 @@ def _restate_call(name: str, inner: str, masked: str) -> str | None:
     if name == "XMLPI":
         # XMLPI(NAME target [, content])
         rest = _after_word(tokens, "NAME", skip=1)
-        args, _ = _arguments(rest)
-        return f"xmlpi({', '.join(args[1:] if len(args) > 1 else args[:0])})"
+        args, _ = _arguments(rest)  # the target is skipped already: these are the content
+        return f"xmlpi({', '.join(args)})"
     if name == "XMLROOT":
         # XMLROOT(xml, VERSION {text | NO VALUE} [, STANDALONE {YES | NO | NO VALUE}])
         keywords = ("VERSION", "STANDALONE", "YES", "NO", "VALUE")
@@ -686,14 +686,19 @@ def _substring_similar(source: str) -> str:
 
 
 _TABLE = re.compile(rf"\bTABLE\s+({_QUALIFIED})", re.IGNORECASE)
-_TABLE_CONTEXT = re.compile(r"(?:\(|\bUNION|\bINTERSECT|\bEXCEPT|\bALL|\bDISTINCT|\bAS)\s*$", re.I)
+_TABLE_CONTEXT = re.compile(
+    r"(?:\(|\bUNION|\bINTERSECT|\bEXCEPT|\bALL|\bDISTINCT|\bAS"
+    # `INSERT INTO t [AS a] [(cols)] TABLE src` (plan step 8)
+    r"|\bINSERT\s+INTO\s+[\w.\"]+(?:\s+AS\s+\w+)?\s*(?:\([^()]*\))?)\s*$",
+    re.I,
+)
 
 
 def _table_command(source: str) -> str:
     masked = _mask(source)
     edits = []
     for match in _TABLE.finditer(masked):
-        if _TABLE_CONTEXT.search(masked[max(0, match.start() - 40) : match.start()]):
+        if _TABLE_CONTEXT.search(masked[max(0, match.start() - 200) : match.start()]):
             name = source[match.start(1) : match.end(1)]
             edits.append((match.start(), match.end(), f"SELECT * FROM {name}"))
     return _apply(source, edits)

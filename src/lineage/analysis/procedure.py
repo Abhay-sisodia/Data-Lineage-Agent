@@ -68,6 +68,9 @@ def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_refe
     # Plan step 4, rung 1: PostgreSQL SQLGlot cannot parse, restated by PostgreSQL's own
     # tree (a boolean SET value, an alias-less JSON_TABLE). Same lines.
     source = pg_restate.restate_source(source, verdicts)
+    # Plan step 8: roles, grants, comments, maintenance ... - nothing to trace and nothing to
+    # refuse; PostgreSQL's parser named them, so SQLGlot never has to.
+    source = pg_referee.set_aside_inert(source, verdicts)
     # D-30: JSON_TABLE / XMLTABLE restated as LATERAL subqueries in the SOURCE, before
     # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
     # (B5-04), and the refusal register scans the raw text. Line counts are kept.

@@ -62,6 +62,8 @@ def _walk(node: Any, out: set[str], ctes: set[str], tables: set[str]) -> None:
     out.add(f"stmt:{name}" if name.endswith("Stmt") else f"node:{name}")
     if isinstance(node, ast.RangeVar):
         tables.add(_name(node))
+        if node.alias is not None and node.alias.colnames:
+            out.add("extra:column_alias_list")  # `FROM t AS x (a, b)` - restated (pg_restate)
     elif isinstance(node, ast.CommonTableExpr):
         ctes.add(str(node.ctename))
     elif isinstance(node, (ast.UpdateStmt, ast.OnConflictClause, ast.MergeWhenClause)) and any(
@@ -72,6 +74,8 @@ def _walk(node: Any, out: set[str], ctes: set[str], tables: set[str]) -> None:
         out.add("extra:boolean_value_in_update_set")
     elif isinstance(node, ast.JsonTable) and node.alias is None:
         out.add("extra:json_table_without_alias")
+    elif isinstance(node, ast.LockingClause) and node.lockedRels:
+        out.add("extra:locking_clause_of")  # `FOR UPDATE OF a` - restated (pg_restate)
     for field_name in _slots(type(node)):
         value = getattr(node, field_name, None)
         if value is None:
@@ -339,6 +343,52 @@ _DOLLAR_QUOTE = re.compile(r"\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$")
 def verdicts(source: str) -> list[Verdict]:
     """A verdict for every top-level statement of a script, split the analyser's way."""
     return [verdict(text, line) for line, text in split_statements(source)]
+
+
+INERT_KINDS = frozenset(
+    {
+        "AlterCollationStmt", "AlterDatabaseRefreshCollStmt", "AlterDatabaseSetStmt",
+        "AlterDatabaseStmt", "AlterDefaultPrivilegesStmt", "AlterEventTrigStmt",
+        "AlterExtensionContentsStmt", "AlterExtensionStmt", "AlterFdwStmt",
+        "AlterForeignServerStmt", "AlterOpFamilyStmt", "AlterOperatorStmt",
+        "AlterPublicationStmt", "AlterRoleSetStmt", "AlterRoleStmt", "AlterStatsStmt",
+        "AlterSubscriptionStmt", "AlterSystemStmt", "AlterTSConfigurationStmt",
+        "AlterTSDictionaryStmt", "AlterTableSpaceOptionsStmt", "AlterUserMappingStmt",
+        "CheckPointStmt", "ClusterStmt", "CommentStmt", "ConstraintsSetStmt", "CreateAmStmt",
+        "CreateCastStmt", "CreateConversionStmt", "CreateEventTrigStmt", "CreateExtensionStmt",
+        "CreateFdwStmt", "CreateForeignServerStmt", "CreateOpClassStmt", "CreateOpFamilyStmt",
+        "CreatePLangStmt", "CreatePublicationStmt", "CreateRoleStmt", "CreateStatsStmt",
+        "CreateSubscriptionStmt", "CreateTableSpaceStmt", "CreateTransformStmt",
+        "CreateUserMappingStmt", "CreatedbStmt", "DiscardStmt", "DropOwnedStmt",
+        "DropRoleStmt", "DropSubscriptionStmt", "DropTableSpaceStmt", "DropUserMappingStmt",
+        "DropdbStmt", "GrantRoleStmt", "GrantStmt", "ImportForeignSchemaStmt", "ListenStmt",
+        "LoadStmt", "LockStmt", "NotifyStmt", "ReassignOwnedStmt", "ReindexStmt",
+        "ReplicaIdentityStmt", "SecLabelStmt", "UnlistenStmt", "VacuumStmt",
+        "VariableShowStmt",
+    }
+)  # fmt: skip
+"""Statements with no lineage and no effect on a table's contents - roles, grants,
+comments, maintenance, extensions, publications. Plan step 8: set aside before SQLGlot reads
+them, as PostgreSQL's parser already said what they are; six of them (CLUSTER, NOTIFY,
+SECURITY LABEL, REASSIGN OWNED, IMPORT FOREIGN SCHEMA, CREATE TRANSFORM) were refused
+PARSE_FAILED only because SQLGlot has no rule for them. The ledger lists each as
+`no_lineage`, with its kind."""
+
+
+def set_aside_inert(source: str, found: list[Verdict]) -> str:
+    """`source` with every statement of an `INERT_KINDS` kind blanked, lines kept."""
+    return _blank(source, [v for v in found if v.valid and v.kind in INERT_KINDS])
+
+
+def _blank(source: str, statements: list[Verdict]) -> str:
+    starts = [0] + [index + 1 for index, char in enumerate(source) if char == "\n"]
+    for item in statements:
+        at = source.find(item.text, starts[item.line - 1])
+        if at < 0:
+            continue
+        blank = "".join(ch if ch == "\n" else " " for ch in item.text)
+        source = source[:at] + blank + source[at + len(item.text) :]
+    return source
 
 
 def set_aside(source: str) -> tuple[str, list[Verdict]]:

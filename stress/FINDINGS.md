@@ -5027,3 +5027,44 @@ Taken by Abhay with plan step 7 - unknowns are part of every answer and every vi
 * **Agent and MCP:** a `fallback` switch on the walks; unverified hops and effects are
   unknowns, never cited edges (prompt and semantics rules 7-9); the coverage gate adds
   them. `HARNESS_VERSION` 4, so cached answers are recomputed.
+
+## Decision taken — 2026-10-15 (D-64)
+
+Taken by Abhay with plan step 8 - the grammar checklist's gaps, closed.
+
+* **D-64** - every checklist row that missed its target is either met or named:
+  415/416 constructs (99.8%), extra combinations 70/71. Each fix has a test in
+  `tests/test_checklist_gaps.py`.
+* **Read now, refused or silent before:**
+  * `LANGUAGE sql` bodies, treated as routines: the last query is the return value, and
+    `$n` maps to each parameter's name.
+  * PL/pgSQL `r.v := <expr>` on a record (a one-field record value, as G2 is). NEW/OLD
+    fields are still refused.
+  * A call to a known void routine: its arguments are bound to the callee's parameters.
+  * Trigger transition tables (`REFERENCING NEW TABLE AS x`): `x` reads the trigger's
+    table.
+  * A self-assignment after a subquery used to hang (`total := total * 2`).
+* **Restated (pglast tree, lines kept):**
+  * `EXPLAIN ANALYZE <dml>`.
+  * `ALTER COLUMN ... TYPE ... USING expr` becomes `UPDATE t SET c = (expr)`.
+  * A one-action `CREATE RULE`: NEW and OLD are rows of the rule's table.
+  * `SET c = DEFAULT`.
+  * `RETURNING WITH (OLD AS o)`.
+  * Aliases with column lists, `FOR ... OF <alias>`, `XMLPI`, `INSERT ... TABLE t`.
+* **Inert DDL is no lineage, not a parse failure:** CLUSTER, NOTIFY, REASSIGN OWNED,
+  SECURITY LABEL, IMPORT FOREIGN SCHEMA, CREATE TRANSFORM and others (`INERT_KINDS`).
+* **G4 (holdout):** a lookup keyed through another lookup carries that lookup's ON keys
+  and its dedup ordering as join keys. Holdout `--keys` 97.8% -> **99.6%**, join keys
+  92.7%, grouping 99.1%. Default walk 97.5%, unchanged. Ledger: 85 statements, 52
+  column-level, 0 partial / refused / not_analysed.
+* **Still open:**
+  * `RETURN NEXT` (declared).
+  * `ROWS FROM` over several functions.
+  * NEW/OLD field assignment.
+  * A rule with several actions: `DO ALSO (a; b)` is split at the inner `;`, so both
+    halves are not_valid.
+* **Tests restated (4):**
+  * Three D-61 controls used a record-field assignment as "the unreadable statement".
+    They now use `OPEN c FOR EXECUTE` (still refused alone).
+  * The ledger's one-action rule is now column_level. A `DO INSTEAD SELECT` rule keeps
+    the not_analysed example.
