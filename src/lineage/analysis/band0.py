@@ -165,6 +165,10 @@ class AnalysisResult:
     """`Operation` facts: what statements do to whole relations - TRUNCATE, DROP, a rename
     (D-62, `analysis.effects`). PostgreSQL only; not lineage edges, never scored."""
 
+    schema_after: Any = field(default=None, repr=False, compare=False)
+    """The dictionary as the script left it - what it created, altered and dropped (D-31,
+    D-65). Not exported: `procedure.RunCarry` hands it to the next file of a folder run."""
+
     ledger: list[Any] = field(default_factory=list)
     """Every top-level statement and what became of it (plan step 3, `analysis.ledger`).
 
@@ -4701,6 +4705,8 @@ def analyse_source(
         unique.setdefault(edge.identity(), edge)
     result.edges = [unique[key] for key in sorted(unique)]
 
+    # D-65: the dictionary as the script left it, for a folder run to hand the next file.
+    result.schema_after = catalog.dictionary if catalog is not None else dictionary
     JOIN_KEYS.reset(keys_token)
     SEARCH_PATH.reset(path_token)
     return result

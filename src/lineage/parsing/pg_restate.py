@@ -231,6 +231,16 @@ def restate(text: str) -> str:
         for found in _LOCKED_OF.finditer(data):
             span = range(found.start(1), found.end(1))
             data = data[: span.start] + b" " * len(span) + data[span.stop :]
+    if parsed and isinstance(parsed[0].stmt, ast.InsertStmt):
+        from lineage.parsing.pg_referee import ends_in_cross_join
+
+        if ends_in_cross_join(parsed[0].stmt):
+            # ` WHERE TRUE` ends the FROM where PostgreSQL ends it: names nothing, same line.
+            words = [_token_text(data, t).upper() for t in tokens]
+            ons = [i for i in range(len(words) - 1) if words[i : i + 2] == ["ON", "CONFLICT"]]
+            if ons:
+                at = tokens[ons[-1]].start
+                edits.append((at, at, b"WHERE TRUE ", b""))
     for start, end, before, after in sorted(edits, reverse=True):
         data = data[:start] + before + data[start:end] + after + data[end:]
     return data.decode("utf-8")
@@ -257,6 +267,7 @@ def restate_source(source: str, verdicts: list[Any]) -> str:
         "extra:column_alias_list",
         "extra:locking_clause_of",
         "stmt:RuleStmt",
+        "extra:on_conflict_after_cross_join",
     }
     starts = [0] + [index + 1 for index, char in enumerate(source) if char == "\n"]
     for verdict in reversed(verdicts):

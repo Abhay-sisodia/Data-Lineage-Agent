@@ -36,9 +36,7 @@ def ddl_payload(sql: str, default_schema: str, captured_at: str = CAPTURED_AT) -
             raise ValueError(f"unqualified table {name!r} in the DDL - qualify it")
         key = f"{owner}.{name}"
         objects[key] = {"owner": owner, "name": name, "object_type": "TABLE"}
-        columns[key] = [
-            column.name for column in schema.expressions if isinstance(column, exp.ColumnDef)
-        ]
+        columns[key] = _columns(statement, schema, columns)
         if not columns[key]:
             raise ValueError(f"{key} has no columns - a column-less relation refuses whole runs")
 
@@ -50,6 +48,40 @@ def ddl_payload(sql: str, default_schema: str, captured_at: str = CAPTURED_AT) -
         "columns": columns,
         "temporary": {key: False for key in objects},
     }
+
+
+def _columns(
+    statement: exp.Create, schema: exp.Expression, known: dict[str, list[str]]
+) -> list[str]:
+    """A table's columns in PostgreSQL's order: inherited ones first, then its own.
+
+    `PARTITION OF p` has exactly p's columns, `INHERITS (p)` puts p's before its own, and
+    `(LIKE p)` puts p's where the LIKE stands. The parent must come earlier in the DDL, as
+    PostgreSQL itself requires.
+    """
+
+    def parent(table: exp.Table) -> list[str]:
+        found = known.get(f"{table.db}.{table.name}")
+        if found is None:
+            raise ValueError(f"{table.db}.{table.name} is used before its CREATE TABLE")
+        return list(found)
+
+    properties = statement.args.get("properties")
+    props = properties.expressions if properties else []
+    for prop in props:
+        if isinstance(prop, exp.PartitionedOfProperty):
+            return parent(prop.this)
+    names: list[str] = []
+    for prop in props:
+        if isinstance(prop, exp.InheritsProperty):
+            for table in prop.expressions:
+                names.extend(parent(table))
+    for item in schema.expressions if isinstance(schema, exp.Schema) else ():
+        if isinstance(item, exp.ColumnDef):
+            names.append(item.name)
+        elif isinstance(item, exp.LikeProperty):
+            names.extend(parent(item.this))
+    return list(dict.fromkeys(names))
 
 
 def from_ddl(sql: str, default_schema: str = "public") -> Dictionary:

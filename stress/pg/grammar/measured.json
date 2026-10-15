@@ -562,6 +562,19 @@
   "status": "LINEAGE",
   "target": "lineage"
  },
+ "extra:on_conflict_after_cross_join": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v",
+   "src.b.id -> tgt.t.id",
+   "src.b.k -> tgt.t.v",
+   "src.b.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
  "extra:only_and_inheritance_star": {
   "covers": [],
   "met": true,

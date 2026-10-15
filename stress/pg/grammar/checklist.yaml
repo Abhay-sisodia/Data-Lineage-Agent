@@ -865,6 +865,12 @@
   reach: [src.a.b -> tgt.t.b]
   sql: INSERT INTO tgt.t (b) SELECT NOT a.b FROM src.a AS a
 
+- id: extra:on_conflict_after_cross_join
+  target: lineage
+  reach: [src.a.v -> tgt.t.v, src.b.v -> tgt.t.v]
+  note: holdout3 R3 - a CROSS JOIN LATERAL ends the last UNION arm, then ON CONFLICT
+  sql: INSERT INTO tgt.t (id, v) SELECT a.id, a.v FROM src.a AS a UNION ALL SELECT b.id, b.v + g.i FROM src.b AS b CROSS JOIN LATERAL generate_series(1, b.k) AS g(i) ON CONFLICT DO NOTHING
+
 - id: extra:boolean_value_in_update_set
   target: lineage
   reach: [src.a.v -> tgt.t.b, src.a.b -> tgt.t.b]

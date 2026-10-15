@@ -51,6 +51,32 @@ def _name(rel: Any) -> str:
 # --- constructs ----------------------------------------------------------------------------
 
 
+def ends_in_cross_join(insert: Any) -> bool:
+    """`INSERT ... SELECT ... CROSS JOIN <item> ON CONFLICT ...` - nothing ends the FROM.
+
+    A CROSS JOIN takes no ON, so PostgreSQL reads `ON CONFLICT` as the INSERT's; SQLGlot
+    reads the `ON` as the join's condition and loses the statement. The pilot's regex fix
+    (`rewrite.py`) knew only a plain table there; holdout3 (R3) had `CROSS JOIN LATERAL
+    jsonb_path_query(...) AS chk(c)` in the last arm of a UNION ALL.
+    """
+    if insert.onConflictClause is None or insert.selectStmt is None:
+        return False
+    top = arm = insert.selectStmt
+    if top.sortClause or top.limitCount or top.limitOffset:
+        return False
+    while arm.op is not None and arm.op is not enums.SetOperation.SETOP_NONE:
+        arm = arm.rarg
+    if arm.whereClause or arm.groupClause or arm.havingClause or arm.windowClause:
+        return False
+    last = (arm.fromClause or [None])[-1]
+    return (
+        isinstance(last, ast.JoinExpr)
+        and last.quals is None
+        and not last.usingClause
+        and not last.isNatural
+    )
+
+
 def _walk(node: Any, out: set[str], ctes: set[str], tables: set[str]) -> None:
     if isinstance(node, (list, tuple)):
         for item in node:
@@ -76,6 +102,8 @@ def _walk(node: Any, out: set[str], ctes: set[str], tables: set[str]) -> None:
         out.add("extra:json_table_without_alias")
     elif isinstance(node, ast.LockingClause) and node.lockedRels:
         out.add("extra:locking_clause_of")  # `FOR UPDATE OF a` - restated (pg_restate)
+    elif isinstance(node, ast.InsertStmt) and ends_in_cross_join(node):
+        out.add("extra:on_conflict_after_cross_join")  # restated (pg_restate)
     for field_name in _slots(type(node)):
         value = getattr(node, field_name, None)
         if value is None:
@@ -363,8 +391,8 @@ INERT_KINDS = frozenset(
         "DropRoleStmt", "DropSubscriptionStmt", "DropTableSpaceStmt", "DropUserMappingStmt",
         "DropdbStmt", "GrantRoleStmt", "GrantStmt", "ImportForeignSchemaStmt", "ListenStmt",
         "LoadStmt", "LockStmt", "NotifyStmt", "ReassignOwnedStmt", "ReindexStmt",
-        "ReplicaIdentityStmt", "SecLabelStmt", "UnlistenStmt", "VacuumStmt",
-        "VariableShowStmt",
+        "ReplicaIdentityStmt", "SecLabelStmt", "TransactionStmt", "UnlistenStmt",
+        "VacuumStmt", "VariableShowStmt",
     }
 )  # fmt: skip
 """Statements with no lineage and no effect on a table's contents - roles, grants,
@@ -372,7 +400,8 @@ comments, maintenance, extensions, publications. Plan step 8: set aside before S
 them, as PostgreSQL's parser already said what they are; six of them (CLUSTER, NOTIFY,
 SECURITY LABEL, REASSIGN OWNED, IMPORT FOREIGN SCHEMA, CREATE TRANSFORM) were refused
 PARSE_FAILED only because SQLGlot has no rule for them. The ledger lists each as
-`no_lineage`, with its kind."""
+`no_lineage`, with its kind. D-67: so are BEGIN / COMMIT / SAVEPOINT / RELEASE / ROLLBACK -
+`RELEASE SAVEPOINT x` was refused PARSE_FAILED (holdout3)."""
 
 
 def set_aside_inert(source: str, found: list[Verdict]) -> str:

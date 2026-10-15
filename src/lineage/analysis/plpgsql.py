@@ -32,6 +32,7 @@ in the source untouched, so the refusal register refuses it exactly as before B8
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -60,6 +61,14 @@ from lineage.resolution.dictionary import Dictionary
 
 PHANTOM = "__pl"
 DIALECT = "postgres"
+
+_NAME = r"[A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?"
+_INTO_TARGETS = re.compile(
+    rf"(?is)\bINTO\s+(?:STRICT\s+)?({_NAME}(?:\s*,\s*{_NAME})*)"
+    r"(?=\s+(?:FROM|WHERE|GROUP|HAVING|ORDER|LIMIT|OFFSET|FOR|WINDOW|UNION)\b|\s*;?\s*$)"
+)
+"""The target list of `SELECT ... INTO [STRICT] a, b ...` - several targets, which SQLGlot
+cannot parse (holdout3 R4)."""
 
 
 # --- what desugaring records ----------------------------------------------------------------
@@ -113,6 +122,9 @@ class Desugared:
     opaque: list[tuple[int, int, str, str]] = field(default_factory=list)
     """Plan step 5: (line, end line, unit, why) of each statement INSIDE a routine the reader
     could not follow. The statement is refused alone; the routine around it is read."""
+    functions: dict[str, Any] = field(default_factory=dict)
+    """Every routine read so far, this script's and those handed in (D-65): a folder run
+    gives them to the next file, so a call there reads the routine an earlier file defined."""
 
 
 @dataclass
@@ -122,6 +134,9 @@ class _Function:
     routine: pl.Routine
     queries: list[str] = field(default_factory=list)  # RETURN QUERY texts (D-40)
     procedural_rows: bool = False  # RETURN NEXT: rows built in a loop
+    from_arguments: set[int] = field(default_factory=set)
+    """A scalar function's argument positions its return value is computed from (D-66): a
+    variable or record field passed there is a value of the call's result."""
 
 
 # --- desugaring -----------------------------------------------------------------------------
@@ -202,12 +217,14 @@ class _Lines:
 
 
 class _Desugarer:
-    def __init__(self, source: str, dictionary: Dictionary) -> None:
+    def __init__(
+        self, source: str, dictionary: Dictionary, functions: dict[str, _Function] | None = None
+    ) -> None:
         self.source = source
         self.dictionary = dictionary
         self.out = _Lines(source)
         self.result = Desugared(source=source)
-        self.functions: dict[str, _Function] = {}
+        self.functions: dict[str, _Function] = dict(functions or {})
         self.phantoms = 0
         self.loops = 0
         self.bindings: dict[str, list[pl.TriggerBinding]] = {}
@@ -227,6 +244,7 @@ class _Desugarer:
             self.statement(start, end, previous)
             previous = end + 1
         self.result.source = self.out.text()
+        self.result.functions = dict(self.functions)
         return self.result
 
     def statement(self, start: int, end: int, previous: int = 0) -> None:
@@ -463,6 +481,16 @@ class _Desugarer:
             self.functions[routine.name] = function
             self.result.units[routine.name] = unit
             self.result.params[routine.name] = list(routine.params)
+            if routine.returns == "scalar":
+                assigned = _assignments(self.result.emitted)
+                function.from_arguments = {
+                    routine.params.index(name)
+                    for _, symbols in self.result.returns.get(unit, [])
+                    for (record, returned), outer in symbols
+                    if not record
+                    for name, _ in _reaching(unit, returned, outer, assigned)
+                    if name in routine.params
+                }
 
     def block(self, block: pl.Block, context: _Context, function: _Function) -> None:
         for declaration in block.declarations:
@@ -473,6 +501,19 @@ class _Desugarer:
             constant = _literal(declaration.default)
             if constant is not None:
                 context.constants[name] = constant
+            elif declaration.default and not declaration.cursor_query:
+                # D-66: `v date := p_date` is an assignment like any other; it was dropped,
+                # so whatever `v` carried from it was lost.
+                assignment = pl.Stmt(
+                    kind="assign",
+                    text=f"{name} := {declaration.default}",
+                    start=declaration.start,
+                    targets=(name,),
+                    expression=declaration.default,
+                )
+                # An initial value this reader cannot follow stays unread, as before.
+                with contextlib.suppress(pl.UnsupportedError):
+                    self._assign(assignment, context)
         self.nodes(block.body, context, function)
         for handler in block.handlers:
             if re.search(r"(?i)\bothers\b", handler.names) and all(
@@ -682,7 +723,16 @@ class _Desugarer:
         # `INTO STRICT` only adds a run-time check that exactly one row came back.
         parsed = _parse(re.sub(r"(?i)\bINTO\s+STRICT\b", "INTO", text))
         if not isinstance(parsed, exp.Select) or parsed.args.get("into") is None:
-            raise pl.UnsupportedError("SELECT INTO that SQLGlot reads otherwise")
+            # `SELECT a, b INTO v1, v2 FROM ...`: several targets is PL/pgSQL, not SQL, and
+            # SQLGlot cannot parse it (holdout3 R4). The list is read from the text and the
+            # query analysed without it.
+            listed = _INTO_TARGETS.search(text)
+            query = _parse(text[: listed.start()] + text[listed.end() :]) if listed else None
+            if not isinstance(query, exp.Select):
+                raise pl.UnsupportedError("SELECT INTO that SQLGlot reads otherwise")
+            targets = tuple(t.strip().split(".")[-1].lower() for t in listed.group(1).split(","))
+            self._into(query.sql(dialect=DIALECT), start, context, targets)
+            return
         into = parsed.args["into"]
         names = [into.this, *(into.expressions or [])] if into.this else list(into.expressions)
         targets = tuple(_name_of(n) for n in names)
@@ -846,11 +896,21 @@ class _Desugarer:
                 if not table.alias:
                     table.set("alias", exp.TableAlias(this=exp.to_identifier(table.name)))
                 changed = True
-        for table in list(tree.find_all(exp.Table)):
-            call = table.this
-            if not isinstance(call, exp.Anonymous):
-                continue
-            name = pl.fold_name(f"{table.db}.{call.name}" if table.db else call.name)
+        # `FROM f(...) AS x` parses as a Table over the call; `[LEFT JOIN] LATERAL f(...) AS x`
+        # as a Lateral over it (holdout3 R5: a calendar lookup through a LANGUAGE sql
+        # function, defined in another file, read this way). Both are the function's query.
+        calls: list[tuple[Any, Any, str]] = []
+        for table in tree.find_all(exp.Table):
+            if isinstance(table.this, exp.Anonymous):
+                calls.append((table, table.this, str(table.db or "")))
+        for lateral in tree.find_all(exp.Lateral):
+            call = lateral.this
+            if isinstance(call, exp.Dot) and isinstance(call.expression, exp.Anonymous):
+                calls.append((lateral, call.expression, call.this.name))
+            elif isinstance(call, exp.Anonymous):
+                calls.append((lateral, call, ""))
+        for node, call, schema in calls:
+            name = pl.fold_name(f"{schema}.{call.name}" if schema else call.name)
             function = self.functions.get(name)
             if function is None:
                 continue
@@ -888,16 +948,19 @@ class _Desugarer:
                 union = parts[0]
                 for part in parts[1:]:
                     union = exp.union(union, part, distinct=False)
-                alias = table.args.get("alias")
+                alias = node.args.get("alias")
                 alias_name = alias.this if alias is not None else exp.to_identifier(call.name)
                 columns = (
                     list(alias.columns)
                     if alias is not None and alias.columns
                     else [exp.to_identifier(c) for c in function.routine.out_columns]
                 )
-                table.replace(
-                    exp.Subquery(this=union, alias=exp.TableAlias(this=alias_name, columns=columns))
-                )
+                named = exp.TableAlias(this=alias_name, columns=columns)
+                if isinstance(node, exp.Lateral):
+                    node.set("this", exp.Subquery(this=union))
+                    node.set("alias", named)
+                else:
+                    node.replace(exp.Subquery(this=union, alias=named))
                 changed = True
         return changed
 
@@ -923,7 +986,11 @@ class _Desugarer:
         uses: list[Use] = []
         slots = _value_slots(parsed, into, record_fields, self.dictionary)
         for column in list(parsed.find_all(exp.Column)):
-            if not _is_symbol(column, context) or _inside_routine_call(column, self.functions):
+            if not _is_symbol(column, context):
+                continue
+            if _inside_routine_call(column, self.functions) and not _a_returned_argument(
+                column, self.functions
+            ):
                 continue
             slot = next(((root, target) for root, target in slots if _within(column, root)), None)
             if slot is not None:
@@ -1086,6 +1153,32 @@ def _inside_routine_call(node: Any, functions: dict[str, _Function]) -> bool:
         ):
             return True
         current = current.parent
+    return False
+
+
+def _a_returned_argument(column: Any, functions: dict[str, _Function]) -> bool:
+    """A symbol passed, directly or in an expression, as an argument the called scalar
+    function's return value is computed from (D-66) - so it is a value of the call.
+
+    Band 0 sees the symbol as NULL, so the function's summary has nothing to map; without
+    this the value passed by a variable or record field was lost (holdout3:
+    `fn_next_business_day(cal.due_date, ...)` with `cal` a loop record).
+    """
+    child, current = column, column.parent
+    while current is not None:
+        if isinstance(current, exp.Anonymous):
+            function = next(
+                (f for n, f in functions.items() if n.split(".")[-1] == current.name.lower()),
+                None,
+            )
+            if function is not None:
+                if function.routine.returns != "scalar":
+                    return False
+                position = next(
+                    (i for i, arg in enumerate(current.expressions) if arg is child), -1
+                )
+                return position in function.from_arguments
+        child, current = current, current.parent
     return False
 
 
@@ -1260,8 +1353,14 @@ def _bind_trigger(uses: list[Use], table: str) -> list[Use]:
 # --- the entry points --------------------------------------------------------------------------
 
 
-def desugar(source: str, dictionary: Dictionary) -> Desugared:
-    return _Desugarer(source, dictionary).run()
+def desugar(
+    source: str, dictionary: Dictionary, functions: dict[str, Any] | None = None
+) -> Desugared:
+    """`source` with every readable routine and DO block restated as the SQL it runs.
+
+    `functions` are routines an earlier file of the same run defined (D-65), callable here.
+    """
+    return _Desugarer(source, dictionary, functions).run()
 
 
 def _edge(
@@ -1566,21 +1665,63 @@ def _deduplicate(edges: list[PredictedEdge]) -> list[PredictedEdge]:
     return out
 
 
+def _assignments(emitted: list[Emitted]) -> dict[tuple[str, str], list[tuple[str, Transform]]]:
+    """(unit, variable) -> the variables assigned into it, each with its transform."""
+    assigned: dict[tuple[str, str], list[tuple[str, Transform]]] = {}
+    for statement in emitted:
+        for use in statement.uses:
+            if use.role == "value" and use.target.startswith("var:") and not use.symbol[0]:
+                key = (statement.unit, use.target[len("var:") :])
+                assigned.setdefault(key, []).append((use.symbol[1], use.transform))
+    return assigned
+
+
+def _reaching(
+    unit: str,
+    returned: str,
+    outer: Transform,
+    assigned: dict[tuple[str, str], list[tuple[str, Transform]]],
+) -> list[tuple[str, Transform]]:
+    """Every variable a returned one was assigned from, transitively, with its transform.
+
+    D-66: `v := p; v := v + 1; RETURN v` reaches parameter `p`, derived. Provenance holds
+    only the table columns a variable read, so a function returning a local copy of its
+    argument summarised to nothing, and every call to it lost its lineage without a word
+    (holdout3: `fn_next_business_day(cal.due_date, ...)`).
+    """
+    todo, seen = [(returned, outer)], set()
+    while todo:
+        name, transform = todo.pop()
+        if (name, transform) in seen:
+            continue
+        seen.add((name, transform))
+        for source, inner in assigned.get((unit, name), []):
+            if source != name:
+                todo.append((source, _combine(inner, transform)))
+            elif inner is not Transform.IDENTITY:  # `v := v + 1` derives v
+                todo.append((name, _combine(inner, transform)))
+    return sorted(seen, key=lambda item: (item[0], item[1].value))
+
+
 def summaries(result: Any, desugared: Desugared) -> dict[str, Summary]:
     """Rule 6: each scalar function's RETURN, as the columns its value depends on."""
     provenance = getattr(result, "provenance", {})
+    assigned = _assignments(desugared.emitted)
     out: dict[str, Summary] = {}
     for unit in desugared.units:
         summary = Summary(unit=unit.split(".")[-1].upper())
         params = desugared.params.get(unit, [])
         for _, symbols in desugared.returns.get(unit, []):
-            for (record, name), transform in symbols:
+            for (record, returned), outer in symbols:
                 if record:
                     continue
-                for column, inner in provenance.get((unit, name), []):
-                    summary.returns_from.append(ReturnSource(column, _combine(inner, transform)))
-                if name in params:  # plan step 5: `RETURN x * 2` is computed from argument x
-                    summary.from_arguments.append((params.index(name), transform))
+                for name, transform in _reaching(unit, returned, outer, assigned):
+                    for column, inner in provenance.get((unit, name), []):
+                        summary.returns_from.append(
+                            ReturnSource(column, _combine(inner, transform))
+                        )
+                    if name in params:  # plan step 5: `RETURN x * 2` is computed from x
+                        summary.from_arguments.append((params.index(name), transform))
         out[summary.unit] = summary
     return out
 

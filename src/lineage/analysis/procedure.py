@@ -15,6 +15,8 @@ them separate is what lets the score say which one broke.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
+from typing import Any
 
 import sqlglot
 from sqlglot import exp
@@ -47,7 +49,35 @@ from lineage.parsing.sqlscript import SCRIPT_UNIT
 from lineage.resolution.dictionary import Dictionary
 from lineage.resolution.views import resolve_views
 
-__all__ = ["AnalysisResult", "Refusal", "analyse_source", "restate_postgres"]
+__all__ = ["AnalysisResult", "Refusal", "RunCarry", "analyse_source", "restate_postgres"]
+
+
+@dataclass
+class RunCarry:
+    """What one file of a folder run leaves for the files after it (D-65).
+
+    Files run in order, as `run_all.sh` runs them, so a later file sees what an earlier one
+    built: the tables it created and the columns it added or renamed (the dictionary as it
+    left it), the routines it defined, and their summaries. Without it, a table made by
+    `CREATE TABLE ... AS` in one file was "not in dictionary" in the next, and a column added
+    by `ALTER TABLE` was "not a column" (holdout3, R1). Temp tables do not carry: each file is
+    its own session.
+    """
+
+    dictionary: Any
+    functions: dict[str, Any] = field(default_factory=dict)
+    summaries: dict[str, Any] = field(default_factory=dict)
+
+    def keep(self, dictionary: Any) -> None:
+        temp = {k for k in dictionary.objects if k.startswith("pg_temp.")}
+        if temp:
+            dictionary = dictionary.model_copy(
+                update={
+                    name: {k: v for k, v in getattr(dictionary, name).items() if k not in temp}
+                    for name in ("objects", "columns", "view_text", "temporary")
+                }
+            )
+        self.dictionary = dictionary
 
 
 def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_referee.Verdict]]:
@@ -96,8 +126,12 @@ def analyse_source(
     config: AnalysisConfig | None = None,
     witness: ExecutionWitness | None = None,
     result_target: str | None = None,
+    carry: RunCarry | None = None,
 ) -> AnalysisResult:
     """Analyse one PL/SQL source unit for band-0 and band-1 lineage.
+
+    ``carry`` threads a folder run (D-65): this file is analysed against what the files
+    before it built, and leaves what it built for the files after it.
 
     ``witness`` supplies execution evidence (T3.5). Omit it and every edge carries
     ``unexercised=None`` - nothing was observed, so nothing is claimed either way.
@@ -107,6 +141,8 @@ def analyse_source(
     ``<result>``.
     """
     settings = config or AnalysisConfig()
+    if carry is not None:
+        dictionary = carry.dictionary
     original_lines = source.split("\n")
     dialect = resolve_dialect(settings, dictionary)
 
@@ -118,7 +154,7 @@ def analyse_source(
         # B8 (D-39..D-42): every PL/pgSQL routine and DO block the reader can read becomes
         # the SQL its body runs, at its own lines; what it cannot read stays as written and
         # is refused by name, as before. `plpgsql.finish` restates the result afterwards.
-        desugared = plpgsql.desugar(source, dictionary)
+        desugared = plpgsql.desugar(source, dictionary, carry.functions if carry else None)
         source = desugared.source
 
     program = dialect.frontend.parse(source)
@@ -127,6 +163,8 @@ def analyse_source(
     # SELECT contributes the columns its return value depends on rather than the columns
     # in its arguments.
     summaries = build_summaries(program, dictionary, settings.budgets.interprocedural_depth_cap)
+    if carry is not None:
+        summaries = {**carry.summaries, **summaries}
 
     result = band0.analyse_source(
         source,
@@ -136,6 +174,7 @@ def analyse_source(
         result_target=result_target,
         join_keys=True,
     )
+    schema_after = result.schema_after  # every band-0 pass reads the same script: same schema
     if desugared is not None:
         # Rule 6: a scalar PL/pgSQL function's summary comes from its own body, which band
         # 0 has just traced. A function calling a function needs its callee's summary first,
@@ -429,6 +468,12 @@ def analyse_source(
     result.operations = effects.build(verdicts, dictionary)
     # Plan step 3: every statement, with what became of it - never silent.
     result.ledger = ledger.build(verdicts, result)
+    if carry is not None:
+        carry.keep(schema_after if schema_after is not None else dictionary)
+        if desugared is not None:
+            carry.functions = dict(desugared.functions)
+            carry.summaries.update(plpgsql.summaries(result, desugared))
+        carry.summaries.update(summaries)
     return result
 
 
@@ -581,9 +626,7 @@ def _context_dependent_names(
         # D-31: a temp table lives in pg_temp, which is searched first - an unqualified name
         # that a temp table holds binds with certainty, so it assumes nothing.
         if dialect == "postgres":
-            temps |= {
-                name.upper() for name in _TEMP_TABLE.findall(statement.text)
-            }
+            temps |= {name.upper() for name in _TEMP_TABLE.findall(statement.text)}
         # D-23: under a `SET search_path` the binding is certain, so nothing is assumed.
         change = search_path_change(statement.text, dialect)
         if is_path_change(change):
@@ -602,6 +645,13 @@ def _context_dependent_names(
         try:
             parsed = sqlglot.parse_one(statement.text, dialect=dialect)
         except Exception:
+            continue
+        # An index, sequence, type or schema holds no rows: how its names bind changes no
+        # lineage. `CREATE INDEX ix ON report.t` named `ix` as an unqualified table and
+        # turned a statement with nothing to trace into a declared one (holdout3, R6).
+        if isinstance(parsed, exp.Create) and (parsed.args.get("kind") or "").upper() in (
+            "INDEX", "SEQUENCE", "TYPE", "SCHEMA",
+        ):  # fmt: skip
             continue
         # A reference to a CTE is a Table node with no schema, and it resolves to the
         # statement's own WITH - wherever it runs. Counting it made every CTE query carry a

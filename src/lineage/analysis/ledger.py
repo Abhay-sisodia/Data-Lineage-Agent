@@ -32,6 +32,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
+from lineage.ir.model import NodeKind
 from lineage.parsing.pg_referee import Verdict
 
 STATUSES = (
@@ -108,7 +109,12 @@ def _edges(count: int) -> str:
     return f"{count} edge{'' if count == 1 else 's'}"
 
 
-def _nothing_reason(verdict: Verdict) -> tuple[str, str]:
+def writes_rows(verdict: Verdict) -> bool:
+    """Whether a statement - or a routine's body - contains a write."""
+    return bool(verdict.constructs & _WRITE_STATEMENTS)
+
+
+def nothing_reason(verdict: Verdict) -> tuple[str, str]:
     """(status, reason) for a statement the analyser produced nothing for."""
     kind = verdict.kind
     if kind == "AlterTableStmt":
@@ -174,6 +180,18 @@ def build(verdicts: list[Verdict], result: Any) -> list[LedgerEntry]:
             continue
         mine = sum(1 for e in edges if _in(e.origin.line, verdict))
         refused = [r for r in result.refusals if _in(r.line, verdict)]
+        if (
+            mine
+            and verdict.kind in ("CreateFunctionStmt", "DoStmt")
+            and not any(
+                e.target.kind is NodeKind.COLUMN for e in edges if _in(e.origin.line, verdict)
+            )
+        ):
+            # R6 (holdout3): a routine whose edges all end in its own variables - or in the
+            # rows its SELECT INTO filters - writes no column. Its lineage is where it is
+            # called (a summary), as `nothing_reason` says; calling it column-level said
+            # otherwise, and no prediction could agree with that.
+            mine = 0
         if mine and refused:
             status, reason = "partial", f"{_edges(mine)}; refused in part - {refused[0].code.value}"
         elif mine:
@@ -192,7 +210,7 @@ def build(verdicts: list[Verdict], result: Any) -> list[LedgerEntry]:
             if declared:
                 status, reason = "declared", f"{declared[0].kind.value} - {declared[0].detail}"
             else:
-                status, reason = _nothing_reason(verdict)
+                status, reason = nothing_reason(verdict)
         entries.append(
             LedgerEntry(verdict.line, verdict.end_line, verdict.kind, status, reason, mine)
         )

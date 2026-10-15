@@ -5068,3 +5068,61 @@ Taken by Abhay with plan step 8 - the grammar checklist's gaps, closed.
     They now use `OPEN c FOR EXECUTE` (still refused alone).
   * The ledger's one-action rule is now column_level. A `DO INSTEAD SELECT` rule keeps
     the not_analysed example.
+
+## Plan step 9 - the blind third holdout (holdout3), 2026-10-15
+
+* **Corpus:** a telecom-billing ETL written by another agent from a fixed brief, never
+  seen before scoring. 10 files, 4,218 lines, 308 statements, and an answer key of 14
+  entries written by hand.
+  * pglast accepts every statement.
+  * `run_all.sh` was not executed here: there is no PostgreSQL server.
+* **Blind result, at beed7a0:** 2 of the 6 gates failed outright, and the scan gate failed
+  only in the per-statement detail.
+  * column-level 96.5%: gate failed.
+  * recall 89.4% (90.3% with keys): gate failed.
+  * the scan predicted 97.3%; per statement, 18 of 308 predictions differed.
+  * 0 silent; ledger complete.
+* **Replay through every commit** (same input, same dictionary):
+  * holdout3: 65.1% before pglast -> 89.4% at step 5 (PL/pgSQL isolation) -> 90.3%
+    with keys at step 8.
+  * holdout1: 91.3% -> 97.5% at step 5.
+  * Steps 1-3 and 7 never move recall: they are measurement and visibility.
+* **Causes R1-R6, fixed (D-65..D-67) unless noted:**
+  * **R1 (D-65):** each file was analysed against the pre-run schema alone.
+    * `ScriptCatalog` now applies ALTER TABLE ADD / DROP / RENAME COLUMN and RENAME TO.
+    * The folder build (`graph.build.analyse_folder`) threads a `RunCarry` from file to
+      file in path order. It carries the schema the run built, the routines it defined
+      and their summaries; temp tables do not carry.
+    * `schema from-ddl` gives PARTITION OF / LIKE / INHERITS tables their parent's
+      columns. It crashed on PARTITION OF.
+  * **R5:** `LATERAL f(...)` over a known set-returning function is inlined like
+    `FROM f(...)`.
+  * **R4:** `SELECT a, b INTO v1, v2` (several targets, not SQL) is read.
+  * **D-66:** a scalar routine's return value is traced back through its variables to
+    its parameters.
+    * A declaration initializer is an assignment.
+    * A variable or record field passed to an argument the function returns from is a
+      value of the call.
+    * Before, `RETURN v_day` with `v_day := p_date` summarised to nothing, and the call
+      lost its lineage silently.
+  * **R3 (D-67):**
+    * TransactionStmt is inert. `RELEASE SAVEPOINT` was PARSE_FAILED.
+    * An `ON CONFLICT` after a trailing `CROSS JOIN LATERAL ...` is restated, guided by
+      the parse tree. New checklist row: `extra:on_conflict_after_cross_join`.
+  * **R6:** the scan reuses the ledger's own rules: `ledger.nothing_reason`, key-only
+    DELETE, ALTER ... USING / ATTACH, bound trigger functions, REFRESH of a matview the
+    run made, and a new "declared" prediction for routines that run only non-literal
+    dynamic SQL.
+    * The ledger now counts a routine whose edges end only in its own variables as
+      `no_lineage`, as its reason already said.
+    * An index, sequence, type or schema name no longer raises a search-path boundary.
+  * **R2 (open, a model decision):** `WITH moved AS (DELETE ... RETURNING) INSERT ...`.
+    The answer key counts every filter upstream of the deleted table's rows for a column
+    whose value does not come from that table. D-5 gives an inner-join key no edge, so
+    nothing links them. 15 of the 16 remaining scored misses with keys.
+* **After the fixes:**
+  * column-level 139/139 statements that move data (100%), 0 refusals.
+  * The scan matches the ledger on all 308 statements.
+  * Recall 93.5% (keys **95.3%**), values 40/40.
+  * holdout1 is unchanged: 97.5%, keys 99.6%.
+  * Holdout3 is no longer blind; the final proof needs a holdout4.

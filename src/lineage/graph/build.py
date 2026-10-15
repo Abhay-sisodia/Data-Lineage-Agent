@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from lineage.analysis.procedure import analyse_source
+from lineage.analysis.procedure import RunCarry, analyse_source
 from lineage.config import AnalysisConfig
 from lineage.export import ExportedResult, from_document, sha256_of, to_document
 from lineage.graph.model import (
@@ -55,12 +55,17 @@ class BuildReport:
 def analyse_folder(
     folder: Path, dictionary: Dictionary, config: AnalysisConfig
 ) -> list[ExportedResult]:
-    """Every `.sql` file under `folder`, analysed. Paths are relative to `folder`."""
+    """Every `.sql` file under `folder`, analysed. Paths are relative to `folder`.
+
+    Files are analysed in path order - the order a numbered ETL folder runs in - and each
+    sees what the files before it created, altered and defined (D-65, `RunCarry`).
+    """
     results = []
+    carry = RunCarry(dictionary)
     for path in sorted(folder.rglob("*.sql")):
         source = path.read_text(encoding="utf-8")
         document = to_document(
-            analyse_source(source, dictionary, config),
+            analyse_source(source, dictionary, config, carry=carry),
             source_path=path.relative_to(folder),
             source_text=source,
             dialect=config.dialect,

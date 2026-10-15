@@ -8,7 +8,7 @@ its snippet through `analyse_source`. Rows: `stress/pg/grammar/checklist.yaml`.
 `lineage scan <folder>` uses this table to predict, before analysing, what the analyser
 will make of every statement in a folder - and names the row behind each gap.
 
-**415 / 416 constructs meet their target (99.8%).** Extra combinations: 70 / 71.
+**415 / 416 constructs meet their target (99.8%).** Extra combinations: 71 / 72.
 
 | area | constructs | meet target | % |
 |---|---|---|---|
@@ -18,7 +18,7 @@ will make of every statement in a folder - and names the row behind each gap.
 | variant | 134 | 134 | 100.0% |
 | PL/pgSQL | 27 | 26 | 96.3% |
 
-Measured outcomes over all rows: COUNTED 114, DECLARED 2, EFFECT 10, LINEAGE 280, REFUSED 1, UNCLASSIFIED 1
+Measured outcomes over all rows: COUNTED 114, DECLARED 2, EFFECT 10, LINEAGE 281, REFUSED 1, UNCLASSIFIED 1
 
 ## Targets and outcomes
 

@@ -122,6 +122,9 @@ class ScriptCatalog:
         if isinstance(parsed, exp.Drop):
             self._drop(parsed)
             return Effect(skip=True)
+        if isinstance(parsed, exp.Alter):
+            self._alter(parsed)
+            return None  # what the ALTER does to the table is an effect (D-62), as before
         if isinstance(parsed, exp.Create):
             kind = (parsed.args.get("kind") or "").upper()
             if kind in _NO_ROWS:
@@ -309,6 +312,45 @@ class ScriptCatalog:
                 if key in self.dictionary.objects:
                     self._forget(key)
                     break
+
+    def _alter(self, alter: exp.Alter) -> None:
+        """D-65: a column added, dropped or renamed - or a table renamed - by the script.
+
+        `ALTER TABLE staging.a ADD COLUMN email_domain text` then `INSERT ... email_domain`:
+        the dictionary is the snapshot from before the script, so the column did not exist
+        for the analyser and its lineage was declared "not a column" (holdout3, R1).
+        """
+        table = alter.this
+        if not isinstance(table, exp.Table) or (alter.args.get("kind") or "").upper() != "TABLE":
+            return
+        name = self._key(table, False)
+        if name not in self.dictionary.objects:
+            return
+        columns = self._columns(name)
+        renamed: str | None = None
+        for action in alter.args.get("actions") or []:
+            if isinstance(action, exp.ColumnDef):
+                column = identifier(action.this, "postgres")
+                if column not in columns:
+                    columns.append(column)
+            elif isinstance(action, exp.Drop) and (action.args.get("kind") or "") == "COLUMN":
+                named = [action.this] if action.this else action.args.get("tables") or []
+                dropped = {identifier(c.this, "postgres") for c in named}
+                columns = [c for c in columns if c not in dropped]
+            elif isinstance(action, exp.RenameColumn):
+                old = identifier(action.this.this, "postgres")
+                new = identifier(action.args["to"].this, "postgres")
+                columns = [new if c == old else c for c in columns]
+            elif isinstance(action, exp.AlterRename):
+                owner = name.partition(".")[0]
+                renamed = f"{owner}.{identifier(action.this.this, 'postgres')}"
+        info = self.dictionary.objects[name]
+        temp = self.dictionary.temporary.get(name, False)
+        text = self.dictionary.view_text.get(name)
+        if renamed is not None:
+            self._forget(name)
+            name = renamed
+        self._register(name, columns, info.object_type, temp, text)
 
     # --- the overlay --------------------------------------------------------------------
 
