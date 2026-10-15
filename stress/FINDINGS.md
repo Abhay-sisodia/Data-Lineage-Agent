@@ -5004,3 +5004,26 @@ Taken by Abhay with plan step 6 - effects modelled, not refused.
   `COPY ... FROM '<file>'` - still refused, `SOURCE_UNAVAILABLE`, still naming its table.
   The scope probe has an `EFFECT` bucket (TRUNCATE: REFUSED -> EFFECT). The final suite's
   h4 key loses its one refusal (S7, TRUNCATE at 196); b3 `t1_breadth` keeps only COPY's.
+
+## Decision taken — 2026-10-15 (D-63)
+
+Taken by Abhay with plan step 7 - unknowns are part of every answer and every view.
+
+* **D-63** - a walk returns what refused SQL still says, by default and flagged:
+  `upstream` / `downstream` cross a refused statement's `MENTIONS_COL` and `OPAQUE` hops
+  (D-60) and mark each edge `unverified: true` (`fallback=False` leaves them out).
+  Downstream, a table read by a refused statement reaches what it wrote - from the table,
+  or from any of its columns, even one no analysed statement read. Scored lineage is
+  unchanged: the keys check the scored flows, and the final-suite exactness test now
+  compares FEEDS / INFLUENCES only.
+* **`gaps`, `coverage`, `impact`** also return the effects on the tables involved (D-62:
+  "emptied (TRUNCATE) at load.sql:1"), the statements involved whose ledger status is not
+  plain lineage (plan step 3), and - impact - the nodes reached only through refused SQL
+  as `unverified` unknowns; a refused statement that names a column is a `possible` edit.
+* **Explorer:** grey dashed edges for unverified hops (never merged into a verified
+  edge when hidden hops are joined), a ⚠ on a card for an effect, an "Unverified"
+  count, and a **Not analysed** view - every such statement with status, reason, tables
+  and SQL.
+* **Agent and MCP:** a `fallback` switch on the walks; unverified hops and effects are
+  unknowns, never cited edges (prompt and semantics rules 7-9); the coverage gate adds
+  them. `HARNESS_VERSION` 4, so cached answers are recomputed.

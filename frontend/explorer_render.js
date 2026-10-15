@@ -15,6 +15,7 @@
   const HEADER_H = 40, NOTE_H = 20, ROW_H = 24, PAD = 12;
   const COLOURS = {
     FEEDS: "#2563eb", INFLUENCES: "#7c3aed", FILTERS: "#ef4444", KEYS: "#0d9488",
+    MENTIONS_COL: "#94a3b8", OPAQUE: "#64748b",
   };
 
   function textWidth(text, size) { return text.length * size * 0.6; }
@@ -115,7 +116,7 @@
       for (const s of edge.sections || []) {
         const pts = [s.startPoint, ...(s.bendPoints || []), s.endPoint];
         const d = pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-        const dash = e.kind === "FILTERS" ? ' stroke-dasharray="6 4"' : e.kind === "INFLUENCES" ? ' stroke-dasharray="2 3"' : e.kind === "KEYS" ? ' stroke-dasharray="8 3 2 3"' : "";
+        const dash = e.kind === "FILTERS" ? ' stroke-dasharray="6 4"' : e.kind === "INFLUENCES" ? ' stroke-dasharray="2 3"' : e.kind === "KEYS" ? ' stroke-dasharray="8 3 2 3"' : (e.kind === "MENTIONS_COL" || e.kind === "OPAQUE") ? ' stroke-dasharray="3 3"' : "";
         out.push(`<g class="edge"><title>${esc(e.tip)}</title>`);
         out.push(`<path d="${d}" fill="none" stroke="transparent" stroke-width="10"/>`);
         out.push(`<path d="${d}" fill="none" stroke="${COLOURS[e.kind]}" stroke-width="${e.kind === "FEEDS" ? 1.6 : 1.3}"${dash} marker-end="url(#arrow-${e.kind})" opacity="${e.kind === "FILTERS" ? 0.75 : 1}"/>`);

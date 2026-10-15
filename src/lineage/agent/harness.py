@@ -68,7 +68,11 @@ Return the answer in the structured format:
   Otherwise [].
 - unknowns: the `id` of every boundary or refusal that limits the answer (from `gaps`).
   A refused statement comes back twice - as a boundary of kind `refusal` and as a
-  refusal: cite both ids.
+  refusal: cite both ids. Also every UNVERIFIED hop the answer passes through (an edge the
+  tools mark `unverified: true` - MENTIONS_COL or OPAQUE, what a refused statement still
+  names) and every effect on a table the answer is about (`effects` from `gaps` /
+  `coverage`: RESETS, DROPS, ALTERS - e.g. emptied by a TRUNCATE): cite their ids here,
+  never in cited_edges, and say so in the text.
 - candidates: only for "clarify".
 
 Work from tool results only. Resolve names with `find` first. Answer the exact question
@@ -97,7 +101,7 @@ class Run:
     trace_path: str = ""
 
 
-HARNESS_VERSION = "3"
+HARNESS_VERSION = "4"  # plan step 7: unverified hops and effects are unknowns
 """Bump when a tool description or harness stage changes: it is part of every cache key."""
 
 
@@ -248,7 +252,27 @@ class Harness:
             """,
             statements=sorted(statements),
         )
-        added = [row["id"] for row in rows if row["id"] not in run.answer.unknowns]
+        found = [row["id"] for row in rows]
+        # Plan step 7: an unverified hop (refused SQL, D-60) the run walked through, and an
+        # effect (D-62) on a table the cited edges touch, limit the answer just as much.
+        found += [
+            call_edge["id"]
+            for call in run.tool_calls
+            for call_edge in _edges_in(call["result"])
+            if call_edge.get("unverified") and call_edge.get("id")
+        ]
+        tables = sorted(
+            {
+                end.rpartition(".")[0] if end.count(".") >= 2 else end
+                for call in run.tool_calls
+                for call_edge in _edges_in(call["result"])
+                if call_edge.get("id") in set(run.answer.cited_edges)
+                for end in (call_edge.get("source") or "", call_edge.get("target") or "")
+                if end
+            }
+        )
+        found += [row["id"] for row in self.tools.effects(tables)] if tables else []
+        added = [i for i in dict.fromkeys(found) if i not in run.answer.unknowns]
         if added:
             run.answer.unknowns.extend(added)
             run.notes.append(f"coverage gate added unknowns {added}")
@@ -331,15 +355,18 @@ class Harness:
                     "upstream",
                     "Lineage edges INTO a column: FEEDS and INFLUENCES into it, and "
                     "FILTERS on its table; `depth` hops up (default 1). `join_keys`: also "
-                    "the KEYS edges - the keys that chose a lookup's row.",
-                    obj({"node": s, "depth": i, "join_keys": b}, ["node"]),
+                    "the KEYS edges - the keys that chose a lookup's row. `fallback` "
+                    "(default true): also what REFUSED statements still name, each edge "
+                    "marked `unverified` - report those as unknowns, never cite them.",
+                    obj({"node": s, "depth": i, "join_keys": b, "fallback": b}, ["node"]),
                     t.upstream,
                 ),
                 wrap(
                     "downstream",
                     "Impact: lineage edges OUT of a column, `depth` hops down. "
-                    "`join_keys`: also the lookups it keys.",
-                    obj({"node": s, "depth": i, "join_keys": b}, ["node"]),
+                    "`join_keys`: also the lookups it keys. `fallback` (default true): also "
+                    "tables reached only through refused SQL - `unverified`.",
+                    obj({"node": s, "depth": i, "join_keys": b, "fallback": b}, ["node"]),
                     t.downstream,
                 ),
                 wrap(
@@ -356,7 +383,9 @@ class Harness:
                 ),
                 wrap(
                     "gaps",
-                    "Boundaries and refusals: on a node's lineage, or declared by a file.",
+                    "Where knowledge stops, on a node's lineage or in a file: boundaries, "
+                    "refusals, unverified hops, effects on the tables (TRUNCATE, DROP, "
+                    "ALTER) and statements that are not plain lineage.",
                     obj({"node": s, "file": s}, []),
                     lambda **a: t.gaps(**a),
                 ),

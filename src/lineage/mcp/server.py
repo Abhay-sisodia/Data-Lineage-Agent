@@ -28,7 +28,8 @@ server = MCPServer(
     instructions=(
         "Column-level SQL lineage from a deterministic parser, in a Neo4j graph. Read the "
         "resource lineage://semantics before answering. Resolve names with `find` first; "
-        "cite edge ids; report every boundary and refusal as an unknown."
+        "cite edge ids; report every boundary and refusal as an unknown - and every "
+        "`unverified` hop (refused SQL) and every effect (TRUNCATE, DROP, ALTER) too."
     ),
 )
 
@@ -46,18 +47,25 @@ def find(name: str, limit: int = 10) -> list[dict[str, Any]]:
 
 
 @server.tool(annotations=READ_ONLY)
-def upstream(node: str, depth: int = 1, join_keys: bool = False) -> list[dict[str, Any]]:
+def upstream(
+    node: str, depth: int = 1, join_keys: bool = False, fallback: bool = True
+) -> list[dict[str, Any]]:
     """Lineage edges into a column (value, influence, and filters on its table), `depth` hops up.
 
     `join_keys` also returns KEYS edges: the keys that chose a lookup's row (D-57).
+    `fallback` (default true) also returns what refused statements still name - each edge
+    marked `unverified` (D-60): an unknown, not a lineage fact.
     """
-    return _tools().upstream(node, depth, join_keys)
+    return _tools().upstream(node, depth, join_keys, fallback)
 
 
 @server.tool(annotations=READ_ONLY)
-def downstream(node: str, depth: int = 1, join_keys: bool = False) -> list[dict[str, Any]]:
-    """Impact: lineage edges out of a column, `depth` hops down (`join_keys`: KEYS too)."""
-    return _tools().downstream(node, depth, join_keys)
+def downstream(
+    node: str, depth: int = 1, join_keys: bool = False, fallback: bool = True
+) -> list[dict[str, Any]]:
+    """Impact: lineage edges out of a column, `depth` hops down (`join_keys`: KEYS too;
+    `fallback`: tables reached only through refused SQL, marked `unverified`)."""
+    return _tools().downstream(node, depth, join_keys, fallback)
 
 
 @server.tool(annotations=READ_ONLY)
@@ -74,7 +82,9 @@ def explain_edge(edge: str) -> dict[str, Any] | None:
 
 @server.tool(annotations=READ_ONLY)
 def gaps(node: str | None = None, file: str | None = None) -> dict[str, Any]:
-    """Boundaries and refusals: on a node's lineage, or declared by a file."""
+    """Where knowledge stops, on a node's lineage or in a file: boundaries, refusals,
+    unverified hops, effects on the tables (TRUNCATE, DROP, ALTER) and statements that are
+    not plain lineage."""
     return _tools().gaps(node=node, file=file)
 
 

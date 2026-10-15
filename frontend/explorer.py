@@ -10,8 +10,9 @@ Two pure pieces, kept apart from the page so the React version can copy the rule
   edges, crossings minimised) and draws it. One card per table, one row per column; edges run from
   column row to column row. Value edges are solid with a transform badge, influence edges
   dotted, filter edges dashed into the card's header, join-key edges (D-57) thin and
-  dash-dotted. Parallel facts (two statements
-  writing the same column the same way) are drawn once.
+  dash-dotted, and what a REFUSED statement still says (D-60) grey and dashed - a column
+  it names (`MENTIONS_COL`) or a table it read to one it wrote (`OPAQUE`), unverified.
+  Parallel facts (two statements writing the same column the same way) are drawn once.
 """
 
 from __future__ import annotations
@@ -21,9 +22,18 @@ from pathlib import Path
 from typing import Any
 
 BADGE = {"aggregated": "Σ", "derived": "ƒ", "conditional": "?", "identity": ""}
-KINDS = ("FEEDS", "INFLUENCES", "FILTERS", "KEYS")
-"""Lineage relationship types, strongest claim first."""
-VERB = {"FEEDS": "value", "INFLUENCES": "influence", "FILTERS": "filter", "KEYS": "join key"}
+KINDS = ("FEEDS", "INFLUENCES", "FILTERS", "KEYS", "MENTIONS_COL", "OPAQUE")
+"""Lineage relationship types, strongest claim first - the last two unverified (D-60)."""
+VERB = {
+    "FEEDS": "value",
+    "INFLUENCES": "influence",
+    "FILTERS": "filter",
+    "KEYS": "join key",
+    "MENTIONS_COL": "named by refused SQL (unverified)",
+    "OPAQUE": "table-level through refused SQL (unverified)",
+}
+FALLBACK = ("MENTIONS_COL", "OPAQUE")
+DEFAULT_FLOWS = ("FEEDS", "INFLUENCES", "FILTERS", *FALLBACK)
 DIRECTIONS = ("upstream", "downstream", "both")
 
 
@@ -32,17 +42,18 @@ def explore(
     node: str,
     direction: str = "upstream",
     depth: int = 2,
-    flows: tuple[str, ...] = ("FEEDS", "INFLUENCES", "FILTERS"),
+    flows: tuple[str, ...] = DEFAULT_FLOWS,
     follow_filters: bool = False,
 ) -> list[dict[str, Any]]:
     """The edges to draw around `node`, each once, with the hop it was reached at."""
     edges: dict[str, dict[str, Any]] = {}
     keys = "KEYS" in flows
+    fallback = any(kind in flows for kind in FALLBACK)
     if direction in ("upstream", "both"):
-        for edge in _walk_up(tools, node, depth, follow_filters, keys):
+        for edge in _walk_up(tools, node, depth, follow_filters, keys, fallback):
             edges.setdefault(edge["id"], edge)
     if direction in ("downstream", "both"):
-        for edge in tools.downstream(node, depth, join_keys=keys):
+        for edge in tools.downstream(node, depth, join_keys=keys, fallback=fallback):
             edges.setdefault(edge["id"], edge)
     return sorted(
         (e for e in edges.values() if e["type"] in flows),
@@ -51,14 +62,19 @@ def explore(
 
 
 def _walk_up(
-    tools: Any, node: str, depth: int, follow_filters: bool, join_keys: bool = False
+    tools: Any,
+    node: str,
+    depth: int,
+    follow_filters: bool,
+    join_keys: bool = False,
+    fallback: bool = False,
 ) -> list[dict[str, Any]]:
     """`upstream`, except that a filter's source is shown and, by default, not walked."""
     seen: dict[str, dict[str, Any]] = {}
     frontier, visited = [node], {node}
     for hop in range(1, max(1, min(int(depth), 15)) + 1):
         nxt: list[str] = []
-        for edge in tools._incoming(frontier, join_keys):
+        for edge in tools._incoming(frontier, join_keys, fallback):
             if edge["id"] in seen:
                 continue
             seen[edge["id"]] = {**edge, "depth": hop}
@@ -95,7 +111,7 @@ def model(
     """
     focus = focus or set()
     warn = warn or {}
-    tables = tables or {e["target"] for e in edges if e["type"] == "FILTERS"}
+    tables = tables or _tables_in(edges)
 
     # A table filtered by its own columns (a load that deletes or upserts by key) would
     # draw loops; it is said in the card's header instead.
@@ -303,8 +319,9 @@ def _column_name(column: str, card: str) -> str:
 
 
 def gap_marks(tools: Any, cards: set[str]) -> dict[str, str]:
-    """Card -> why it carries a ⚠: a statement writing it hit a boundary, or a refused
-    statement names it - its lineage may be incomplete."""
+    """Card -> why it carries a ⚠: a statement writing it hit a boundary, a refused
+    statement names it - its lineage may be incomplete - or a statement empties, drops or
+    alters it (D-62), which changes what its lineage means."""
     rows = tools._read(
         """
         UNWIND $ids AS tid
@@ -312,10 +329,12 @@ def gap_marks(tools: Any, cards: set[str]) -> dict[str, str]:
         OPTIONAL MATCH (s:Statement)-[:WRITES]->(t)
           WHERE EXISTS { (s)-[:BLOCKED_BY]->(:Boundary) }
         OPTIONAL MATCH (x:Refusal)-[:MENTIONS]->(t)
+        OPTIONAL MATCH (:Statement)-[e:RESETS|DROPS|ALTERS]->(t)
         WITH t, count(DISTINCT s) AS blocked,
-             collect(DISTINCT x.file + ':' + toString(x.line)) AS refused
-        WHERE blocked > 0 OR size(refused) > 0
-        RETURN t.id AS id, blocked, refused
+             collect(DISTINCT x.file + ':' + toString(x.line)) AS refused,
+             collect(DISTINCT e.detail + ' at ' + e.file + ':' + toString(e.line)) AS effects
+        WHERE blocked > 0 OR size(refused) > 0 OR size(effects) > 0
+        RETURN t.id AS id, blocked, refused, effects
         """,
         ids=sorted(cards),
     )
@@ -326,13 +345,26 @@ def gap_marks(tools: Any, cards: set[str]) -> dict[str, str]:
             parts.append(f"{row['blocked']} statement(s) writing it hit a boundary")
         if row["refused"]:
             parts.append("named by refused statement(s) " + ", ".join(sorted(row["refused"])))
+        if row["effects"]:
+            parts.append("; ".join(sorted(row["effects"])))
         marks[row["id"]] = "; ".join(parts)
     return marks
 
 
+def _tables_in(edges: list[dict[str, Any]]) -> set[str]:
+    """The edge ends that ARE tables: a filter's target, both ends of a table-level hop, and
+    a refused statement's mention of a whole table (D-60)."""
+    found = {e["target"] for e in edges if e["type"] in ("FILTERS", "OPAQUE")}
+    found |= {e["source"] for e in edges if e["type"] == "OPAQUE"}
+    found |= {
+        e["target"] for e in edges if e["type"] == "MENTIONS_COL" and e["target"].count(".") == 1
+    }
+    return found
+
+
 def cards_of(edges: list[dict[str, Any]]) -> set[str]:
     """Every card the edges put on the diagram."""
-    tables = {e["target"] for e in edges if e["type"] == "FILTERS"}
+    tables = _tables_in(edges)
     return {
         end if end in tables else table_of(end) for e in edges for end in (e["source"], e["target"])
     }
@@ -440,6 +472,8 @@ def collapse(
         "FEEDS": "values also from",
         "INFLUENCES": "also influenced by",
         "KEYS": "lookup also keyed on",
+        "MENTIONS_COL": "also named by refused SQL with",
+        "OPAQUE": "table-level through refused SQL from",
     }
     notes: dict[str, list[str]] = {}
     for (card, kind), sources in sorted(unjoined.items()):
@@ -453,6 +487,11 @@ def collapse(
 
 
 def _join(kind: str, transform: str, nxt_kind: str, nxt_transform: str) -> tuple[str, str]:
+    # A path through refused SQL stays unverified, whatever else it passed (D-60).
+    if "OPAQUE" in (kind, nxt_kind):
+        return "OPAQUE", "identity"
+    if "MENTIONS_COL" in (kind, nxt_kind):
+        return "MENTIONS_COL", "identity"
     if kind == "FILTERS" or nxt_kind == "FILTERS":
         return "FILTERS", "identity"
     if kind == "FEEDS" and nxt_kind == "FEEDS":
@@ -467,7 +506,7 @@ SCOPES = ("One column", "A file", "Entire graph")
 
 
 def all_edges(
-    tools: Any, file: str | None = None, flows: tuple[str, ...] = ("FEEDS", "INFLUENCES", "FILTERS")
+    tools: Any, file: str | None = None, flows: tuple[str, ...] = DEFAULT_FLOWS
 ) -> list[dict[str, Any]]:
     """Every lineage edge in the graph, or in one file - ordered by file and line, so a
     cut-off keeps whole statements together."""
@@ -487,7 +526,8 @@ def all_edges(
 def files(tools: Any) -> list[str]:
     """The files in the graph that produced at least one lineage edge."""
     rows = tools._read(
-        "MATCH ()-[r:FEEDS|FILTERS|INFLUENCES]->() RETURN DISTINCT r.file AS file ORDER BY file"
+        "MATCH ()-[r:FEEDS|FILTERS|INFLUENCES|MENTIONS_COL|OPAQUE]->() "
+        "RETURN DISTINCT r.file AS file ORDER BY file"
     )
     return [row["file"] for row in rows]
 
@@ -950,6 +990,40 @@ def context_html(lines: list[dict[str, Any]]) -> str:
         )
     out.append("</div>")
     return "".join(out)
+
+
+def not_analysed(tools: Any) -> list[dict[str, Any]]:
+    """Every statement in the graph whose ledger status is not plain lineage (plan step 7):
+    refused, partial, column-level unclassified, table-level, effect, declared, not
+    analysed, not valid - each with its reason, its tables, and its SQL."""
+    rows = tools._read(
+        """
+        MATCH (s:Statement) WHERE s.status IS NOT NULL
+          AND NOT s.status IN ['column_level', 'no_lineage']
+        OPTIONAL MATCH (s)-[:WRITES|READS|RESETS|DROPS|ALTERS]->(t:Table)
+        OPTIONAL MATCH (s)-[:REFUSED]->(:Refusal)-[:MENTIONS]->(m:Table)
+        OPTIONAL MATCH (f:File {id: s.file})
+        RETURN s.id AS id, s.file AS file, s.line AS line, s.kind AS kind,
+               s.status AS status, s.reason AS reason, f.text AS text,
+               [x IN collect(DISTINCT t.id) + collect(DISTINCT m.id) WHERE x IS NOT NULL]
+                   AS tables
+        ORDER BY file, line
+        """
+    )
+    from lineage.graph.tools import _snippet
+
+    return [
+        {
+            "file": row["file"],
+            "line": row["line"],
+            "kind": row["kind"],
+            "status": row["status"],
+            "reason": row["reason"],
+            "tables": sorted(set(row["tables"])),
+            "sql": _snippet(row["text"], row["line"]) or "",
+        }
+        for row in rows
+    ]
 
 
 def _escape(text: str) -> str:

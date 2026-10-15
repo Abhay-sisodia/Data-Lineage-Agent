@@ -93,16 +93,28 @@ class _Graph:
     def __init__(self, edges: list[dict[str, Any]]) -> None:
         self.edges = edges
 
-    def _incoming(self, frontier: list[str], join_keys: bool = False) -> list[dict[str, Any]]:
+    def _incoming(
+        self, frontier: list[str], join_keys: bool = False, fallback: bool = False
+    ) -> list[dict[str, Any]]:
         out = []
         for node in frontier:
             table = node.rpartition(".")[0]
             out += [e for e in self.edges if e["target"] in (node, table)]
-        return [e for e in out if join_keys or e["type"] != "KEYS"]
+        return [e for e in out if _wanted(e, join_keys, fallback)]
 
-    def downstream(self, node: str, depth: int, join_keys: bool = False) -> list[dict[str, Any]]:
+    def downstream(
+        self, node: str, depth: int, join_keys: bool = False, fallback: bool = False
+    ) -> list[dict[str, Any]]:
         out = [e for e in self.edges if e["source"] == node]
-        return [e for e in out if join_keys or e["type"] != "KEYS"]
+        return [e for e in out if _wanted(e, join_keys, fallback)]
+
+
+def _wanted(edge: dict[str, Any], join_keys: bool, fallback: bool) -> bool:
+    if edge["type"] == "KEYS":
+        return join_keys
+    if edge["type"] in ("MENTIONS_COL", "OPAQUE"):
+        return fallback
+    return True
 
 
 def test_filters_are_shown_but_not_walked_unless_asked() -> None:

@@ -15,8 +15,12 @@ a change - `drop`, `rename` or `type` - it lists:
   - statements that NAME it with no lineage edge at all - a join key's equality is
     plumbing and gives no edge (D-5), yet dropping that column still breaks the SQL. These
     come from the statement text, so they are marked `possible`: a word match, not proof.
-* **unknowns**: boundaries on any statement involved, and refused statements that name the
-  subject's table or an affected table - where the impact cannot be known.
+* **unknowns**: boundaries on any statement involved, refused statements that name the
+  subject's table or an affected table, the hops reached only through refused SQL
+  (`unverified`, D-60) and the statements involved whose ledger status is not plain lineage
+  (plan step 3) - where the impact cannot be fully known.
+* **effects**: what statements do to the subject's table and every affected table (D-62) -
+  emptied, dropped, altered - which changes what "affected" means for them.
 """
 
 from __future__ import annotations
@@ -31,7 +35,15 @@ if TYPE_CHECKING:
 
 CHANGES = ("drop", "rename", "type")
 
-FLOW = {"FEEDS": "value", "INFLUENCES": "influence", "FILTERS": "filter", "KEYS": "join key"}
+FLOW = {
+    "FEEDS": "value",
+    "INFLUENCES": "influence",
+    "FILTERS": "filter",
+    "KEYS": "join key",
+    "MENTIONS_COL": "named by refused SQL (unclassified)",
+    "OPAQUE": "table-level, through refused SQL",
+}
+UNVERIFIED = ("MENTIONS_COL", "OPAQUE")
 
 LADDER = ("identity", "derived", "conditional", "aggregated")
 """Transforms, weakest to strongest (D-7)."""
@@ -52,6 +64,7 @@ REASONS = {
     "names": "names it with no lineage edge (e.g. a join key) - possible",
     "reads_table": "reads the table",
     "writes_table": "writes the table",
+    "mentions": "a refused statement names it (D-60) - possible",
 }
 
 
@@ -87,7 +100,10 @@ def impact(tools: GraphTools, node: str, change: str = "drop", depth: int = 15) 
     reached = {_table_of(a["node"], a["flow"]) for a in affected}
     tables = sorted(t for t in {table, *reached} if t)
     statements = sorted({e["statement"] for e in edit} | {a["statement"] for a in affected})
+    files = sorted({e["file"] for e in edit} | {a["file"] for a in affected})
     unknowns = {
+        "unverified": [a for a in affected if a["unverified"]],
+        "statements": tools.statements(files, tables) if files else [],
         "boundaries": tools._read(
             """
             MATCH (s:Statement)-[:BLOCKED_BY]->(b:Boundary) WHERE s.id IN $statements
@@ -107,6 +123,7 @@ def impact(tools: GraphTools, node: str, change: str = "drop", depth: int = 15) 
         ),
     }
     affected_tables = sorted(t for t in reached if t)
+    effects = tools.effects(tables)
     return {
         "subject": node,
         "kind": "table" if is_table else "column",
@@ -119,11 +136,15 @@ def impact(tools: GraphTools, node: str, change: str = "drop", depth: int = 15) 
             "affected_tables": len(affected_tables),
             "statements_to_edit": len(edit),
             "files_to_edit": len({e["file"] for e in edit}),
-            "unknowns": len(unknowns["boundaries"]) + len(unknowns["refusals"]),
+            "unknowns": len(unknowns["boundaries"])
+            + len(unknowns["refusals"])
+            + len(unknowns["unverified"]),
+            "effects": len(effects),
         },
         "affected": affected,
         "edit": edit,
         "unknowns": unknowns,
+        "effects": effects,
         "notes": [
             *notes,
             "A filter ends at a whole table: its rows may change, and so may everything "
@@ -175,6 +196,7 @@ def _affected(tools: GraphTools, columns: list[str], depth: int) -> list[dict[st
                 "statement": lead["statement"],
                 "file": lead["file"],
                 "line": lead["line"],
+                "unverified": kinds <= set(UNVERIFIED),
             }
         )
     return sorted(rows, key=lambda r: (r["hops"], r["node"]))
@@ -196,6 +218,9 @@ def _edit(
                   'writes' AS reason
             UNION
             MATCH (c)-[r:KEYS]->() RETURN r.statement AS statement, 'keys' AS reason
+            UNION
+            MATCH (c)-[r:MENTIONS_COL]->() RETURN r.statement AS statement,
+                  'mentions' AS reason
         }
         RETURN DISTINCT statement, reason
         UNION
@@ -237,6 +262,8 @@ def _edit(
         lineage = found & {"reads", "writes", "keys"}
         if lineage:
             reason = ", ".join(REASONS[r] for r in sorted(lineage))
+        elif "mentions" in found:
+            reason = REASONS["mentions"]
         elif is_table:
             reason = ", ".join(REASONS[r] for r in sorted(found))
         elif lines:
@@ -300,8 +327,8 @@ def _mentions(text: str | None, start: int | None, names: list[str]) -> list[int
 
 
 def _table_of(node: str, flow: str) -> str | None:
-    if flow == "filter":
-        return node  # a filter's target is the table itself
+    if flow == "filter" or flow.startswith("table-level") or node.count(".") == 1:
+        return node  # a filter's (or a table-level hop's) target is the table itself
     if node.startswith("<result:"):
         return node.split(">", 1)[0] + ">"
     head, _, _ = node.rpartition(".")
@@ -326,6 +353,7 @@ def to_markdown(report: dict[str, Any]) -> str:
         f"- To edit: **{_n(s['statements_to_edit'], 'statement')}** in "
         f"{_n(s['files_to_edit'], 'file')}",
         f"- Unknowns: {s['unknowns']}",
+        f"- Effects on these tables: {s.get('effects', 0)}",
         "",
         "## Statements to edit",
         "",
@@ -351,7 +379,18 @@ def to_markdown(report: dict[str, Any]) -> str:
         )
     if not report["affected"]:
         out.append("| - | nothing downstream | | | | |")
+    if report.get("effects"):
+        out += ["", "## Effects on these tables", ""]
+        for e in report["effects"]:
+            out.append(f"- `{e['table']}` {e['detail']} at `{e['file']}`:{e['line']}")
     out += ["", "## Unknowns", ""]
+    for a in report["unknowns"].get("unverified", []):
+        out.append(
+            f"- `{a['node']}` is reached only through refused SQL ({a['flow']}) at "
+            f"`{a['file']}`:{a['line']}: the impact there is unverified"
+        )
+    for st in report["unknowns"].get("statements", []):
+        out.append(f"- Statement `{st['file']}`:{st['line']} is `{st['status']}`: {st['reason']}")
     for b in report["unknowns"]["boundaries"]:
         out.append(f"- Boundary `{b['kind']}` on `{b['subject']}` in `{b['statement']}`")
     for x in report["unknowns"]["refusals"]:
@@ -386,4 +425,8 @@ def to_csv(report: dict[str, Any]) -> str:
         writer.writerow(["unknown", b["statement"], "", "", "boundary", "", b["kind"]])
     for x in report.get("unknowns", {}).get("refusals", []):
         writer.writerow(["unknown", x["file"], x["line"], "", "refusal", "", x["code"]])
+    for st in report.get("unknowns", {}).get("statements", []):
+        writer.writerow(["unknown", st["file"], st["line"], "", st["status"], "", st["reason"]])
+    for e in report.get("effects", []):
+        writer.writerow(["effect", e["table"], e["line"], "", e["type"], "", e["detail"]])
     return buffer.getvalue()

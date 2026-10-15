@@ -17,6 +17,16 @@ path is composed at query time - `docs/ir-v0.md`):
 
 A lookup-join key (`KEYS`, D-57) is walked only when asked for (`join_keys=True`): it is
 not one of the parser's scored edges, and the default walk is the one the keys check.
+
+Plan step 7 - unknowns are part of the answer, not a side list:
+
+* the fallback hops of refused statements (D-60) - `MENTIONS_COL`, a column a refused
+  statement's expression names, and `OPAQUE`, a table it read to a table it wrote - are
+  walked by default and come back flagged `unverified: true` (`fallback=False` leaves them
+  out), so a refused statement in the middle of a lineage cannot make it look complete;
+* `gaps` and `coverage` also name the effects on the tables involved (D-62: `RESETS`,
+  `DROPS`, `ALTERS` - "emptied by TRUNCATE at load.sql:88") and every statement whose
+  ledger status is not plain lineage (plan step 3: refused, partial, effect ...).
 """
 
 from __future__ import annotations
@@ -28,6 +38,12 @@ from lineage.graph.neo4j_conn import Neo4jSettings, read_session
 
 LINEAGE = ("FEEDS", "FILTERS", "INFLUENCES", "KEYS")
 VALUE_LIKE = ("FEEDS", "INFLUENCES", "KEYS")
+FALLBACK = ("MENTIONS_COL", "OPAQUE")
+"""What a refused statement still says (D-60): walked by default, always flagged."""
+EFFECTS = ("RESETS", "DROPS", "ALTERS")
+"""What a statement does to a whole table (D-62)."""
+_CITABLE = (*LINEAGE, *FALLBACK)
+_QUIET_STATUSES = ("column_level", "no_lineage")
 _ENDPOINT_LABELS = ("Column", "Table", "Variable", "Boundary", "Procedure", "Literal")
 _SNIPPET_LINES = 200
 
@@ -69,23 +85,68 @@ class GraphTools:
         best = [row for row in rows if row["rank"] == rows[0]["rank"]] if rows else []
         return [{"id": row["id"], "label": row["label"]} for row in best]
 
-    def upstream(self, node: str, depth: int = 1, join_keys: bool = False) -> list[dict[str, Any]]:
+    def upstream(
+        self, node: str, depth: int = 1, join_keys: bool = False, fallback: bool = True
+    ) -> list[dict[str, Any]]:
         """Where a column comes from: every lineage edge into it, `depth` hops up.
 
         Each edge is returned once, with the hop (`depth`) at which it was first reached.
         `join_keys` also walks the `KEYS` edges: the columns that chose a lookup's row.
+        `fallback` (on by default) walks a refused statement's `MENTIONS_COL` / `OPAQUE` hops,
+        each flagged `unverified` - the lineage passes through SQL that was not analysed.
         """
-        return self._walk(node, depth, lambda ids: self._incoming(ids, join_keys))
+        return self._walk(node, depth, lambda ids: self._incoming(ids, join_keys, fallback))
 
     def downstream(
-        self, node: str, depth: int = 1, join_keys: bool = False
+        self, node: str, depth: int = 1, join_keys: bool = False, fallback: bool = True
     ) -> list[dict[str, Any]]:
         """What a column affects: every lineage edge out of it, `depth` hops down.
 
         A `FILTERS` edge ends at a table - every column of it is affected - and the walk
-        stops there rather than fanning out to the whole table.
+        stops there rather than fanning out to the whole table. `fallback` as in `upstream`:
+        a table read by a refused statement reaches what it wrote (`OPAQUE`, unverified).
         """
-        return self._walk(node, depth, lambda ids: self._outgoing(ids, join_keys), upward=False)
+        return self._walk(
+            node, depth, lambda ids: self._outgoing(ids, join_keys, fallback), upward=False
+        )
+
+    def effects(self, tables: list[str]) -> list[dict[str, Any]]:
+        """What statements do to these whole tables (D-62): emptied, dropped, altered."""
+        return self._read(
+            """
+            MATCH (s:Statement)-[r:RESETS|DROPS|ALTERS]->(t:Table) WHERE t.id IN $tables
+            RETURN r.id AS id, type(r) AS type, t.id AS table, r.detail AS detail,
+                   r.file AS file, r.line AS line, s.id AS statement
+            ORDER BY file, line, table, type
+            """,
+            tables=sorted(set(tables)),
+        )
+
+    def statements(self, files: list[str], tables: list[str] | None = None) -> list[dict[str, Any]]:
+        """Statements in `files` whose ledger status is not plain lineage (plan step 3).
+
+        Refused, partial, unclassified, table-level, effect, declared, not analysed, not
+        valid: each with its status and reason. With `tables`, only those that write or
+        read one of them, or name none (kept, never dropped in silence).
+        """
+        return self._read(
+            """
+            MATCH (s:Statement) WHERE s.file IN $files AND s.status IS NOT NULL
+              AND NOT s.status IN $quiet
+              AND ($tables IS NULL
+                   OR EXISTS { (s)-[:WRITES|READS|RESETS|DROPS|ALTERS]->(t:Table)
+                               WHERE t.id IN $tables }
+                   OR EXISTS { (s)-[:REFUSED]->(:Refusal)-[:MENTIONS]->(t:Table)
+                               WHERE t.id IN $tables }
+                   OR NOT EXISTS { (s)-[:WRITES|READS|RESETS|DROPS|ALTERS]->(:Table) })
+            RETURN s.id AS id, s.file AS file, s.line AS line, s.end_line AS end_line,
+                   s.kind AS kind, s.status AS status, s.reason AS reason
+            ORDER BY file, line
+            """,
+            files=sorted(set(files)),
+            tables=tables,
+            quiet=list(_QUIET_STATUSES),
+        )
 
     def impact(self, node: str, change: str = "drop", depth: int = 15) -> dict[str, Any]:
         """What breaks if a column or table is dropped, renamed or retyped (MVP F3).
@@ -104,7 +165,7 @@ class GraphTools:
         rows = self._read(
             f"""
             MATCH (s {{id: $source}}), (t {{id: $target}})
-            MATCH p = allShortestPaths((s)-[:{"|".join(LINEAGE)}*..{hops}]->(t))
+            MATCH p = allShortestPaths((s)-[:{"|".join(_CITABLE)}*..{hops}]->(t))
             RETURN [r IN relationships(p) |
                     {{id: r.id, type: type(r), source: startNode(r).id, target: endNode(r).id,
                       transform: r.transform, phase: r.phase, band: r.band, tier: r.tier,
@@ -126,7 +187,7 @@ class GraphTools:
             RETURN {{{_EDGE_FIELDS}}} AS edge, f.text AS text
             """,
             edge=edge,
-            types=list(LINEAGE),
+            types=list(_CITABLE),
         )
         if not rows:
             return None
@@ -155,6 +216,16 @@ class GraphTools:
                     file=file,
                 ),
                 "refusals": self._refusals([file]),
+                "statements": self.statements([file]),
+                "effects": self._read(
+                    """
+                    MATCH (s:Statement)-[r:RESETS|DROPS|ALTERS]->(t:Table) WHERE r.file = $file
+                    RETURN r.id AS id, type(r) AS type, t.id AS table, r.detail AS detail,
+                           r.file AS file, r.line AS line, s.id AS statement
+                    ORDER BY line, table, type
+                    """,
+                    file=file,
+                ),
             }
         if node is None:
             raise ValueError("gaps needs a node or a file")
@@ -188,6 +259,9 @@ class GraphTools:
             "refusals": self._refusals(files, tables),
             "refusals_note": "a refused statement has no edges: it is listed when its SQL names "
             "a table on this lineage, or when it names no table at all (then per file)",
+            "unverified": [e for e in edges if e.get("unverified")],
+            "effects": self.effects(tables),
+            "statements": self.statements(files, tables),
         }
 
     def coverage(self, table: str) -> dict[str, Any]:
@@ -240,7 +314,9 @@ class GraphTools:
                 statements=found["written_by"],
             ),
             "refusals": self._refusals(files, [table]),
+            "statements": self.statements(files, [table]),
         }
+        found["effects"] = self.effects([table])
         return found
 
     def graph_query(self, cypher: str) -> dict[str, Any]:
@@ -269,7 +345,7 @@ class GraphTools:
             RETURN {{{_EDGE_FIELDS}}} AS edge ORDER BY r.id
             """,
             ids=list(ids),
-            types=list(LINEAGE),
+            types=list(_CITABLE),
         )
         return [row["edge"] for row in rows]
 
@@ -286,7 +362,7 @@ class GraphTools:
             RETURN r.id AS id, type(r) AS type, a.id AS source, b.id AS target
             """,
             ids=list(ids),
-            types=list(LINEAGE),
+            types=list(_CITABLE),
         )
         return {row["id"]: (row["type"], row["source"], row["target"]) for row in rows}
 
@@ -311,7 +387,9 @@ class GraphTools:
                 seen[edge["id"]] = {**edge, "depth": hop}
                 nxt = edge["source"] if upward else edge["target"]
                 # Downstream, a FILTERS edge ends at a whole table: reported, not walked.
-                if (upward or edge["type"] in VALUE_LIKE) and nxt not in visited:
+                # An OPAQUE hop's table IS walked on: table-level is all a refusal leaves.
+                walk_on = upward or edge["type"] in (*VALUE_LIKE, "MENTIONS_COL", "OPAQUE")
+                if walk_on and nxt not in visited:
                     visited.add(nxt)
                     frontier.append(nxt)
             if not frontier:
@@ -321,16 +399,22 @@ class GraphTools:
             key=lambda e: (e["depth"], e["type"], e["source"], e["target"], e["id"]),
         )
 
-    def _incoming(self, frontier: list[str], join_keys: bool = False) -> list[dict[str, Any]]:
+    def _incoming(
+        self, frontier: list[str], join_keys: bool = False, fallback: bool = False
+    ) -> list[dict[str, Any]]:
         into = "FEEDS|INFLUENCES|KEYS" if join_keys else "FEEDS|INFLUENCES"
+        into_table = "FILTERS|MENTIONS_COL|OPAQUE" if fallback else "FILTERS"
+        into_column = f"{into}|MENTIONS_COL" if fallback else into
         rows = self._read(
             f"""
             UNWIND $ids AS nid
             MATCH (b {{id: nid}}) WHERE b:Column OR b:Variable OR b:Table
             CALL (b) {{
-                MATCH (a)-[r:{into}]->(b) RETURN a, r
+                MATCH (a)-[r:{into_column}]->(b) RETURN a, r
                 UNION
-                MATCH (b)<-[:HAS_COLUMN]-(t:Table)<-[r:FILTERS]-(a) RETURN a, r
+                MATCH (b)<-[:HAS_COLUMN]-(t:Table)<-[r:{into_table}]-(a) RETURN a, r
+                UNION
+                MATCH (b:Table)<-[r:{"OPAQUE" if fallback else "NONE"}]-(a) RETURN a, r
             }}
             WITH a, r, b
             MATCH (a)-[r]->(target)
@@ -338,20 +422,35 @@ class GraphTools:
             """,
             ids=frontier,
         )
-        return [row["edge"] for row in rows]
+        return [_flagged(row["edge"]) for row in rows]
 
-    def _outgoing(self, frontier: list[str], join_keys: bool = False) -> list[dict[str, Any]]:
+    def _outgoing(
+        self, frontier: list[str], join_keys: bool = False, fallback: bool = False
+    ) -> list[dict[str, Any]]:
         out = "FEEDS|INFLUENCES|FILTERS|KEYS" if join_keys else "FEEDS|INFLUENCES|FILTERS"
+        if fallback:
+            out += "|MENTIONS_COL"
         rows = self._read(
             f"""
             UNWIND $ids AS nid
-            MATCH (a {{id: nid}})-[r:{out}]->(b)
-            WHERE a:Column OR a:Variable
+            MATCH (a {{id: nid}})-[r:{out}]->(b) WHERE a:Column OR a:Variable
             RETURN DISTINCT {{{_EDGE_FIELDS}}} AS edge
             """,
             ids=frontier,
         )
-        return [row["edge"] for row in rows]
+        if fallback:
+            # A table a refused statement read reaches what it wrote (OPAQUE) - from the
+            # table itself, or from any of its columns, even one no analysed statement read
+            # (then it has no node of its own: its table is all the graph knows of it).
+            tables = sorted({nid if nid.count(".") < 2 else _table_id(nid) for nid in frontier})
+            rows += self._read(
+                f"""
+                MATCH (a:Table)-[r:OPAQUE]->(b) WHERE a.id IN $tables
+                RETURN DISTINCT {{{_EDGE_FIELDS}}} AS edge
+                """,
+                tables=tables,
+            )
+        return [_flagged(row["edge"]) for row in rows]
 
     def _refusals(self, files: list[str], tables: list[str] | None = None) -> list[dict[str, Any]]:
         """Refusals in `files`. With `tables`: only those whose SQL names one of them, or
@@ -379,6 +478,13 @@ class GraphTools:
                 lambda tx: [record.data() for record in tx.run(query, **parameters)]
             )
             return rows
+
+
+def _flagged(edge: dict[str, Any]) -> dict[str, Any]:
+    """A fallback hop carries `unverified: true` - it passes through SQL not analysed."""
+    if edge["type"] in FALLBACK:
+        return {**edge, "unverified": True}
+    return edge
 
 
 def _table_id(node: str) -> str:

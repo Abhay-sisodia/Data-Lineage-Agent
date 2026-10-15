@@ -184,7 +184,11 @@ def test_tools_return_exactly_the_keyed_lineage_of_the_final_suite(neo4j_driver:
             if is_filter:
                 found = tools.coverage(target).get("filters", [])
             else:
-                found = [e for e in tools.upstream(target, depth=1) if e["type"] != "FILTERS"]
+                found = [
+                    e
+                    for e in tools.upstream(target, depth=1)
+                    if e["type"] in ("FEEDS", "INFLUENCES")  # the keyed (scored) flows
+                ]
             got = {
                 (e["source"], e["type"], e["transform"], e["phase"])
                 for e in found

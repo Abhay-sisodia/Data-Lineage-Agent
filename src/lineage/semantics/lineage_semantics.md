@@ -159,3 +159,6 @@ A refused statement has **zero edges**; never guess what it does. It is tied to 
 4. Use the vocabulary above: value / filter / influence, the transform names, pre / post aggregation.
 5. Say "no lineage found" when the graph has none; never infer it from names.
 6. When a name matches more than one node, ask which one.
+7. An `unverified` hop (`MENTIONS_COL`, `OPAQUE` - section 4) is an **unknown**, never a lineage fact: "it is reached only through the refused statement at FILE:LINE (table-level)". Walks return them by default (`fallback`); cite their ids as unknowns.
+8. Report an effect on a table the answer is about (`RESETS`, `DROPS`, `ALTERS`, from `gaps` / `coverage` / `impact`) where it changes the answer - "emptied by TRUNCATE at FILE:LINE before the load at :LINE".
+9. A statement with a ledger status that is not plain lineage (`gaps` / `coverage` return them as `statements`) is part of the answer: name it with its status and reason - never let a refused or partly read statement look like nothing was there.

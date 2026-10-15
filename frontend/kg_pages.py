@@ -166,9 +166,10 @@ def legend() -> None:
         "? conditional · no badge = copied) "
         "· red dashed into a card's header = **filter** (decides which rows of that table "
         "exist) · purple dotted = **influence** (GROUP BY, window ordering) · teal dash-dot = "
-        "**join key** (picked a lookup's row) · yellow row = the "
-        "column you asked about · ⚠ = a gap: a boundary or refused statement touches that "
-        "table (hover it)."
+        "**join key** (picked a lookup's row) · grey dashed = **unverified**: what a "
+        "refused statement still names (a column, or table to table) · yellow row = the "
+        "column you asked about · ⚠ = a gap or an effect: a boundary, a refused statement, "
+        "or a TRUNCATE / DROP / ALTER touches that table (hover it)."
     )
 
 
@@ -268,10 +269,12 @@ def graph_page() -> None:
             help="One column: its lineage, hop by hop. A file: everything one SQL file "
             "produces. Entire graph: every lineage edge loaded.",
         )
-    all_flows = ["FEEDS", "FILTERS", "INFLUENCES", "KEYS"]
+    all_flows = ["FEEDS", "FILTERS", "INFLUENCES", "KEYS", "MENTIONS_COL", "OPAQUE"]
     flow_help = (
         "KEYS (teal, dash-dot): the join key that picked a lookup's row - e.g. a status code "
-        "mapped through a reference table. Not a value, filter or influence (D-5, D-57)."
+        "mapped through a reference table. Not a value, filter or influence (D-5, D-57). "
+        "MENTIONS_COL / OPAQUE (grey dashed): a REFUSED statement names that column, or read "
+        "that table and wrote this one - unverified, but never left out (D-60)."
     )
     node: str | None = None
     detail = "Columns"
@@ -365,7 +368,8 @@ def graph_page() -> None:
         )
     hide = set(temps if hide_temps else []) | set(extra)
 
-    top = st.columns(5)
+    top = st.columns(6)
+    top[5].metric("Unverified", sum(e["type"] in explorer.FALLBACK for e in edges))
     top[0].metric("Edges", len(edges))
     top[1].metric("Value", sum(e["type"] == "FEEDS" for e in edges))
     top[2].metric("Filter", sum(e["type"] == "FILTERS" for e in edges))
@@ -458,6 +462,8 @@ def _edge_panel(tools: Any, edges: list[dict[str, Any]], scope: str) -> None:
         "INFLUENCES": "influences",
         "FILTERS": "filters",
         "KEYS": "is the join key that picks the lookup row of",
+        "MENTIONS_COL": "is named, in refused SQL, by",
+        "OPAQUE": "is read, by refused SQL, into",
     }
     st.subheader("Why this edge exists")
     st.markdown(
@@ -604,6 +610,38 @@ def ask_page() -> None:
 
 
 # --- helpers -----------------------------------------------------------------------------
+
+
+def not_analysed_page() -> None:
+    """Plan step 7: every statement that is not plain lineage, with why and its SQL."""
+    st.title("Not analysed")
+    st.caption(
+        "Every statement the lineage does not fully cover: refused, partly refused, kept only "
+        "as names or tables (unverified), an effect (TRUNCATE, DROP, ALTER), or not valid "
+        "PostgreSQL - each with its reason, the tables it touches, and its SQL. Nothing the "
+        "parser could not read is left out of the graph."
+    )
+    tools = _connected()
+    if tools is None:
+        return
+    rows = explorer.not_analysed(tools)
+    statuses = sorted({row["status"] for row in rows})
+    with st.sidebar:
+        wanted = st.multiselect("Status", statuses, default=statuses)
+    shown = [row for row in rows if row["status"] in wanted]
+    st.metric("Statements", len(shown))
+    st.dataframe(
+        [{k: row[k] for k in ("file", "line", "kind", "status", "reason")} for row in shown],
+        use_container_width=True,
+        hide_index=True,
+    )
+    for row in shown:
+        title = f"{row['file']}:{row['line']} - {row['status']} - {row['kind']}"
+        with st.expander(title):
+            st.markdown(row["reason"])
+            if row["tables"]:
+                st.markdown("Tables: " + ", ".join(f"`{t}`" for t in row["tables"]))
+            st.code(row["sql"], language="sql")
 
 
 def impact_page() -> None:
