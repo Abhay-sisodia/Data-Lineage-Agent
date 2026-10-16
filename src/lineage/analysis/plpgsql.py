@@ -131,6 +131,9 @@ class Desugared:
     functions: dict[str, Any] = field(default_factory=dict)
     """Every routine read so far, this script's and those handed in (D-65): a folder run
     gives them to the next file, so a call there reads the routine an earlier file defined."""
+    synthetic: int = 0
+    """Statements placed that the script does not hold (T3: a routine's output relation and
+    its emits) - band 0 counts them, so `finish` takes them back out."""
 
 
 @dataclass
@@ -143,6 +146,10 @@ class _Function:
     from_arguments: set[int] = field(default_factory=set)
     """A scalar function's argument positions its return value is computed from (D-66): a
     variable or record field passed there is a value of the call's result."""
+    output: str = ""
+    """semantic-ir T3: the relation its rows are emitted into (its own name), when they are
+    built by RETURN NEXT or OUT parameters; a call reads that relation."""
+    columns: list[str] = field(default_factory=list)  # the output relation's columns
 
 
 # --- desugaring -----------------------------------------------------------------------------
@@ -426,7 +433,10 @@ class _Desugarer:
             return
         unit = routine.name
         bindings = self.bindings.get(routine.name, []) if routine.returns == "trigger" else []
-        saved = (len(self.result.emitted), len(self.result.boundaries), self.phantoms)
+        saved = (
+            len(self.result.emitted), len(self.result.boundaries), self.phantoms,
+            self.result.synthetic,
+        )  # fmt: skip
         backup = (list(self.out.lines), {k: list(v) for k, v in self.out.placed.items()})
         context = _Context(
             unit=unit,
@@ -447,6 +457,21 @@ class _Desugarer:
         # numbered from its own line.
         self.out.blank(previous, end + 1)
         function = _Function(routine=routine)
+        columns = routine_ir.output_columns(routine, self.dictionary)
+        if (
+            columns
+            and routine.language == "plpgsql"
+            and routine_ir.yields_rows(routine)
+            and (routine.returns == "record" or "return_next" in _forms(block.body))
+        ):
+            # semantic-ir T3, EMIT: rows built by RETURN NEXT or OUT parameters go into the
+            # routine's OUTPUT, a relation named after it; every emit is an INSERT into it,
+            # and a call reads it (holdout4 H5, H6). A routine of RETURN QUERY alone is still
+            # inlined where it is called (D-40).
+            function.output, function.columns = routine.name, columns
+            self._synthetic(
+                start, f"CREATE TABLE {routine.name} ({', '.join(f'{c} text' for c in columns)});"
+            )
         try:
             if routine.returns == "trigger" and not bindings:
                 pass  # D-41: never bound, so NEW has no table and nothing is emitted
@@ -454,6 +479,9 @@ class _Desugarer:
                 if routine.search_path:
                     self.out.put(start, f"SET search_path TO {routine.search_path};")
                 self.block(block, context, function)
+                if function.output and routine.returns == "record":
+                    # Falling off the end returns the OUT parameters as they stand.
+                    self._emit_out_params(routine.body_end, context, function)
                 if routine.search_path:
                     self.out.put(end, "RESET search_path;")
         except pl.UnsupportedError as error:
@@ -462,6 +490,7 @@ class _Desugarer:
             del self.result.emitted[saved[0] :]
             del self.result.boundaries[saved[1] :]
             self.phantoms = saved[2]
+            self.result.synthetic = saved[3]
             self.out.lines, self.out.placed = backup
             return
         finally:
@@ -675,14 +704,19 @@ class _Desugarer:
             if folded is not None:
                 context.cursors[stmt.cursor.lower()] = folded
         elif kind == "return_query":
-            function.queries.append(stmt.expression)
+            self._emit_query(stmt.expression, stmt.start, context, function)
         elif kind == "return_query_execute":
             # holdout4 H7: the rows of constant dynamic text are the rows of that query.
             folded = self._dynamic(stmt.expression, stmt.using, stmt.start, context, "returns")
             if folded is not None:
-                function.queries.append(folded)
+                self._emit_query(folded, stmt.start, context, function)
         elif kind == "return_next":
-            function.procedural_rows = True
+            if function.output:
+                self._emit_next(stmt, context, function)
+            else:
+                function.procedural_rows = True
+        elif kind == "return" and function.output and function.routine.returns == "record":
+            self._emit_out_params(stmt.start, context, function)
         elif kind == "return" and stmt.expression and function.routine.returns == "scalar":
             symbols = self._expression_symbols(stmt.expression, context)
             self.result.returns.setdefault(context.unit, []).append((stmt.expression, symbols))
@@ -693,7 +727,7 @@ class _Desugarer:
         parsed = _parse(text)
         if parsed is None:
             raise pl.UnsupportedError("an embedded statement SQLGlot cannot parse")
-        self._inline_tree(parsed, start)
+        self._inline_tree(parsed, start, context)
         uses = self._statement_uses(parsed, context)
         _null_symbols(parsed, context)
         line = self.out.put(start, parsed.sql(dialect=DIALECT) + ";")
@@ -837,6 +871,45 @@ class _Desugarer:
             )
         return folded
 
+    # --- EMIT (semantic-ir T3) ---------------------------------------------------------------
+
+    def _synthetic(self, start: int, text: str) -> None:
+        """Place a statement the script does not hold; `finish` takes it out of the count."""
+        self.out.put(start, text)
+        self.result.synthetic += 1
+
+    def _emit_query(self, query: str, start: int, context: _Context, function: _Function) -> None:
+        """RETURN QUERY [EXECUTE]: inlined where the routine is called (D-40), or - in a
+        routine that also builds rows - an INSERT of the query into its output."""
+        if not function.output:
+            function.queries.append(query)
+            return
+        columns = ", ".join(function.columns)
+        self.result.synthetic += 1
+        self._sql(f"INSERT INTO {function.output} ({columns}) {query}", start, context)
+
+    def _emit_next(self, stmt: pl.Stmt, context: _Context, function: _Function) -> None:
+        """RETURN NEXT [r]: one row of the output - r's fields, or the OUT parameters."""
+        record = stmt.expression.strip().lower()
+        if not record:
+            self._emit_out_params(stmt.start, context, function)
+            return
+        if record not in context.records:
+            return  # a record nothing assigned yet: a row of nothing traceable
+        values = ", ".join(f"{record}.{column}" for column in function.columns)
+        self.result.synthetic += 1
+        self._sql(
+            f"INSERT INTO {function.output} ({', '.join(function.columns)}) SELECT {values}",
+            stmt.start,
+            context,
+        )
+
+    def _emit_out_params(self, start: int, context: _Context, function: _Function) -> None:
+        """RETURN (or the end) of an OUT-parameter routine: the row its OUT values make."""
+        columns = ", ".join(function.columns)
+        self.result.synthetic += 1
+        self._sql(f"INSERT INTO {function.output} ({columns}) SELECT {columns}", start, context)
+
     def _execute(self, stmt: pl.Stmt, context: _Context) -> None:
         folded = self._dynamic(stmt.expression, stmt.using, stmt.start, context)
         if folded is None:
@@ -861,7 +934,7 @@ class _Desugarer:
         parsed = _parse(query)
         if not isinstance(parsed, exp.Query):
             raise pl.UnsupportedError("a query SQLGlot cannot parse")
-        self._inline_tree(parsed, start)
+        self._inline_tree(parsed, start, context)
         selects = parsed.selects
         if kind == "into" and any(
             isinstance(s, exp.Star) or isinstance(s.this, exp.Star) for s in selects
@@ -905,7 +978,37 @@ class _Desugarer:
             return None
         return parsed.sql(dialect=DIALECT) + ";"
 
-    def _inline_tree(self, tree: Any, start: int) -> bool:
+    def _read_output(
+        self, node: Any, call: Any, function: _Function, start: int, context: _Context | None
+    ) -> None:
+        """`f(args) AS a` in FROM / LATERAL -> `<f's output> AS a` (semantic-ir T3); the
+        call's arguments bind f's parameters, so what they filter inside f is traced."""
+        alias = node.args.get("alias")
+        name = alias.this if alias is not None else exp.to_identifier(call.name)
+        table = exp.to_table(function.output)
+        table.set("alias", exp.TableAlias(this=name, columns=alias.columns if alias else None))
+        node.replace(table)
+        params = function.routine.params
+        bound = _call_arguments(call, params)
+        names = [param for param in params if param in bound]
+        select = table.find_ancestor(exp.Select)
+        if not names or select is None:
+            return
+        query = select.copy()
+        query.set(
+            "expressions",
+            [exp.alias_(bound[param].copy(), f"__c{i}") for i, param in enumerate(names)],
+        )
+        for clause in ("order", "limit", "offset", "group", "having"):
+            query.set(clause, None)
+        caller = context or _Context(unit=function.routine.name, variables=set(params), band=1)
+        try:
+            emitted = self._phantom(query.sql(dialect=DIALECT), start, caller, "into", tuple(names))
+        except pl.UnsupportedError:
+            return
+        emitted.binding = True
+
+    def _inline_tree(self, tree: Any, start: int, context: _Context | None = None) -> bool:
         changed = False
         for table in list(tree.find_all(exp.Table)):
             bound = self.transitions.get(table.name.lower()) if not table.db else None
@@ -933,6 +1036,10 @@ class _Desugarer:
             name = pl.fold_name(f"{schema}.{call.name}" if schema else call.name)
             function = self.functions.get(name)
             if function is None:
+                continue
+            if function.output:
+                self._read_output(node, call, function, start, context)
+                changed = True
                 continue
             if function.procedural_rows or not function.queries:
                 line = self._line(start)
@@ -1198,6 +1305,24 @@ def _a_returned_argument(column: Any, functions: dict[str, _Function]) -> bool:
                 return position in function.from_arguments
         child, current = current, current.parent
     return False
+
+
+def _forms(nodes: list[pl.Node]) -> set[str]:
+    """Every statement form in a body, nested blocks, branches, loops and handlers included."""
+    found: set[str] = set()
+    for node in nodes:
+        if isinstance(node, pl.Stmt):
+            found.add(node.kind)
+        elif isinstance(node, pl.Block):
+            found |= _forms(node.body)
+            for handler in node.handlers:
+                found |= _forms(handler.body)
+        elif isinstance(node, pl.If):
+            for arm in node.arms:
+                found |= _forms(arm)
+        elif isinstance(node, pl.Loop):
+            found |= _forms(node.body)
+    return found
 
 
 def _name_projections(query: Any, names: list[str]) -> None:
@@ -1586,7 +1711,7 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
                 )
 
     result.edges = _deduplicate(kept)
-    phantom_count = sum(1 for e in desugared.emitted if e.phantom)
+    phantom_count = sum(1 for e in desugared.emitted if e.phantom) + desugared.synthetic
     result.statements_seen = (
         max(0, result.statements_seen - phantom_count) + desugared.routines_seen
     )

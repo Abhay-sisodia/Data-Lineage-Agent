@@ -184,13 +184,17 @@ def build(verdicts: list[Verdict], result: Any) -> list[LedgerEntry]:
             mine
             and verdict.kind in ("CreateFunctionStmt", "DoStmt")
             and not any(
-                e.target.kind is NodeKind.COLUMN for e in edges if _in(e.origin.line, verdict)
+                e.target.kind is NodeKind.COLUMN
+                and e.target.name.rpartition(".")[0].lower() != e.origin.unit.lower()
+                for e in edges
+                if _in(e.origin.line, verdict)
             )
         ):
             # R6 (holdout3): a routine whose edges all end in its own variables - or in the
             # rows its SELECT INTO filters - writes no column. Its lineage is where it is
             # called (a summary), as `nothing_reason` says; calling it column-level said
-            # otherwise, and no prediction could agree with that.
+            # otherwise, and no prediction could agree with that. semantic-ir T3: the same for
+            # its own OUTPUT relation (named after it) - its rows reach a table where called.
             mine = 0
         if mine and refused:
             status, reason = "partial", f"{_edges(mine)}; refused in part - {refused[0].code.value}"

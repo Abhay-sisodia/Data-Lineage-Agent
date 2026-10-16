@@ -449,7 +449,16 @@ def analyse_source(
     # Declared, not silently resolved. Nothing composes paths yet, so nothing is fused -
     # but the hazard is recorded now so the constraint exists before the code that would
     # violate it.
+    # A routine's output relation (semantic-ir T3) is written by the routine and read by its
+    # callers by design: that is how its rows reach them, not a shared scratch table.
+    outputs = {
+        function.output.lower()
+        for function in (desugared.functions.values() if desugared is not None else ())
+        if getattr(function, "output", "")
+    }
     for hazard in find_fusion_hazards(result.edges, dictionary):
+        if hazard.relation.lower() in outputs:
+            continue
         entry = Boundary(
             kind=BoundaryKind.FUSION_HAZARD,
             subject=hazard.relation,

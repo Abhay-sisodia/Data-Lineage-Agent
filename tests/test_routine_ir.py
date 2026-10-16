@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -170,3 +171,63 @@ def test_binding_using_traces_the_callers_arguments_into_the_dynamic_where(
     result = analyse_source(H7, book, AnalysisConfig(dialect="postgres"))
     filters = {str(e.source) for e in result.edges if e.flow.value == "filter"}
     assert {"column:src.b.k", "column:src.b.id"} <= filters
+
+
+# --- EMIT into the routine's output (semantic-ir T3) ----------------------------------------------
+
+OUT_PARAMS = """CREATE FUNCTION tgt.f_rate(p_k integer, INOUT p_flag boolean, OUT o_v integer,
+                           OUT o_n integer)
+LANGUAGE plpgsql AS $$
+BEGIN
+  SELECT a.v, a.n INTO STRICT o_v, o_n FROM src.a AS a WHERE a.k = p_k;
+END $$;
+
+INSERT INTO tgt.t (id, v, n)
+SELECT b.id, r.o_v, r.o_n FROM src.b AS b
+CROSS JOIN LATERAL tgt.f_rate(b.k, true) AS r;
+"""
+
+RETURN_NEXT = """CREATE FUNCTION tgt.f_alloc(p_k integer) RETURNS SETOF src.b LANGUAGE plpgsql AS $$
+DECLARE
+  v_row src.b%ROWTYPE;
+  r record;
+BEGIN
+  RETURN QUERY SELECT a.id, a.k, a.v, a.n, a.d FROM src.a AS a WHERE a.k = p_k;
+  FOR r IN SELECT a.id, a.w FROM src.a AS a LOOP
+    v_row.id := r.id;
+    v_row.v := r.w * 2;
+    RETURN NEXT v_row;
+  END LOOP;
+  RETURN;
+END $$;
+
+INSERT INTO tgt.t (id, v)
+SELECT x.id, x.v FROM tgt.f_alloc(3) AS x;
+"""
+
+
+def _path(result, *nodes: str) -> bool:
+    """Every consecutive pair of `nodes` is an edge of `result`."""
+    pairs = _pairs(result)
+    return all((a, b) in pairs for a, b in pairwise(nodes))
+
+
+def test_an_out_parameter_routine_read_in_lateral_is_traced(book) -> None:
+    """holdout4 H5: OUT / INOUT parameters and no RETURNS - its row is its OUT values, read
+    through its output relation; the caller's argument reaches the routine's WHERE."""
+    result = analyse_source(OUT_PARAMS, book, AnalysisConfig(dialect="postgres"))
+    assert result.refusals == [] and not result.boundaries
+    assert _path(result, "column:src.a.v", "variable:o_v", "column:tgt.f_rate.o_v",
+                 "column:tgt.t.v")  # fmt: skip
+    assert ("column:src.b.k", "variable:p_k") in _pairs(result)
+    assert result.ledger[0].status == "no_lineage"  # lineage is where it is called
+
+
+def test_return_next_of_a_record_built_field_by_field_is_traced(book) -> None:
+    """holdout4 H6: RETURN NEXT of a %ROWTYPE record assigned field by field, beside RETURN
+    QUERY, was "built procedurally" and refused; both now emit into its output."""
+    result = analyse_source(RETURN_NEXT, book, AnalysisConfig(dialect="postgres"))
+    assert result.refusals == [] and not result.boundaries
+    assert _path(result, "column:src.a.w", "column:tgt.f_alloc.v", "column:tgt.t.v")
+    assert _path(result, "column:src.a.v", "column:tgt.f_alloc.v", "column:tgt.t.v")
+    assert result.statements_seen == 2  # the routine and the INSERT; nothing synthetic counted
