@@ -47,3 +47,6 @@ stress/pg/torture*/
 
 # Local secrets for the review bundle (ANTHROPIC_API_KEY); .env.example is the template.
 .env
+
+# holdout runs (scripts/holdout/run.sh)
+.holdout-runs/
