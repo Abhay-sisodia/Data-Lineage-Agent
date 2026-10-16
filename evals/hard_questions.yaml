@@ -1,0 +1,156 @@
+# Ten harder questions on M5 (pasted/query11111.sql): multi-hop, filters, aggregation;
+# written by evals/author_hard.py from the graph.
+questions:
+- id: H1
+  question: Which columns of <result:pasted/query11111.sql> are computed by an aggregate function (MAX, COUNT, SUM
+    ...)? List the result columns only.
+  intent: aggregation
+  expected:
+    status: answered
+    answer: nodes
+    nodes:
+    - <result:pasted/query11111.sql>.last_touch_ts
+    - <result:pasted/query11111.sql>.touch_sources
+    subject: <result:pasted/query11111.sql>
+- id: H2
+  question: <result:pasted/query11111.sql>.touch_sources counts distinct event sources per shipment. Which source
+    column, filtered before the aggregation, restricts which activity rows are counted, and which columns decide
+    the grouping?
+  intent: aggregation
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - evt.activity.kind
+      - <result:pasted/query11111.sql>.touch_sources
+    - - INFLUENCES
+      - evt.activity.entity_id
+      - <result:pasted/query11111.sql>.touch_sources
+    - - INFLUENCES
+      - lgx.package_event.shipment_id
+      - <result:pasted/query11111.sql>.touch_sources
+    subject: <result:pasted/query11111.sql>.touch_sources
+- id: H3
+  question: Which source columns restrict which rows appear in <result:pasted/query11111.sql> but never supply a
+    value to any of its columns?
+  intent: filters
+  expected:
+    status: answered
+    answer: nodes
+    nodes:
+    - lgx.shipment_header.is_deleted
+    - lgx.shipment_header.updated_at
+    - lgx.shipment_line.line_status
+    - lgx.shipment_line.promise_date
+    subject: <result:pasted/query11111.sql>
+- id: H4
+  question: Which source columns both restrict the rows of <result:pasted/query11111.sql> and supply a value to
+    one of its columns?
+  intent: filters
+  expected:
+    status: answered
+    answer: nodes
+    nodes:
+    - lgx.shipment_header.shipment_id
+    - lgx.shipment_header.status_code
+    - lgx.shipment_line.shipped_qty
+    - lgx.shipment_line.unit_selling_price
+    subject: <result:pasted/query11111.sql>
+- id: H5
+  question: Some columns of <result:pasted/query11111.sql> come from LEFT-JOINed CTEs that filter their own rows,
+    so those columns are NULL when the filter fails. Which result columns are affected that way, and by which filter
+    column?
+  intent: filters
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - crm.contact.is_primary
+      - <result:pasted/query11111.sql>.contact_role
+    - - FEEDS
+      - crm.contact.is_primary
+      - <result:pasted/query11111.sql>.primary_email
+    - - FEEDS
+      - crm.customer_site.country_code
+      - <result:pasted/query11111.sql>.Ship To Site
+    - - FEEDS
+      - crm.customer_site.country_code
+      - <result:pasted/query11111.sql>.site_segment
+    - - FEEDS
+      - gold.dim_status.datasource_num_id
+      - <result:pasted/query11111.sql>.status_name
+    subject: <result:pasted/query11111.sql>
+- id: H6
+  question: If evt.activity.kind is mis-tagged, which columns of <result:pasted/query11111.sql> change, and do they
+    change through an aggregate?
+  intent: impact
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - evt.activity.kind
+      - <result:pasted/query11111.sql>.last_touch_ts
+    - - FEEDS
+      - evt.activity.kind
+      - <result:pasted/query11111.sql>.touch_sources
+    subject: evt.activity.kind
+- id: H7
+  question: Which source columns decide how events are grouped into <result:pasted/query11111.sql>.last_touch_ts
+    - the grouping keys, not the aggregated values?
+  intent: aggregation
+  expected:
+    status: answered
+    facts:
+    - - INFLUENCES
+      - evt.activity.entity_id
+      - <result:pasted/query11111.sql>.last_touch_ts
+    - - INFLUENCES
+      - lgx.package_event.shipment_id
+      - <result:pasted/query11111.sql>.last_touch_ts
+    subject: <result:pasted/query11111.sql>.last_touch_ts
+- id: H8
+  question: Which columns of <result:pasted/query11111.sql> does any column of lgx.package_event affect, as a value
+    or as a grouping key?
+  intent: impact
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - lgx.package_event.event_ts
+      - <result:pasted/query11111.sql>.last_touch_ts
+    - - INFLUENCES
+      - lgx.package_event.shipment_id
+      - <result:pasted/query11111.sql>.last_touch_ts
+    - - INFLUENCES
+      - lgx.package_event.shipment_id
+      - <result:pasted/query11111.sql>.touch_sources
+    subject: lgx.package_event
+- id: H9
+  question: <result:pasted/query11111.sql>.ext is filtered (ext > 0) on its way to the result. Which source columns
+    does that row filter rely on, and do the same columns supply ext's value?
+  intent: filters
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - lgx.shipment_line.shipped_qty
+      - <result:pasted/query11111.sql>.ext
+    - - FEEDS
+      - lgx.shipment_line.unit_selling_price
+      - <result:pasted/query11111.sql>.ext
+    - - FILTERS
+      - lgx.shipment_line.shipped_qty
+      - <result:pasted/query11111.sql>
+    - - FILTERS
+      - lgx.shipment_line.unit_selling_price
+      - <result:pasted/query11111.sql>
+    subject: <result:pasted/query11111.sql>.ext
+- id: H10
+  question: Is any column of <result:pasted/query11111.sql> an aggregate over lgx.shipment_line (e.g. SUM of quantity
+    or value)? List the result columns that are (none, if none are).
+  intent: aggregation
+  expected:
+    status: answered
+    answer: nodes
+    nodes: []
+    subject: lgx.shipment_line

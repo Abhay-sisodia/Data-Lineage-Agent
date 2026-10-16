@@ -1,0 +1,150 @@
+# Ten questions on M5 as loaded into the graph (pasted/query11111.sql); written by evals/author_m5.py.
+questions:
+- id: M1
+  question: Where does <result:pasted/query11111.sql>.ext come from, through all the CTE levels?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - lgx.shipment_line.shipped_qty
+      - <result:pasted/query11111.sql>.ext
+    - - FEEDS
+      - lgx.shipment_line.unit_selling_price
+      - <result:pasted/query11111.sql>.ext
+    subject: <result:pasted/query11111.sql>.ext
+- id: M2
+  question: 'Where does <result:pasted/query11111.sql>.customer_name come from: crm.customer or crm.contact?'
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - crm.customer.customer_name
+      - <result:pasted/query11111.sql>.customer_name
+    subject: <result:pasted/query11111.sql>.customer_name
+- id: M3
+  question: Where does <result:pasted/query11111.sql>.primary_email come from, and what decides which contact it
+    is?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - crm.contact.email
+      - <result:pasted/query11111.sql>.primary_email
+    - - FEEDS
+      - crm.contact.is_primary
+      - <result:pasted/query11111.sql>.primary_email
+    subject: <result:pasted/query11111.sql>.primary_email
+- id: M4
+  question: Where does <result:pasted/query11111.sql>.carrier_name come from, including what picks the carrier?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - lgx.carrier.carrier_name
+      - <result:pasted/query11111.sql>.carrier_name
+    subject: <result:pasted/query11111.sql>.carrier_name
+- id: M5
+  question: What decides <result:pasted/query11111.sql>.last_touch_ts and <result:pasted/query11111.sql>.touch_sources?
+    Give their value sources and what influences them.
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - evt.activity.created_at
+      - <result:pasted/query11111.sql>.last_touch_ts
+    - - FEEDS
+      - evt.activity.kind
+      - <result:pasted/query11111.sql>.last_touch_ts
+    - - FEEDS
+      - evt.activity.kind
+      - <result:pasted/query11111.sql>.touch_sources
+    - - FEEDS
+      - lgx.package_event.event_ts
+      - <result:pasted/query11111.sql>.last_touch_ts
+    - - INFLUENCES
+      - evt.activity.entity_id
+      - <result:pasted/query11111.sql>.last_touch_ts
+    - - INFLUENCES
+      - evt.activity.entity_id
+      - <result:pasted/query11111.sql>.touch_sources
+    - - INFLUENCES
+      - lgx.package_event.shipment_id
+      - <result:pasted/query11111.sql>.last_touch_ts
+    - - INFLUENCES
+      - lgx.package_event.shipment_id
+      - <result:pasted/query11111.sql>.touch_sources
+    subject: <result:pasted/query11111.sql>.last_touch_ts
+- id: M6
+  question: Which columns decide which rows appear in the result <result:pasted/query11111.sql>?
+  intent: filters
+  expected:
+    status: answered
+    facts:
+    - - FILTERS
+      - lgx.shipment_header.is_deleted
+      - <result:pasted/query11111.sql>
+    - - FILTERS
+      - lgx.shipment_header.shipment_id
+      - <result:pasted/query11111.sql>
+    - - FILTERS
+      - lgx.shipment_header.status_code
+      - <result:pasted/query11111.sql>
+    - - FILTERS
+      - lgx.shipment_header.updated_at
+      - <result:pasted/query11111.sql>
+    - - FILTERS
+      - lgx.shipment_line.line_status
+      - <result:pasted/query11111.sql>
+    - - FILTERS
+      - lgx.shipment_line.promise_date
+      - <result:pasted/query11111.sql>
+    - - FILTERS
+      - lgx.shipment_line.shipped_qty
+      - <result:pasted/query11111.sql>
+    - - FILTERS
+      - lgx.shipment_line.unit_selling_price
+      - <result:pasted/query11111.sql>
+    subject: <result:pasted/query11111.sql>
+- id: M7
+  question: If lgx.package_event.event_ts is wrong, which columns of <result:pasted/query11111.sql> are affected?
+  intent: impact
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - lgx.package_event.event_ts
+      - <result:pasted/query11111.sql>.last_touch_ts
+    subject: lgx.package_event.event_ts
+- id: M8
+  question: Does any column of crm.contact reach <result:pasted/query11111.sql>.customer_status? List the crm.contact
+    columns that do (none, if none do).
+  intent: value_sources
+  expected:
+    status: answered
+    answer: nodes
+    nodes: []
+    subject: <result:pasted/query11111.sql>.customer_status
+- id: M9
+  question: Where does <result:pasted/query11111.sql>.site_segment come from?
+  intent: value_sources
+  expected:
+    status: answered
+    facts:
+    - - FEEDS
+      - crm.customer.segment
+      - <result:pasted/query11111.sql>.site_segment
+    - - FEEDS
+      - crm.customer_site.country_code
+      - <result:pasted/query11111.sql>.site_segment
+    subject: <result:pasted/query11111.sql>.site_segment
+- id: M10
+  question: Where does <result:pasted/query11111.sql>.row_xmin come from?
+  intent: value_sources
+  expected:
+    status: answered
+    subject: <result:pasted/query11111.sql>.row_xmin

@@ -1,0 +1,861 @@
+# GENERATED from t1_models.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B11 t1_models.sql - integration: a dbt-style model set.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: every decision D-1..D-44. Views are inlined, tables and materialized views
+# are nodes (D-31). Transforms compose along the path (D-7) through views and CTEs.
+package: pg/b11_integration/t1_models.sql
+dialect: postgres
+source_sha256: 3b2ff4a69063bb100593c3059c26327e3a750c2afd0779a0bb19975af96878c3
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.v_orders_clean.order_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.v_orders_clean.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.store_id
+  target:
+    kind: column
+    name: mart.v_orders_clean.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: column
+    name: mart.v_orders_clean.order_date
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.v_orders_clean.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.v_orders_clean.currency
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.v_orders_clean.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.v_orders_clean
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.order_id
+  target:
+    kind: column
+    name: mart.v_lines_clean.order_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.product_id
+  target:
+    kind: column
+    name: mart.v_lines_clean.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.quantity
+  target:
+    kind: column
+    name: mart.v_lines_clean.quantity
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.unit_price
+  target:
+    kind: column
+    name: mart.v_lines_clean.unit_price
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.quantity
+  target:
+    kind: column
+    name: mart.v_lines_clean.gross
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.unit_price
+  target:
+    kind: column
+    name: mart.v_lines_clean.gross
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.quantity
+  target:
+    kind: column
+    name: mart.v_lines_clean.discount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.unit_price
+  target:
+    kind: column
+    name: mart.v_lines_clean.discount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.discount_pct
+  target:
+    kind: column
+    name: mart.v_lines_clean.discount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.status
+  target:
+    kind: relation
+    name: mart.v_lines_clean
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+  note: 'COALESCE(discount_pct, 0) reads one column: derived (D-19).'
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.fct_sales.order_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: column
+    name: mart.fct_sales.order_date
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.store_id
+  target:
+    kind: column
+    name: mart.fct_sales.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.fct_sales.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.product_id
+  target:
+    kind: column
+    name: mart.fct_sales.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.quantity
+  target:
+    kind: column
+    name: mart.fct_sales.quantity
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.quantity
+  target:
+    kind: column
+    name: mart.fct_sales.net
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.unit_price
+  target:
+    kind: column
+    name: mart.fct_sales.net
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.discount_pct
+  target:
+    kind: column
+    name: mart.fct_sales.net
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.quantity
+  target:
+    kind: column
+    name: mart.fct_sales.net_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.unit_price
+  target:
+    kind: column
+    name: mart.fct_sales.net_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.discount_pct
+  target:
+    kind: column
+    name: mart.fct_sales.net_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.fx_rates.rate_to_usd
+  target:
+    kind: column
+    name: mart.fct_sales.net_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.fct_sales
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+  note: 'Both views'' WHEREs reach the table (D-31: a view is its query). Every ON is structural (D-5),
+    the fx join''s derived order_date included.'
+- source:
+    kind: column
+    name: staging.order_lines.status
+  target:
+    kind: relation
+    name: mart.fct_sales
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+  note: 'Both views'' WHEREs reach the table (D-31: a view is its query). Every ON is structural (D-5),
+    the fx join''s derived order_date included.'
+- source:
+    kind: column
+    name: mart.fct_sales.order_date
+  target:
+    kind: column
+    name: mart.sales_daily.sale_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fct_sales.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.sales_daily.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fct_sales.order_id
+  target:
+    kind: column
+    name: mart.sales_daily.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fct_sales.quantity
+  target:
+    kind: column
+    name: mart.sales_daily.units
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fct_sales.net
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fct_sales.net
+  target:
+    kind: column
+    name: mart.sales_daily.avg_order_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fct_sales.order_id
+  target:
+    kind: column
+    name: mart.sales_daily.avg_order_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fct_sales.order_date
+  target:
+    kind: column
+    name: mart.sales_daily.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+  note: fct_sales is a node (D-31). NULLIF(d.orders, 0) reads one column (D-19); the SUMs make the path
+    aggregated.
+- source:
+    kind: column
+    name: mart.fct_sales.order_date
+  target:
+    kind: column
+    name: mart.sales_daily.units
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+  note: fct_sales is a node (D-31). NULLIF(d.orders, 0) reads one column (D-19); the SUMs make the path
+    aggregated.
+- source:
+    kind: column
+    name: mart.fct_sales.order_date
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+  note: fct_sales is a node (D-31). NULLIF(d.orders, 0) reads one column (D-19); the SUMs make the path
+    aggregated.
+- source:
+    kind: column
+    name: mart.fct_sales.order_date
+  target:
+    kind: column
+    name: mart.sales_daily.avg_order_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+  note: fct_sales is a node (D-31). NULLIF(d.orders, 0) reads one column (D-19); the SUMs make the path
+    aggregated.
+- source:
+    kind: column
+    name: mart.fct_sales.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+  note: fct_sales is a node (D-31). NULLIF(d.orders, 0) reads one column (D-19); the SUMs make the path
+    aggregated.
+- source:
+    kind: column
+    name: mart.fct_sales.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.units
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+  note: fct_sales is a node (D-31). NULLIF(d.orders, 0) reads one column (D-19); the SUMs make the path
+    aggregated.
+- source:
+    kind: column
+    name: mart.fct_sales.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+  note: fct_sales is a node (D-31). NULLIF(d.orders, 0) reads one column (D-19); the SUMs make the path
+    aggregated.
+- source:
+    kind: column
+    name: mart.fct_sales.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.avg_order_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+  note: fct_sales is a node (D-31). NULLIF(d.orders, 0) reads one column (D-19); the SUMs make the path
+    aggregated.
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.is_current
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+  note: 'rn <= 10 filters by a ranking partitioned by region and ordered by a SUM: post-aggregation (D-9,
+    D-6). The view''s WHERE reaches the target.'
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+  note: 'rn <= 10 filters by a ranking partitioned by region and ordered by a SUM: post-aggregation (D-9,
+    D-6). The view''s WHERE reaches the target.'
+- source:
+    kind: column
+    name: mart.fct_sales.channel
+  target:
+    kind: column
+    name: mart.mv_channel.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fct_sales.net_usd
+  target:
+    kind: column
+    name: mart.mv_channel.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fct_sales.channel
+  target:
+    kind: column
+    name: mart.mv_channel.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_channel.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 130
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_channel.revenue
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 130
+  evidence: source_read
+forbidden: []
+expected_boundaries: []

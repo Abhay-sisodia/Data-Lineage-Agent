@@ -1,0 +1,53 @@
+# Answer key for B7 t3_interaction.sql - DDL that creates lineage, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-31..D-34. Every node is schema-qualified.
+
+@ 16 S1 a grouped view
+value core.fct_order_line.store_id -> mart.v_store_rev.store_id identity
+value core.fct_order_line.net_amount -> mart.v_store_rev.rev aggregated
+influence core.fct_order_line.store_id -> mart.v_store_rev.rev
+
+@ 25 S2 the grouped view cut on its aggregate
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount aggregated
+influence core.fct_order_line.store_id -> mart.sales_daily.net_amount
+filter core.fct_order_line.net_amount -> mart.sales_daily post
+
+@ 34 S3 UPDATE ... FROM the view
+filter core.fct_order_line.net_amount -> core.dim_store post
+forbid filter core.fct_order_line.store_id -> core.dim_store | v.store_id = d.id joins the target to FROM (D-11)
+forbid filter core.dim_store.id -> core.dim_store | v.store_id = d.id joins the target to FROM (D-11)
+
+@ 44 S4 MERGE USING the view
+repeat value core.fct_order_line.net_amount -> mart.sales_daily.net_amount aggregated
+repeat influence core.fct_order_line.store_id -> mart.sales_daily.net_amount
+forbid filter core.fct_order_line.store_id -> mart.sales_daily | the ON is structural (D-5)
+
+@ 54 S5 a UNION ALL view
+value staging.orders.amount, staging.payments.amount -> mart.v_all_amounts.amt identity
+
+@ 60 S5b the union view read
+value staging.orders.amount, staging.payments.amount -> mart.kpi_rollup.revenue aggregated
+note level is the literal src: no source, and a literal grouping key influences nothing.
+
+@ 69 S6 a generated column over a document
+value mart.order_docs.doc -> mart.order_docs.channel derived
+
+@ 76 S6b filled from staging
+value staging.orders.id -> mart.order_docs.id identity
+value staging.orders.payload -> mart.order_docs.doc identity
+
+@ 84 S7 a partition created
+value staging.web_events_2025.id -> staging.web_events.id identity
+value staging.web_events_2025.session_id -> staging.web_events.session_id identity
+value staging.web_events_2025.customer_id -> staging.web_events.customer_id identity
+value staging.web_events_2025.event_type -> staging.web_events.event_type identity
+value staging.web_events_2025.event_ts -> staging.web_events.event_ts identity
+value staging.web_events_2025.page -> staging.web_events.page identity
+value staging.web_events_2025.properties -> staging.web_events.properties identity
+
+@ 88 S7b rows written into the partition
+value staging.orders.id -> staging.web_events_2025.id identity
+value staging.orders.order_ts -> staging.web_events_2025.event_ts identity
+filter staging.orders.order_ts -> staging.web_events_2025

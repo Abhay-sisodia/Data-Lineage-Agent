@@ -1,0 +1,1055 @@
+# GENERATED from t5_metamorphic.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for t5_metamorphic.sql - B1 core SELECT, metamorphic pairs + one realistic model.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# Each pair's facts are listed ONCE, at spelling A's line: both spellings write the same
+# target and claim the same facts, and a key cannot hold one fact twice. So the key scores
+# whether the lineage is right; stress/pg/metamorphic.py scores whether B agrees with A.
+# A spelling that is wrong in a way its twin is right shows up in the pair check even
+# when the key is satisfied by the twin.
+package: pg/b1_core_select/t5_metamorphic.sql
+dialect: postgres
+source_sha256: 1551b8952e3aab5612d2c3b2c3ff15ec25b44db09fe07dd2d8327a0ef855fe50
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.shipments.order_id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.carrier_id
+  target:
+    kind: column
+    name: mart.top_customers.position
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.product_key
+  target:
+    kind: column
+    name: mart.product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 44
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.net_amount
+  target:
+    kind: column
+    name: mart.product_performance.running_revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 44
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: column
+    name: mart.product_performance.running_revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 44
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.order_date
+  target:
+    kind: column
+    name: mart.product_performance.running_revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 44
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.amount_usd
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.net_amount
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 92
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.net_amount
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.net_amount
+  target:
+    kind: relation
+    name: mart.sales_daily
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 133
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.store_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 133
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 133
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_shipment.carrier_id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 152
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_shipment.transit_days
+  target:
+    kind: column
+    name: mart.carrier_scorecard.avg_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 152
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_shipment.status
+  target:
+    kind: column
+    name: mart.carrier_scorecard.avg_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 152
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_shipment.carrier_id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.avg_transit_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 152
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.order_date
+  target:
+    kind: column
+    name: mart.sales_daily.sale_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 168
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.sales_daily.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 168
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.gross_amount
+  target:
+    kind: column
+    name: mart.sales_daily.gross_amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 168
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 184
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 184
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 184
+  evidence: source_read
+  note: 'D-9: in A the rank''s PARTITION BY and ORDER BY decide which row survives `rn = 1`; in B the
+    DISTINCT ON key and its tie-breaker do.'
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 184
+  evidence: source_read
+  note: 'D-9: in A the rank''s PARTITION BY and ORDER BY decide which row survives `rn = 1`; in B the
+    DISTINCT ON key and its tie-breaker do.'
+- source:
+    kind: column
+    name: core.dim_customer.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.full_name
+  target:
+    kind: column
+    name: mart.customer_summary.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.segment
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: 'COALESCE(segment, ''UNKNOWN''): one column argument, a null guard.'
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.customer_summary.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.order_date
+  target:
+    kind: column
+    name: mart.customer_summary.first_order_date
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.order_date
+  target:
+    kind: column
+    name: mart.customer_summary.last_order_date
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.amount_usd
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.amount_usd
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.order_date
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: 'status is a CASE over last_order = MAX(MIN(order_date)); the hardest construct on the path is
+    the aggregate. lifetime_orders is COUNT(*) over order_facts: no value source. value_rank and value_decile
+    are ranks: no value source.'
+- source:
+    kind: column
+    name: core.fct_order_line.customer_key
+  target:
+    kind: column
+    name: mart.customer_summary.first_order_date
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.customer_key
+  target:
+    kind: column
+    name: mart.customer_summary.last_order_date
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.customer_key
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.customer_key
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.customer_key
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.order_id
+  target:
+    kind: column
+    name: mart.customer_summary.first_order_date
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.order_id
+  target:
+    kind: column
+    name: mart.customer_summary.last_order_date
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.order_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.order_id
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.order_id
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again.
+    Both apply on every path through an aggregate of order_facts.
+- source:
+    kind: column
+    name: core.fct_order_line.customer_key
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: 'D-55 (2026-10-07): COUNT(*) counts order_facts'' groups, so its GROUP BY order_id decides the
+    count, as it decides every other aggregate here; relabelled from customer_key alone (FM-03).'
+- source:
+    kind: column
+    name: core.fct_order_line.order_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: 'D-55 (2026-10-07): COUNT(*) counts order_facts'' groups, so its GROUP BY order_id decides the
+    count, as it decides every other aggregate here; relabelled from customer_key alone (FM-03).'
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.customer_summary.value_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.amount_usd
+  target:
+    kind: column
+    name: mart.customer_summary.value_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.customer_key
+  target:
+    kind: column
+    name: mart.customer_summary.value_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.order_id
+  target:
+    kind: column
+    name: mart.customer_summary.value_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.amount_usd
+  target:
+    kind: column
+    name: mart.customer_summary.value_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.customer_key
+  target:
+    kind: column
+    name: mart.customer_summary.value_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.order_id
+  target:
+    kind: column
+    name: mart.customer_summary.value_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.amount_usd
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.customer_id
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: 'D-9: the DISTINCT ON key and tie-breaker pick the current SCD row.'
+- source:
+    kind: column
+    name: core.dim_customer.valid_from
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+  note: 'D-9: the DISTINCT ON key and tie-breaker pick the current SCD row.'
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 212
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  reason: DISTINCT / GROUP BY with no aggregate removes only duplicate written values (D-9)
+- source:
+    kind: column
+    name: core.fct_shipment.status
+  target:
+    kind: relation
+    name: mart.carrier_scorecard
+  flow: filter
+  reason: FILTER changes one aggregate's value, exactly as the CASE spelling does (D-10)
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: relation
+    name: mart.sales_daily
+  flow: filter
+  reason: the join condition, whether written in ON or WHERE (D-5, D-11)
+- source:
+    kind: column
+    name: core.dim_store.id
+  target:
+    kind: relation
+    name: mart.sales_daily
+  flow: filter
+  reason: the join condition, whether written in ON or WHERE (D-5, D-11)
+- source:
+    kind: column
+    name: core.fct_order_line.amount_usd
+  target:
+    kind: column
+    name: mart.customer_summary.value_rank
+  flow: value
+  reason: RANK orders by LTV; no part of LTV is in the rank (D-4)
+- source:
+    kind: column
+    name: core.fct_order_line.amount_usd
+  target:
+    kind: column
+    name: mart.customer_summary.value_decile
+  flow: value
+  reason: NTILE orders by LTV; no part of LTV is in the decile (D-4)
+- source:
+    kind: column
+    name: core.dim_customer.customer_key
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  reason: the join between current_customer and customer_rollup is in ON (D-5)
+- source:
+    kind: column
+    name: core.fct_order_line.quantity
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: value
+  reason: order_units is computed in order_facts and never read again
+expected_boundaries: []

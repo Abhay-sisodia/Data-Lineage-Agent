@@ -1,0 +1,684 @@
+# GENERATED from m4_semi_structured.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for M4 (m4_semi_structured.sql): semi-structured shipment documents.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: hdr JOIN shipment_line JOIN item_master, and the final WHERE. Every
+# other CTE is LEFT joined: its own WHERE is a value of what it feeds (aggregated where it
+# aggregates, D-45). A document column is the node for anything read out of it (D-29); a
+# set-returning function in FROM is structural (D-27); an ordinality is an influence from
+# its document or arrays (D-26, D-30); a series is derived from its bound columns (D-28).
+package: pg/final/medium/m4_semi_structured.sql
+dialect: postgres
+source_sha256: 996b1e33d2296a656711e2d4ea0c9ed327ef756e0040f840ee17f97182cf955d
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.shipment_line_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.shipment_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.priority
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: JSON_VALUE(... RETURNING text DEFAULT 'STD' ON EMPTY) reads the document only (D-29).
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.delivery_window_start
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: JSON_VALUE(... RETURNING text DEFAULT 'STD' ON EMPTY) reads the document only (D-29).
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.first_contact_email
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: JSON_VALUE(... RETURNING text DEFAULT 'STD' ON EMPTY) reads the document only (D-29).
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.policy_no
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: JSON_VALUE(... RETURNING text DEFAULT 'STD' ON EMPTY) reads the document only (D-29).
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.service_level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: JSON_VALUE(... RETURNING text DEFAULT 'STD' ON EMPTY) reads the document only (D-29).
+- source:
+    kind: column
+    name: lgx.shipment_line.line_attrs
+  target:
+    kind: column
+    name: <result>.is_hazmat
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.attrs
+  target:
+    kind: column
+    name: <result>.item_doc
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: <result>.item_doc
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.qty_pair
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ordered_qty
+  target:
+    kind: column
+    name: <result>.qty_pair
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.freight_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.charges_by_code
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.charge_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.freight_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'charge_count is COUNT(*): its only value is charges'' WHERE ch.amount, read out of the document
+    (D-45, D-29).'
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.charges_by_code
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'charge_count is COUNT(*): its only value is charges'' WHERE ch.amount, read out of the document
+    (D-45, D-29).'
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.charge_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'charge_count is COUNT(*): its only value is charges'' WHERE ch.amount, read out of the document
+    (D-45, D-29).'
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.total_weight
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.void_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.pkg_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.total_weight
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.void_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.max_pkg_ord
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.max_pkg_ord
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'MAX(pkg_ord): FOR ORDINALITY has no value, only the document''s influence (D-30). pkg_count is
+    COUNT(*): packages has no WHERE.'
+- source:
+    kind: column
+    name: lgx.shipment_line.line_attrs
+  target:
+    kind: column
+    name: <result>.attr_keys
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.line_attrs
+  target:
+    kind: column
+    name: <result>.attrs_clean
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.attr_keys
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.attrs_clean
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.line_attrs
+  target:
+    kind: column
+    name: <result>.attr_keys
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'array_agg(attr_key ORDER BY attr_ord): the ordinal, an influence of the document (D-26), orders
+    the aggregate (B1 S11); D-47 lets line_attrs be both.'
+- source:
+    kind: column
+    name: lgx.item_master.tags
+  target:
+    kind: column
+    name: <result>.tag_list
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.tags
+  target:
+    kind: column
+    name: <result>.tag_list
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: The literal array ARRAY['A','B','C'] has no source; the ordinal's influence is from im.tags (D-26).
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: column
+    name: <result>.tag_list
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: The literal array ARRAY['A','B','C'] has no source; the ordinal's influence is from im.tags (D-26).
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.business_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.business_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.business_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'COUNT(*): its value is the WHERE on g.d, which is derived from the series'' bounds (D-28, D-45).
+    holiday_flag reads no column.'
+- source:
+    kind: column
+    name: lgx.edi_document.payload
+  target:
+    kind: column
+    name: <result>.edi_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.edi_document.payload
+  target:
+    kind: column
+    name: <result>.edi_orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.edi_document.doc_status
+  target:
+    kind: column
+    name: <result>.edi_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.edi_document.doc_status
+  target:
+    kind: column
+    name: <result>.edi_orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.edi_document.payload
+  target:
+    kind: column
+    name: <result>.edi_qty
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'GROUP BY sku, a COLUMNS column derived from the document (D-30): the document is the grouping
+    influence (D-47).'
+- source:
+    kind: column
+    name: lgx.edi_document.payload
+  target:
+    kind: column
+    name: <result>.edi_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'GROUP BY sku, a COLUMNS column derived from the document (D-30): the document is the grouping
+    influence (D-47).'
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.ship_to_email
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.ship_to_email
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'email is read out of the document (derived) and the WHERE role = ''SHIP_TO'' reads it too (conditional,
+    D-45, D-51). DISTINCT ON key and ordering are influence (D-45): shipment_id, and the ordinal from
+    the document.'
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.ship_to_email
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'email is read out of the document (derived) and the WHERE role = ''SHIP_TO'' reads it too (conditional,
+    D-45, D-51). DISTINCT ON key and ordering are influence (D-45): shipment_id, and the ordinal from
+    the document.'
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.line_attrs
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.pkg_count
+  flow: value
+  reason: JSON_TABLE in FROM is structural (D-27) and COUNT(*) reads nothing
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.holiday_flag
+  flow: value
+  reason: the calendar is literal series; the join key decides no value (D-28, D-5)
+- source:
+    kind: column
+    name: lgx.edi_document.doc_status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: edi_summary is reached only through a LEFT join (D-45)
+expected_boundaries: []

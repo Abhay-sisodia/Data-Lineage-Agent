@@ -1,0 +1,866 @@
+# GENERATED from t1_breadth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B7 t1_breadth.sql - DDL that creates lineage, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-31..D-34 (decided 2026-10-03, not
+# implemented). Every node is schema-qualified; a temp table is pg_temp.<name>.
+# S3 (WITH NO DATA), S15 (LIKE), S17a (LIKE), S19 (DETACH) and S20a (identity) have no
+# lineage and must not be refused - checked in the report.
+package: pg/b7_ddl_lineage/t1_breadth.sql
+dialect: postgres
+source_sha256: 706545f9b1bd5f41b2b2ee89fa04908f50f3fbe216c05b80dcf30342c3442591
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.ch_rev.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.ch_rev.rev
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.ch_rev.rev
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.ch_rev
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.ch_pair.ch
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 29
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.ch_pair.amt
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 29
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: pg_temp.tmp_cust.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: pg_temp.tmp_cust.email
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: pg_temp.tmp_cust
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.tmp_cust.id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.tmp_cust.email
+  target:
+    kind: column
+    name: mart.customer_summary.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 55
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.v_paid.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 63
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.v_paid.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 63
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.v_paid.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 63
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.v_paid
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 63
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+  note: 'The view''s WHERE decides which orders reach the target (D-31: a view is its query).'
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.v_cust.cid
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 81
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.v_cust.nm
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 81
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.v_cust2.cid
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.v_cust2.nm
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.mv_store.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.id
+  target:
+    kind: column
+    name: mart.mv_store.n
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.mv_store.n
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 97
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.mv_store.n
+  target:
+    kind: column
+    name: mart.kpi_rollup.customers
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 112
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.price_band.list_price
+  target:
+    kind: column
+    name: mart.price_band.margin
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 120
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.price_band.cost
+  target:
+    kind: column
+    name: mart.price_band.margin
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 120
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.price_band.list_price
+  target:
+    kind: column
+    name: mart.price_band.band
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 120
+  evidence: source_read
+  note: 'The band CASE reads one column: derived (D-19).'
+- source:
+    kind: column
+    name: staging.products.id
+  target:
+    kind: column
+    name: mart.price_band.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.list_price
+  target:
+    kind: column
+    name: mart.price_band.list_price
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.cost
+  target:
+    kind: column
+    name: mart.price_band.cost
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 132
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2024.id
+  target:
+    kind: column
+    name: staging.web_events.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2024.session_id
+  target:
+    kind: column
+    name: staging.web_events.session_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2024.customer_id
+  target:
+    kind: column
+    name: staging.web_events.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2024.event_type
+  target:
+    kind: column
+    name: staging.web_events.event_type
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2024.event_ts
+  target:
+    kind: column
+    name: staging.web_events.event_ts
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2024.page
+  target:
+    kind: column
+    name: staging.web_events.page
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2024.properties
+  target:
+    kind: column
+    name: staging.web_events.properties
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 146
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2023.id
+  target:
+    kind: column
+    name: staging.web_events.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 156
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2023.session_id
+  target:
+    kind: column
+    name: staging.web_events.session_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 156
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2023.customer_id
+  target:
+    kind: column
+    name: staging.web_events.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 156
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2023.event_type
+  target:
+    kind: column
+    name: staging.web_events.event_type
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 156
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2023.event_ts
+  target:
+    kind: column
+    name: staging.web_events.event_ts
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 156
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2023.page
+  target:
+    kind: column
+    name: staging.web_events.page
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 156
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events_2023.properties
+  target:
+    kind: column
+    name: staging.web_events.properties
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 156
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.id
+  target:
+    kind: column
+    name: staging.orders.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.customer_id
+  target:
+    kind: column
+    name: staging.orders.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.store_id
+  target:
+    kind: column
+    name: staging.orders.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.status
+  target:
+    kind: column
+    name: staging.orders.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.order_ts
+  target:
+    kind: column
+    name: staging.orders.order_ts
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.channel
+  target:
+    kind: column
+    name: staging.orders.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.currency
+  target:
+    kind: column
+    name: staging.orders.currency
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.amount
+  target:
+    kind: column
+    name: staging.orders.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.discount_code
+  target:
+    kind: column
+    name: staging.orders.discount_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.payload
+  target:
+    kind: column
+    name: staging.orders.payload
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.tags
+  target:
+    kind: column
+    name: staging.orders.tags
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.created_at
+  target:
+    kind: column
+    name: staging.orders.created_at
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders_archive.updated_at
+  target:
+    kind: column
+    name: staging.orders.updated_at
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 164
+  evidence: source_read
+  note: 'archived_at is the child''s own column: the parent has none, so it flows nowhere.'
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.seq_demo.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 184
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.seq_demo.label
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 184
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: <result>.id
+  flow: value
+  reason: SELECT INTO creates a table; it is not a query into <result>
+  transform: identity
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  reason: 'a temp table holds data: it is a node, not inlined (D-31)'
+  transform: identity
+- source:
+    kind: column
+    name: mart.v_paid.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  reason: 'a view holds no data: it is inlined, not a node (D-31)'
+  transform: aggregated
+expected_boundaries: []

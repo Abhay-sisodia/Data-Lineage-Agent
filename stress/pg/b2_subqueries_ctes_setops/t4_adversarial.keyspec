@@ -1,0 +1,78 @@
+# Answer key for B2 t4_adversarial.sql - subquery scoping traps.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# The forbidden list is the test: each forbidden edge is what outward-first or by-name
+# resolution produces. Conventions as T1; D-12 and D-13 not yet implemented.
+
+@ 18 S1 an inner alias that captures the outer one
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.amount -> mart.channel_mix.revenue identity
+filter staging.payments.order_id, staging.payments.id -> mart.channel_mix
+forbid filter staging.orders.id -> mart.channel_mix | inside the EXISTS `o` is payments; `o.id` is payments.id, not the outer orders.id
+
+@ 33 S2 unqualified names inside subqueries
+value staging.orders.discount_code -> mart.sales_daily.region identity
+value staging.orders.amount -> mart.sales_daily.net_amount identity
+filter staging.payments.order_id, staging.payments.id, staging.shipments.carrier_id, staging.orders.store_id, staging.shipments.status -> mart.sales_daily
+note `id` binds INSIDE (payments has it); `store_id` binds OUTSIDE (only orders has it).
+forbid filter staging.orders.id -> mart.sales_daily | unqualified `id` resolves innermost-first, to payments.id
+
+@ 49 S3 a CTE named like a real table
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.segment -> mart.top_customers.region identity
+filter staging.customers.status -> mart.top_customers
+forbid value staging.orders.customer_id -> mart.top_customers.customer_id | `orders` is the CTE over staging.customers
+forbid value staging.orders.channel -> mart.top_customers.region | `orders` is the CTE over staging.customers
+
+@ 64 S4 set-operation arms with swapped aliases
+value core.dim_store.region, core.dim_warehouse.name -> mart.kpi_rollup.region identity
+value core.dim_store.name, core.dim_warehouse.region -> mart.kpi_rollup.segment identity
+forbid value core.dim_warehouse.region -> mart.kpi_rollup.region | arms bind by position; the second arm's `region` alias is its SECOND column
+forbid value core.dim_warehouse.name -> mart.kpi_rollup.segment | arms bind by position; the second arm's `segment` alias is its FIRST column
+
+@ 77 S5 NOT IN whose projection is aliased `id`
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.customers.segment -> mart.customer_summary.segment identity
+filter staging.customers.id, staging.orders.customer_id, staging.orders.status -> mart.customer_summary
+forbid filter staging.orders.id -> mart.customer_summary | `AS id` names orders.customer_id; orders.id is never read
+
+@ 91 S6 a scalar subquery aliased `amount`, ordered by that alias under a LIMIT
+value staging.customers.id -> mart.sales_daily.orders identity
+value staging.payments.amount -> mart.sales_daily.gross_amount aggregated
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.sales_daily.gross_amount's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.sales_daily.gross_amount
+filter staging.payments.amount, staging.orders.customer_id, staging.customers.id -> mart.sales_daily post
+note ORDER BY amount is the OUTPUT column. Its sources are the subquery's value and its D-12 correlation; the MAX makes the cut post-aggregation (D-9, D-6).
+
+@ 108 S7 a derived alias renaming order_id to `id`
+value staging.payments.order_id -> mart.channel_mix.orders identity
+value staging.payments.amount -> mart.channel_mix.revenue identity
+value staging.orders.currency -> mart.channel_mix.channel identity
+forbid value staging.payments.id -> mart.channel_mix.orders | `s.id` is payments.order_id renamed
+
+@ 123 S8 a scalar subquery whose projection reads the outer row
+value staging.orders.store_id -> mart.carrier_scorecard.carrier_id identity
+value staging.payments.paid_at -> mart.carrier_scorecard.avg_transit_days aggregated
+value staging.orders.order_ts -> mart.carrier_scorecard.avg_transit_days derived
+# D-58: staging.payments.order_id, staging.orders.id matched the aggregated lookup's rows to mart.carrier_scorecard.avg_transit_days's - influence, as a GROUP BY is (was a value).
+influence staging.payments.order_id, staging.orders.id -> mart.carrier_scorecard.avg_transit_days
+note order_ts is outside the MAX: derived on its own path (D-7). The correlation is D-12's, aggregated because the subquery aggregates.
+
+@ 137 S9 an ORDER BY ... LIMIT inside an EXISTS
+value core.dim_product.product_key -> mart.product_performance.product_id identity
+value core.dim_product.category_name -> mart.product_performance.category_name identity
+filter core.fct_order_line.product_key, core.dim_product.product_key -> mart.product_performance
+forbid filter core.fct_order_line.order_date -> mart.product_performance | whether a row EXISTS does not depend on which row is first
+
+@ 152 S10 a CTE joined to itself
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount, mart.sales_daily.gross_amount aggregated
+influence core.fct_order_line.store_id, core.fct_order_line.order_date -> mart.sales_daily.net_amount, mart.sales_daily.gross_amount
+
+@ 170 S11 an anti-join written as LEFT JOIN ... IS NULL
+value staging.customers.full_name -> mart.kpi_rollup.level identity
+value staging.customers.country_code -> mart.kpi_rollup.country_code identity
+filter staging.orders.id -> mart.kpi_rollup
+forbid filter staging.orders.customer_id -> mart.kpi_rollup | the ON is the join (D-5)
+forbid filter staging.customers.id -> mart.kpi_rollup | the ON is the join (D-5)

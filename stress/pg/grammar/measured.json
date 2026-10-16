@@ -1,0 +1,3794 @@
+{
+ "clause:DeleteStmt.returningClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> relation:<result>",
+   "src.a.b -> relation:tgt.t",
+   "tgt.t.id -> <result>.id"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:DeleteStmt.withClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> relation:tgt.t",
+   "src.a.id -> relation:tgt.t",
+   "tgt.t.id -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:InsertStmt.onConflictClause": {
+  "covers": [
+   "node:OnConflictClause",
+   "node:InferClause",
+   "variant:OnConflictClause.action=ONCONFLICT_UPDATE"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> relation:tgt.t",
+   "src.a.v -> tgt.t.v",
+   "tgt.t.v -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:InsertStmt.returningClause": {
+  "covers": [
+   "node:ReturningClause"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v",
+   "tgt.t.id -> <result>.id",
+   "tgt.t.v -> <result>.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:InsertStmt.withClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:MergeStmt.returningClause": {
+  "covers": [
+   "node:MergeSupportFunc"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "tgt.t.id -> <result>.id"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:MergeStmt.withClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.all": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.b.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.distinctClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.d -> relation:tgt.t",
+   "src.a.k -> relation:tgt.t",
+   "src.a.k -> tgt.t.k",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.groupClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.groupDistinct": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.n -> tgt.t.n",
+   "src.a.n -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.havingClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.v -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.limitCount": {
+  "covers": [
+   "variant:SelectStmt.limitOption=LIMIT_OPTION_COUNT"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.limitOffset": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.lockingClause": {
+  "covers": [
+   "node:LockingClause",
+   "variant:LockingClause.strength=LCS_FORUPDATE"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.sortClause": {
+  "covers": [
+   "node:SortBy"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.valuesLists": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "clause:SelectStmt.whereClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> relation:tgt.t",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.windowClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:SelectStmt.withClause": {
+  "covers": [
+   "node:WithClause",
+   "node:CommonTableExpr"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:UpdateStmt.returningClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "tgt.t.id -> <result>.id"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "clause:UpdateStmt.withClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:aggregate_distinct_and_star": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.k -> tgt.t.w",
+   "src.a.n -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:aggregate_filter": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.v",
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:aggregate_order_by": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.d -> tgt.t.n",
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.n",
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:aggregate_within_group": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:alter_column_type_using": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "tgt.t.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:array_slice": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> tgt.t.arr"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:at_local": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.ts -> tgt.t.ts"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:at_time_zone": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.ts -> tgt.t.ts"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:attach_partition": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "extra:boolean_value_in_update_set": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b",
+   "src.a.v -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:cast_function_form": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:column_alias_list": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:composite_field_access": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.v -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:copy_to_file": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "extra:create_materialized_view": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.mv.id",
+   "src.a.v -> tgt.mv.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:create_recursive_view": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.rv.id",
+   "tgt.rv.id -> relation:tgt.rv",
+   "tgt.rv.id -> tgt.rv.id"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:cross_join": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.b.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:data_modifying_cte": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> relation:src.a",
+   "src.a.b -> relation:tgt.t",
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:delete_all_rows": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "extra:detach_partition": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "extra:explain_analyze_runs_the_write": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:generate_series_source": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.d -> tgt.t.d"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:implicit_join_in_where": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.b.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:is_normalized_and_collation_for": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:join_using_alias": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:join_using_and_merged_column": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.b.k -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:json_arrow_operators": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:json_table_passing": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n",
+   "src.a.k -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:json_table_without_alias": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:lateral_subquery": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> relation:tgt.t",
+   "src.a.k -> tgt.t.k",
+   "src.b.d -> relation:tgt.t",
+   "src.b.k -> relation:tgt.t",
+   "src.b.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:merge_source_subquery": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:multi_column_subquery_assignment": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.b.id -> tgt.t.k",
+   "src.b.id -> tgt.t.v",
+   "src.b.k -> tgt.t.k",
+   "src.b.v -> tgt.t.v",
+   "tgt.t.id -> tgt.t.k",
+   "tgt.t.id -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:natural_join": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.d -> tgt.t.d"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:on_conflict_after_cross_join": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v",
+   "src.b.id -> tgt.t.id",
+   "src.b.k -> tgt.t.v",
+   "src.b.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:only_and_inheritance_star": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:ordinal_order_by": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> relation:tgt.t",
+   "src.a.w -> tgt.t.w"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plain_distinct": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_do_block_variables": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> variable:total",
+   "variable:total -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_dynamic_sql_not_constant": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "DECLARED:dynamic_sql",
+  "target": "declared:dynamic_sql"
+ },
+ "extra:plpgsql_dynamic_sql_with_format": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> relation:tgt.t",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_exception_handler": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_out_parameter": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.v -> variable:total"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_parameters_flow": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> variable:p_v",
+   "variable:p_v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_record_field_assignment": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_returning_into": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> relation:src.a",
+   "src.a.v -> src.a.v",
+   "src.a.v -> variable:new_v",
+   "variable:new_v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_rowtype_variable": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> relation:src.a",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_scalar_function_return": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_select_into_scalar": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> variable:total",
+   "variable:total -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_select_star_into_record": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> relation:src.a",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_subquery_then_self_assignment": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> variable:total",
+   "variable:total -> tgt.t.v",
+   "variable:total -> variable:total"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:plpgsql_truncate_then_reload": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:prefix_operator": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:qualified_operator": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:qualified_star": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> tgt.t.arr",
+   "src.a.b -> tgt.t.b",
+   "src.a.d -> tgt.t.d",
+   "src.a.g -> tgt.t.g",
+   "src.a.id -> tgt.t.id",
+   "src.a.iv -> tgt.t.iv",
+   "src.a.j -> tgt.t.j",
+   "src.a.k -> tgt.t.k",
+   "src.a.n -> tgt.t.n",
+   "src.a.rg -> tgt.t.rg",
+   "src.a.ts -> tgt.t.ts",
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> tgt.t.w",
+   "src.a.x -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:range_and_geometry_operators": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.g -> tgt.t.b",
+   "src.a.k -> tgt.t.b",
+   "src.a.rg -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:recursive_cte": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.k -> relation:tgt.t",
+   "src.a.k -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:rename_table": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "extra:rollup_of_a_composite": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.n -> tgt.t.n",
+   "src.a.n -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:row_number_cut": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.d -> relation:tgt.t",
+   "src.a.k -> relation:tgt.t",
+   "src.a.k -> tgt.t.k",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:rows_from_several_functions": {
+  "covers": [],
+  "met": false,
+  "pairs": [],
+  "status": "UNCLASSIFIED:PARSE_FAILED",
+  "target": "lineage"
+ },
+ "extra:rows_from_with_ordinality": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> tgt.t.id",
+   "src.a.arr -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:select_into_new_table": {
+  "covers": [
+   "node:IntoClause",
+   "clause:SelectStmt.intoClause"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.si.id",
+   "src.a.v -> tgt.si.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:simple_case": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.n",
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:sql_function_body": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:substring_from_for": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:substring_similar": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:table_shorthand": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.b.d -> tgt.t.d",
+   "src.b.id -> tgt.t.id",
+   "src.b.k -> tgt.t.k",
+   "src.b.n -> tgt.t.n",
+   "src.b.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:trim_overlay_position": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.n",
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:typed_literal": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.d -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:values_in_from": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.n",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:variadic_call": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "extra:xmlexists_and_xpath": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.x -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:ATAlterConstraint": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:A_ArrayExpr": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.arr",
+   "src.a.k -> tgt.t.arr"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:A_Const": {
+  "covers": [
+   "node:Integer"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:A_Indirection": {
+  "covers": [
+   "node:A_Indices"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:A_Star": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> tgt.t.arr",
+   "src.a.b -> tgt.t.b",
+   "src.a.d -> tgt.t.d",
+   "src.a.g -> tgt.t.g",
+   "src.a.id -> tgt.t.id",
+   "src.a.iv -> tgt.t.iv",
+   "src.a.j -> tgt.t.j",
+   "src.a.k -> tgt.t.k",
+   "src.a.n -> tgt.t.n",
+   "src.a.rg -> tgt.t.rg",
+   "src.a.ts -> tgt.t.ts",
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> tgt.t.w",
+   "src.a.x -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:AccessPriv": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:AlterTableCmd": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:BitString": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:Boolean": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:CTECycleClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> relation:tgt.t",
+   "src.a.id -> tgt.t.id",
+   "src.a.k -> relation:tgt.t",
+   "src.a.k -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:CTESearchClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.k -> relation:tgt.t",
+   "src.a.k -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:CaseExpr": {
+  "covers": [
+   "node:CaseWhen"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.v",
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:CoalesceExpr": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:CollateClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:ColumnDef": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:Constraint": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:CreateOpClassItem": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:CurrentOfExpr": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "tgt.t.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:DefElem": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:Float": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:FunctionParameter": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:GroupingFunc": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:IndexElem": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:JsonArgument": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.b",
+   "src.a.k -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonArrayAgg": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.d -> tgt.t.j",
+   "src.a.k -> tgt.t.j",
+   "src.a.k -> tgt.t.k",
+   "src.a.v -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonArrayConstructor": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.j",
+   "src.a.w -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonArrayQueryConstructor": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.b.v -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonObjectAgg": {
+  "covers": [
+   "node:JsonAggConstructor"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.j",
+   "src.a.k -> tgt.t.k",
+   "src.a.n -> tgt.t.j",
+   "src.a.v -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonObjectConstructor": {
+  "covers": [
+   "node:JsonKeyValue",
+   "node:JsonValueExpr"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonOutput": {
+  "covers": [
+   "node:JsonReturning"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonParseExpr": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonScalarExpr": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonSerializeExpr": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:JsonTable": {
+  "covers": [
+   "node:JsonTablePathSpec",
+   "node:JsonTableColumn",
+   "variant:JsonTableColumn.coltype=JTC_REGULAR"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:MultiAssignRef": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:NamedArgExpr": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.iv"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:ObjectWithArgs": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:ParamRef": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:PartitionBoundSpec": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:PartitionCmd": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "node:PartitionElem": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:PartitionSpec": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:PublicationObjSpec": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:PublicationTable": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:RangeFunction": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:RangeSubselect": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:RangeTableFunc": {
+  "covers": [
+   "node:RangeTableFuncCol"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.x -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:RangeTableSample": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:RoleSpec": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:SetToDefault": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:StatsElem": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:TableLikeClause": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:TriggerTransition": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:TypeCast": {
+  "covers": [
+   "node:TypeName"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:VacuumRelation": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "node:WindowDef": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.d -> tgt.t.v",
+   "src.a.k -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "node:XmlSerialize": {
+  "covers": [
+   "variant:XmlSerialize.xmloption=XMLOPTION_CONTENT"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.x -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_assert": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_assign": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> variable:total",
+   "variable:total -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_call": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_case": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_commit": {
+  "covers": [
+   "plpgsql:PLpgSQL_stmt_rollback"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "tgt.t.v -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_dynexecute": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_dynfors": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_execsql": {
+  "covers": [
+   "plpgsql:PLpgSQL_stmt_block",
+   "plpgsql:PLpgSQL_stmt_return"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_forc": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_foreach_a": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> variable:ks",
+   "src.a.id -> relation:src.a",
+   "variable:ks -> variable:x",
+   "variable:x -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_fori": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "variable:i -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_fors": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> relation:tgt.t",
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_getdiag": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_if": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> relation:tgt.t",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_loop": {
+  "covers": [
+   "plpgsql:PLpgSQL_stmt_exit"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "variable:i -> tgt.t.k",
+   "variable:i -> variable:i"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_open": {
+  "covers": [
+   "plpgsql:PLpgSQL_stmt_fetch",
+   "plpgsql:PLpgSQL_stmt_close"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_perform": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_raise": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_return_next": {
+  "covers": [],
+  "met": false,
+  "pairs": [],
+  "status": "DECLARED:dangling_reference",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_return_query": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "plpgsql:PLpgSQL_stmt_while": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "variable:i -> tgt.t.k",
+   "variable:i -> variable:i"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:AlterCollationStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterDatabaseRefreshCollStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterDatabaseSetStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterDatabaseStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterDefaultPrivilegesStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterDomainStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterEnumStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterEventTrigStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterExtensionContentsStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterExtensionStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterFdwStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterForeignServerStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterFunctionStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterObjectDependsStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterObjectSchemaStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "stmt:AlterOpFamilyStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterOperatorStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterOwnerStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterPolicyStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterPublicationStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterRoleSetStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterRoleStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterSeqStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterStatsStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterSubscriptionStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterSystemStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterTSConfigurationStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterTSDictionaryStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterTableMoveAllStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterTableSpaceOptionsStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterTableStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "stmt:AlterTypeStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:AlterUserMappingStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CallStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:CheckPointStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:ClosePortalStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:ClusterStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CommentStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CompositeTypeStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:ConstraintsSetStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CopyStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "REFUSED:SOURCE_UNAVAILABLE",
+  "target": "refused:SOURCE_UNAVAILABLE"
+ },
+ "stmt:CreateAmStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateCastStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateConversionStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateDomainStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateEnumStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateEventTrigStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateExtensionStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateFdwStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateForeignServerStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateForeignTableStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateFunctionStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:CreateOpClassStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateOpFamilyStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreatePLangStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreatePolicyStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreatePublicationStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateRangeStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateRoleStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateSchemaStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateSeqStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateStatsStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateSubscriptionStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateTableAsStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.c.id",
+   "src.a.v -> tgt.c.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:CreateTableSpaceStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateTransformStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreateTrigStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:CreateUserMappingStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:CreatedbStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DeallocateStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DeclareCursorStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DefineStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DeleteStmt": {
+  "covers": [
+   "clause:DeleteStmt.relation",
+   "clause:DeleteStmt.usingClause",
+   "clause:DeleteStmt.whereClause"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.b -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:DiscardStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DoStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:DropOwnedStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DropRoleStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DropStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "stmt:DropSubscriptionStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DropTableSpaceStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DropUserMappingStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:DropdbStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:ExecuteStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:ExplainStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:FetchStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:GrantRoleStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:GrantStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:ImportForeignSchemaStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:IndexStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:InsertStmt": {
+  "covers": [
+   "clause:InsertStmt.relation",
+   "clause:InsertStmt.cols",
+   "clause:InsertStmt.selectStmt"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:ListenStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:LoadStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:LockStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:MergeStmt": {
+  "covers": [
+   "clause:MergeStmt.relation",
+   "clause:MergeStmt.sourceRelation",
+   "clause:MergeStmt.joinCondition",
+   "clause:MergeStmt.mergeWhenClauses",
+   "node:MergeWhenClause"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:NotifyStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:PrepareStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> relation:tgt.t",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:ReassignOwnedStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:RefreshMatViewStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.mv.id",
+   "src.a.v -> tgt.mv.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:ReindexStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:RenameStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "stmt:ReplicaIdentityStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:ReturnStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:RuleStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:SecLabelStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:SelectStmt": {
+  "covers": [
+   "clause:SelectStmt.targetList",
+   "clause:SelectStmt.fromClause",
+   "node:ResTarget",
+   "node:RangeVar",
+   "node:ColumnRef",
+   "node:Alias",
+   "node:String"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:TransactionStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:TruncateStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "EFFECT",
+  "target": "effect"
+ },
+ "stmt:UnlistenStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:UpdateStmt": {
+  "covers": [
+   "clause:UpdateStmt.relation",
+   "clause:UpdateStmt.targetList",
+   "clause:UpdateStmt.fromClause",
+   "clause:UpdateStmt.whereClause"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "stmt:VacuumStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:VariableSetStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:VariableShowStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [],
+  "status": "COUNTED",
+  "target": "no_lineage"
+ },
+ "stmt:ViewStmt": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.vw.id",
+   "src.a.v -> tgt.vw.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_BETWEEN": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.b",
+   "src.a.w -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_BETWEEN_SYM": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.b",
+   "src.a.w -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_DISTINCT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.b",
+   "src.a.w -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_ILIKE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_IN": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_LIKE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_NOT_BETWEEN": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.b",
+   "src.a.w -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_NOT_BETWEEN_SYM": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.b",
+   "src.a.w -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_NOT_DISTINCT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.b",
+   "src.a.w -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_NULLIF": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_OP": {
+  "covers": [
+   "node:A_Expr"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_OP_ALL": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> tgt.t.b",
+   "src.a.k -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_OP_ANY": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.arr -> tgt.t.b",
+   "src.a.k -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:A_Expr.kind=AEXPR_SIMILAR": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:BoolExpr.boolop=AND_EXPR": {
+  "covers": [
+   "node:BoolExpr"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b",
+   "src.a.v -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:BoolExpr.boolop=NOT_EXPR": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:BoolExpr.boolop=OR_EXPR": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b",
+   "src.a.v -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:BooleanTest.booltesttype=IS_FALSE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:BooleanTest.booltesttype=IS_NOT_FALSE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:BooleanTest.booltesttype=IS_NOT_TRUE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:BooleanTest.booltesttype=IS_NOT_UNKNOWN": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:BooleanTest.booltesttype=IS_TRUE": {
+  "covers": [
+   "node:BooleanTest"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:BooleanTest.booltesttype=IS_UNKNOWN": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:CommonTableExpr.ctematerialized=CTEMaterializeAlways": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:CommonTableExpr.ctematerialized=CTEMaterializeNever": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:FuncCall.funcformat=COERCE_EXPLICIT_CALL": {
+  "covers": [
+   "node:FuncCall"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:FuncCall.funcformat=COERCE_SQL_SYNTAX": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.d -> tgt.t.k"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:GroupingSet.kind=GROUPING_SET_CUBE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.n -> tgt.t.n",
+   "src.a.n -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:GroupingSet.kind=GROUPING_SET_ROLLUP": {
+  "covers": [
+   "node:GroupingSet"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.n -> tgt.t.n",
+   "src.a.n -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:GroupingSet.kind=GROUPING_SET_SETS": {
+  "covers": [
+   "variant:GroupingSet.kind=GROUPING_SET_EMPTY"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.k",
+   "src.a.k -> tgt.t.v",
+   "src.a.n -> tgt.t.n",
+   "src.a.n -> tgt.t.v",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:InsertStmt.override=OVERRIDING_SYSTEM_VALUE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:InsertStmt.override=OVERRIDING_USER_VALUE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JoinExpr.jointype=JOIN_FULL": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.b.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JoinExpr.jointype=JOIN_INNER": {
+  "covers": [
+   "node:JoinExpr"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.n",
+   "src.a.v -> tgt.t.v",
+   "src.b.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JoinExpr.jointype=JOIN_LEFT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.n",
+   "src.a.v -> tgt.t.v",
+   "src.b.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JoinExpr.jointype=JOIN_RIGHT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.b.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonBehavior.btype=JSON_BEHAVIOR_DEFAULT": {
+  "covers": [
+   "node:JsonBehavior"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n",
+   "src.a.n -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonBehavior.btype=JSON_BEHAVIOR_EMPTY_ARRAY": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonBehavior.btype=JSON_BEHAVIOR_EMPTY_OBJECT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonBehavior.btype=JSON_BEHAVIOR_ERROR": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonBehavior.btype=JSON_BEHAVIOR_FALSE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonBehavior.btype=JSON_BEHAVIOR_NULL": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonBehavior.btype=JSON_BEHAVIOR_TRUE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonBehavior.btype=JSON_BEHAVIOR_UNKNOWN": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFormat.encoding=JS_ENC_UTF16": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFormat.encoding=JS_ENC_UTF32": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFormat.format_type=JS_FORMAT_JSON": {
+  "covers": [
+   "node:JsonFormat",
+   "variant:JsonFormat.encoding=JS_ENC_UTF8"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFuncExpr.op=JSON_EXISTS_OP": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFuncExpr.op=JSON_QUERY_OP": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFuncExpr.op=JSON_VALUE_OP": {
+  "covers": [
+   "node:JsonFuncExpr"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFuncExpr.quotes=JS_QUOTES_KEEP": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFuncExpr.quotes=JS_QUOTES_OMIT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFuncExpr.wrapper=JSW_CONDITIONAL": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFuncExpr.wrapper=JSW_NONE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonFuncExpr.wrapper=JSW_UNCONDITIONAL": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonIsPredicate.item_type=JS_TYPE_ANY": {
+  "covers": [
+   "node:JsonIsPredicate"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonIsPredicate.item_type=JS_TYPE_ARRAY": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonIsPredicate.item_type=JS_TYPE_OBJECT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonIsPredicate.item_type=JS_TYPE_SCALAR": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonTableColumn.coltype=JTC_EXISTS": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonTableColumn.coltype=JTC_FORMATTED": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonTableColumn.coltype=JTC_FOR_ORDINALITY": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.k",
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonTableColumn.coltype=JTC_NESTED": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.k",
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonTableColumn.quotes=JS_QUOTES_KEEP": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonTableColumn.quotes=JS_QUOTES_OMIT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonTableColumn.wrapper=JSW_CONDITIONAL": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonTableColumn.wrapper=JSW_NONE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:JsonTableColumn.wrapper=JSW_UNCONDITIONAL": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.j -> tgt.t.j"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:LockingClause.strength=LCS_FORKEYSHARE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:LockingClause.strength=LCS_FORNOKEYUPDATE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:LockingClause.strength=LCS_FORSHARE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:MergeWhenClause.commandType=CMD_NOTHING": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.b -> relation:tgt.t",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:MergeWhenClause.matchKind=MERGE_WHEN_MATCHED": {
+  "covers": [
+   "variant:MergeWhenClause.commandType=CMD_UPDATE"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.b -> relation:tgt.t",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:MergeWhenClause.matchKind=MERGE_WHEN_NOT_MATCHED_BY_SOURCE": {
+  "covers": [
+   "variant:MergeWhenClause.commandType=CMD_DELETE"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "tgt.t.d -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:MergeWhenClause.matchKind=MERGE_WHEN_NOT_MATCHED_BY_TARGET": {
+  "covers": [
+   "variant:MergeWhenClause.commandType=CMD_INSERT"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:MergeWhenClause.override=OVERRIDING_SYSTEM_VALUE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:MergeWhenClause.override=OVERRIDING_USER_VALUE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:MinMaxExpr.op=IS_GREATEST": {
+  "covers": [
+   "node:MinMaxExpr"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:MinMaxExpr.op=IS_LEAST": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:NullTest.nulltesttype=IS_NOT_NULL": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:NullTest.nulltesttype=IS_NULL": {
+  "covers": [
+   "node:NullTest"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:OnConflictClause.action=ONCONFLICT_NOTHING": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.id",
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:ReturningOption.option=RETURNING_OPTION_NEW": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:ReturningOption.option=RETURNING_OPTION_OLD": {
+  "covers": [
+   "node:ReturningOption"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:RowExpr.row_format=COERCE_EXPLICIT_CALL": {
+  "covers": [
+   "node:RowExpr"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.n",
+   "src.a.v -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:RowExpr.row_format=COERCE_IMPLICIT_CAST": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.b",
+   "src.a.v -> tgt.t.b"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_CURRENT_CATALOG": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_CURRENT_DATE": {
+  "covers": [
+   "node:SQLValueFunction"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_CURRENT_ROLE": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_CURRENT_SCHEMA": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_CURRENT_TIME": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_CURRENT_TIMESTAMP": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_CURRENT_TIMESTAMP_N": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_CURRENT_TIME_N": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_CURRENT_USER": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_LOCALTIME": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_LOCALTIMESTAMP": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_LOCALTIMESTAMP_N": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_LOCALTIME_N": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_SESSION_USER": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SQLValueFunction.op=SVFOP_USER": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SelectStmt.limitOption=LIMIT_OPTION_WITH_TIES": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SelectStmt.op=SETOP_EXCEPT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.b.v -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SelectStmt.op=SETOP_INTERSECT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.b.v -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SelectStmt.op=SETOP_UNION": {
+  "covers": [
+   "clause:SelectStmt.larg",
+   "clause:SelectStmt.rarg"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.b.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SortBy.sortby_dir=SORTBY_ASC": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SortBy.sortby_dir=SORTBY_DESC": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SortBy.sortby_dir=SORTBY_USING": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SortBy.sortby_nulls=SORTBY_NULLS_FIRST": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SortBy.sortby_nulls=SORTBY_NULLS_LAST": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.t.v",
+   "src.a.w -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SubLink.subLinkType=ALL_SUBLINK": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.v -> relation:tgt.t",
+   "src.a.v -> tgt.t.v",
+   "src.b.v -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SubLink.subLinkType=ANY_SUBLINK": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> relation:tgt.t",
+   "src.a.v -> tgt.t.v",
+   "src.b.k -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SubLink.subLinkType=ARRAY_SUBLINK": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.id -> tgt.t.arr",
+   "src.b.id -> tgt.t.arr",
+   "src.b.k -> tgt.t.arr"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SubLink.subLinkType=EXISTS_SUBLINK": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.k -> relation:tgt.t",
+   "src.a.v -> tgt.t.v",
+   "src.b.k -> relation:tgt.t"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:SubLink.subLinkType=EXPR_SUBLINK": {
+  "covers": [
+   "node:SubLink"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.v",
+   "src.b.k -> tgt.t.v",
+   "src.b.v -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:XmlExpr.op=IS_XMLCONCAT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.x -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:XmlExpr.op=IS_XMLELEMENT": {
+  "covers": [
+   "node:XmlExpr"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.k -> tgt.t.x",
+   "src.a.n -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:XmlExpr.op=IS_XMLFOREST": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.x",
+   "src.a.v -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:XmlExpr.op=IS_XMLPARSE": {
+  "covers": [
+   "variant:XmlExpr.xmloption=XMLOPTION_CONTENT"
+  ],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:XmlExpr.op=IS_XMLPI": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:XmlExpr.op=IS_XMLROOT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.x -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:XmlExpr.xmloption=XMLOPTION_DOCUMENT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.n -> tgt.t.x"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ },
+ "variant:XmlSerialize.xmloption=XMLOPTION_DOCUMENT": {
+  "covers": [],
+  "met": true,
+  "pairs": [
+   "src.a.x -> tgt.t.n"
+  ],
+  "status": "LINEAGE",
+  "target": "lineage"
+ }
+}

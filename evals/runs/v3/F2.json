@@ -1,0 +1,40 @@
+{
+  "question": "What could not be analysed in easy/e4_expressions.sql?",
+  "seconds": 20.8,
+  "stage": "agent",
+  "cost_usd": 0.0067987,
+  "turns": 3,
+  "notes": [],
+  "answer": {
+    "question_id": "F2",
+    "status": "answered",
+    "text": "One thing in easy/e4_expressions.sql could not be fully analysed: the call to NORMALISE_UOM at line 16. Its source is not in the analysis, so it rests on code we could not read. The arguments are assumed to flow into the result as derived values (D-53), but that is an assumption about a body that was not read. The file has no refused statements.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [
+      "SOURCE_UNAVAILABLE:NORMALISE_UOM"
+    ],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "gaps",
+      "args": {
+        "file": "easy/e4_expressions.sql"
+      },
+      "result": {
+        "scope": "file easy/e4_expressions.sql",
+        "boundaries": [
+          {
+            "id": "SOURCE_UNAVAILABLE:NORMALISE_UOM",
+            "kind": "source_unavailable",
+            "subject": "NORMALISE_UOM",
+            "detail": "query_block@16: call to NORMALISE_UOM could not be summarised - its source is not in this analysis, so its arguments are taken as derived values of the result (D-53): an assumption about a body that was not read",
+            "line": 16
+          }
+        ],
+        "refusals": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "question": "What could not be analysed in hard/h4_nightly_load.sql?",
+  "seconds": 16.4,
+  "stage": "agent",
+  "cost_usd": 0.0071955000000000005,
+  "turns": 3,
+  "notes": [],
+  "answer": {
+    "question_id": "F1",
+    "status": "answered",
+    "text": "One statement in hard/h4_nightly_load.sql was not analysed. It is the TRUNCATE at line 196, refused as UNSUPPORTED_CONSTRUCT. It targets mart.load_audit. It has no edges. A TRUNCATE empties the table with no source column, but it still decides what the table holds afterwards. Treat mart.load_audit contents as unknown after that point.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [
+      "REFUSAL:<SCRIPT>:196",
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "gaps",
+      "args": {
+        "file": "hard/h4_nightly_load.sql"
+      },
+      "result": {
+        "scope": "file hard/h4_nightly_load.sql",
+        "boundaries": [
+          {
+            "id": "REFUSAL:<SCRIPT>:196",
+            "kind": "refusal",
+            "subject": "<SCRIPT>:196",
+            "detail": "<script>: line 196 refused [UNSUPPORTED_CONSTRUCT] - TRUNCATE empties a relation unconditionally. No column has a source to name - the same shape as a DELETE with no predicate - but the statement decides what the table contains afterwards, so it is recorded rather than skipped",
+            "line": 196
+          }
+        ],
+        "refusals": [
+          {
+            "id": "hard/h4_nightly_load.sql#<script>:196:statement",
+            "code": "UNSUPPORTED_CONSTRUCT",
+            "file": "hard/h4_nightly_load.sql",
+            "line": 196,
+            "statement_kind": "truncatetable_statement",
+            "reason": "TRUNCATE empties a relation unconditionally. No column has a source to name - the same shape as a DELETE with no predicate - but the statement decides what the table contains afterwards, so it is recorded rather than skipped",
+            "tables": [
+              "mart.load_audit"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

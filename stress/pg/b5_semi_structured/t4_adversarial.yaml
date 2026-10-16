@@ -1,0 +1,275 @@
+# GENERATED from t4_adversarial.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B5 t4_adversarial.sql - semi-structured data, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-29 and D-30. Every node is schema-qualified.
+# S5's value and S6's element have no source and no boundary - checked in the report.
+package: pg/b5_semi_structured/t4_adversarial.sql
+dialect: postgres
+source_sha256: 26b3b63d6cfde7e3e32d3abf4fb9d8aa50bdd3471a10d3e14b91a9130079508f
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.name
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.products.dims
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 34
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 44
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.attributes
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 44
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 53
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 62
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.attributes
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.discount_code
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 79
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.discount_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 87
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 99
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.discount_code
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 99
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.device_attrs.attrs
+  target:
+    kind: column
+    name: mart.customer_summary.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 108
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.device_attrs.device_id
+  target:
+    kind: column
+    name: mart.customer_summary.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 108
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  reason: '''channel'' is a key inside the document, not the column'
+  transform: derived
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  reason: '''amount'' is a literal key, not the column'
+  transform: derived
+- source:
+    kind: column
+    name: core.dim_customer.customer_id
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  reason: the ON is structural (D-5)
+expected_boundaries: []

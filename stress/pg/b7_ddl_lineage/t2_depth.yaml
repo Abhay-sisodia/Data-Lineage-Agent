@@ -1,0 +1,448 @@
+# GENERATED from t2_depth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B7 t2_depth.sql - DDL that creates lineage, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-31..D-34. Every node is schema-qualified;
+# a temp table is pg_temp.<name>. Views inline; tables and temp tables are nodes (D-31).
+package: pg/b7_ddl_lineage/t2_depth.sql
+dialect: postgres
+source_sha256: 69fd78e46738264d074bb70f24adecaf0d7583262e6951b9f2897299cc25fcde
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.v_l1.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.v_l1.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.v_l1
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 15
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.v_l2.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.v_l2.total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.v_l2.total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.v_l2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.v_l3.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.v_l3.total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.v_l3.total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.v_l3
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: relation
+    name: mart.v_l3
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 46
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.top_spenders.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.top_spenders.total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.top_spenders.total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.top_spenders
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: relation
+    name: mart.top_spenders
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 54
+  evidence: source_read
+  note: 'rk <= 10 ranks by SUM(amount): post-aggregation (D-9, B3-10).'
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.mv_l2.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.mv_l2.total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.mv_l2.total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.mv_l2
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 67
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: pg_temp.t_a.cid
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 75
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: pg_temp.t_a.amt
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 75
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: pg_temp.t_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 75
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.t_a.cid
+  target:
+    kind: column
+    name: pg_temp.t_b.cid
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 83
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.t_a.amt
+  target:
+    kind: column
+    name: pg_temp.t_b.amt2
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 83
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.t_b.cid
+  target:
+    kind: column
+    name: mart.kpi_rollup.customers
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 91
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.t_b.amt2
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 91
+  evidence: source_read
+forbidden: []
+expected_boundaries: []

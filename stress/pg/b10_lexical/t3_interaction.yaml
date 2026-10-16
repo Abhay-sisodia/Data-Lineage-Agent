@@ -1,0 +1,408 @@
+# GENERATED from t3_interaction.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B10 t3_interaction.sql - lexical robustness, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-35..D-38 (decided 2026-10-04, not
+# implemented). NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: every PREPARE and the
+# DEALLOCATE are counted with no edges; \set is not counted.
+package: pg/b10_lexical/t3_interaction.sql
+dialect: postgres
+source_sha256: 578095b522da1eca668febe87be116416a2b7414a26f5f17d7d7cc9bb57aa200
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.customer_summary.avg_basket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.customer_summary.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 28
+  evidence: source_read
+  note: The CASE reads three columns (D-19), the <-> under it is derived (D-38), and the path is conditional
+    (D-7).
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 45
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 45
+  evidence: source_read
+  note: 'c.id = cs.customer_id joins the FROM relation to the target: structural (D-11, B3).'
+- source:
+    kind: column
+    name: staging.payments.order_id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.order_id
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+  note: 'The arm condition s.amt > $1 tests an aggregate: post-aggregation (D-6). ON is structural (D-5).'
+- source:
+    kind: column
+    name: staging.events_log.id
+  target:
+    kind: column
+    name: mart.events_log.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 90
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.events_log.kind
+  target:
+    kind: column
+    name: mart.events_log.kind
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 90
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.events_log.kind
+  target:
+    kind: relation
+    name: mart.events_log
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 90
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.events_log.id
+  target:
+    kind: column
+    name: mart.kpi_rollup.orders
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 90
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.events_log.kind
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 90
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.events_log.kind
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 90
+  evidence: source_read
+  note: RETURNING gives the written table's columns (D-16); the CTE's WHERE filters both writes (D-17).
+- source:
+    kind: column
+    name: staging.payments.method
+  target:
+    kind: column
+    name: core.fct_payment.method
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 96
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: core.fct_payment.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 96
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.method
+  target:
+    kind: relation
+    name: core.fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 96
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.currency
+  target:
+    kind: relation
+    name: core.fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 96
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: relation
+    name: core.fct_payment
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 96
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 121
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 121
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.name
+  target:
+    kind: column
+    name: <result>.name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 138
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.capacity
+  target:
+    kind: column
+    name: <result>.cap
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 138
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.region
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 138
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 138
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: value
+  reason: the first p_r was deallocated before it was ever executed (D-35)
+  transform: aggregated
+expected_boundaries: []

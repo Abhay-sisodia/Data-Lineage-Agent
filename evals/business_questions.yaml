@@ -1,0 +1,101 @@
+# Five multi-hop business questions (written by evals/author_business.py).
+questions:
+- id: X1
+  question: If gold.fx_rate.conversion_rate is wrong, which columns in mart tables are affected, directly
+    or through intermediate tables (as a value or an influence)? List the affected mart columns.
+  intent: impact_multi_hop
+  expected:
+    status: answered
+    nodes:
+    - mart.customer_snapshot.lifetime_revenue
+    - mart.customer_snapshot.segment
+    - mart.fact_po_line.savings_amt
+    - mart.po_supplier_summary.total_savings
+    - mart.shipment_fact.ext_amount_usd
+    - mart.shipment_fact.gross_margin_usd
+    - mart.supplier_spend.total_savings
+    subject: gold.fx_rate.conversion_rate
+    answer: nodes
+  note: FEEDS|INFLUENCES closure downstream, mart.* columns only
+- id: X2
+  question: We plan to drop s2p.po_distribution.amount_cancelled. Which mart columns would be affected,
+    directly or indirectly (as a value or an influence)? List them.
+  intent: impact_multi_hop
+  expected:
+    status: answered
+    nodes:
+    - mart.fact_po_line.line_amt
+    - mart.fact_po_line.savings_amt
+    - mart.fact_po_line.should_cost
+    - mart.po_supplier_summary.spend_rank
+    - mart.po_supplier_summary.total_savings
+    - mart.po_supplier_summary.total_spend
+    - mart.supplier_spend.spend_rank
+    - mart.supplier_spend.total_savings
+    - mart.supplier_spend.total_spend
+    subject: s2p.po_distribution.amount_cancelled
+    answer: nodes
+  note: FEEDS|INFLUENCES closure downstream, mart.* columns only
+- id: X3
+  question: Trace mart.po_supplier_summary.total_spend back through every intermediate table to its ultimate
+    source columns (columns nothing feeds), following value flow only. List them.
+  intent: root_cause_multi_hop
+  expected:
+    status: answered
+    nodes:
+    - s2p.po_distribution.amount_cancelled
+    - s2p.po_distribution.amount_ordered
+    - s2p.po_distribution.quantity_cancelled
+    - s2p.po_distribution.quantity_ordered
+    - s2p.po_line.matching_basis
+    - s2p.po_line_location.price_override
+    subject: mart.po_supplier_summary.total_spend
+    answer: nodes
+  note: FEEDS closure upstream; roots have no incoming FEEDS
+- id: X4
+  question: Which columns filter the rows anywhere along the value lineage of mart.po_supplier_summary.total_spend
+    - on its own table and on every table whose columns feed it? List the filtering columns.
+  intent: governance_multi_hop
+  expected:
+    status: answered
+    nodes:
+    - gold.dim_status.datasource_num_id
+    - gold.dim_status.status_code
+    - mart.fact_po_line.line_amt
+    - mart.fact_po_line.status_code
+    - s2p.po_distribution.amount_cancelled
+    - s2p.po_distribution.amount_ordered
+    - s2p.po_distribution.distribution_id
+    - s2p.po_distribution.last_modification_date_time
+    - s2p.po_distribution.quantity_cancelled
+    - s2p.po_distribution.quantity_ordered
+    - s2p.po_header.document_status
+    - s2p.po_header.last_modification_date_time
+    - s2p.po_header.po_header_id
+    - s2p.po_line.line_status
+    - s2p.po_line.matching_basis
+    - s2p.po_line_location.last_modification_date_time
+    - s2p.po_line_location.line_location_id
+    - s2p.po_line_location.price_override
+    - s2p.req_distribution.distribution_quantity
+    - s2p.req_distribution.last_modification_date_time
+    - s2p.req_distribution.req_distribution_id
+    - s2p.req_header.approved_date
+    subject: mart.po_supplier_summary.total_spend
+    answer: nodes
+  note: FILTERS into the tables of every column on the FEEDS closure
+- id: X5
+  question: Is mart.shipment_fact.gross_margin_usd fully traceable to its ultimate source columns? List
+    those source columns (value flow only) and report every boundary or refusal where knowledge stops.
+  intent: audit_multi_hop
+  expected:
+    status: answered
+    nodes:
+    - gold.fx_rate.conversion_rate
+    - gold.fx_rate.to_ccy
+    - lgx.item_master.std_cost
+    - lgx.shipment_line.shipped_qty
+    - lgx.shipment_line.unit_selling_price
+    subject: mart.shipment_fact.gross_margin_usd
+    answer: nodes
+  note: FEEDS roots, plus gaps(node) unknowns

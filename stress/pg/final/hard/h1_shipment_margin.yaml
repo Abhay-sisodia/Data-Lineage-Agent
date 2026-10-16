@@ -1,0 +1,2539 @@
+# GENERATED from h1_shipment_margin.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for H1 (h1_shipment_margin.sql): the shipment margin fact, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: shp_line JOIN shp_hdr JOIN cust JOIN cust_rollup (LEFT item_master) ->
+# line_base -> line_fx / line_running / line_ranked -> line_enriched -> line_overdue ->
+# line_with_ctx -> final_src (DISTINCT ON), then the final WHERE and the WITH TIES page.
+# Every other CTE is LEFT joined. site_geo is ALSO read inside the final WHERE's NOT IN
+# (via orphan_checks), where it decides rows: its WHERE stays a filter there and adds no
+# value to what its LEFT join feeds (D-45's exception).
+#
+# Sets used below (written out in full on each line):
+# EXT = shipment_line.shipped_qty, shipment_line.unit_selling_price, fx_rate.conversion_rate
+# FXC = fx_rate.from_ccy, fx_rate.to_ccy, fx_rate.rate_date, shipment_header.currency_code,
+# shipment_line.ship_date  (the one-row FX LATERAL's WHERE, D-14)
+# DC  = the delivery_class CASE's columns: shipment_header.status_code,
+# shipment_line.line_status, ship_date, promise_date, request_date, shipped_qty, ordered_qty
+# WC  = shipment_header.customer_id, shipment_line.ship_date, shipment_line.shipment_line_id
+# (every window partitioned by customer and ordered by ship date and line)
+package: pg/final/hard/h1_shipment_margin.sql
+dialect: postgres
+source_sha256: 536d9df8f717e41e71d4372a7608a449d61db0e6735b1256726fb7a80822398e
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: lgx.shipment_header.source_system
+  target:
+    kind: column
+    name: <result>.integration_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.integration_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.source_system
+  target:
+    kind: column
+    name: <result>.row_hash
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.row_hash
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.row_hash
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.shipment_line_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_number
+  target:
+    kind: column
+    name: <result>.shipment_number
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.source_system
+  target:
+    kind: column
+    name: <result>.datasource_num_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: <result>.ultimate_parent_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: <result>.item_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'line_status_rank comes from status_map (literal arrays): nothing. shipped_on_weekend from the
+    literal calendar: nothing.'
+- source:
+    kind: column
+    name: gold.dim_status.row_wid
+  target:
+    kind: column
+    name: <result>.status_wid
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.dim_status.datasource_num_id
+  target:
+    kind: column
+    name: <result>.status_wid
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.dim_date.date_wid
+  target:
+    kind: column
+    name: <result>.ship_date_wid
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.dim_date.date_wid
+  target:
+    kind: column
+    name: <result>.promise_date_wid
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.status_code
+  target:
+    kind: column
+    name: <result>.delivery_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.line_status
+  target:
+    kind: column
+    name: <result>.delivery_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.delivery_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.delivery_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.request_date
+  target:
+    kind: column
+    name: <result>.delivery_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.delivery_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ordered_qty
+  target:
+    kind: column
+    name: <result>.delivery_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.margin_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.std_cost
+  target:
+    kind: column
+    name: <result>.margin_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ordered_qty
+  target:
+    kind: column
+    name: <result>.open_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.open_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.cancelled_qty
+  target:
+    kind: column
+    name: <result>.open_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ordered_qty
+  target:
+    kind: column
+    name: <result>.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.cancelled_qty
+  target:
+    kind: column
+    name: <result>.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.business_days_late
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'A SELECT-list COUNT(*) over the literal calendar: its WHERE''s columns are aggregated values
+    (D-12); cal_date and is_weekend have no source.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.business_days_late
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'A SELECT-list COUNT(*) over the literal calendar: its WHERE''s columns are aggregated values
+    (D-12); cal_date and is_weekend have no source.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.ext_amount_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.gross_margin_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.ext_amount_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.gross_margin_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.conversion_rate
+  target:
+    kind: column
+    name: <result>.ext_amount_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.conversion_rate
+  target:
+    kind: column
+    name: <result>.gross_margin_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.std_cost
+  target:
+    kind: column
+    name: <result>.gross_margin_usd
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.to_ccy
+  target:
+    kind: column
+    name: <result>.ext_amount_usd
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.to_ccy
+  target:
+    kind: column
+    name: <result>.gross_margin_usd
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.rate_date
+  target:
+    kind: column
+    name: <result>.ext_amount_usd
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.rate_date
+  target:
+    kind: column
+    name: <result>.gross_margin_usd
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.rate_date
+  target:
+    kind: column
+    name: <result>.cust_total_usd
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.rate_date
+  target:
+    kind: column
+    name: <result>.share_of_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.rate_date
+  target:
+    kind: column
+    name: <result>.cust_running_usd
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.cust_total_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.cust_total_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.conversion_rate
+  target:
+    kind: column
+    name: <result>.cust_total_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.to_ccy
+  target:
+    kind: column
+    name: <result>.cust_total_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.share_of_cust
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.share_of_cust
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.conversion_rate
+  target:
+    kind: column
+    name: <result>.share_of_cust
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.to_ccy
+  target:
+    kind: column
+    name: <result>.share_of_cust
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.cust_running_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.cust_running_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.conversion_rate
+  target:
+    kind: column
+    name: <result>.cust_running_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.to_ccy
+  target:
+    kind: column
+    name: <result>.cust_running_usd
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.cust_total_usd
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.share_of_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.rank_in_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.rank_in_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank
+    (D-4).'
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.rank_in_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank
+    (D-4).'
+- source:
+    kind: column
+    name: gold.fx_rate.conversion_rate
+  target:
+    kind: column
+    name: <result>.rank_in_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank
+    (D-4).'
+- source:
+    kind: column
+    name: gold.fx_rate.to_ccy
+  target:
+    kind: column
+    name: <result>.rank_in_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank
+    (D-4).'
+- source:
+    kind: column
+    name: gold.fx_rate.rate_date
+  target:
+    kind: column
+    name: <result>.rank_in_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank
+    (D-4).'
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.item_median_price
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.item_id
+  target:
+    kind: column
+    name: <result>.item_median_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.cum_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.avg_price_neighbours
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.item_id
+  target:
+    kind: column
+    name: <result>.avg_price_neighbours
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.avg_price_neighbours
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.parent_month_revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.parent_month_revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: <result>.parent_month_revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: PARTITION BY ultimate_parent_id, date_trunc('month', ship_date).
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.parent_month_revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: PARTITION BY ultimate_parent_id, date_trunc('month', ship_date).
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.prev_price
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.first_price
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.prev_ship_date
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.cum_qty
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.rn_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.prev_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.first_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.quartile_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.final_row_no
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.prev_ship_date
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.cust_running_usd
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.cum_qty
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.rn_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.prev_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.first_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.quartile_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.final_row_no
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.prev_ship_date
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.cust_running_usd
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.cum_qty
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.rn_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.prev_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.first_price
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.quartile_cust
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.final_row_no
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.prev_ship_date
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.cust_running_usd
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date,
+    shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.'
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.lines_in_shipment
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.line_attrs
+  target:
+    kind: column
+    name: <result>.hazmat_class
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: derived out of the document (D-29), and line_attr_flat's own WHERE line_attrs IS NOT NULL is a
+    conditional value through its LEFT join (D-45).
+- source:
+    kind: column
+    name: lgx.shipment_line.line_attrs
+  target:
+    kind: column
+    name: <result>.is_heavy
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: derived out of the document (D-29), and line_attr_flat's own WHERE line_attrs IS NOT NULL is a
+    conditional value through its LEFT join (D-45).
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.priority_num
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.freight_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.freight_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.org_name
+  target:
+    kind: column
+    name: <result>.ship_from_org_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.is_active
+  target:
+    kind: column
+    name: <result>.ship_from_org_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.site_code
+  target:
+    kind: column
+    name: <result>.ship_to_site_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.address_lines
+  target:
+    kind: column
+    name: <result>.ship_to_addr1
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier.carrier_name
+  target:
+    kind: column
+    name: <result>.carrier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier_service.transit_days
+  target:
+    kind: column
+    name: <result>.transit_days
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier.active_flag
+  target:
+    kind: column
+    name: <result>.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'param_grid''s columns are literals; its ON range `hdr_created_at::date BETWEEN eff_from AND eff_to`
+    sits on a LEFT join''s null side: a value of what that side feeds, with the only operand that has
+    a source (D-49, D-48). The region equality is the key (D-5).'
+- source:
+    kind: column
+    name: lgx.carrier.active_flag
+  target:
+    kind: column
+    name: <result>.transit_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'param_grid''s columns are literals; its ON range `hdr_created_at::date BETWEEN eff_from AND eff_to`
+    sits on a LEFT join''s null side: a value of what that side feeds, with the only operand that has
+    a source (D-49, D-48). The region equality is the key (D-5).'
+- source:
+    kind: column
+    name: lgx.carrier.end_date
+  target:
+    kind: column
+    name: <result>.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'param_grid''s columns are literals; its ON range `hdr_created_at::date BETWEEN eff_from AND eff_to`
+    sits on a LEFT join''s null side: a value of what that side feeds, with the only operand that has
+    a source (D-49, D-48). The region equality is the key (D-5).'
+- source:
+    kind: column
+    name: lgx.carrier.end_date
+  target:
+    kind: column
+    name: <result>.transit_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'param_grid''s columns are literals; its ON range `hdr_created_at::date BETWEEN eff_from AND eff_to`
+    sits on a LEFT join''s null side: a value of what that side feeds, with the only operand that has
+    a source (D-49, D-48). The region equality is the key (D-5).'
+- source:
+    kind: column
+    name: lgx.shipment_line.item_id
+  target:
+    kind: column
+    name: <result>.cust_distinct_items
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: <result>.cust_item_list
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.cust_late_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.cust_late_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.cust_late_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.cust_distinct_items
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.cust_item_list
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.cust_late_qty
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: <result>.cust_item_list
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: string_agg's own ORDER BY (B1 S11, D-47); HAVING COUNT(*) reads no column.
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.cust_net_margin
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.unit_selling_price
+  target:
+    kind: column
+    name: <result>.cust_net_margin
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.std_cost
+  target:
+    kind: column
+    name: <result>.cust_net_margin
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.header_attrs
+  target:
+    kind: column
+    name: <result>.cust_net_margin
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.cust_net_margin
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'The waterfall''s three arms (revenue, cost, freight from hdr_charges, itself grouped by shipment)
+    summed by a window; `mw.step_no = 3` tests a literal-only column: nothing.'
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.cust_net_margin
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'The waterfall''s three arms (revenue, cost, freight from hdr_charges, itself grouped by shipment)
+    summed by a window; `mw.step_no = 3` tests a literal-only column: nothing.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.carrier_month_otd_ratio
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.carrier_month_otd_ratio
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.carrier_code
+  target:
+    kind: column
+    name: <result>.carrier_month_otd_ratio
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'carrier_perf''s GROUP BY (D-2); the null-side cut otd_rank <= 3 over RANK() ORDER BY otd_ratio
+    is an ordering cut: influence (D-45, D-46), as E1 measured for ROW_NUMBER.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.carrier_month_otd_ratio
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'carrier_perf''s GROUP BY (D-2); the null-side cut otd_rank <= 3 over RANK() ORDER BY otd_ratio
+    is an ordering cut: influence (D-45, D-46), as E1 measured for ROW_NUMBER.'
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.carrier_month_otd_ratio
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'carrier_perf''s GROUP BY (D-2); the null-side cut otd_rank <= 3 over RANK() ORDER BY otd_ratio
+    is an ordering cut: influence (D-45, D-46), as E1 measured for ROW_NUMBER.'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.cust_volume_decile
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: NTILE(10) OVER (ORDER BY COUNT(*)) grouped by customer_id (D-46).
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.cust_deep_metric
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.cust_deep_metric
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.source_system
+  target:
+    kind: column
+    name: <result>.row_summary_json
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.row_summary_json
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.status_code
+  target:
+    kind: column
+    name: <result>.row_summary_json
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: delete_flg and w_insert_dt read nothing.
+- source:
+    kind: column
+    name: lgx.shipment_line.line_status
+  target:
+    kind: column
+    name: <result>.row_summary_json
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: delete_flg and w_insert_dt read nothing.
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.row_summary_json
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: delete_flg and w_insert_dt read nothing.
+- source:
+    kind: column
+    name: lgx.shipment_line.promise_date
+  target:
+    kind: column
+    name: <result>.row_summary_json
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: delete_flg and w_insert_dt read nothing.
+- source:
+    kind: column
+    name: lgx.shipment_line.request_date
+  target:
+    kind: column
+    name: <result>.row_summary_json
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: delete_flg and w_insert_dt read nothing.
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.row_summary_json
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: delete_flg and w_insert_dt read nothing.
+- source:
+    kind: column
+    name: lgx.shipment_line.ordered_qty
+  target:
+    kind: column
+    name: <result>.row_summary_json
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: delete_flg and w_insert_dt read nothing.
+- source:
+    kind: column
+    name: lgx.shipment_header.is_deleted
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_hdr's WHERE and DISTINCT ON (two keys, two tie-breakers); the final WHERE's created_at and
+    source_system = ANY (...) restate two of them.
+- source:
+    kind: column
+    name: lgx.shipment_header.created_at
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_hdr's WHERE and DISTINCT ON (two keys, two tie-breakers); the final WHERE's created_at and
+    source_system = ANY (...) restate two of them.
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_hdr's WHERE and DISTINCT ON (two keys, two tie-breakers); the final WHERE's created_at and
+    source_system = ANY (...) restate two of them.
+- source:
+    kind: column
+    name: lgx.shipment_header.source_system
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_hdr's WHERE and DISTINCT ON (two keys, two tie-breakers); the final WHERE's created_at and
+    source_system = ANY (...) restate two of them.
+- source:
+    kind: column
+    name: lgx.shipment_header.updated_at
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_hdr's WHERE and DISTINCT ON (two keys, two tie-breakers); the final WHERE's created_at and
+    source_system = ANY (...) restate two of them.
+- source:
+    kind: column
+    name: lgx.shipment_header.version_no
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_hdr's WHERE and DISTINCT ON (two keys, two tie-breakers); the final WHERE's created_at and
+    source_system = ANY (...) restate two of them.
+- source:
+    kind: column
+    name: lgx.shipment_line.line_type_code
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_line's SIMILAR TO and ROW_NUMBER cut (D-9); final_src's DISTINCT ON (integration_id) ORDER
+    BY line_updated_at, row_hash restates them.
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_line's SIMILAR TO and ROW_NUMBER cut (D-9); final_src's DISTINCT ON (integration_id) ORDER
+    BY line_updated_at, row_hash restates them.
+- source:
+    kind: column
+    name: lgx.shipment_line.last_update_ts
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_line's SIMILAR TO and ROW_NUMBER cut (D-9); final_src's DISTINCT ON (integration_id) ORDER
+    BY line_updated_at, row_hash restates them.
+- source:
+    kind: column
+    name: lgx.shipment_line.etl_batch_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: shp_line's SIMILAR TO and ROW_NUMBER cut (D-9); final_src's DISTINCT ON (integration_id) ORDER
+    BY line_updated_at, row_hash restates them.
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: cust's DENSE_RANK() OVER w_cust = 1 (D-9); cust_rollup's anchor and its cycle guard on customer_id.
+- source:
+    kind: column
+    name: crm.customer.valid_from
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: cust's DENSE_RANK() OVER w_cust = 1 (D-9); cust_rollup's anchor and its cycle guard on customer_id.
+- source:
+    kind: column
+    name: crm.customer.valid_to
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: cust's DENSE_RANK() OVER w_cust = 1 (D-9); cust_rollup's anchor and its cycle guard on customer_id.
+- source:
+    kind: column
+    name: crm.customer.parent_customer_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: cust's DENSE_RANK() OVER w_cust = 1 (D-9); cust_rollup's anchor and its cycle guard on customer_id.
+- source:
+    kind: column
+    name: lgx.shipment_header.status_code
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'NOT IN (SELECT key_id FROM orphan_checks): its match key is shipment_line_id (stated above);
+    the arms'' NOT EXISTS and NOT IN, and site_geo''s WHERE, decide that list (D-52 at depth).'
+- source:
+    kind: column
+    name: lgx.shipment_line.item_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'NOT IN (SELECT key_id FROM orphan_checks): its match key is shipment_line_id (stated above);
+    the arms'' NOT EXISTS and NOT IN, and site_geo''s WHERE, decide that list (D-52 at depth).'
+- source:
+    kind: column
+    name: lgx.shipment_header.ship_to_site_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'NOT IN (SELECT key_id FROM orphan_checks): its match key is shipment_line_id (stated above);
+    the arms'' NOT EXISTS and NOT IN, and site_geo''s WHERE, decide that list (D-52 at depth).'
+- source:
+    kind: column
+    name: crm.customer_site.site_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'NOT IN (SELECT key_id FROM orphan_checks): its match key is shipment_line_id (stated above);
+    the arms'' NOT EXISTS and NOT IN, and site_geo''s WHERE, decide that list (D-52 at depth).'
+- source:
+    kind: column
+    name: crm.customer_site.latitude
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: 'NOT IN (SELECT key_id FROM orphan_checks): its match key is shipment_line_id (stated above);
+    the arms'' NOT EXISTS and NOT IN, and site_geo''s WHERE, decide that list (D-52 at depth).'
+- source:
+    kind: column
+    name: evt.flag.entity_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.flag_code
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.flag.active_flag
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: ORDER BY customer_id, ship_date, shipment_line_id with OFFSET ... FETCH FIRST ... WITH TIES (D-9).
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+  note: ORDER BY customer_id, ship_date, shipment_line_id with OFFSET ... FETCH FIRST ... WITH TIES (D-9).
+forbidden:
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.shipped_on_weekend
+  flow: value
+  reason: the calendar is a literal series; its join key decides no value (D-28, D-5)
+- source:
+    kind: column
+    name: gold.dim_status.datasource_num_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: a LEFT join's literal ON test removes no row (D-48)
+- source:
+    kind: column
+    name: gold.fx_rate.rate_date
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: a one-row LATERAL removes no row (D-14)
+- source:
+    kind: column
+    name: lgx.shipment_line.line_attrs
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: line_attr_flat is reached only through a LEFT join (D-45)
+- source:
+    kind: column
+    name: crm.organization.is_active
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: wh_org is reached only through a LEFT join (D-45)
+- source:
+    kind: column
+    name: crm.customer_site.latitude
+  target:
+    kind: column
+    name: <result>.ship_to_site_code
+  flow: value
+  reason: site_geo also decides rows through the final NOT IN, so its WHERE stays a filter only (D-45's
+    exception)
+  transform: conditional
+- source:
+    kind: column
+    name: lgx.carrier.active_flag
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: carrier_dim is reached only through a LEFT join (D-45)
+expected_boundaries: []

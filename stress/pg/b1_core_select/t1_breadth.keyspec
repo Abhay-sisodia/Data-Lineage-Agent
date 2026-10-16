@@ -1,0 +1,219 @@
+# Answer key for t1_breadth.sql - B1 core SELECT, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE. A key written after
+# seeing the output records what the analyser did, not what is true.
+#
+# Conventions: OBJECTIVES.md "Labelling conventions", plus D-9, D-10 and D-11 (decided
+# 2026-10-01, NOT yet implemented - every fact resting on them is expected to score as a
+# miss or a false positive until they are, and the report says which).
+#
+# Every relation is schema-qualified, so no context_dependent_binding boundary is
+# expected. All facts are band 0: no PL/pgSQL in this file.
+#
+# FLAGGED, NOT LABELLED (a convention question for the batch report, not a key decision):
+#   * S10a - GROUPING(region, country_code) inside the CASE that writes `level`. DECIDED
+#     2026-10-06 (D-50): grouping() carries no lineage, so `level` gets nothing - pinned by
+#     the forbids at S10a.
+#   * S8a / S8b - the merged column of USING / NATURAL is labelled from the LEFT input only,
+#     which is PostgreSQL's definition for an inner join. The right input's equal column is
+#     neither labelled nor forbidden: equal by construction, so an edge from it is
+#     redundant rather than false.
+
+@ 23 S1 projections and expressions
+value staging.products.id -> mart.product_performance.product_id identity
+value staging.products.brand, staging.products.sku -> mart.product_performance.category_name derived
+note COALESCE(brand, 'n/a') has one column argument: a null guard, so derived, not conditional.
+value staging.products.created_at -> mart.product_performance.period_month derived
+value staging.products.list_price -> mart.product_performance.revenue derived
+value staging.products.list_price, staging.products.cost -> mart.product_performance.margin derived
+# Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. NULLIF(x, 0) reads one column.
+value staging.products.cost -> mart.product_performance.revenue_share derived
+value staging.products.list_price -> mart.product_performance.revenue_share derived
+note D-7: cost passes through NULLIF on its path, list_price does not.
+value staging.products.list_price, staging.products.cost -> mart.product_performance.running_revenue conditional
+value staging.products.cost -> mart.product_performance.prev_month_revenue derived
+value staging.products.status, staging.products.list_price -> mart.product_performance.growth_pct conditional
+forbid value staging.products.brand -> mart.product_performance.category_name conditional | a one-column COALESCE is a null guard, not a choice between sources
+
+@ 46 S2 WHERE
+value staging.customers.country_code -> mart.top_customers.region identity
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+filter staging.customers.status, staging.customers.segment, staging.customers.signup_ts, staging.customers.email, staging.customers.full_name, staging.customers.attributes, staging.customers.country_code, staging.customers.created_at -> mart.top_customers
+note created_at < signup_ts compares two columns of ONE relation: not a join, so both are filters.
+
+@ 68 S3 INNER JOIN, multi-condition ON
+value staging.orders.order_ts -> mart.channel_mix.period_month derived
+value staging.orders.channel -> mart.channel_mix.channel identity
+value core.dim_store.region -> mart.channel_mix.region identity
+value staging.order_lines.order_id -> mart.channel_mix.orders identity
+value staging.order_lines.quantity, staging.order_lines.unit_price -> mart.channel_mix.revenue derived
+value staging.order_lines.discount_pct -> mart.channel_mix.share_of_region derived
+filter staging.orders.status -> mart.channel_mix
+note RELABELLED UNDER D-48 (2026-10-06): a non-key condition in an INNER join's ON removes rows as WHERE would - a filter. It was forbidden under D-5, which made a whole ON structural.
+forbid filter staging.orders.id -> mart.channel_mix | a join key in ON is structural (D-5)
+
+@ 89 S4a LEFT JOIN, right-side predicate in ON
+value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
+value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name identity
+value staging.shipments.id -> mart.carrier_scorecard.shipments identity
+forbid filter staging.shipments.status -> mart.carrier_scorecard | in a LEFT JOIN's ON it decides which shipments match; every carrier is kept
+value staging.shipments.status -> mart.carrier_scorecard.shipments conditional
+note ADDED UNDER D-48 (2026-10-06): on a LEFT join's null side the ON condition decides which shipment supplies `shipments` - a conditional value of what that side feeds, never a filter.
+
+@ 106 S4b LEFT JOIN, the same predicate in WHERE
+value core.dim_carrier.mode -> mart.kpi_rollup.region identity
+value core.dim_carrier.status -> mart.kpi_rollup.segment identity
+value staging.shipments.id -> mart.kpi_rollup.orders identity
+value staging.shipments.cost -> mart.kpi_rollup.revenue identity
+filter staging.shipments.status -> mart.kpi_rollup
+
+@ 122 S5 RIGHT JOIN
+value staging.orders.created_at -> mart.sales_daily.sale_date derived
+value staging.orders.store_id -> mart.sales_daily.store_id identity
+value staging.payments.method -> mart.sales_daily.region identity
+value staging.orders.id -> mart.sales_daily.orders identity
+value staging.payments.amount -> mart.sales_daily.gross_amount identity
+value staging.orders.amount -> mart.sales_daily.net_amount identity
+
+@ 140 S6 FULL OUTER JOIN with COALESCE over the keys
+value staging.fx_rates.rate_date, staging.payments.paid_at -> mart.channel_mix.period_month conditional
+value staging.fx_rates.currency, staging.payments.currency -> mart.channel_mix.channel conditional
+value staging.payments.amount, staging.fx_rates.rate_to_usd -> mart.channel_mix.revenue derived
+forbid filter staging.payments.currency -> mart.channel_mix | a FULL JOIN's ON keeps every row from both sides; it removes nothing
+
+@ 156 S7 CROSS JOIN to a one-row derived table
+value core.dim_store.region -> mart.top_customers.region identity
+value core.dim_store.id -> mart.top_customers.customer_id identity
+value core.dim_store.name -> mart.top_customers.full_name identity
+value core.dim_date.fiscal_year -> mart.top_customers.position derived
+filter core.dim_date.calendar_date -> mart.top_customers
+note A filter inside a derived table still decides what lands in the written relation.
+
+@ 176 S8a JOIN USING
+value staging.shipments.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value staging.shipments.order_id -> mart.carrier_scorecard.shipments identity
+value staging.shipments.cost -> mart.carrier_scorecard.cost_per_kg derived
+# Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. NULLIF(x, 0) reads one column.
+value staging.shipments.weight_kg -> mart.carrier_scorecard.cost_per_kg derived
+
+@ 190 S8b NATURAL JOIN on the one shared column
+value core.dim_warehouse.region -> mart.kpi_rollup.region identity
+value core.dim_store.opened_on -> mart.kpi_rollup.segment derived
+value core.dim_warehouse.capacity -> mart.kpi_rollup.customers identity
+
+@ 212 S9 GROUP BY, aggregates, HAVING
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.order_id -> mart.sales_daily.orders aggregated
+value core.fct_order_line.quantity -> mart.sales_daily.units aggregated
+value core.fct_order_line.gross_amount -> mart.sales_daily.gross_amount aggregated
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount, mart.sales_daily.avg_order_value aggregated
+influence core.fct_order_line.order_date, core.fct_order_line.store_id -> mart.sales_daily.orders, mart.sales_daily.units, mart.sales_daily.gross_amount, mart.sales_daily.net_amount, mart.sales_daily.avg_order_value
+filter core.fct_order_line.unit_price, core.fct_order_line.discount_amount -> mart.sales_daily post
+note HAVING MAX(unit_price) and MIN(discount_amount); COUNT(*) has no source.
+forbid influence core.fct_order_line.order_date -> mart.sales_daily.sale_date | a grouping key is copied through unchanged; it does not influence itself (D-2)
+
+@ 235 S10a ROLLUP with GROUPING()
+value core.dim_store.region -> mart.kpi_rollup.region identity
+value core.dim_store.country_code -> mart.kpi_rollup.country_code identity
+value core.fct_order_line.order_id -> mart.kpi_rollup.orders aggregated
+value core.fct_order_line.amount_usd -> mart.kpi_rollup.revenue aggregated
+influence core.dim_store.region, core.dim_store.country_code -> mart.kpi_rollup.orders, mart.kpi_rollup.revenue
+forbid value core.dim_store.region -> mart.kpi_rollup.level | grouping() carries no lineage (D-50)
+forbid influence core.dim_store.region -> mart.kpi_rollup.level | grouping() is not an aggregate of data, so the GROUP BY does not reach it (D-50)
+forbid influence core.dim_store.country_code -> mart.kpi_rollup.level | as above (D-50)
+
+@ 255 S10b CUBE
+value staging.payments.method -> mart.channel_mix.channel identity
+value staging.payments.currency -> mart.channel_mix.region identity
+value staging.payments.id -> mart.channel_mix.orders aggregated
+value staging.payments.amount -> mart.channel_mix.revenue aggregated
+influence staging.payments.method, staging.payments.currency -> mart.channel_mix.orders, mart.channel_mix.revenue
+
+@ 268 S10c GROUPING SETS
+value staging.customers.segment -> mart.kpi_rollup.segment identity
+value staging.customers.country_code -> mart.kpi_rollup.country_code identity
+value staging.customers.id -> mart.kpi_rollup.customers aggregated
+influence staging.customers.segment, staging.customers.country_code -> mart.kpi_rollup.customers
+
+@ 285 S11 string_agg, array_agg, FILTER, WITHIN GROUP
+value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value core.fct_shipment.status -> mart.carrier_scorecard.carrier_name aggregated
+influence core.fct_shipment.shipped_date -> mart.carrier_scorecard.carrier_name
+note string_agg's own ORDER BY decides the order of the pieces; no part of shipped_date is in the string.
+value core.fct_shipment.shipped_date -> mart.carrier_scorecard.period_month aggregated
+value core.fct_shipment.order_id -> mart.carrier_scorecard.shipments aggregated
+value core.fct_shipment.delivered_date, core.fct_shipment.promised_date -> mart.carrier_scorecard.on_time_pct aggregated
+note D-10: the FILTER columns of COUNT(*) are value sources of that one column.
+value core.fct_shipment.transit_days, core.fct_shipment.warehouse_id -> mart.carrier_scorecard.avg_transit_days aggregated
+value core.fct_shipment.transit_days -> mart.carrier_scorecard.p50_transit_days, mart.carrier_scorecard.p90_transit_days aggregated
+note WITHIN GROUP (ORDER BY transit_days): for a percentile the ordered column IS the value.
+value core.fct_shipment.weight_kg -> mart.carrier_scorecard.p90_transit_days aggregated
+value core.fct_shipment.cost, core.fct_shipment.weight_kg -> mart.carrier_scorecard.cost_per_kg aggregated
+influence core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_name, mart.carrier_scorecard.period_month, mart.carrier_scorecard.shipments, mart.carrier_scorecard.on_time_pct, mart.carrier_scorecard.avg_transit_days, mart.carrier_scorecard.p50_transit_days, mart.carrier_scorecard.p90_transit_days, mart.carrier_scorecard.cost_per_kg
+forbid filter core.fct_shipment.warehouse_id -> mart.carrier_scorecard | FILTER (WHERE) changes one aggregate's value, not which rows the table holds (D-10)
+forbid filter core.fct_shipment.weight_kg -> mart.carrier_scorecard | FILTER (WHERE) changes one aggregate's value, not which rows the table holds (D-10)
+forbid filter core.fct_shipment.delivered_date -> mart.carrier_scorecard | FILTER (WHERE) changes one aggregate's value, not which rows the table holds (D-10)
+
+@ 312 S12 window functions
+value core.fct_order_line.product_key -> mart.product_performance.product_id identity
+value core.fct_order_line.channel -> mart.product_performance.category_name derived
+note FIRST_VALUE picks a value out of the window: derived, never aggregated (D-3).
+value core.fct_order_line.order_date -> mart.product_performance.period_month identity
+value core.fct_order_line.net_amount -> mart.product_performance.revenue aggregated
+value core.fct_order_line.gross_amount -> mart.product_performance.running_revenue aggregated
+value core.fct_order_line.net_amount -> mart.product_performance.prev_month_revenue derived
+value core.fct_order_line.quantity -> mart.product_performance.growth_pct derived
+influence core.fct_order_line.product_key, core.fct_order_line.order_date -> mart.product_performance.category_name, mart.product_performance.units, mart.product_performance.revenue, mart.product_performance.running_revenue, mart.product_performance.prev_month_revenue, mart.product_performance.growth_pct
+note `units` is ROW_NUMBER() OVER w: no value source at all, only its window's influence.
+influence core.fct_order_line.store_id, core.fct_order_line.gross_amount -> mart.product_performance.margin
+influence core.fct_order_line.amount_usd -> mart.product_performance.revenue_share
+forbid value core.fct_order_line.gross_amount -> mart.product_performance.margin | RANK's ORDER BY decides the rank; no part of gross_amount is in it (D-4)
+forbid value core.fct_order_line.amount_usd -> mart.product_performance.revenue_share | NTILE's ORDER BY decides the bucket; no part of amount_usd is in it (D-4)
+
+@ 343 S13a DISTINCT
+value core.dim_warehouse.region -> mart.channel_mix.region identity
+value core.dim_warehouse.status -> mart.channel_mix.channel identity
+forbid filter core.dim_warehouse.region -> mart.channel_mix | plain DISTINCT removes only rows fully decided by the values written (D-9)
+
+@ 356 S13b DISTINCT ON
+value staging.orders.currency -> mart.top_customers.region identity
+value staging.orders.customer_id -> mart.top_customers.customer_id identity
+value staging.orders.discount_code -> mart.top_customers.full_name identity
+value staging.orders.amount -> mart.top_customers.revenue identity
+filter staging.orders.status, staging.orders.customer_id, staging.orders.order_ts -> mart.top_customers
+note D-9: customer_id (the DISTINCT ON key) and order_ts (the tie-breaker) decide which row survives.
+
+@ 371 S14a ORDER BY, LIMIT, OFFSET
+value staging.payments.order_id -> mart.top_customers.customer_id identity
+value staging.payments.amount -> mart.top_customers.revenue identity
+filter staging.payments.status, staging.payments.amount, staging.payments.paid_at -> mart.top_customers
+note D-9: amount and paid_at order a LIMIT, so they decide which rows land.
+
+@ 385 S14b FETCH FIRST WITH TIES
+value staging.returns.created_at -> mart.sales_daily.sale_date derived
+value staging.returns.quantity -> mart.sales_daily.units identity
+value staging.returns.amount -> mart.sales_daily.gross_amount identity
+filter staging.returns.amount -> mart.sales_daily
+
+@ 399 S14c ORDER BY with no limit
+value staging.inventory_snapshots.snapshot_date -> mart.sales_daily.sale_date identity
+value staging.inventory_snapshots.on_hand -> mart.sales_daily.units identity
+forbid filter staging.inventory_snapshots.reserved -> mart.sales_daily | an ORDER BY with no row limit removes no rows (D-9)
+forbid influence staging.inventory_snapshots.reserved -> mart.sales_daily.units | the order rows are inserted in changes no value
+
+@ 411 S14d LIMIT with no ORDER BY
+value core.dim_date.calendar_date -> mart.sales_daily.sale_date identity
+forbid filter core.dim_date.calendar_date -> mart.sales_daily | a LIMIT with no ORDER BY keeps arbitrary rows; no column decides which (D-9)
+
+@ 421 S15 bare SELECT with a window
+value core.dim_warehouse.name -> <result>.warehouse_name identity
+influence core.dim_warehouse.region, core.dim_warehouse.capacity -> <result>.capacity_rank
+filter core.dim_warehouse.status -> <result>
+
+@ 432 S16 bare SELECT with GROUP BY and HAVING
+value core.dim_category.department -> <result>.dept identity
+value core.dim_category.id -> <result>.n_categories aggregated
+influence core.dim_category.department -> <result>.n_categories
+filter core.dim_category.id -> <result> post

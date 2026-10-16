@@ -1,0 +1,70 @@
+# Answer key for B4 t2_depth.sql - expressions and types, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B3, plus D-19..D-22. The transform is the strongest on the
+# path (D-7); D-19 counts a node's columns in its own scope.
+
+@ 19 S1 cast, guard, CASE, aggregate over four CTEs
+value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+value staging.orders.channel -> mart.customer_summary.segment aggregated
+value staging.orders.amount, staging.orders.status -> mart.customer_summary.lifetime_value aggregated
+value staging.orders.amount, staging.orders.status -> mart.customer_summary.status aggregated
+note The status band is a CASE over SUM(...): the aggregate on the path dominates.
+influence staging.orders.customer_id -> mart.customer_summary.segment, mart.customer_summary.lifetime_value, mart.customer_summary.status
+
+@ 56 S2 whole row through a derived table (D-20)
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+value staging.customers.id, staging.customers.email, staging.customers.full_name, staging.customers.country_code, staging.customers.segment, staging.customers.status, staging.customers.signup_ts, staging.customers.attributes, staging.customers.created_at -> mart.top_customers.region derived
+filter staging.customers.status -> mart.top_customers
+
+@ 73 S3 D-19 in the node's own scope
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.gross_amount, core.fct_order_line.discount_amount -> mart.sales_daily.net_amount derived
+value core.fct_order_line.gross_amount, core.fct_order_line.discount_amount -> mart.sales_daily.gross_amount conditional
+forbid value core.fct_order_line.discount_amount -> mart.sales_daily.net_amount conditional | COALESCE(x.net, 0) reads one column in its own scope: derived (D-19)
+
+@ 94 S4 band over an aggregate, filtered two levels up
+value core.dim_customer.region -> mart.kpi_rollup.region identity
+value core.dim_customer.segment -> mart.kpi_rollup.segment derived
+value core.fct_order_line.net_amount -> mart.kpi_rollup.revenue, mart.kpi_rollup.level aggregated
+influence core.dim_customer.region, core.dim_customer.segment -> mart.kpi_rollup.revenue, mart.kpi_rollup.level
+filter core.dim_customer.is_current -> mart.kpi_rollup
+filter core.fct_order_line.net_amount -> mart.kpi_rollup post
+note t.lvl = 'HIGH' is a band over SUM(net_amount): post-aggregation (B2-06).
+forbid filter core.fct_order_line.customer_key -> mart.kpi_rollup | the ON is structural (D-5)
+
+@ 119 S5 arrays through two CTEs
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.tags, staging.orders.currency -> mart.channel_mix.region derived
+value staging.orders.id, staging.orders.tags, staging.orders.currency -> mart.channel_mix.orders aggregated
+note FILTER (WHERE f.n > 2) reads n = cardinality(tags || currency): values of that column (D-10).
+influence staging.orders.channel, staging.orders.tags, staging.orders.currency -> mart.channel_mix.orders
+filter staging.orders.tags, staging.orders.currency -> mart.channel_mix
+
+@ 144 S6 ranges built, measured, averaged
+value staging.shipments.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value staging.shipments.shipped_at, staging.shipments.delivered_at -> mart.carrier_scorecard.period_month derived
+value staging.shipments.shipped_at, staging.shipments.delivered_at -> mart.carrier_scorecard.avg_transit_days aggregated
+value staging.shipments.shipped_at, staging.shipments.delivered_at, staging.shipments.promised_at -> mart.carrier_scorecard.on_time_pct aggregated
+influence staging.shipments.carrier_id, staging.shipments.shipped_at, staging.shipments.delivered_at -> mart.carrier_scorecard.avg_transit_days, mart.carrier_scorecard.on_time_pct
+note The GROUP BY's `m` is date_trunc of lower(tstzrange(shipped_at, delivered_at)): both columns.
+filter staging.shipments.delivered_at -> mart.carrier_scorecard
+
+@ 168 S7 six derived-table levels
+value core.dim_product.product_id -> mart.product_performance.product_id identity
+value core.dim_product.category_name -> mart.product_performance.category_name derived
+value core.dim_product.list_price, core.dim_product.cost -> mart.product_performance.margin derived
+filter core.dim_product.status -> mart.product_performance
+
+@ 199 S8 CASE over two CTEs, whole-row test in WHERE
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.customers.full_name -> mart.customer_summary.full_name identity
+value staging.orders.order_ts -> mart.customer_summary.status aggregated
+value staging.customers.status -> mart.customer_summary.status conditional
+repeat influence staging.orders.customer_id -> mart.customer_summary.status
+filter staging.customers.id, staging.customers.full_name, staging.customers.status -> mart.customer_summary
+note `c IS NOT NULL` tests every column of the CTE row (D-20).
+forbid filter staging.orders.order_ts -> mart.customer_summary | o is on the null side of a LEFT JOIN (D-14)
+forbid filter staging.orders.customer_id -> mart.customer_summary | the ON is structural (D-5)

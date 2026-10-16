@@ -94,6 +94,15 @@ class Measurement:
     refusals_total: int = 0
     refusal_codes: dict[str, int] = field(default_factory=dict)
     refusal_violations: list[tuple[str, str]] = field(default_factory=list)
+    refusals_not_cross_checkable: list[tuple[str, str]] = field(default_factory=list)
+    """Refusals whose contradiction check could not run at all (stress finding S2-10).
+
+    A trigger body is analysed out of the dictionary and its edges are numbered against a
+    synthetic wrapper; a refusal on the same statement is numbered against the file. The
+    check compares the two and can only answer "no". These are the cases where the honest
+    answer is "unknown", counted so that `edges from refused = 0` is never read as
+    "checked and clean" when part of it was "could not check".
+    """
     false_abstentions: list[tuple[str, str, int]] = field(default_factory=list)
     false_abstentions_recovered: int = 0
 
@@ -260,6 +269,9 @@ def run_measurement(
             (path.stem, f"{refusal} -> {len(edges)} edge(s) emitted anyway")
             for refusal, edges in result.refusal_violations()
         ]
+        measurement.refusals_not_cross_checkable += [
+            (path.stem, str(refusal)) for refusal in result.refusals_not_cross_checkable()
+        ]
 
         produced = {(edge.origin.unit, edge.origin.line) for edge in result.edges}
         for refusal in result.refusals:
@@ -391,7 +403,12 @@ def kill_criteria(measurement: Measurement) -> list[tuple[str, str, str]]:
     rows.append(
         (
             "Any edge produced from a refused statement -> the refusal means nothing",
-            f"{len(measurement.refusal_violations)} of {measurement.refusals_total} refusals",
+            f"{len(measurement.refusal_violations)} of {measurement.refusals_total} refusals"
+            + (
+                f" ({len(measurement.refusals_not_cross_checkable)} NOT CHECKABLE)"
+                if measurement.refusals_not_cross_checkable
+                else ""
+            ),
             "PASS" if not measurement.refusal_violations else "TRIGGERED",
         )
     )
@@ -512,6 +529,10 @@ def render(measurement: Measurement) -> str:
         "   <- must be 0; checked mechanically, not by inspection"
     )
     lines.append(
+        f"  of which NOT checkable {len(measurement.refusals_not_cross_checkable)}"
+        "   <- line spaces differ, so the check above could not run (S2-10)"
+    )
+    lines.append(
         f"  false abstentions      {len(measurement.false_abstentions)}"
         f"  ({_pct(measurement.false_abstention_rate)} of refusals)"
         f"   {measurement.false_abstentions_recovered} recovered elsewhere"
@@ -538,7 +559,7 @@ def render(measurement: Measurement) -> str:
             "  <- named wrong answers, not anonymous false positives"
         )
         for package, edge, reason in measurement.forbidden:
-            guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
+            guard = f"  when {edge[5]}" if len(edge) > 5 and edge[5] else ""
             lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
             lines.append(f"    {' '.join(reason.split())[:96]}")
 
@@ -573,14 +594,14 @@ def render(measurement: Measurement) -> str:
         lines.append("")
         lines.append(f"FALSE POSITIVES ({len(measurement.spurious)})")
         for package, edge in measurement.spurious:
-            guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
+            guard = f"  when {edge[5]}" if len(edge) > 5 and edge[5] else ""
             lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
 
     if measurement.missed:
         lines.append("")
         lines.append(f"MISSED ({len(measurement.missed)})")
         for package, edge in measurement.missed:
-            guard = f"  when {edge[4]}" if len(edge) > 4 and edge[4] else ""
+            guard = f"  when {edge[5]}" if len(edge) > 5 and edge[5] else ""
             lines.append(f"  {package:<28} {edge[0]} -> {edge[1]}  [{edge[2]}/{edge[3]}]{guard}")
 
     # Last, and generated rather than written (T3.6e). It answers the question the
@@ -651,6 +672,10 @@ def as_json(measurement: Measurement) -> str:
         "honest_abstention": {
             "refusals": measurement.refusals_total,
             "by_code": measurement.refusal_codes,
+            "refusals_not_cross_checkable": [
+                {"package": package, "refusal": detail}
+                for package, detail in measurement.refusals_not_cross_checkable
+            ],
             "edges_from_refused_statements": [
                 {"package": package, "detail": detail}
                 for package, detail in measurement.refusal_violations

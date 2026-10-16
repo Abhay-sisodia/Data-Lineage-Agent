@@ -1,0 +1,2112 @@
+# GENERATED from h2_po_fact_load.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for H2 (h2_po_fact_load.sql): the purchase-order fact load, 8 statements.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every written column, every filter, and every repeated fact is stated.
+# Conventions D-1..D-53 and the B3 / B7 key conventions (D-15 EXCLUDED and self-edges, D-31).
+#
+# MF = mart.fact_po_line, PS = mart.po_supplier_summary (created by S2), SS = mart.supplier_spend.
+# S1's chain is M1's, so its facts follow M1's key:
+# LA = po_line.matching_basis, po_distribution.amount_ordered / amount_cancelled /
+# quantity_ordered / quantity_cancelled, po_line_location.price_override;
+# SC = LA + po_line.purchase_basis, po_line_ext.attribute1, po_line.unit_price,
+# po_line.amount, po_line.quantity (should_cost = COALESCE of two CASE variants over
+# the same columns).
+# A fact produced by two statements is stated once and restated with `repeat`.
+package: pg/final/hard/h2_po_fact_load.sql
+dialect: postgres
+source_sha256: 6d2823386169b1bd0e774ea7bb76019b2cb74ef151d1b1648d226130629a52c3
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: s2p.po_distribution.distribution_id
+  target:
+    kind: column
+    name: mart.fact_po_line.integration_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.po_header_id
+  target:
+    kind: column
+    name: mart.fact_po_line.po_header_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.segment1
+  target:
+    kind: column
+    name: mart.fact_po_line.po_number
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.line_number
+  target:
+    kind: column
+    name: mart.fact_po_line.line_number
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.agent_id
+  target:
+    kind: column
+    name: mart.fact_po_line.buyer_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'COALESCE(agent_id, bpa_agent_id, buyer_person_id): bpa_hdr''s BLANKET ON test (D-48), and pu''s
+    WHERE active_flag reached through two LEFT joins (D-45).'
+- source:
+    kind: column
+    name: s2p.po_header.type_lookup_code
+  target:
+    kind: column
+    name: mart.fact_po_line.buyer_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'COALESCE(agent_id, bpa_agent_id, buyer_person_id): bpa_hdr''s BLANKET ON test (D-48), and pu''s
+    WHERE active_flag reached through two LEFT joins (D-45).'
+- source:
+    kind: column
+    name: s2p.person.person_id
+  target:
+    kind: column
+    name: mart.fact_po_line.buyer_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'COALESCE(agent_id, bpa_agent_id, buyer_person_id): bpa_hdr''s BLANKET ON test (D-48), and pu''s
+    WHERE active_flag reached through two LEFT joins (D-45).'
+- source:
+    kind: column
+    name: s2p.person.active_flag
+  target:
+    kind: column
+    name: mart.fact_po_line.buyer_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'COALESCE(agent_id, bpa_agent_id, buyer_person_id): bpa_hdr''s BLANKET ON test (D-48), and pu''s
+    WHERE active_flag reached through two LEFT joins (D-45).'
+- source:
+    kind: column
+    name: s2p.po_line.item_description
+  target:
+    kind: column
+    name: mart.fact_po_line.item_description
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'concat_ws is a function, not a choice (D-19): derived. category_name comes through two instances
+    (c, pc) of one table.'
+- source:
+    kind: column
+    name: s2p.item_category.category_name
+  target:
+    kind: column
+    name: mart.fact_po_line.item_description
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'concat_ws is a function, not a choice (D-19): derived. category_name comes through two instances
+    (c, pc) of one table.'
+- source:
+    kind: column
+    name: s2p.uom.uom_name
+  target:
+    kind: column
+    name: mart.fact_po_line.item_description
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'concat_ws is a function, not a choice (D-19): derived. category_name comes through two instances
+    (c, pc) of one table.'
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: mart.fact_po_line.po_dist_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: mart.fact_po_line.po_dist_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.purchase_basis
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.purchase_basis
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute1
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute1
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: mart.fact_po_line.should_cost
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute4
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'D-7 on one target: the cost-avoidance CASE reads one column (derived) and the FX rate is multiplied
+    in (derived), while should_cost and line_amt arrive conditional.'
+- source:
+    kind: column
+    name: gold.fx_rate.conversion_rate
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'D-7 on one target: the cost-avoidance CASE reads one column (derived) and the FX rate is multiplied
+    in (derived), while should_cost and line_amt arrive conditional.'
+- source:
+    kind: column
+    name: gold.fx_rate.to_ccy
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.fx_rate.rate_date
+  target:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.inspection_required_flag
+  target:
+    kind: column
+    name: mart.fact_po_line.x_po_match
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.receipt_required_flag
+  target:
+    kind: column
+    name: mart.fact_po_line.x_po_match
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.line_status
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.line_status
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.promised_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.promised_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.need_by_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.need_by_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.approved_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.approved_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_version.po_header_id
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: pov is a null-side ROW_NUMBER pick (D-45 influence, as E1); approved_date is also a value of the
+    COALESCE fallback (D-47).
+- source:
+    kind: column
+    name: s2p.po_version.po_header_id
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: pov is a null-side ROW_NUMBER pick (D-45 influence, as E1); approved_date is also a value of the
+    COALESCE fallback (D-47).
+- source:
+    kind: column
+    name: s2p.po_version.submitted_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: pov is a null-side ROW_NUMBER pick (D-45 influence, as E1); approved_date is also a value of the
+    COALESCE fallback (D-47).
+- source:
+    kind: column
+    name: s2p.po_version.submitted_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: pov is a null-side ROW_NUMBER pick (D-45 influence, as E1); approved_date is also a value of the
+    COALESCE fallback (D-47).
+- source:
+    kind: column
+    name: s2p.po_version.approved_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: pov is a null-side ROW_NUMBER pick (D-45 influence, as E1); approved_date is also a value of the
+    COALESCE fallback (D-47).
+- source:
+    kind: column
+    name: s2p.po_version.approved_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: pov is a null-side ROW_NUMBER pick (D-45 influence, as E1); approved_date is also a value of the
+    COALESCE fallback (D-47).
+- source:
+    kind: column
+    name: gold.dim_status.status_code
+  target:
+    kind: column
+    name: mart.fact_po_line.status_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.dim_status.datasource_num_id
+  target:
+    kind: column
+    name: mart.fact_po_line.status_code
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'ON CONFLICT ... SET overdue_days = GREATEST(f.overdue_days, EXCLUDED.overdue_days): a self-edge
+    through a two-column choice (D-15, D-19). The other SET columns are EXCLUDED.c: the same facts as
+    the INSERT''s (D-15). load_ts is now(): nothing.'
+- source:
+    kind: column
+    name: s2p.po_distribution.distribution_id
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.last_modification_date_time
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.line_location_id
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.last_modification_date_time
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.line_status
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.po_header_id
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.last_modification_date_time
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.document_status
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: line_amt <> 0 reads every operand of its CASE.
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: line_amt <> 0 reads every operand of its CASE.
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: line_amt <> 0 reads every operand of its CASE.
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: line_amt <> 0 reads every operand of its CASE.
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: line_amt <> 0 reads every operand of its CASE.
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: line_amt <> 0 reads every operand of its CASE.
+- source:
+    kind: column
+    name: mart.fact_po_line.status_code
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'The DO UPDATE WHERE: the target''s own columns, and EXCLUDED.status_code''s / EXCLUDED.line_amt''s
+    sources (D-15; line_amt''s are LA, stated above). The conflict target integration_id is structural.'
+- source:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'The DO UPDATE WHERE: the target''s own columns, and EXCLUDED.status_code''s / EXCLUDED.line_amt''s
+    sources (D-15; line_amt''s are LA, stated above). The conflict target integration_id is structural.'
+- source:
+    kind: column
+    name: gold.dim_status.status_code
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'The DO UPDATE WHERE: the target''s own columns, and EXCLUDED.status_code''s / EXCLUDED.line_amt''s
+    sources (D-15; line_amt''s are LA, stated above). The conflict target integration_id is structural.'
+- source:
+    kind: column
+    name: gold.dim_status.datasource_num_id
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 31
+  evidence: source_read
+  note: 'The DO UPDATE WHERE: the target''s own columns, and EXCLUDED.status_code''s / EXCLUDED.line_amt''s
+    sources (D-15; line_amt''s are LA, stated above). The conflict target integration_id is structural.'
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.po_supplier_summary.supplier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.supplier.vendor_name
+  target:
+    kind: column
+    name: mart.po_supplier_summary.supplier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.po_header_id
+  target:
+    kind: column
+    name: mart.po_supplier_summary.po_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  target:
+    kind: column
+    name: mart.po_supplier_summary.total_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  target:
+    kind: column
+    name: mart.po_supplier_summary.total_savings
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.po_supplier_summary.po_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.po_supplier_summary.total_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.po_supplier_summary.total_savings
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.po_supplier_summary.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.supplier.vendor_name
+  target:
+    kind: column
+    name: mart.po_supplier_summary.po_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.supplier.vendor_name
+  target:
+    kind: column
+    name: mart.po_supplier_summary.total_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.supplier.vendor_name
+  target:
+    kind: column
+    name: mart.po_supplier_summary.total_savings
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.supplier.vendor_name
+  target:
+    kind: column
+    name: mart.po_supplier_summary.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  target:
+    kind: column
+    name: mart.po_supplier_summary.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+  note: 'RANK() OVER (ORDER BY SUM(line_amt)): the summed column orders it (D-4), the GROUP BY behind
+    it influences it (D-46).'
+- source:
+    kind: column
+    name: mart.fact_po_line.status_code
+  target:
+    kind: relation
+    name: mart.po_supplier_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 345
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.po_supplier_summary.supplier_id
+  target:
+    kind: column
+    name: mart.supplier_spend.supplier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 360
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.po_supplier_summary.supplier_name
+  target:
+    kind: column
+    name: mart.supplier_spend.supplier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 360
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.po_supplier_summary.po_count
+  target:
+    kind: column
+    name: mart.supplier_spend.po_count
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 360
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.po_supplier_summary.total_spend
+  target:
+    kind: column
+    name: mart.supplier_spend.total_spend
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 360
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.po_supplier_summary.total_savings
+  target:
+    kind: column
+    name: mart.supplier_spend.total_savings
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 360
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.po_supplier_summary.spend_rank
+  target:
+    kind: column
+    name: mart.supplier_spend.spend_rank
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 360
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.po_supplier_summary.spend_rank
+  target:
+    kind: relation
+    name: mart.supplier_spend
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 360
+  evidence: source_read
+  note: 'A table created in the script is a node (D-31): its columns are the sources. spend_year is a
+    literal expression.'
+- source:
+    kind: column
+    name: s2p.req_line.need_by_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 375
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.req_line.need_by_date
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 375
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  target:
+    kind: column
+    name: mart.fact_po_line.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 375
+  evidence: source_read
+  note: 'GREATEST(f.overdue_days, CURRENT_DATE - need_by) and CASE WHEN need_by ... ELSE f.overdue_bucket:
+    two columns each (D-19), self-edges (D-1).'
+- source:
+    kind: column
+    name: s2p.req_distribution.distribution_quantity
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 375
+  evidence: source_read
+  note: req's WHERE; r.rn = 1 in an INNER join's ON is a ROW_NUMBER cut (D-48, D-9); pr.req_approved_date
+    IS NOT NULL. Every join key, including the target join, is structural (D-11).
+- source:
+    kind: column
+    name: s2p.req_distribution.req_distribution_id
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 375
+  evidence: source_read
+  note: req's WHERE; r.rn = 1 in an INNER join's ON is a ROW_NUMBER cut (D-48, D-9); pr.req_approved_date
+    IS NOT NULL. Every join key, including the target join, is structural (D-11).
+- source:
+    kind: column
+    name: s2p.req_distribution.last_modification_date_time
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 375
+  evidence: source_read
+  note: req's WHERE; r.rn = 1 in an INNER join's ON is a ROW_NUMBER cut (D-48, D-9); pr.req_approved_date
+    IS NOT NULL. Every join key, including the target join, is structural (D-11).
+- source:
+    kind: column
+    name: s2p.req_header.approved_date
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 375
+  evidence: source_read
+  note: req's WHERE; r.rn = 1 in an INNER join's ON is a ROW_NUMBER cut (D-48, D-9); pr.req_approved_date
+    IS NOT NULL. Every join key, including the target join, is structural (D-11).
+- source:
+    kind: column
+    name: mart.po_supplier_summary.po_count
+  target:
+    kind: relation
+    name: mart.supplier_spend
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 416
+  evidence: source_read
+  note: USING's WHERE, the MATCHED AND condition, the BY SOURCE AND condition (B3 S15). The ON is structural.
+- source:
+    kind: column
+    name: mart.po_supplier_summary.total_spend
+  target:
+    kind: relation
+    name: mart.supplier_spend
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 416
+  evidence: source_read
+  note: USING's WHERE, the MATCHED AND condition, the BY SOURCE AND condition (B3 S15). The ON is structural.
+- source:
+    kind: column
+    name: mart.supplier_spend.total_spend
+  target:
+    kind: relation
+    name: mart.supplier_spend
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 416
+  evidence: source_read
+  note: USING's WHERE, the MATCHED AND condition, the BY SOURCE AND condition (B3 S15). The ON is structural.
+- source:
+    kind: column
+    name: mart.supplier_spend.spend_year
+  target:
+    kind: relation
+    name: mart.supplier_spend
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 416
+  evidence: source_read
+  note: USING's WHERE, the MATCHED AND condition, the BY SOURCE AND condition (B3 S15). The ON is structural.
+- source:
+    kind: column
+    name: mart.fact_po_line.status_code
+  target:
+    kind: column
+    name: <result>.status_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.x_po_match
+  target:
+    kind: column
+    name: <result>.x_po_match
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  target:
+    kind: column
+    name: <result>.line_amt
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  target:
+    kind: column
+    name: <result>.overdue_savings
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  target:
+    kind: column
+    name: <result>.overdue_savings
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.overdue_days
+  target:
+    kind: column
+    name: <result>.avg_overdue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.status_code
+  target:
+    kind: column
+    name: <result>.lines
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.status_code
+  target:
+    kind: column
+    name: <result>.line_amt
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.status_code
+  target:
+    kind: column
+    name: <result>.overdue_savings
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.status_code
+  target:
+    kind: column
+    name: <result>.avg_overdue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.x_po_match
+  target:
+    kind: column
+    name: <result>.lines
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.x_po_match
+  target:
+    kind: column
+    name: <result>.line_amt
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.x_po_match
+  target:
+    kind: column
+    name: <result>.overdue_savings
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.x_po_match
+  target:
+    kind: column
+    name: <result>.avg_overdue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.load_ts
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 436
+  evidence: source_read
+  note: 'grp is GROUPING(): nothing (D-50). HAVING COUNT(*) reads no column; ORDER BY with no limit gives
+    nothing.'
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.supplier_spend.supplier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.supplier.vendor_name
+  target:
+    kind: column
+    name: mart.supplier_spend.supplier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: mart.supplier_spend.spend_year
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.po_header_id
+  target:
+    kind: column
+    name: mart.supplier_spend.po_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  target:
+    kind: column
+    name: mart.supplier_spend.total_spend
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  target:
+    kind: column
+    name: mart.supplier_spend.total_savings
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.supplier_spend.po_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.supplier_spend.total_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.supplier_spend.total_savings
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.supplier_id
+  target:
+    kind: column
+    name: mart.supplier_spend.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: mart.supplier_spend.po_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: mart.supplier_spend.total_spend
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: mart.supplier_spend.total_savings
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: column
+    name: mart.supplier_spend.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.fact_po_line.line_amt
+  target:
+    kind: column
+    name: mart.supplier_spend.spend_rank
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.document_status
+  target:
+    kind: relation
+    name: mart.supplier_spend
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+  note: 'WHERE r.spend_year < ...: the grouping expression, not an aggregate - pre-aggregation (D-6).
+    ON CONFLICT DO NOTHING with no target adds nothing.'
+- source:
+    kind: column
+    name: s2p.po_header.created_at
+  target:
+    kind: relation
+    name: mart.supplier_spend
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 452
+  evidence: source_read
+  note: 'WHERE r.spend_year < ...: the grouping expression, not an aggregate - pre-aggregation (D-6).
+    ON CONFLICT DO NOTHING with no target adds nothing.'
+forbidden:
+- source:
+    kind: column
+    name: s2p.person.active_flag
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  reason: pu is reached only through LEFT joins (D-45)
+- source:
+    kind: column
+    name: gold.fx_rate.rate_date
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  reason: a one-row LEFT LATERAL removes no row (D-14)
+- source:
+    kind: column
+    name: s2p.po_version.approved_date
+  target:
+    kind: relation
+    name: mart.fact_po_line
+  flow: filter
+  reason: pov is on a LEFT join's null side (D-45)
+- source:
+    kind: column
+    name: s2p.supplier.vendor_id
+  target:
+    kind: relation
+    name: mart.po_supplier_summary
+  flow: filter
+  reason: the join key is structural (D-5)
+- source:
+    kind: column
+    name: mart.fact_po_line.savings_amt
+  target:
+    kind: column
+    name: mart.supplier_spend.total_savings
+  flow: value
+  reason: S3 reads the CTAS table, a node, not the fact (D-31)
+  transform: identity
+expected_boundaries: []

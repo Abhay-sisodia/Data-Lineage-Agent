@@ -1,0 +1,52 @@
+# Answer key for B6 t4_adversarial.sql - set-returning and table functions, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-26..D-28. Every node is schema-qualified.
+# S3's element and S5's whole statement have no source and no boundary - checked in the
+# report, not expressible here.
+
+@ 19 S1 element named like a source column
+value staging.orders.tags -> mart.kpi_rollup.level derived
+value staging.orders.channel -> mart.kpi_rollup.segment identity
+forbid value staging.orders.channel -> mart.kpi_rollup.level identity | t.channel is the tag, not the orders column
+
+@ 27 S2 SRF alias named like a real table
+value staging.orders.tags -> mart.top_customers.region derived
+value staging.customers.full_name -> mart.top_customers.full_name identity
+forbid filter staging.orders.customer_id -> mart.top_customers | the ON is structural (D-5)
+
+@ 37 S3 a literal array
+value core.dim_store.region -> mart.channel_mix.region identity
+
+@ 45 S4 an SRF over a scalar subquery
+value staging.products.brand, staging.products.status -> mart.product_performance.category_name aggregated
+note array_agg is on the path; the subquery's WHERE is a value of what it feeds (D-12).
+
+@ 56 S5 a series of literals only
+
+@ 63 S6 an unnest that multiplies a COUNT (D-27)
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.id -> mart.channel_mix.orders aggregated
+influence staging.orders.channel -> mart.channel_mix.orders
+forbid influence staging.orders.tags -> mart.channel_mix.orders | the unnest repeats rows but names no column (D-27)
+
+@ 72 S7 TABLESAMPLE ... REPEATABLE
+value staging.payments.amount -> mart.channel_mix.revenue identity
+filter staging.payments.method -> mart.channel_mix
+
+@ 81 S8 a CTE named unnest beside the function
+value staging.customers.segment -> mart.customer_summary.segment identity
+value staging.customers.id -> mart.customer_summary.status derived
+
+@ 94 S9 an element named like its array
+value staging.orders.tags -> mart.customer_summary.region derived
+value staging.orders.tags -> mart.customer_summary.full_name derived
+
+@ 102 S10 an SRF inside an IN subquery
+value staging.orders.channel -> mart.channel_mix.region identity
+filter staging.orders.tags -> mart.channel_mix
+note 'vip' IN (SELECT unnest(o.tags)) decides which orders land: a filter from the array.
+
+@ 111 S11 a series between two timestamp columns
+value staging.shipments.shipped_at, staging.shipments.delivered_at -> mart.sales_daily.sale_date derived
+value staging.shipments.warehouse_id -> mart.sales_daily.store_id identity

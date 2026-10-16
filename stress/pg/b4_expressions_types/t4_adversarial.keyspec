@@ -1,0 +1,83 @@
+# Answer key for B4 t4_adversarial.sql - expressions and types, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B3, plus D-19..D-22.
+
+@ 20 S1 dead reads (D-21)
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.gross_amount -> mart.sales_daily.gross_amount derived
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount derived
+value core.fct_order_line.quantity -> mart.sales_daily.units derived
+
+@ 34 S2 one column read twice (D-19)
+value core.dim_customer.customer_id -> mart.customer_summary.customer_id identity
+value core.dim_customer.customer_key -> mart.customer_summary.lifetime_value, mart.customer_summary.avg_basket derived
+value core.dim_customer.region -> mart.customer_summary.region derived
+forbid value core.dim_customer.customer_key -> mart.customer_summary.lifetime_value conditional | COALESCE(x, x) reads one distinct column (D-19)
+forbid value core.dim_customer.customer_key -> mart.customer_summary.avg_basket conditional | d.customer_key and customer_key are the same column (D-19)
+forbid value core.dim_customer.region -> mart.customer_summary.region conditional | a CASE over one column and constants is derived (D-19)
+
+@ 52 S3 self-join, two instances (D-19)
+value core.dim_product.product_id -> mart.product_performance.product_id identity
+value core.dim_product.list_price -> mart.product_performance.revenue conditional
+value core.dim_product.cost -> mart.product_performance.margin conditional
+filter core.dim_product.product_key -> mart.product_performance
+note RELABELLED UNDER D-49 (2026-10-06): a NON-equality between two relations is a filter, in ON or WHERE; both operands are the one node product_key. The equality product_id = product_id stays structural.
+
+@ 67 S4 year / month columns beside EXTRACT
+value core.dim_date.year -> mart.kpi_rollup.level derived
+value core.dim_date.month, core.dim_date.quarter -> mart.kpi_rollup.region derived
+value core.dim_date.calendar_date -> mart.kpi_rollup.orders derived
+filter core.dim_date.week, core.dim_date.calendar_date, core.dim_date.month -> mart.kpi_rollup
+forbid value core.dim_date.year -> mart.kpi_rollup.orders | `year` inside EXTRACT is a field keyword, not the column
+
+@ 81 S5 column names inside strings
+value staging.orders.currency -> mart.channel_mix.region derived
+filter staging.orders.status -> mart.channel_mix
+forbid value staging.orders.channel -> mart.channel_mix.channel | 'o.channel' is a string literal
+forbid value staging.orders.amount -> mart.channel_mix.region | 'amount' is a format() argument literal
+forbid filter staging.orders.amount -> mart.channel_mix | 'o.amount > 0' is a string literal
+
+@ 92 S6 cast chains
+value staging.orders.amount -> mart.channel_mix.orders, mart.channel_mix.revenue derived
+value staging.orders.currency -> mart.channel_mix.channel derived
+
+@ 104 S7 whole row through an alias named like a real table (D-20)
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+value staging.customers.id, staging.customers.email, staging.customers.full_name, staging.customers.country_code, staging.customers.segment, staging.customers.status, staging.customers.signup_ts, staging.customers.attributes, staging.customers.created_at -> mart.top_customers.region derived
+forbid value staging.orders.id -> mart.top_customers.customer_id | the alias `orders` is staging.customers
+forbid value staging.orders.customer_id -> mart.top_customers.region | the alias `orders` is staging.customers
+
+@ 115 S8 column subscript and slice bound (D-22)
+value staging.orders.tags, staging.orders.store_id -> mart.channel_mix.channel, mart.channel_mix.orders derived
+
+@ 125 S9 NULL tests four ways
+value staging.payments.order_id -> mart.top_customers.customer_id identity
+value staging.payments.amount -> mart.top_customers.revenue identity
+filter staging.payments.paid_at, staging.payments.method, staging.payments.currency, staging.payments.status -> mart.top_customers
+
+@ 136 S10 constant results behind a two-column test (D-19)
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.customers.country_code, staging.customers.segment -> mart.customer_summary.segment conditional
+
+@ 148 S11 two-column NULLIF; guard inside a two-column COALESCE
+repeat value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+repeat value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.net_amount, core.fct_order_line.gross_amount -> mart.sales_daily.net_amount conditional
+value core.fct_order_line.net_amount, core.fct_order_line.unit_price -> mart.sales_daily.avg_order_value conditional
+
+@ 160 S12 CASE in ORDER BY under LIMIT (D-9)
+repeat value staging.payments.order_id -> mart.top_customers.customer_id identity
+repeat value staging.payments.amount -> mart.top_customers.revenue identity
+repeat filter staging.payments.method -> mart.top_customers
+repeat filter staging.payments.paid_at -> mart.top_customers
+
+@ 170 S13 columns as BETWEEN bounds and IN-list members
+value staging.orders.channel -> mart.kpi_rollup.level identity
+filter staging.orders.amount, staging.orders.id, staging.orders.store_id, staging.orders.currency, staging.orders.discount_code -> mart.kpi_rollup
+
+@ 180 S14 column times an interval
+value staging.shipments.id -> core.fct_shipment.shipment_id identity
+value staging.shipments.shipped_at, staging.shipments.weight_kg -> core.fct_shipment.promised_date derived

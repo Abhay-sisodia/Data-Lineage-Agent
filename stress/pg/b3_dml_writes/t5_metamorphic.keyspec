@@ -1,0 +1,50 @@
+# Answer key for B3 t5_metamorphic.sql - pairs and one realistic job.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# P1-P5 must be equal: facts listed once, at spelling A. P6 is a SEAM pair: the key holds
+# both spellings' facts and says which owns which. Conventions: B1/B2 plus D-15..D-18.
+
+@ 22 P1 ON CONFLICT DO UPDATE vs MERGE
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.gross_amount -> mart.sales_daily.gross_amount aggregated
+influence core.fct_order_line.order_date, core.fct_order_line.store_id -> mart.sales_daily.gross_amount
+forbid filter core.fct_order_line.store_id -> mart.sales_daily | the conflict target (A) and the MERGE ON (B) are both structural (D-15, D-5)
+
+@ 47 P2 CTE-fed INSERT vs inlined
+value staging.payments.order_id -> mart.top_customers.customer_id identity
+value staging.payments.amount -> mart.top_customers.revenue identity
+filter staging.payments.method -> mart.top_customers
+
+@ 66 P3 omitted vs explicit column list
+value core.dim_store.region -> mart.kpi_rollup.region identity
+value core.dim_store.country_code -> mart.kpi_rollup.country_code identity
+filter core.dim_store.status -> mart.kpi_rollup
+
+@ 82 P4 SET a = x, b = y vs SET (a, b) = (x, y)
+value core.dim_warehouse.name -> core.dim_warehouse.name derived
+value core.dim_warehouse.capacity -> core.dim_warehouse.capacity derived
+filter core.dim_warehouse.status -> core.dim_warehouse
+
+@ 96 P5 DELETE ... IN vs EXISTS
+filter staging.returns.order_line_id, staging.order_lines.id, staging.order_lines.status -> staging.returns
+
+@ 115 P6 SEAM DELETE ... USING vs EXISTS
+filter staging.orders.status -> staging.payments
+@ 121 P6 B (spelling B's own facts, at its line - B4-04)
+filter staging.orders.id, staging.payments.order_id -> staging.payments
+note Spelling B only: the EXISTS correlation's operands. In A, `o.id = p.order_id` joins USING to the target (D-11) - the semi-join seam left open in B2.
+
+@ 141 R1 the nightly customer job
+value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+value staging.orders.order_ts -> mart.customer_summary.first_order_date, mart.customer_summary.last_order_date, mart.customer_summary.status aggregated
+value mart.customer_summary.lifetime_orders -> mart.customer_summary.lifetime_orders derived
+note The accumulator `cs.lifetime_orders + EXCLUDED.lifetime_orders`; the inserted count is COUNT(*), which has no source.
+value staging.orders.amount, staging.payments.amount -> mart.customer_summary.lifetime_value aggregated
+value staging.payments.status, staging.payments.paid_at -> mart.customer_summary.lifetime_value aggregated
+note D-14: the archived refunds reach the summary only through a LEFT JOIN, so their predicate decides lifetime_value and removes no summary row.
+influence staging.orders.customer_id -> mart.customer_summary.first_order_date, mart.customer_summary.last_order_date, mart.customer_summary.lifetime_orders, mart.customer_summary.lifetime_value, mart.customer_summary.status
+filter staging.orders.status, mart.customer_summary.status -> mart.customer_summary
+filter staging.payments.status, staging.payments.paid_at -> staging.payments
+note The DELETE in `archived` removes those payments (convention (c)).
+forbid filter staging.payments.status -> mart.customer_summary | reaches the summary only through a LEFT JOIN: it cannot remove a summary row (D-14)

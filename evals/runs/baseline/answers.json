@@ -1,0 +1,488 @@
+[
+  {
+    "question_id": "A1",
+    "status": "answered",
+    "text": "18 columns feed the value of mart.fact_po_line.savings_amt directly (one hop). All of them come from one statement: hard/h2_po_fact_load.sql:31. All are Tier A, band 0 and pre-aggregation.\n\n**Derived (computed from the source):**\n- gold.fx_rate.conversion_rate\n- s2p.po_line_ext.attribute4\n\n**Conditional (chosen by a condition):**\n- gold.fx_rate: from_ccy, to_ccy, rate_date\n- s2p.po_distribution: amount_cancelled, amount_ordered, quantity_cancelled, quantity_ordered\n- s2p.po_header: created_at, currency_code\n- s2p.po_line: amount, matching_basis, purchase_basis, quantity, unit_price\n- s2p.po_line_ext.attribute1\n- s2p.po_line_location.price_override\n\n**Left out because they are not value edges:**\n- Influence edges into savings_amt: gold.fx_rate.rate_date and s2p.po_line_ext.po_line_id.\n- Filter edges on the table mart.fact_po_line. These decide which rows are loaded, not the value.\n\nNo boundaries or refusals were found on this column or in its file.",
+    "cited_edges": [
+      "7e17a6fd8f12141f1343c302",
+      "69ede9f68c31f657df93afe5",
+      "695564993da8e4e2a8654bf7",
+      "5e10a04c1e87af7726c0e7a7",
+      "062a2d3b27c2503eb1936c42",
+      "03e2aa85ce030277cc99c77f",
+      "f45720faec3e7a890a00de9c",
+      "0779a704ea56f578caf93377",
+      "06a2fcd74082a3f90e0a2329",
+      "788d97d78a5e23d44d2187a8",
+      "0d2b9a08c4ead38a0d59ba6b",
+      "44386d6d603840cdb777cded",
+      "6212920823c07add26f479e0",
+      "3a28897f2ac382a2bae6d3bb",
+      "d23493569ac460c1615cc5d6",
+      "ddacce393b4a7d3faa76c397",
+      "99ff9c652b50975b6151ee5d",
+      "3c915b06741eb8b35261e342"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "A2",
+    "status": "answered",
+    "text": "Seven columns feed the value of mart.fact_po_line.overdue_days. All of them come from hard/h2_po_fact_load.sql, and every edge is `conditional` and pre-aggregation.\n\n**Statement at line 31:**\n- s2p.po_line_location.need_by_date\n- s2p.po_line_location.promised_date\n- s2p.po_version.approved_date\n- s2p.po_header.created_at\n- s2p.po_line.line_status\n- mart.fact_po_line.overdue_days (the column feeds itself, so its earlier value is kept as an input)\n\n**Statement at line 375:**\n- s2p.req_line.need_by_date\n- mart.fact_po_line.overdue_days (feeds itself again)\n\n**Influences on the same column (not value feeds, not cited):** s2p.po_version.approved_date, po_header_id and submitted_date, at line 31. approved_date is both a value source and an influence.\n\n**Filters (not cited):** many filter edges on the table mart.fact_po_line also decide which rows land.\n\nNo boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "badc4b379587ddc7a451e03a",
+      "a6711b974e3af2b8123badf2",
+      "6b65cd71329b1e73d1c6fd7c",
+      "65c82eb134ab5940e82845fe",
+      "8d1a7d04aa896be20181ebcd",
+      "9359d73c0ab5b7705b0050d5",
+      "0dd8936ac2f7c90a3f304d93",
+      "f2d98d96466aadcc87cd26ce"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "A3",
+    "status": "answered",
+    "text": "One column directly feeds the value of mart.shipment_fact.ext_amount_usd: **pg_temp.stg_ship.ext_amount_usd**. It is copied unchanged (`identity`, band 0, Tier A) by two statements in hard/h4_nightly_load.sql:\n- line 106 (edge c943e4909e3c0616d67ca395)\n- line 121 (edge b4ecc026f0150ef44a9c3d79)\n\nThis covers one hop only. I didn't trace further back to see what feeds pg_temp.stg_ship. Filter edges on mart.shipment_fact (such as line_status, delivery_class and shipment_line_id) decide which rows land, but they don't feed the value, so they're left out.\n\nUnknown: the TRUNCATE at hard/h4_nightly_load.sql:196 was refused (UNSUPPORTED_CONSTRUCT), so it was not analysed. The graph doesn't say which table it empties.",
+    "cited_edges": [
+      "c943e4909e3c0616d67ca395",
+      "b4ecc026f0150ef44a9c3d79"
+    ],
+    "cited_nodes": [
+      "pg_temp.stg_ship.ext_amount_usd"
+    ],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "A4",
+    "status": "answered",
+    "text": "Only one column feeds the value of mart.po_supplier_summary.total_spend: **mart.fact_po_line.line_amt**. The transform is `aggregated` and it is set-based SQL (band 0). The edge is bdfa0cdbea618eeb3f02b1f8, from hard/h2_po_fact_load.sql:345.\n\nThe same statement has other edges that are not value feeds, so they are not cited:\n- **Influence (GROUP BY keys):** mart.fact_po_line.supplier_id and s2p.supplier.vendor_name.\n- **Filter:** mart.fact_po_line.status_code, applied before aggregation, decides which rows reach the table.\n\nNo boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "bdfa0cdbea618eeb3f02b1f8"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "A5",
+    "status": "answered",
+    "text": "Three columns feed the value of mart.mv_entity_status.last_flag_at. All three edges are `aggregated`, band 0, Tier A, and come from two statements in hard/h3_entity_pipeline.sql (lines 525 and 548):\n- evt.flag.active_at: line 525 (08f23321e1e12588682c22cc), line 548 (1b4c5a8f48ee4ec7cd37d7ae)\n- evt.flag.entity_id: line 525 (00cc457d24e09c9712cd2de8), line 548 (e4bc619ef0bae12500f410b9)\n- evt.entity_event.entity_id: line 525 (3de950142e5da4d85395eb53), line 548 (d6ccf2c1371941cc7ada08b8)\n\nNot counted as value sources:\n- **Influences:** evt.entity_event.status and evt.flag.active_at influence the column without being part of its value. evt.flag.active_at is both a value source and an influence.\n- **Filters:** amount, created_at, entity_id, ingested_at and status from evt.entity_event act as pre-aggregation filters on the table mart.mv_entity_status.\n\nNo boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "08f23321e1e12588682c22cc",
+      "1b4c5a8f48ee4ec7cd37d7ae",
+      "00cc457d24e09c9712cd2de8",
+      "e4bc619ef0bae12500f410b9",
+      "3de950142e5da4d85395eb53",
+      "d6ccf2c1371941cc7ada08b8"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "A6",
+    "status": "answered",
+    "text": "Three columns feed the value of mart.customer_snapshot.segment (FEEDS edges only; filter edges are left out):\n\n1. **crm.customer.segment**, copied unchanged (`identity`), in two places:\n   - hard/h4_nightly_load.sql:168 (60d4cc18bf8f58c6c409d92d)\n   - hard/h5_adversarial.sql:382 (e502acc532f08e92a944b196)\n2. **pg_temp.cust_metrics.segment_hint**, chosen by a condition (`conditional`), at hard/h4_nightly_load.sql:246 (610dc557886090d180a2bbe7).\n3. **mart.customer_snapshot.segment** feeds itself (`conditional`) in the same statement at line 246 (6e2d957656482c9c2a85c45a). That statement either keeps the old value or replaces it with segment_hint.\n\nOne gap: the TRUNCATE at hard/h4_nightly_load.sql:196 was not analysed (UNSUPPORTED_CONSTRUCT). It empties the table, so it controls what the table holds afterwards, but it has no edges.",
+    "cited_edges": [
+      "60d4cc18bf8f58c6c409d92d",
+      "e502acc532f08e92a944b196",
+      "610dc557886090d180a2bbe7",
+      "6e2d957656482c9c2a85c45a"
+    ],
+    "cited_nodes": [
+      "crm.customer.segment",
+      "pg_temp.cust_metrics.segment_hint",
+      "mart.customer_snapshot.segment"
+    ],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "A7",
+    "status": "answered",
+    "text": "Only one column feeds the value of mart.shipment_fact.gross_margin_usd directly: **pg_temp.stg_ship.gross_margin_usd**. It is copied unchanged (identity) by two statements in hard/h4_nightly_load.sql:\n- line 106 (edge 57896c742b1c7e6ae5773f04)\n- line 121 (edge 24d1f5a96ebe9679c00a4685)\n\nOther columns decide which rows of mart.shipment_fact land (filter edges, pre-aggregation), but none of their data is in the value, so I left them out: stg_ship.delivery_class, ext_amount_usd, line_status and shipment_line_id; lgx.shipment_line.line_status; and the table's own delivery_class, ext_amount_usd and shipment_line_id.\n\nOne unknown: the TRUNCATE at hard/h4_nightly_load.sql:196 was not analysed (UNSUPPORTED_CONSTRUCT).\n\nI did not trace what feeds pg_temp.stg_ship.gross_margin_usd further upstream.",
+    "cited_edges": [
+      "57896c742b1c7e6ae5773f04",
+      "24d1f5a96ebe9679c00a4685"
+    ],
+    "cited_nodes": [
+      "pg_temp.stg_ship.gross_margin_usd"
+    ],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "B1",
+    "status": "answered",
+    "text": "mart.fact_po_line has 24 filter edges (FILTERS). All are pre-aggregation, identity, band 0 and Tier A, and all come from hard/h2_po_fact_load.sql. No boundaries or refusals were reported for this table.\n\n**Statement at line 31 (18 filters):**\n- s2p.po_header: po_header_id, document_status, last_modification_date_time\n- s2p.po_line: line_status, matching_basis\n- s2p.po_line_location: line_location_id, price_override, last_modification_date_time\n- s2p.po_distribution: distribution_id, quantity_ordered, quantity_cancelled, amount_ordered, amount_cancelled, last_modification_date_time\n- gold.dim_status: status_code, datasource_num_id\n- mart.fact_po_line itself: line_amt, status_code. The target table is filtering its own rows.\n\n**Statement at line 375 (4 filters):**\n- s2p.req_distribution: req_distribution_id, distribution_quantity, last_modification_date_time\n- s2p.req_header: approved_date\n\n**Statement at line 408 (2 filters):**\n- s2p.po_distribution: quantity_ordered, quantity_cancelled\n\nJoin key equalities are not counted as filters, so they don't appear here.",
+    "cited_edges": [
+      "0e2adb2a8e1ad81e54416f69",
+      "1ed609da20c58fb8a3e39be8",
+      "47e9eace333db11a4d4a8b15",
+      "483cebcd6a2af6756fb08a60",
+      "54d79e9ff94fc6af9b069cf8",
+      "576b7019a60325dfc579c66e",
+      "587a04abbe7009f442760d17",
+      "82899d8501b754bd29b34604",
+      "83c5f386d354941454867669",
+      "96851670aec15d9864bd9554",
+      "9c165bebc879d6e6d58c1988",
+      "a1d66c2b125fbae6a8cba436",
+      "c4e4bf4e1e31dcee410bf76c",
+      "c78f6e3b7d230b238fa0f0b4",
+      "cbcfbcc6b6e0e5da6e0ffee1",
+      "d1bf3c5e77c425da23881c5a",
+      "f2d41f3d78b1917a394d89d8",
+      "ff4b3d4ab5cf1b82bea69fea",
+      "5022fd263a27852cf394d20c",
+      "8bdbd39dc64b77da52302e71",
+      "f393e7a86b021539a0e53ae5",
+      "f836a97650c507520a2e257d",
+      "0b64cbe30f815511f8d3656c",
+      "379fcd9cac4f581c95d6441d"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "B2",
+    "status": "answered",
+    "text": "Eight filter edges (FILTERS) decide which rows land in mart.shipment_fact. All are pre-aggregation, identity, band 0 and Tier A, and all come from hard/h4_nightly_load.sql.\n\nStatement at line 106:\n- pg_temp.stg_ship.delivery_class\n- pg_temp.stg_ship.ext_amount_usd\n- mart.shipment_fact.delivery_class (the target table's own column, so it filters itself)\n- mart.shipment_fact.ext_amount_usd (also the target's own column)\n\nStatement at line 121:\n- pg_temp.stg_ship.shipment_line_id\n- pg_temp.stg_ship.line_status\n- mart.shipment_fact.shipment_line_id (also the target's own column)\n\nStatement at line 144:\n- lgx.shipment_line.line_status\n\nUnknown: the TRUNCATE at line 196 of the same file was not analysed (UNSUPPORTED_CONSTRUCT). It decides what the table holds afterwards, but it has no column sources.",
+    "cited_edges": [
+      "056660ee8bb6c930798327f8",
+      "c3b986e91e01e3270e78df36",
+      "e2eade0df02ab6213e57d76c",
+      "b4ee268b9192a2cba615a93f",
+      "962514e748651ce5bfca7938",
+      "ecac703e1300d4193927e32d",
+      "f9cb1da711fd52350b6aa09f",
+      "a491df39b753c506f7b603ed"
+    ],
+    "cited_nodes": [],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "B3",
+    "status": "answered",
+    "text": "One column filters which rows land in mart.po_supplier_summary: mart.fact_po_line.status_code.\n- Edge: e9a392e6bd79b47dcc85ae48 (FILTERS, Tier A, band 0, identity).\n- Phase: pre-aggregation. It removes raw fact_po_line rows before any grouping.\n- Where: hard/h2_po_fact_load.sql line 345. This is the only statement that writes the table.\n- Gaps: no boundaries or refusals are recorded on this table.",
+    "cited_edges": [
+      "e9a392e6bd79b47dcc85ae48"
+    ],
+    "cited_nodes": [
+      "mart.fact_po_line.status_code"
+    ],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "C1",
+    "status": "answered",
+    "text": "Three columns influence mart.po_supplier_summary.spend_rank without being part of its value. All three are one-hop INFLUENCES edges (identity, band 0, Tier A) from hard/h2_po_fact_load.sql:345:\n- mart.fact_po_line.line_amt (4cd0b3a59c8773262c2d3af5)\n- mart.fact_po_line.supplier_id (1db0e1d3337b368d13fa475d)\n- s2p.supplier.vendor_name (8a7f4f38057a9c24d24b63b4)\n\nThese come from the ranking's window, GROUP BY or ORDER BY keys. No value (FEEDS) edge goes into spend_rank.\n\nSeparately, mart.fact_po_line.status_code is a pre-aggregation filter on the table mart.po_supplier_summary (e9a392e6bd79b47dcc85ae48). It decides which rows land in the table, but it is not an influence on this column.\n\nNo boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "4cd0b3a59c8773262c2d3af5",
+      "1db0e1d3337b368d13fa475d",
+      "8a7f4f38057a9c24d24b63b4"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "C2",
+    "status": "answered",
+    "text": "Two columns influence mart.po_supplier_summary.total_spend without being part of its value. Both come from the statement at hard/h2_po_fact_load.sql:345, and both act as group-by keys for the aggregate:\n- mart.fact_po_line.supplier_id: influence, identity (edge 8f3b9737a5714c3420301c31)\n- s2p.supplier.vendor_name: influence, identity (edge ea49d6b0e7f7bab51b01d5b3)\n\nThe same statement has two other edges that aren't influences:\n- mart.fact_po_line.line_amt is part of the value (aggregated, edge bdfa0cdbea618eeb3f02b1f8).\n- mart.fact_po_line.status_code is a pre-aggregation filter on the table (edge e9a392e6bd79b47dcc85ae48). It decides which rows land, not the value itself.\n\nNo boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "8f3b9737a5714c3420301c31",
+      "ea49d6b0e7f7bab51b01d5b3"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "C3",
+    "status": "answered",
+    "text": "Two columns influence mart.mv_entity_status.last_flag_at. Both influence edges come from hard/h3_entity_pipeline.sql, from the statements at lines 525 and 548, and all are in the pre-aggregation phase:\n- evt.entity_event.status: influence edges f1ca2a8d02bd934fb2fed129 (line 525) and dae1b2de5389797094471963 (line 548). It is not part of the column's value. The same column also filters rows of mart.mv_entity_status.\n- evt.flag.active_at: influence edges c9421868f3f5167c19e5136e (line 525) and 8b02d08eb8ab6bc06a90a8b2 (line 548). This column is also an aggregated value source of last_flag_at (FEEDS edges 08f23321e1e12588682c22cc and 1b4c5a8f48ee4ec7cd37d7ae). Both facts are true (D-47). So its role here is not purely influence: it also feeds the value.\n\nSeveral columns only filter the mart.mv_entity_status table: evt.entity_event.amount, created_at, ingested_at and entity_id. A filter decides which rows land, not the column's value, so they are not listed above. No boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "f1ca2a8d02bd934fb2fed129",
+      "dae1b2de5389797094471963",
+      "c9421868f3f5167c19e5136e",
+      "8b02d08eb8ab6bc06a90a8b2"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "D1",
+    "status": "answered",
+    "text": "A change to mart.fact_po_line.supplier_id directly affects 10 columns, one hop away. All of them come from hard/h2_po_fact_load.sql. Every edge is band 0 and Tier A.\n\n**Value (identity copy):**\n- mart.po_supplier_summary.supplier_id (line 345), edge d093dc68c5112b2aadbc8a83\n- mart.supplier_spend.supplier_id (line 452), edge 0c578d472cd075b53d10f6ec\n\n**Influence (supplier_id is a grouping or ordering key, not part of the value):**\n- Line 345, mart.po_supplier_summary:\n  - po_count, edge 64aa8f174538fc4f6c711d67\n  - spend_rank, edge 1db0e1d3337b368d13fa475d\n  - total_savings, edge 5bb3fff670ae9f69199c2059\n  - total_spend, edge 8f3b9737a5714c3420301c31\n- Line 452, mart.supplier_spend:\n  - po_count, edge c7b70b6586e4cddb0a5d9ede\n  - spend_rank, edge 3517426f72832b16fb523304\n  - total_savings, edge ca60ee6bc7d3f282e6921db1\n  - total_spend, edge dee9c0e84a8c26424e828877\n\nNo boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "d093dc68c5112b2aadbc8a83",
+      "0c578d472cd075b53d10f6ec",
+      "64aa8f174538fc4f6c711d67",
+      "1db0e1d3337b368d13fa475d",
+      "5bb3fff670ae9f69199c2059",
+      "8f3b9737a5714c3420301c31",
+      "c7b70b6586e4cddb0a5d9ede",
+      "3517426f72832b16fb523304",
+      "ca60ee6bc7d3f282e6921db1",
+      "dee9c0e84a8c26424e828877"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "D2",
+    "status": "answered",
+    "text": "A change to mart.shipment_fact.customer_id directly reaches 10 columns, all in hard/h4_nightly_load.sql (Tier A, band 0).\n\n**Value flow (identity copy)**\n- mart.customer_snapshot.customer_id, at line 168 (75e23c64707e1e1e7b1d044b)\n- pg_temp.cust_metrics.customer_id, at line 212 (8d9a5feee7bf63f967018526)\n\n**Influence (customer_id is used as a grouping or window key; its value is not copied into these columns)**\n- At line 168, three mart.customer_snapshot columns:\n  - last_ship_date (9cc13eb3ad0222ff92633580)\n  - lifetime_revenue (f0b22314608b1f03c50a248d)\n  - open_lines (a64427679c1d7eef79fe6393)\n- At line 212, five pg_temp.cust_metrics columns:\n  - late_ratio (9f47dfe73ba0ccfcd3389feb)\n  - margin_pct (14a22b6a5f6f6786f81e74df)\n  - revenue (1545f354233b2a64f27ce9d9)\n  - revenue_rank (7f11e6e927bb1707c4dcc887)\n  - segment_hint (0a00c56d15f0b6f786160f66)\n\n**Unknown:** the same file has a TRUNCATE at line 196 that was not analysed (UNSUPPORTED_CONSTRUCT), so it has no edges. No boundaries were found on this column's lineage.",
+    "cited_edges": [
+      "75e23c64707e1e1e7b1d044b",
+      "8d9a5feee7bf63f967018526",
+      "9cc13eb3ad0222ff92633580",
+      "f0b22314608b1f03c50a248d",
+      "a64427679c1d7eef79fe6393",
+      "9f47dfe73ba0ccfcd3389feb",
+      "14a22b6a5f6f6786f81e74df",
+      "1545f354233b2a64f27ce9d9",
+      "7f11e6e927bb1707c4dcc887",
+      "0a00c56d15f0b6f786160f66"
+    ],
+    "cited_nodes": [],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "D3",
+    "status": "answered",
+    "text": "A change to mart.fact_po_line.line_amt directly affects six targets, one hop each. All six come from hard/h2_po_fact_load.sql and are Tier A, band 0.\n\nValue (FEEDS, aggregated):\n- mart.po_supplier_summary.total_spend (line 345)\n- mart.supplier_spend.total_spend (line 452)\n- <result:hard/h2_po_fact_load.sql>.line_amt, the output of a bare SELECT (line 436)\n\nInfluence (INFLUENCES, identity):\n- mart.po_supplier_summary.spend_rank (line 345)\n- mart.supplier_spend.spend_rank (line 452)\n\nFilter (FILTERS, pre-aggregation):\n- mart.fact_po_line (line 31). line_amt decides which rows land in the table, so every column of mart.fact_po_line depends on it.\n\nNo boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "bdfa0cdbea618eeb3f02b1f8",
+      "f6e23f2b199e4d105d43b5ae",
+      "773fe2bb7be4139db1ae7231",
+      "4cd0b3a59c8773262c2d3af5",
+      "4a4c19b429d148b04781a97c",
+      "1ed609da20c58fb8a3e39be8"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "D4",
+    "status": "answered",
+    "text": "mart.fact_po_line.status_code has 8 direct (one-hop) downstream effects, all in hard/h2_po_fact_load.sql:\n\nValue (FEEDS):\n- <result:hard/h2_po_fact_load.sql>.status_code: copied unchanged (identity), line 436 [18986e75b567fbc6197a5da6].\n\nInfluence (it decides the value but is not part of it, such as a GROUP BY key), line 436:\n- <result>.avg_overdue [03a1a2933748b1bec225010b]\n- <result>.line_amt [8b6feb8601a4e618856085fb]\n- <result>.lines [8fdad7058831eddc6eac59a6]\n- <result>.overdue_savings [c94da1ccffa9a700b8e30efc]\n\nFilter (it decides which rows land, before aggregation):\n- mart.fact_po_line, line 31 [82899d8501b754bd29b34604]\n- mart.po_supplier_summary, line 345 [e9a392e6bd79b47dcc85ae48]\n\nA filter applies to the whole table, so it affects every column of mart.fact_po_line and mart.po_supplier_summary. No boundaries or refusals were found on this column's lineage.",
+    "cited_edges": [
+      "18986e75b567fbc6197a5da6",
+      "03a1a2933748b1bec225010b",
+      "8b6feb8601a4e618856085fb",
+      "8fdad7058831eddc6eac59a6",
+      "c94da1ccffa9a700b8e30efc",
+      "82899d8501b754bd29b34604",
+      "e9a392e6bd79b47dcc85ae48"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "E1",
+    "status": "answered",
+    "text": "It takes two value (FEEDS) hops, both in hard/h2_po_fact_load.sql:\n1. s2p.po_distribution.amount_cancelled \u2192 mart.fact_po_line.line_amt (line 31). The transform is conditional, so amount_cancelled is chosen by a condition such as CASE or COALESCE. Phase is pre-aggregation, band 0, tier A. Edge e0a43e243183aaf24d0436b3.\n2. mart.fact_po_line.line_amt \u2192 mart.po_supplier_summary.total_spend (line 345). The transform is aggregated, so the values are summed up over many rows. Phase is pre-aggregation, band 0, tier A. Edge bdfa0cdbea618eeb3f02b1f8.\nThe full path carries the strongest transform along the way, which is aggregated. No boundaries or refusals were found on total_spend's lineage.",
+    "cited_edges": [
+      "e0a43e243183aaf24d0436b3",
+      "bdfa0cdbea618eeb3f02b1f8"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "E2",
+    "status": "answered",
+    "text": "It takes two value (FEEDS) hops, both in hard/h4_nightly_load.sql, band 0, Tier A:\n\n1. gold.fx_rate.conversion_rate \u2192 pg_temp.stg_ship.gross_margin_usd: **derived** (computed from it), line 40 (edge 167802ad814b4de9c2e3a290).\n2. pg_temp.stg_ship.gross_margin_usd \u2192 mart.shipment_fact.gross_margin_usd: **identity** (copied unchanged). Two separate statements write this hop:\n   - line 106 (edge 57896c742b1c7e6ae5773f04)\n   - line 121 (edge 24d1f5a96ebe9679c00a4685)\n\nSo the strongest transform on the whole path is **derived**: the rate is used in a calculation, not copied as is.\n\nOne thing is unknown: the statement at line 196 is a TRUNCATE that was not analysed (UNSUPPORTED_CONSTRUCT). It has no edges, but it decides what a table holds afterwards.",
+    "cited_edges": [
+      "167802ad814b4de9c2e3a290",
+      "24d1f5a96ebe9679c00a4685",
+      "57896c742b1c7e6ae5773f04"
+    ],
+    "cited_nodes": [],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "E3",
+    "status": "answered",
+    "text": "It gets there in two hops, both in hard/h2_po_fact_load.sql:\n\n1. **Value flow (`conditional`, pre-aggregation), line 31:** s2p.po_distribution.amount_cancelled \u2192 mart.fact_po_line.line_amt (edge e0a43e243183aaf24d0436b3). The column feeds line_amt through a conditional expression, such as a CASE or COALESCE.\n2. **Influence flow (`identity`), line 345:** mart.fact_po_line.line_amt \u2192 mart.po_supplier_summary.spend_rank (edge 4cd0b3a59c8773262c2d3af5). Here line_amt decides spend_rank without being part of its value. An influence flow comes from things like a window's ORDER BY or a GROUP BY key, so a ranking expression is the likely case, but the graph doesn't record which.\n\nSo amount_cancelled is **not** in spend_rank's value. It only affects the ranking, through line_amt.\n\nNo boundaries or refusals are recorded on spend_rank's lineage.",
+    "cited_edges": [
+      "e0a43e243183aaf24d0436b3",
+      "4cd0b3a59c8773262c2d3af5"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "F1",
+    "status": "answered",
+    "text": "One statement in hard/h4_nightly_load.sql was not analysed: the TRUNCATE at line 196.\n\n- **Refusal:** `hard/h4_nightly_load.sql#<script>:196:statement`, code UNSUPPORTED_CONSTRUCT. A TRUNCATE empties a table with no condition, so no column gets a source and the statement has no lineage edges. It still decides what the table holds afterwards, so it is recorded instead of skipped.\n- **Matching boundary:** `REFUSAL:<SCRIPT>:196`, kind refusal.\n\nNothing else in this file is marked as a boundary or refusal. The tool output does not say which table the TRUNCATE empties.",
+    "cited_edges": [],
+    "cited_nodes": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "unknowns": [
+      "REFUSAL:<SCRIPT>:196",
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "F2",
+    "status": "answered",
+    "text": "Every statement in easy/e4_expressions.sql was analysed. There are no refusals. There is one gap, a boundary:\n\n- `SOURCE_UNAVAILABLE:NORMALISE_UOM` (line 16): this rests on code we could not read. The function `NORMALISE_UOM` is called, but its source is not part of the analysis. Its arguments are treated as `derived` values of the result (D-53). That is an assumption about a body nobody read, so any edge that goes through `NORMALISE_UOM` is unverified beyond that point.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [
+      "SOURCE_UNAVAILABLE:NORMALISE_UOM"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "F3",
+    "status": "answered",
+    "text": "Yes. One part of uom_key's lineage is unknown:\n- **Boundary `SOURCE_UNAVAILABLE:NORMALISE_UOM`** (easy/e4_expressions.sql:16). uom_key is computed by calling the function NORMALISE_UOM, and we don't have that function's source code. Its arguments are assumed to pass through as `derived` values (D-53). That is an assumption about a function body nobody read.\n- The two value edges into uom_key both rely on that assumption:\n  - lgx.item_master.item_code \u2192 uom_key, derived (722086f4219d0a5900d4bd1c)\n  - lgx.item_master.weight_kg \u2192 uom_key, derived (f9b2e33c46635c7b165810fc)\n- Whatever NORMALISE_UOM reads or computes inside its body can't be traced.\n- No statements in this file were refused. The row filters on the result are pre-aggregation and fully traced: item_class, line_status, line_type_code, shipped_qty and unit_selling_price.",
+    "cited_edges": [
+      "722086f4219d0a5900d4bd1c",
+      "f9b2e33c46635c7b165810fc"
+    ],
+    "cited_nodes": [],
+    "unknowns": [
+      "SOURCE_UNAVAILABLE:NORMALISE_UOM"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "G1",
+    "status": "answered",
+    "text": "Every column of mart.po_supplier_summary has lineage. All 6 columns have at least one lineage edge. The table is written by one statement, hard/h2_po_fact_load.sql:345. No boundaries or refusals are recorded on it.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "G2",
+    "status": "answered",
+    "text": "Only one column of mart.shipment_fact has no lineage: **mart.shipment_fact.load_ts**. The other 10 of its 11 columns have lineage.\n\nThe graph has no edge coming into load_ts, so it has no source column. That is what happens when a column is filled only by a literal, a parameter or something like now(). The graph can't say which one it was here.\n\nThree statements in hard/h4_nightly_load.sql write the table: lines 106, 121 and 144.\n\nOne unknown: the statement at hard/h4_nightly_load.sql:196 is a TRUNCATE. It was refused (UNSUPPORTED_CONSTRUCT), so it was not analysed and has no edges.",
+    "cited_edges": [],
+    "cited_nodes": [
+      "mart.shipment_fact.load_ts"
+    ],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "H1",
+    "status": "clarify",
+    "text": "'status_code' matches 4 columns - which one?",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": [
+      "gold.dim_status.status_code",
+      "mart.fact_po_line.status_code",
+      "lgx.shipment_header.status_code",
+      "<result:hard/h2_po_fact_load.sql>.status_code"
+    ]
+  },
+  {
+    "question_id": "H2",
+    "status": "answered",
+    "text": "Three analysed statements write to mart.shipment_fact. All three are in hard/h4_nightly_load.sql:\n- hard/h4_nightly_load.sql#<script>:106\n- hard/h4_nightly_load.sql#<script>:121\n- hard/h4_nightly_load.sql#<script>:144\n\nThere's one unknown. The table's gaps list a refused statement at hard/h4_nightly_load.sql line 196. It is a TRUNCATE, refused as UNSUPPORTED_CONSTRUCT. It was not analysed and has no edges, but it decides what the table holds afterwards.",
+    "cited_edges": [],
+    "cited_nodes": [
+      "hard/h4_nightly_load.sql#<script>:106",
+      "hard/h4_nightly_load.sql#<script>:121",
+      "hard/h4_nightly_load.sql#<script>:144"
+    ],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  {
+    "question_id": "I1",
+    "status": "refused",
+    "text": "I can only read lineage; I cannot change the graph or the data.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  {
+    "question_id": "J1",
+    "status": "clarify",
+    "text": "'customer_id' matches 19 columns - which one?",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": [
+      "crm.contact.customer_id",
+      "crm.customer.customer_id",
+      "pg_temp.p4_a.customer_id",
+      "pg_temp.p4_b.customer_id",
+      "pg_temp.p4_c.customer_id",
+      "pg_temp.p10_a.customer_id",
+      "pg_temp.p10_b.customer_id",
+      "pg_temp.stg_ship.customer_id",
+      "mart.shipment_fact.customer_id",
+      "lgx.shipment_header.customer_id",
+      "pg_temp.cust_metrics.customer_id",
+      "mart.customer_snapshot.customer_id",
+      "<result:control/c_fail.sql>.customer_id",
+      "<result:control/c_pass.sql>.customer_id",
+      "<result:hard/h5_adversarial.sql>.customer_id",
+      "<result:medium/m3_hierarchies.sql>.customer_id",
+      "<result:hard/h1_shipment_margin.sql>.customer_id",
+      "<result:medium/m5_names_under_load.sql>.customer_id",
+      "<result:medium/m2_shipment_exceptions.sql>.customer_id"
+    ]
+  },
+  {
+    "question_id": "K1",
+    "status": "answered",
+    "text": "I found no lineage for mart.shipment_fact.load_ts. No value or influence edge leads into it, and coverage lists it as the only column of mart.shipment_fact (1 of 11) without lineage. A column fed only by a literal or a parameter has no upstream, but the graph doesn't show what actually writes this column, so I can't say more than that.\n\nThe table is written by hard/h4_nightly_load.sql at lines 106, 121 and 144. Those statements have pre-aggregation filters on the table: they decide which rows land, but none of their data ends up in load_ts. The filter sources are:\n- pg_temp.stg_ship: delivery_class, ext_amount_usd, line_status, shipment_line_id\n- mart.shipment_fact: delivery_class, ext_amount_usd, shipment_line_id\n- lgx.shipment_line.line_status\n\nOne unknown: the TRUNCATE at hard/h4_nightly_load.sql:196 was not analysed (UNSUPPORTED_CONSTRUCT).",
+    "cited_edges": [],
+    "cited_nodes": [
+      "mart.shipment_fact.load_ts"
+    ],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  }
+]

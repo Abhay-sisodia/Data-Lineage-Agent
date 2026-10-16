@@ -15,11 +15,13 @@ them separate is what lets the score say which one broke.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
+from typing import Any
 
 import sqlglot
 from sqlglot import exp
 
-from lineage.analysis import band0
+from lineage.analysis import band0, effects, fallback, ledger, plpgsql
 from lineage.analysis.band0 import AnalysisResult, Refusal
 from lineage.analysis.cfg import Cfg, build_all
 from lineage.analysis.cfg import NodeKind as CfgNodeKind
@@ -29,21 +31,93 @@ from lineage.analysis.defuse import (
     collect_scopes,
     definitions_and_uses,
 )
+from lineage.analysis.document_tables import restate as restate_document_tables
 from lineage.analysis.dynamic import Resolution, resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
-from lineage.analysis.refusal import classify_program, enclosing_unit_at
+from lineage.analysis.refusal import RefusalCode, classify_program, enclosing_unit_at
+from lineage.analysis.relations import is_path_change, search_path_change
 from lineage.analysis.scratch import find_fusion_hazards
 from lineage.analysis.triggers import inherited_edges
 from lineage.config import AnalysisConfig
+from lineage.dialects import resolve_dialect
 from lineage.evidence.witness import ExecutionWitness
-from lineage.ir.model import Boundary, BoundaryKind, IREdge, Node, NodeKind
-from lineage.parsing.generated.PlSqlParser import PlSqlParser
-from lineage.parsing.plsql import Program, iter_contexts, parse_program, source_slice
+from lineage.ir.model import Boundary, BoundaryKind, Flow, IREdge, Node, NodeKind
+from lineage.parsing import pg_grammar, pg_referee, pg_restate, psql
+from lineage.parsing.plsql import Program, source_slice
+from lineage.parsing.sqlscript import SCRIPT_UNIT
 from lineage.resolution.dictionary import Dictionary
 from lineage.resolution.views import resolve_views
 
-__all__ = ["AnalysisResult", "Refusal", "analyse_source"]
+__all__ = ["AnalysisResult", "Refusal", "RunCarry", "analyse_source", "restate_postgres"]
+
+
+@dataclass
+class RunCarry:
+    """What one file of a folder run leaves for the files after it (D-65).
+
+    Files run in order, as `run_all.sh` runs them, so a later file sees what an earlier one
+    built: the tables it created and the columns it added or renamed (the dictionary as it
+    left it), the routines it defined, and their summaries. Without it, a table made by
+    `CREATE TABLE ... AS` in one file was "not in dictionary" in the next, and a column added
+    by `ALTER TABLE` was "not a column" (holdout3, R1). Temp tables do not carry: each file is
+    its own session.
+    """
+
+    dictionary: Any
+    functions: dict[str, Any] = field(default_factory=dict)
+    summaries: dict[str, Any] = field(default_factory=dict)
+
+    def keep(self, dictionary: Any) -> None:
+        temp = {k for k in dictionary.objects if k.startswith("pg_temp.")}
+        if temp:
+            dictionary = dictionary.model_copy(
+                update={
+                    name: {k: v for k, v in getattr(dictionary, name).items() if k not in temp}
+                    for name in ("objects", "columns", "view_text", "temporary")
+                }
+            )
+        self.dictionary = dictionary
+
+
+def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_referee.Verdict]]:
+    """A PostgreSQL script as the analyser reads it, every line number unchanged.
+
+    Returns the restated source, the psql includes, and PostgreSQL's own verdict on every
+    statement - those it rejects are blanked out of the source, for the caller to refuse by
+    name; all of them are the statement ledger's rows.
+    """
+    # D-36, D-37: a psql script restated as the SQL the server receives - meta-commands
+    # blanked, `:'v'` substituted, `U&""` decoded - before anything splits or parses
+    # it (B10-03, B10-05). Same lines, so every later line number holds.
+    source, includes = psql.restate(source)
+    # Plan step 2: PostgreSQL's own grammar referees every statement before anything else
+    # reads it. One it rejects is not SQL the server would run - SQLGlot accepts some such
+    # (`TIMESTAMP('...')`, a Spark spelling) and would answer for it with confident edges.
+    source, verdicts = pg_referee.set_aside(source)
+    # Plan step 4, rung 1: PostgreSQL SQLGlot cannot parse, restated by PostgreSQL's own
+    # tree (a boolean SET value, an alias-less JSON_TABLE). Same lines.
+    source = pg_restate.restate_source(source, verdicts)
+    # Plan step 8: roles, grants, comments, maintenance ... - nothing to trace and nothing to
+    # refuse; PostgreSQL's parser named them, so SQLGlot never has to.
+    source = pg_referee.set_aside_inert(source, verdicts)
+    # D-30: JSON_TABLE / XMLTABLE restated as LATERAL subqueries in the SOURCE, before
+    # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
+    # (B5-04), and the refusal register scans the raw text. Line counts are kept.
+    source = restate_document_tables(source)
+    # B7-07: SQLGlot cannot parse OVERRIDING {SYSTEM|USER} VALUE. It decides whether an
+    # identity column takes the supplied value and changes nothing about lineage, so it
+    # is blanked - same length, so every line and column stays where it was.
+    source = re.sub(
+        r"\bOVERRIDING\s+(?:SYSTEM|USER)\s+VALUE\b",
+        lambda m: re.sub(r"\S", " ", m.group(0)),
+        source,
+        flags=re.IGNORECASE,
+    )
+    # TT-5: PostgreSQL grammar SQLGlot has no rule for (SEARCH / CYCLE, SQL/JSON and XML
+    # keyword forms, typed and radix literals, geometric operators ...), restated as SQL
+    # that reads the same columns. Same lines, so every later line number holds.
+    return pg_grammar.restate(source), includes, verdicts
 
 
 def analyse_source(
@@ -51,22 +125,114 @@ def analyse_source(
     dictionary: Dictionary,
     config: AnalysisConfig | None = None,
     witness: ExecutionWitness | None = None,
+    result_target: str | None = None,
+    carry: RunCarry | None = None,
 ) -> AnalysisResult:
     """Analyse one PL/SQL source unit for band-0 and band-1 lineage.
 
+    ``carry`` threads a folder run (D-65): this file is analysed against what the files
+    before it built, and leaves what it built for the files after it.
+
     ``witness`` supplies execution evidence (T3.5). Omit it and every edge carries
     ``unexercised=None`` - nothing was observed, so nothing is claimed either way.
+
+    ``result_target`` names the relation a TARGETLESS query writes into (PG-09) - a dbt or
+    Databricks model's own table. Omit it and such a query's projections land on
+    ``<result>``.
     """
     settings = config or AnalysisConfig()
+    if carry is not None:
+        dictionary = carry.dictionary
+    original_lines = source.split("\n")
+    dialect = resolve_dialect(settings, dictionary)
 
-    program = parse_program(source)
+    includes: list[psql.Include] = []
+    verdicts: list[pg_referee.Verdict] = []
+    desugared: plpgsql.Desugared | None = None
+    if dialect.name == "postgres":
+        source, includes, verdicts = restate_postgres(source)
+        # B8 (D-39..D-42): every PL/pgSQL routine and DO block the reader can read becomes
+        # the SQL its body runs, at its own lines; what it cannot read stays as written and
+        # is refused by name, as before. `plpgsql.finish` restates the result afterwards.
+        desugared = plpgsql.desugar(source, dictionary, carry.functions if carry else None)
+        source = desugared.source
+
+    program = dialect.frontend.parse(source)
 
     # Callees are summarised before the call sites are analysed, so a scalar UDF inside a
     # SELECT contributes the columns its return value depends on rather than the columns
     # in its arguments.
     summaries = build_summaries(program, dictionary, settings.budgets.interprocedural_depth_cap)
+    if carry is not None:
+        summaries = {**carry.summaries, **summaries}
 
-    result = band0.analyse_source(source, dictionary, settings, summaries=summaries)
+    result = band0.analyse_source(
+        source,
+        dictionary,
+        settings,
+        summaries=summaries,
+        result_target=result_target,
+        join_keys=True,
+    )
+    schema_after = result.schema_after  # every band-0 pass reads the same script: same schema
+    if desugared is not None:
+        # Rule 6: a scalar PL/pgSQL function's summary comes from its own body, which band
+        # 0 has just traced. A function calling a function needs its callee's summary first,
+        # so band 0 runs again until the summaries stop changing (bounded by the depth cap).
+        result = plpgsql.finish(result, desugared, dictionary)
+        known = dict(summaries)
+        for _ in range(settings.budgets.interprocedural_depth_cap):
+            found = plpgsql.summaries(result, desugared)
+            if not found or all(known.get(name) == summary for name, summary in found.items()):
+                break
+            known.update(found)
+            result = plpgsql.finish(
+                band0.analyse_source(
+                    source,
+                    dictionary,
+                    settings,
+                    summaries=known,
+                    result_target=result_target,
+                    join_keys=True,
+                ),
+                desugared,
+                dictionary,
+            )
+
+    # Plan step 5: a statement inside a routine the PL/pgSQL reader could not follow is
+    # refused ALONE, at its own lines - the routine around it was read.
+    for line, end_line, unit, why in desugared.opaque if desugared is not None else ():
+        result.statements_seen += 1
+        excerpt = " ".join(" ".join(original_lines[line - 1 : end_line]).split())[:80]
+        result.refusals.append(
+            Refusal(
+                kind="plpgsql_statement",
+                line=line,
+                reason=f"a PL/pgSQL statement the reader could not follow - {why}; the rest "
+                f"of {unit} is analysed",
+                excerpt=excerpt,
+                code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+                unit=unit,
+                end_line=end_line,
+            )
+        )
+
+    # Plan step 2: each statement PostgreSQL's own parser rejected was blanked before any
+    # front end read it - counted here, and refused by name, so it is never silent.
+    for rejection in (v for v in verdicts if not v.valid):
+        result.statements_seen += 1
+        result.refusals.append(
+            Refusal(
+                kind=(rejection.text.split() or ["?"])[0].upper(),
+                line=rejection.line,
+                reason=f"PostgreSQL's own parser rejects this statement ({rejection.error}) - it "
+                "is not SQL the server would run, so nothing is claimed from it",
+                excerpt=" ".join(rejection.text.split())[:80],
+                code=RefusalCode.PARSE_FAILED,
+                unit=SCRIPT_UNIT,
+                end_line=rejection.end_line,
+            )
+        )
 
     # The unanalysable-construct classifier (T3.1), run over the whole program rather than
     # over one module's statement list. A `MODEL` clause is refused whether it appears in a
@@ -76,12 +242,50 @@ def analyse_source(
     # Only flagged statements are counted, and each one costs exactly one statement of
     # parse coverage. Refusing is never free: a classifier that abstained from everything
     # would report 0% coverage, not 100% precision.
+    # `scoped_statements` carries the statements band 0 refused only in PART (PG-20). Their
+    # refusals are addressed at a CTE's line rather than the statement's, so the dedup key
+    # below cannot see them, and this pass would re-refuse the whole statement: a second
+    # `statements_seen`, a refusal spanning lineage that was legitimately produced, and a
+    # `violations` contradiction for every recovered edge. Measured before it was fixed -
+    # the ungated probe reported `seen 2, refusals 1, violations 1` on four correct edges.
+    # D-37: `\i` runs another file, whose lineage this analysis does not have.
+    for include in includes:
+        result.boundaries.append(
+            Boundary(
+                kind=BoundaryKind.SOURCE_UNAVAILABLE,
+                subject=include.path,
+                detail=f"\\i {include.path}: an included script's lineage is not in this "
+                "analysis (D-37)",
+                unit=band0.SCRIPT_UNIT,
+                line=include.line,
+            )
+        )
+
     already_refused = {(refusal.unit, refusal.line) for refusal in result.refusals}
-    for refusal in classify_program(program):
-        if (refusal.unit, refusal.line) not in already_refused:
-            result.statements_seen += 1
-            result.refusals.append(refusal)
-            already_refused.add((refusal.unit, refusal.line))
+    already_refused |= result.scoped_statements
+    standing = list(result.refusals)
+    for candidate in classify_program(program):
+        # Addressed already, either exactly or by falling inside a standing refusal's SPAN.
+        # The span test is the part PG-20 needed. `classify_program`'s third pass reports a
+        # construct at the line the construct sits on, while its first pass and band 0
+        # report the line the STATEMENT starts on, so the two addresses for one construct
+        # differ by however long the statement is - 795 lines, in the torture file. Without
+        # it the same `JSON_TABLE` was refused twice at two addresses, which cost a second
+        # `statements_seen` and reported coverage 0.5 for a statement that was analysed and
+        # produced 329 edges.
+        if (candidate.unit, candidate.line) in already_refused:
+            continue
+        if any(prior.covers(candidate.unit, candidate.line) for prior in standing):
+            continue
+        result.statements_seen += 1
+        result.refusals.append(candidate)
+        already_refused.add((candidate.unit, candidate.line))
+        # Appended, so the span test also holds WITHIN this pass. Two constructs in one
+        # statement otherwise produce two refusals and two `statements_seen` for one
+        # statement - which contradicts `_deduplicate`'s stated policy of one refusal per
+        # statement, and which band 0 never noticed because it only ever reaches statements
+        # its own front end could parse.
+        standing.append(candidate)
     for refusal in result.refusals:
         refused = Boundary(
             kind=BoundaryKind.REFUSAL,
@@ -94,8 +298,8 @@ def analyse_source(
         if refused not in result.boundaries:
             result.boundaries.append(refused)
 
-    scopes = collect_scopes(program)
-    graphs = build_all(program)
+    scopes = collect_scopes(program, dictionary.dialect)
+    graphs = build_all(program, dictionary.dialect)
 
     # Resolved once for the whole source, not per unit: a carrier variable is a carrier
     # everywhere, and the constant environment is built in source order.
@@ -121,6 +325,14 @@ def analyse_source(
         dataflow = analyse_unit(cfg, scope, dictionary, dynamic)
         result.edges.extend(dataflow.edges)
         for item in dataflow.unresolved:
+            # TT-4: band 0 now counts and refuses a script statement SQLGlot cannot parse,
+            # so def-use's parse failure for the same statement would declare it twice.
+            if (
+                isinstance(item, Boundary)
+                and item.kind is BoundaryKind.PARSE_FAILURE
+                and (unit.upper(), item.line) in _refused_at(result)
+            ):
+                continue
             unresolved = _in_unit(unit, item, BoundaryKind.UNRESOLVED_IDENTIFIER)
             if unresolved not in result.boundaries:
                 result.boundaries.append(unresolved)
@@ -139,6 +351,15 @@ def analyse_source(
         _written_relations(program, dynamic), dictionary
     )
     result.edges.extend(trigger_edges)
+
+    # S2-10: a trigger body is analysed out of the DICTIONARY, wrapped in a synthetic
+    # procedure, so its edges carry lines relative to that wrapper while a refusal on the
+    # same statement carries the line in the FILE. Recording the units here is what lets
+    # `refusals_not_cross_checkable` say "unknown" instead of letting `covers()` answer
+    # "no" for a reason that has nothing to do with the truth.
+    result.incomparable_units.update(
+        qualified.rpartition(".")[2].upper() for qualified in dictionary.triggers
+    )
     for note in trigger_boundaries:
         trigger_note = Boundary(
             kind=BoundaryKind.SOURCE_UNAVAILABLE,
@@ -152,7 +373,7 @@ def analyse_source(
         if suppressed not in result.boundaries:
             result.boundaries.append(suppressed)
 
-    for contextual in _context_dependent_names(program, result):
+    for contextual in _context_dependent_names(program, result, dictionary.dialect):
         if contextual not in result.boundaries:
             result.boundaries.append(contextual)
 
@@ -164,7 +385,9 @@ def analyse_source(
     #
     # Run over every edge from every analyser, because a view is a naming fact and the
     # third copy of a naming rule is the one that disagrees with the other two.
-    result.edges, view_notes = resolve_views(result.edges, dictionary)
+    result.edges, view_notes = resolve_views(
+        result.edges, dictionary, _defined_views(source, dictionary.dialect)
+    )
     for note in view_notes:
         view_note = Boundary(
             kind=BoundaryKind.ROW_CORRESPONDENCE,
@@ -217,6 +440,12 @@ def analyse_source(
         result.edges, key=lambda e: (e.band, e.flow.value, str(e.source), str(e.target))
     )
 
+    # D-57: lookup-join keys went through every pass above (views, variables, guards) as
+    # edges, and are set apart here - the one place every caller's edges come from - so
+    # no closed-world key and no score sees them.
+    result.join_keys = [edge for edge in result.edges if edge.flow is Flow.JOIN_KEY]
+    result.edges = [edge for edge in result.edges if edge.flow is not Flow.JOIN_KEY]
+
     # Declared, not silently resolved. Nothing composes paths yet, so nothing is fused -
     # but the hazard is recorded now so the constraint exists before the code that would
     # violate it.
@@ -230,7 +459,36 @@ def analyse_source(
         if entry not in result.boundaries:
             result.boundaries.append(entry)
 
+    if desugared is not None:
+        result = plpgsql.explain_refusals(result, desugared)
+    # Plan step 4, rungs 3-4 (D-60): a statement refused whole still connects the columns
+    # and tables PostgreSQL's tree says it touches - apart from the scored edges.
+    result.fallback = fallback.build(verdicts, result, dictionary)
+    # Plan step 6 (D-62): TRUNCATE, DROP, a rename ... recorded as what they do to a relation.
+    result.operations = effects.build(verdicts, dictionary)
+    # Plan step 3: every statement, with what became of it - never silent.
+    result.ledger = ledger.build(verdicts, result)
+    if carry is not None:
+        carry.keep(schema_after if schema_after is not None else dictionary)
+        if desugared is not None:
+            carry.functions = dict(desugared.functions)
+            carry.summaries.update(plpgsql.summaries(result, desugared))
+        carry.summaries.update(summaries)
     return result
+
+
+def _refused_at(result: AnalysisResult) -> set[tuple[str, int]]:
+    """`(UNIT, line)` of every statement refused whole or in part, units upper-cased.
+
+    In part (PG-20, plan step 4 rung 2): band 0 read the rest of the statement, so def-use's
+    parse failure for it would declare the whole statement unreadable when it was not.
+    """
+    whole = {
+        ((refusal.unit or "").upper(), refusal.line)
+        for refusal in result.refusals
+        if refusal.scope == "statement"
+    }
+    return whole | {(unit.upper(), line) for unit, line in result.scoped_statements}
 
 
 def _in_unit(unit: str, item: Boundary | str, default: BoundaryKind) -> Boundary:
@@ -317,12 +575,8 @@ def _suppressed_errors(program: Program) -> list[Boundary]:
     Detected structurally rather than by matching source text, because `WHEN OTHERS THEN
     NULL;` and a handler whose body is a bare NULL across three lines are the same fact.
     """
-    handler_ctx = getattr(PlSqlParser, "Exception_handlerContext", None)
-    if handler_ctx is None:  # pragma: no cover - grammar always has it
-        return []
-
     found: list[Boundary] = []
-    for ctx in iter_contexts(program.tree, handler_ctx):
+    for ctx in program.frontend.exception_handlers(program.tree):
         body = " ".join(source_slice(ctx).split()).upper()
         if "OTHERS" not in body.split("THEN")[0]:
             continue
@@ -345,7 +599,15 @@ def _suppressed_errors(program: Program) -> list[Boundary]:
     return found
 
 
-def _context_dependent_names(program: Program, result: AnalysisResult) -> list[Boundary]:
+_TEMP_TABLE = re.compile(
+    r"(?i)(?:CREATE\s+(?:LOCAL\s+|GLOBAL\s+)?TEMP(?:ORARY)?\s+TABLE|INTO\s+TEMP(?:ORARY)?(?:\s+TABLE)?)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)"
+)
+"""A temp table's name where a statement creates one (D-31)."""
+
+
+def _context_dependent_names(
+    program: Program, result: AnalysisResult, dialect: str
+) -> list[Boundary]:
     """Units whose lineage is only valid for the schema that executed them.
 
     Silent failure s2, the half that survives a correct analyser. An unqualified name binds
@@ -358,15 +620,45 @@ def _context_dependent_names(program: Program, result: AnalysisResult) -> list[B
     accurate and unreadable - the same reason fusion hazards are declared per relation.
     """
     seen: dict[str, int] = {}
+    path: list[str] | None = None
+    temps: set[str] = set()
     for statement in program.statements:
-        if statement.kind not in band0.SUPPORTED:
+        # D-31: a temp table lives in pg_temp, which is searched first - an unqualified name
+        # that a temp table holds binds with certainty, so it assumes nothing.
+        if dialect == "postgres":
+            temps |= {name.upper() for name in _TEMP_TABLE.findall(statement.text)}
+        # D-23: under a `SET search_path` the binding is certain, so nothing is assumed.
+        change = search_path_change(statement.text, dialect)
+        if is_path_change(change):
+            path = change
+            continue
+        if path is not None:
+            continue
+        # TE-2: a top-level bare SELECT is analysed into `<result>` (D-8), so its unqualified
+        # names bind through the search path like any write's and the assumption is declared.
+        if (
+            statement.kind not in band0.SUPPORTED
+            and not (dialect == "postgres" and statement.kind == "update_statement")
+            and not band0._is_standalone_query(program, statement)
+        ):
             continue
         try:
-            parsed = sqlglot.parse_one(statement.text, dialect=band0.DIALECT)
+            parsed = sqlglot.parse_one(statement.text, dialect=dialect)
         except Exception:
             continue
+        # An index, sequence, type or schema holds no rows: how its names bind changes no
+        # lineage. `CREATE INDEX ix ON report.t` named `ix` as an unqualified table and
+        # turned a statement with nothing to trace into a declared one (holdout3, R6).
+        if isinstance(parsed, exp.Create) and (parsed.args.get("kind") or "").upper() in (
+            "INDEX", "SEQUENCE", "TYPE", "SCHEMA",
+        ):  # fmt: skip
+            continue
+        # A reference to a CTE is a Table node with no schema, and it resolves to the
+        # statement's own WITH - wherever it runs. Counting it made every CTE query carry a
+        # search-path warning about names that never touch the search path (finding B1-06).
+        local = {(cte.alias_or_name or "").upper() for cte in parsed.find_all(exp.CTE)}
         for table in parsed.find_all(exp.Table):
-            if table.text("db") or not table.name:
+            if table.text("db") or not table.name or table.name.upper() in local | temps:
                 continue
             unit = enclosing_unit_at(program, statement.line)
             seen.setdefault(unit, statement.line)
@@ -403,7 +695,7 @@ def _reaching_findings(cfg: Cfg, scope: UnitScope, config: AnalysisConfig) -> li
             continue
         if node.kind is not CfgNodeKind.STATEMENT:
             continue
-        defined, used = definitions_and_uses(node, scope)
+        defined, used = definitions_and_uses(node, scope, config.dialect)
         if defined:
             definitions[node.id] = defined
         if used:
@@ -461,3 +753,29 @@ def _with_guard(edge: IREdge, graphs: dict[str, Cfg]) -> IREdge:
             return edge.model_copy(update={"guard": " AND ".join(guards)})
         return edge
     return edge
+
+
+_CREATE_VIEW = re.compile(
+    r"(?is)^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?(?:RECURSIVE\s+)?"
+    r"(?:MATERIALIZED\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w.\"$]+)"
+)
+
+
+def _defined_views(source: str, dialect: str) -> set[tuple[str, int]]:
+    """(view, line) for every `CREATE VIEW` in the script - its edges define the view."""
+    from lineage.dialects import fold
+    from lineage.parsing.sqlscript import split_statements
+
+    found: set[tuple[str, int]] = set()
+    try:
+        statements = split_statements(source)
+    except Exception:
+        return found
+    for line, text in statements:
+        match = _CREATE_VIEW.match(text)
+        if match:
+            name = ".".join(
+                part[1:-1] if part.startswith('"') else part for part in match.group(1).split(".")
+            )
+            found.add((fold(name, dialect), line))
+    return found

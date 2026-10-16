@@ -1,0 +1,93 @@
+# Answer key for B9 t5_metamorphic.sql - names and resolution, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B4, plus D-23..D-25. Every node is schema-qualified (D-25).
+# Pair facts are stated at spelling A; spelling B restates them with `repeat`, so the
+# per-statement check covers both halves. Every relation outside a SET is qualified, so
+# no search_path assumption arises in this file.
+
+@ 18 P1A qualified
+value staging.ledger.account -> mart.kpi_rollup.segment identity
+value staging.ledger.amount -> mart.kpi_rollup.revenue identity
+@ 25 P1B SET + unqualified
+repeat value staging.ledger.account -> mart.kpi_rollup.segment identity
+repeat value staging.ledger.amount -> mart.kpi_rollup.revenue identity
+
+@ 34 P2A "amount"
+value staging.orders.amount -> mart.channel_mix.revenue identity
+@ 39 P2B amount
+repeat value staging.orders.amount -> mart.channel_mix.revenue identity
+
+@ 46 P3A upper case
+value staging.orders.channel -> mart.channel_mix.channel identity
+@ 51 P3B lower case
+repeat value staging.orders.channel -> mart.channel_mix.channel identity
+
+@ 58 P4A SELECT *
+value core.ledger.id -> core.ledger.id identity
+value core.ledger.account -> core.ledger.account identity
+value core.ledger.balance -> core.ledger.balance identity
+value core.ledger.status -> core.ledger.status identity
+@ 63 P4B explicit list
+repeat value core.ledger.id -> core.ledger.id identity
+repeat value core.ledger.account -> core.ledger.account identity
+repeat value core.ledger.balance -> core.ledger.balance identity
+repeat value core.ledger.status -> core.ledger.status identity
+
+@ 70 P5A t.*
+value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
+value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name identity
+@ 75 P5B explicit
+repeat value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
+repeat value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name identity
+
+@ 82 P6A USING
+value staging.orders.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount identity
+@ 88 P6B ON, left column
+repeat value staging.orders.store_id -> mart.sales_daily.store_id identity
+repeat value core.fct_order_line.net_amount -> mart.sales_daily.net_amount identity
+
+@ 96 P7A NATURAL
+repeat value staging.ledger.account -> mart.kpi_rollup.segment identity
+value core.ledger.balance -> mart.kpi_rollup.revenue identity
+forbid filter staging.ledger.id -> mart.kpi_rollup | the shared columns are the join condition (D-5)
+@ 102 P7B USING (id, account)
+repeat value staging.ledger.account -> mart.kpi_rollup.segment identity
+repeat value core.ledger.balance -> mart.kpi_rollup.revenue identity
+
+@ 110 P8A three-part names
+value staging.payments.method -> mart.channel_mix.channel identity
+value staging.payments.amount -> mart.channel_mix.revenue identity
+@ 115 P8B alias
+repeat value staging.payments.method -> mart.channel_mix.channel identity
+repeat value staging.payments.amount -> mart.channel_mix.revenue identity
+
+@ 122 P9A CTE named like a table
+value core.ledger.account -> mart.kpi_rollup.segment identity
+repeat value core.ledger.balance -> mart.kpi_rollup.revenue identity
+filter core.ledger.status -> mart.kpi_rollup
+@ 130 P9B derived table of the same name
+repeat value core.ledger.account -> mart.kpi_rollup.segment identity
+repeat value core.ledger.balance -> mart.kpi_rollup.revenue identity
+repeat filter core.ledger.status -> mart.kpi_rollup
+
+@ 137 P10A FULL JOIN USING
+value staging.orders.store_id, core.fct_order_line.store_id -> mart.sales_daily.store_id conditional
+value staging.orders.amount -> mart.sales_daily.gross_amount identity
+@ 143 P10B COALESCE of both keys
+repeat value staging.orders.store_id, core.fct_order_line.store_id -> mart.sales_daily.store_id conditional
+repeat value staging.orders.amount -> mart.sales_daily.gross_amount identity
+
+@ 161 R1 a realistic multi-schema load
+value staging.LegacyFeed.CustomerID -> mart.FeedSummary.CustomerID identity
+value staging.LegacyFeed.Amount -> mart.FeedSummary.Total derived
+value staging.ledger.amount -> mart.FeedSummary.Total aggregated
+influence staging.ledger.account -> mart.FeedSummary.Total
+note book's GROUP BY key decides each SUM that reaches "Total" (D-2).
+value staging.LegacyFeed.amount -> mart.FeedSummary.total identity
+value staging.LegacyFeed.Status Code -> mart.FeedSummary.Status Code derived
+filter staging.LegacyFeed.created_at, core.dim_customer.is_current -> mart.FeedSummary
+forbid filter staging.ledger.account -> mart.FeedSummary | book is on a LEFT JOIN's null side and its ON is structural (D-14, D-5)
+forbid filter core.dim_customer.customer_id -> mart.FeedSummary | the ON is structural (D-5)
+forbid value core.ledger.balance -> mart.FeedSummary.Total aggregated | staging is first on the path, so `ledger` is staging.ledger

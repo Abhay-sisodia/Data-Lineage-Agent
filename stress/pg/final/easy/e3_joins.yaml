@@ -1,0 +1,515 @@
+# GENERATED from e3_joins.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for E3 (e3_joins.sql): shipment joins, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# The row-deciding path is hdr (shipment_header) JOIN shipment_line JOIN customer, plus the
+# final WHERE. cs, site, org, wh and plan_vs_ship are reached only through LEFT joins, so
+# every predicate inside or on them is a conditional VALUE of what they feed (D-45, D-48,
+# D-49), never a filter.
+package: pg/final/easy/e3_joins.sql
+dialect: postgres
+source_sha256: 0201bf89cdaae3b4bcc4e135408ab970bf2ae499932bf70cf74aad9fb534cc2b
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.shipment_line_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: column
+    name: <result>.shipment_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: <result>.customer_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.shipped_qty
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier.carrier_name
+  target:
+    kind: column
+    name: <result>.carrier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier_service.service_level
+  target:
+    kind: column
+    name: <result>.service_level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.transport_mode.mode_desc
+  target:
+    kind: column
+    name: <result>.mode_desc
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.expected_delivery
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'ship_date + COALESCE(transit_days, 0): the COALESCE reads one column (D-19).'
+- source:
+    kind: column
+    name: lgx.carrier_service.transit_days
+  target:
+    kind: column
+    name: <result>.expected_delivery
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'ship_date + COALESCE(transit_days, 0): the COALESCE reads one column (D-19).'
+- source:
+    kind: column
+    name: lgx.carrier.active_flag
+  target:
+    kind: column
+    name: <result>.carrier_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'cs''s WHERE cr.active_flag cannot remove a result row through the LEFT join: a value of every
+    column cs feeds (D-45).'
+- source:
+    kind: column
+    name: lgx.carrier.active_flag
+  target:
+    kind: column
+    name: <result>.service_level
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'cs''s WHERE cr.active_flag cannot remove a result row through the LEFT join: a value of every
+    column cs feeds (D-45).'
+- source:
+    kind: column
+    name: lgx.carrier.active_flag
+  target:
+    kind: column
+    name: <result>.mode_desc
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'cs''s WHERE cr.active_flag cannot remove a result row through the LEFT join: a value of every
+    column cs feeds (D-45).'
+- source:
+    kind: column
+    name: lgx.carrier.active_flag
+  target:
+    kind: column
+    name: <result>.expected_delivery
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'cs''s WHERE cr.active_flag cannot remove a result row through the LEFT join: a value of every
+    column cs feeds (D-45).'
+- source:
+    kind: column
+    name: crm.customer_site.site_code
+  target:
+    kind: column
+    name: <result>.site_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.time_zone_name
+  target:
+    kind: column
+    name: <result>.site_code
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.dim_organization.org_name
+  target:
+    kind: column
+    name: <result>.ship_from_org
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: The key equality org.integration_id = hdr.ship_from_org_id::text stays structural (D-5, D-11).
+- source:
+    kind: column
+    name: lgx.warehouse.warehouse_code
+  target:
+    kind: column
+    name: <result>.warehouse_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.org_name
+  target:
+    kind: column
+    name: <result>.warehouse_org
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.is_active
+  target:
+    kind: column
+    name: <result>.warehouse_org
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.qty_per
+  target:
+    kind: column
+    name: <result>.planned_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.parent_item_id
+  target:
+    kind: column
+    name: <result>.planned_qty
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.shipped_total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.item_id
+  target:
+    kind: column
+    name: <result>.shipped_total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: The FULL JOIN key and the COALESCE(item_id) join key are structural (D-5).
+- source:
+    kind: column
+    name: lgx.shipment_header.is_deleted
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: An INNER join's one-relation ON condition removes rows as WHERE would (D-48).
+- source:
+    kind: column
+    name: lgx.shipment_header.status_code
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'ln.ship_date >= hdr.created_at::date: a non-equality between two relations, both operands (D-49).'
+- source:
+    kind: column
+    name: lgx.shipment_header.created_at
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'ln.ship_date >= hdr.created_at::date: a non-equality between two relations, both operands (D-49).'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'IN (subquery): both match columns and the subquery''s WHERE (D-52).'
+- source:
+    kind: column
+    name: crm.contact.customer_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'IN (subquery): both match columns and the subquery''s WHERE (D-52).'
+- source:
+    kind: column
+    name: crm.contact.is_primary
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'IN (subquery): both match columns and the subquery''s WHERE (D-52).'
+- source:
+    kind: column
+    name: lgx.package_event.shipment_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'NOT EXISTS: both correlation operands and the subquery''s own predicate (D-52).'
+- source:
+    kind: column
+    name: lgx.shipment_header.shipment_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'NOT EXISTS: both correlation operands and the subquery''s own predicate (D-52).'
+- source:
+    kind: column
+    name: lgx.package_event.event_type
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 17
+  evidence: source_read
+  note: 'NOT EXISTS: both correlation operands and the subquery''s own predicate (D-52).'
+forbidden:
+- source:
+    kind: column
+    name: lgx.carrier.active_flag
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: cs is reached only through a LEFT join (D-45)
+- source:
+    kind: column
+    name: crm.customer_site.time_zone_name
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: on a LEFT join's null side the ON condition removes no row (D-48)
+- source:
+    kind: column
+    name: gold.dim_organization.organization_start_date
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: a range condition on a LEFT join's null side decides a value, not a row (D-49, D-48)
+- source:
+    kind: column
+    name: crm.organization.is_active
+  target:
+    kind: column
+    name: <result>.warehouse_code
+  flow: value
+  reason: the RIGHT join keeps every warehouse; is_active only decides whether org_name is filled
+  transform: conditional
+expected_boundaries: []

@@ -1,0 +1,376 @@
+# GENERATED from t4_adversarial.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B10 t4_adversarial.sql - lexical robustness, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-35..D-38 (decided 2026-10-04, not
+# implemented). standard_conforming_strings is on. NOT EXPRESSIBLE IN A KEY, CHECKED IN
+# THE REPORT: S6, S12 (PREPARE) and S14 (DEALLOCATE ALL) are counted with no edges; S16
+# is refused or declared, never resolved to a guessed table.
+package: pg/b10_lexical/t4_adversarial.sql
+dialect: postgres
+source_sha256: 71b174b83886386dd31295ab424e81a83eed4a4c79d23da55b9e7314010d9da4
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 24
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.customer_summary.full_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 40
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 49
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 49
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 77
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 86
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 86
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.kpi_rollup.customers
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 98
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.status
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 122
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.sales_daily.orders
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 149
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 149
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: relation
+    name: mart.sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 149
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.discount_code
+  target:
+    kind: relation
+    name: mart.sales_daily
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 149
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 158
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 166
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  reason: o.channel is the text of a dollar-quoted literal
+  transform: derived
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  reason: c.email is between escaped quotes, inside one E'' literal
+  transform: derived
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  reason: --1 is a comment, not minus minus one
+  transform: derived
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  reason: c.email is inside the nested comment, which a non-nesting lexer would end early
+  transform: identity
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  reason: the INSERT after S5 is inside a nested comment
+  transform: identity
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  reason: :tbl cannot be resolved by the analysis; refused or declared, never guessed (D-36)
+  transform: identity
+expected_boundaries:
+- kind: source_unavailable
+  subject: p_late
+  reason: 'S11: p_late is prepared only at S12 (D-35)'
+- kind: source_unavailable
+  subject: p_lit
+  reason: 'S15: DEALLOCATE ALL at S14 forgot p_lit (D-35); S7''s edges must not be emitted again here'

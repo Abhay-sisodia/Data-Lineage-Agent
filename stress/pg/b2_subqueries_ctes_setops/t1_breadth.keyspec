@@ -1,0 +1,128 @@
+# Answer key for B2 t1_breadth.sql - subqueries, CTEs, set operations: breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# Conventions: B1's (D-2, D-4, D-5, D-6, D-7, D-9, D-10, D-11), convention (a) for set
+# operations, plus D-12 and D-13 decided for this batch and NOT yet implemented - the facts
+# resting on them are expected to score as disagreements until they are.
+
+@ 18 S1 uncorrelated scalar subquery
+value core.dim_store.name -> mart.kpi_rollup.region identity
+value core.fct_order_line.net_amount, core.fct_order_line.status -> mart.kpi_rollup.revenue aggregated
+note D-12: status decides which lines feed the total; every store row is written.
+forbid filter core.fct_order_line.status -> mart.kpi_rollup | a SELECT-list scalar subquery's WHERE removes no target row (D-12)
+
+@ 34 S2 correlated aggregating scalar subqueries
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.customers.full_name -> mart.customer_summary.full_name identity
+value staging.payments.amount, staging.payments.status -> mart.customer_summary.lifetime_value aggregated
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.lifetime_value's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.customer_summary.lifetime_value
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.lifetime_orders's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.customer_summary.lifetime_orders
+note COUNT(*) has no value source; only its correlation feeds lifetime_orders (D-12).
+forbid filter staging.payments.status -> mart.customer_summary | inside a SELECT-list scalar subquery: a value of lifetime_value (D-12)
+forbid filter staging.customers.id -> mart.customer_summary | a correlation operand of a SELECT-list scalar subquery (D-12)
+forbid filter staging.orders.customer_id -> mart.customer_summary | a correlation operand of a SELECT-list scalar subquery (D-12)
+forbid filter staging.payments.order_id -> mart.customer_summary | the join inside the subquery is structural (D-5), and the subquery filters nothing anyway
+
+@ 55 S3 lookup scalar subqueries
+value staging.orders.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+# D-58: staging.customers.id, staging.orders.customer_id -> mart.top_customers.full_name is a lookup key (join_key, not scored; was a conditional value).
+value core.dim_store.region -> mart.top_customers.region identity
+# D-58: core.dim_store.id, staging.orders.store_id -> mart.top_customers.region is a lookup key (join_key, not scored; was a conditional value).
+note D-12: a lookup's keys select which value arrives - conditional, like a CASE condition.
+filter staging.orders.channel -> mart.top_customers
+forbid filter core.dim_store.id -> mart.top_customers | a lookup key in a SELECT-list scalar subquery removes no row (D-12)
+forbid filter staging.orders.store_id -> mart.top_customers | a lookup key in a SELECT-list scalar subquery removes no row (D-12)
+
+@ 68 S4 an ordered pick (D-13)
+value staging.shipments.order_id -> mart.customer_summary.customer_id identity
+value staging.payments.amount -> mart.customer_summary.lifetime_value identity
+# D-58: staging.payments.order_id, staging.shipments.order_id -> mart.customer_summary.lifetime_value is a lookup key (join_key, not scored; was a conditional value).
+influence staging.payments.paid_at -> mart.customer_summary.lifetime_value
+forbid filter staging.payments.paid_at -> mart.customer_summary | ORDER BY ... LIMIT 1 in a scalar subquery picks a value, it removes no row (D-13)
+forbid value staging.payments.paid_at -> mart.customer_summary.lifetime_value | paid_at decides which amount, no part of it is in the amount (D-13)
+
+@ 85 S5 EXISTS and NOT EXISTS
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.segment -> mart.top_customers.region identity
+filter staging.orders.customer_id, staging.customers.id, staging.orders.status -> mart.top_customers
+note Both subqueries are in WHERE: they decide which customers land. The NOT EXISTS reaches orders.customer_id through two structural joins.
+forbid filter staging.order_lines.id -> mart.top_customers | a join key inside the NOT EXISTS (D-5)
+
+@ 112 S6 IN and NOT IN
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.currency -> mart.channel_mix.region identity
+value staging.orders.amount -> mart.channel_mix.revenue identity
+filter staging.orders.customer_id, staging.customers.id, staging.customers.segment, staging.orders.store_id, core.dim_store.id, core.dim_store.status -> mart.channel_mix
+
+@ 131 S7 ALL, ANY, a scalar comparison in WHERE
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount identity
+filter core.fct_order_line.net_amount, staging.returns.amount, staging.returns.status, core.fct_order_line.product_key, core.dim_product.product_key, core.dim_product.brand, core.fct_order_line.unit_price -> mart.sales_daily
+filter core.dim_product.list_price -> mart.sales_daily post
+note list_price reaches its comparison through AVG: post-aggregation, per column (D-6).
+
+@ 151 S8 an aggregating derived table joined back
+value core.fct_order_line.product_key -> mart.product_performance.product_id identity
+value core.fct_order_line.net_amount -> mart.product_performance.revenue identity
+value core.fct_order_line.gross_amount -> mart.product_performance.revenue_share derived
+value core.fct_order_line.net_amount -> mart.product_performance.revenue_share aggregated
+influence core.fct_order_line.store_id -> mart.product_performance.revenue_share
+
+@ 171 S9 CROSS JOIN LATERAL, top 3 per store
+value core.dim_store.region -> mart.product_performance.category_name identity
+value staging.orders.id -> mart.product_performance.product_id identity
+value staging.orders.amount -> mart.product_performance.revenue identity
+influence staging.orders.amount -> mart.product_performance.units
+filter staging.orders.store_id, core.dim_store.id, staging.orders.amount -> mart.product_performance
+note The LATERAL's correlation decides which rows land (a row source, not a scalar); amount orders the LIMIT 3 (D-9).
+
+@ 195 S10 six CTEs with MATERIALIZED hints
+value core.dim_store.region -> mart.channel_mix.region identity
+value core.fct_order_line.net_amount -> mart.channel_mix.revenue aggregated
+influence core.fct_order_line.store_id, core.dim_store.region -> mart.channel_mix.revenue
+filter core.fct_order_line.status -> mart.channel_mix
+filter core.fct_order_line.net_amount -> mart.channel_mix post
+note `WHERE e.region_rev > 0` filters a SUM of a SUM: post-aggregation (D-6).
+
+@ 238 S11 WITH RECURSIVE over the category tree
+value core.dim_category.name -> mart.kpi_rollup.level derived
+value core.dim_category.department -> mart.kpi_rollup.region identity
+value core.dim_category.name -> mart.kpi_rollup.segment identity
+filter core.dim_category.parent_id -> mart.kpi_rollup
+note The anchor's `parent_id IS NULL` picks the roots. `depth` (-> orders) has no base source: a literal that only adds to itself.
+forbid value core.dim_category.id -> mart.kpi_rollup.orders | depth counts recursion steps; the join key is not in it
+
+@ 257 S12a UNION ALL, both arms supply values
+value staging.orders.channel, staging.payments.method -> mart.sales_daily.region identity
+value staging.orders.amount, staging.payments.amount -> mart.sales_daily.net_amount identity
+filter staging.orders.status -> mart.sales_daily
+
+@ 271 S12b INTERSECT then EXCEPT ALL
+value staging.orders.customer_id -> mart.top_customers.customer_id identity
+filter core.dim_customer.customer_id, core.dim_customer.segment, staging.returns.order_line_id, staging.returns.status -> mart.top_customers
+note Convention (a): the later arms of INTERSECT and EXCEPT decide which values survive and supply none.
+forbid value core.dim_customer.customer_id -> mart.top_customers.customer_id | an INTERSECT's later arm supplies no value (convention (a))
+
+@ 289 S12c a parenthesised UNION, then EXCEPT, in a CTE
+value core.dim_store.region, core.dim_warehouse.region -> mart.kpi_rollup.region identity
+value core.dim_store.country_code -> mart.kpi_rollup.country_code identity
+filter core.dim_customer.region, core.dim_customer.country_code, core.dim_customer.is_current -> mart.kpi_rollup
+forbid filter core.dim_store.region -> mart.kpi_rollup | UNION (distinct) removes only duplicates of the values written (D-9's DISTINCT rule)
+
+@ 310 S12d ORDER BY / LIMIT over a whole UNION ALL
+value staging.payments.order_id, staging.returns.order_line_id -> mart.top_customers.customer_id identity
+value staging.payments.amount, staging.returns.amount -> mart.top_customers.revenue identity
+filter staging.payments.amount, staging.returns.amount -> mart.top_customers
+note D-9: ORDER BY 2 is the second output column, which both arms supply.
+
+@ 323 S13 bare SELECT with a correlated scalar subquery
+value core.dim_warehouse.name -> <result>.warehouse_name identity
+value staging.inventory_snapshots.on_hand -> <result>.stock_units aggregated
+# D-58: staging.inventory_snapshots.warehouse_id, core.dim_warehouse.id matched the aggregated lookup's rows to <result>.stock_units's - influence, as a GROUP BY is (was a value).
+influence staging.inventory_snapshots.warehouse_id, core.dim_warehouse.id -> <result>.stock_units
+forbid filter staging.inventory_snapshots.warehouse_id -> <result> | a SELECT-list scalar subquery's correlation removes no row (D-12)

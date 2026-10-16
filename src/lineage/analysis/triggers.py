@@ -41,6 +41,7 @@ from lineage.analysis.defuse import (
     analyse_statement,
     collect_scopes,
 )
+from lineage.dialects import fold
 from lineage.ir.model import (
     Flow,
     IREdge,
@@ -56,7 +57,11 @@ from lineage.resolution.views import resolve_views
 
 __all__ = ["TriggerAnalysis", "analyse_trigger", "inherited_edges"]
 
-DIALECT = "oracle"
+# The dialect is not a constant here any more. It travels on the captured dictionary,
+# because a dictionary belongs to one database and already reaches every resolver in this
+# module - see `lineage.dialects.base` for what the seam holds and what it deliberately
+# does not. `AnalysisConfig.dialect` stays the declared authority and the entry points
+# check the two agree.
 
 # `:NEW.cust_id` / `:OLD.region`, in any case, with or without the colon Oracle strips
 # inside a trigger body.
@@ -89,7 +94,12 @@ def _rewrite_correlations(body: str) -> str:
 
 
 def _assignment_edges(
-    text: str, trigger: TriggerInfo, table: str, origin: Origin, guard: str | None
+    text: str,
+    trigger: TriggerInfo,
+    table: str,
+    origin: Origin,
+    guard: str | None,
+    dialect: str,
 ) -> list[IREdge]:
     """`:NEW.col := expr` — a column write with no SQL statement anywhere.
 
@@ -107,7 +117,7 @@ def _assignment_edges(
 
     expression = expression.strip().rstrip(";")
     try:
-        parsed = sqlglot.parse_one(expression, dialect=DIALECT)
+        parsed = sqlglot.parse_one(expression, dialect=dialect)
     except Exception:
         return []
 
@@ -121,7 +131,10 @@ def _assignment_edges(
 
     edges: list[IREdge] = []
     for reference in parsed.find_all(exp.Column):
-        name = reference.name.upper()
+        name = fold(reference.name, dialect)
+        # NOT folded: compared against NEW_ALIAS, a synthetic internal constant. The
+        # :NEW/:OLD rewrite is Oracle-specific and PostgreSQL's trigger model needs its
+        # own treatment - see the A2 residue note in `lineage.dialects.base`.
         qualifier = (reference.table or "").upper()
         # A bare or :NEW-qualified name inside a trigger body is a column of the
         # triggering row either way.
@@ -142,7 +155,9 @@ def _assignment_edges(
     return edges
 
 
-def _insert_values_edges(text: str, table: str, origin: Origin, guard: str | None) -> list[IREdge]:
+def _insert_values_edges(
+    text: str, table: str, origin: Origin, guard: str | None, dialect: str
+) -> list[IREdge]:
     """`INSERT INTO t (a, b) VALUES (:NEW.x, USER)` — positional, and nothing else reads it.
 
     The set-based analyser handles `INSERT ... SELECT`; a VALUES list has no select list
@@ -153,7 +168,7 @@ def _insert_values_edges(text: str, table: str, origin: Origin, guard: str | Non
     values from nowhere and produce no edge, which is the literal rule again.
     """
     try:
-        parsed = sqlglot.parse_one(text, dialect=DIALECT)
+        parsed = sqlglot.parse_one(text, dialect=dialect)
     except Exception:
         return []
     if not isinstance(parsed, exp.Insert):
@@ -165,7 +180,7 @@ def _insert_values_edges(text: str, table: str, origin: Origin, guard: str | Non
     target_table = schema.this
     if not isinstance(target_table, exp.Table):
         return []
-    columns = [c.name.upper() for c in schema.expressions]
+    columns = [fold(c.name, dialect) for c in schema.expressions]
 
     values = parsed.expression
     if not isinstance(values, exp.Values) or not values.expressions:
@@ -183,10 +198,13 @@ def _insert_values_edges(text: str, table: str, origin: Origin, guard: str | Non
                 continue
             edges.append(
                 IREdge(
-                    source=Node(kind=IRNodeKind.COLUMN, name=f"{table}.{reference.name.upper()}"),
+                    source=Node(
+                        kind=IRNodeKind.COLUMN,
+                        name=f"{table}.{fold(reference.name, dialect)}",
+                    ),
                     target=Node(
                         kind=IRNodeKind.COLUMN,
-                        name=f"{target_table.name.upper()}.{column}",
+                        name=f"{fold(target_table.name, dialect)}.{column}",
                     ),
                     flow=Flow.VALUE,
                     transform=(
@@ -226,8 +244,8 @@ def analyse_trigger(trigger: TriggerInfo, dictionary: Dictionary) -> TriggerAnal
         )
         return analysis
 
-    scopes = collect_scopes(program)
-    graphs = build_all(program)
+    scopes = collect_scopes(program, dictionary.dialect)
+    graphs = build_all(program, dictionary.dialect)
 
     for unit, cfg in graphs.items():
         scope = scopes.get(unit)
@@ -241,19 +259,26 @@ def analyse_trigger(trigger: TriggerInfo, dictionary: Dictionary) -> TriggerAnal
         for node in cfg.nodes.values():
             if node.kind is not NodeKind.STATEMENT or node.ctx is None:
                 continue
-            origin = Origin(unit=trigger.name.upper(), line=node.line)
+            origin = Origin(unit=fold(trigger.name, dictionary.dialect), line=node.line)
             guard = _guard_of(cfg, node.id)
 
             if node.statement_kind == "assignment_statement":
                 analysis.edges.extend(
-                    _assignment_edges(node.label, trigger, simple_table, origin, guard)
+                    _assignment_edges(
+                        node.label, trigger, simple_table, origin, guard, dictionary.dialect
+                    )
                 )
                 continue
 
             if node.statement_kind == "insert_statement":
-                analysis.edges.extend(_insert_values_edges(node.label, simple_table, origin, guard))
+                analysis.edges.extend(
+                    _insert_values_edges(
+                        node.label, simple_table, origin, guard, dictionary.dialect
+                    )
+                )
 
-            result = analyse_statement(node, cfg, scope, dictionary, trigger.name.upper())
+            unit_name = fold(trigger.name, dictionary.dialect)
+            result = analyse_statement(node, cfg, scope, dictionary, unit_name)
             analysis.edges.extend(_as_band_2(result))
             analysis.boundaries.extend(f"{trigger.qualified}: {item}" for item in result.unresolved)
 

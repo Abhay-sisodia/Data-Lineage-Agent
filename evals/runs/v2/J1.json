@@ -1,0 +1,38 @@
+{
+  "question": "Where does customer_id come from?",
+  "seconds": 0.0,
+  "stage": "name resolver",
+  "cost_usd": 0.0,
+  "turns": 0,
+  "notes": [],
+  "answer": {
+    "question_id": "J1",
+    "status": "clarify",
+    "text": "'customer_id' matches 19 columns - which one?",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": [
+      "crm.contact.customer_id",
+      "crm.customer.customer_id",
+      "pg_temp.p4_a.customer_id",
+      "pg_temp.p4_b.customer_id",
+      "pg_temp.p4_c.customer_id",
+      "pg_temp.p10_a.customer_id",
+      "pg_temp.p10_b.customer_id",
+      "pg_temp.stg_ship.customer_id",
+      "mart.shipment_fact.customer_id",
+      "lgx.shipment_header.customer_id",
+      "pg_temp.cust_metrics.customer_id",
+      "mart.customer_snapshot.customer_id",
+      "<result:control/c_fail.sql>.customer_id",
+      "<result:control/c_pass.sql>.customer_id",
+      "<result:hard/h5_adversarial.sql>.customer_id",
+      "<result:medium/m3_hierarchies.sql>.customer_id",
+      "<result:hard/h1_shipment_margin.sql>.customer_id",
+      "<result:medium/m5_names_under_load.sql>.customer_id",
+      "<result:medium/m2_shipment_exceptions.sql>.customer_id"
+    ]
+  },
+  "tool_calls": []
+}

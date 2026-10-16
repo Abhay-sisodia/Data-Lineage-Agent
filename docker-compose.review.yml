@@ -1,0 +1,67 @@
+# The review bundle: the lineage UI with its graph store and a live PostgreSQL catalogue.
+#
+#   docker compose -f docker-compose.review.yml up --build -d
+#   open http://localhost:8501
+#
+# See REVIEW.md. Only the UI's port is published, so this runs beside the development
+# services in docker-compose.yml without clashing. An API key for the Ask view goes in .env
+# (copy .env.example); everything else works without one.
+name: lineage-review
+
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/lineage_graph
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p lineage_graph 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: lineage
+      POSTGRES_PASSWORD: lineage_pg
+      POSTGRES_DB: lineage
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lineage -d lineage"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build: .
+    image: lineage-review-app
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8501}:8501"
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_PASSWORD: lineage_graph
+      PG_HOST: postgres
+      PG_PASSWORD: lineage_pg
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - answer-cache:/app/.lineage_cache
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  neo4j-data:
+  postgres-data:
+  answer-cache:

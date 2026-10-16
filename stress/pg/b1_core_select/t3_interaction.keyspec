@@ -1,0 +1,108 @@
+# Answer key for t3_interaction.sql - B1 core SELECT, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# Where two rules meet, both apply and neither is allowed to swallow the other. The
+# common failure this key is built to catch: a window's ORDER BY over an aggregate being
+# reported as a VALUE of the rank, or the GROUP BY being lost once a window sits on top.
+
+@ 22 S1 RANK() OVER (ORDER BY SUM(x))
+value core.fct_order_line.product_key -> mart.product_performance.product_id identity
+value core.fct_order_line.net_amount -> mart.product_performance.revenue aggregated
+influence core.fct_order_line.product_key -> mart.product_performance.revenue, mart.product_performance.margin
+influence core.fct_order_line.net_amount -> mart.product_performance.margin
+forbid value core.fct_order_line.net_amount -> mart.product_performance.margin | the rank orders by the SUM; no part of the SUM is in the rank (D-4)
+
+@ 36 S2 ratio to a windowed total
+value core.fct_order_line.order_date -> mart.channel_mix.period_month identity
+value core.fct_order_line.status -> mart.channel_mix.channel identity
+value core.dim_customer.region -> mart.channel_mix.region identity
+value core.fct_order_line.net_amount -> mart.channel_mix.revenue identity
+value core.fct_order_line.gross_amount -> mart.channel_mix.share_of_region derived
+value core.fct_order_line.amount_usd -> mart.channel_mix.share_of_region aggregated
+influence core.dim_customer.region -> mart.channel_mix.share_of_region
+
+@ 53 S3 SUM(x) FILTER (WHERE c) OVER (...)
+value core.fct_order_line.order_line_id -> mart.product_performance.product_id identity
+value core.fct_order_line.order_date -> mart.product_performance.period_month identity
+value core.fct_order_line.net_amount, core.fct_order_line.status -> mart.product_performance.running_revenue aggregated
+influence core.fct_order_line.product_key, core.fct_order_line.order_date -> mart.product_performance.running_revenue
+forbid filter core.fct_order_line.status -> mart.product_performance | a FILTER inside a window changes one column's value; every row is still written (D-10)
+
+@ 67 S4 GROUPING SETS with a window over the result
+value core.dim_customer.region -> mart.kpi_rollup.region identity
+value core.dim_customer.segment -> mart.kpi_rollup.segment identity
+value core.fct_order_line.net_amount -> mart.kpi_rollup.revenue aggregated
+influence core.dim_customer.region, core.dim_customer.segment -> mart.kpi_rollup.revenue
+influence core.dim_customer.region, core.dim_customer.segment, core.fct_order_line.net_amount -> mart.kpi_rollup.customers
+forbid value core.fct_order_line.net_amount -> mart.kpi_rollup.customers | DENSE_RANK orders by the SUM; no part of it is in the rank (D-4)
+
+@ 84 S5 CASE inside an aggregate inside a window
+value core.fct_order_line.store_id -> mart.customer_summary.customer_id identity
+value core.fct_order_line.order_date -> mart.customer_summary.last_order_date identity
+value core.fct_order_line.channel, core.fct_order_line.net_amount -> mart.customer_summary.lifetime_value aggregated
+influence core.fct_order_line.store_id, core.fct_order_line.order_date -> mart.customer_summary.lifetime_value
+
+@ 98 S6 FULL JOIN, GROUP BY COALESCE of the keys
+value core.fct_shipment.carrier_id, staging.shipments.carrier_id -> mart.carrier_scorecard.carrier_id conditional
+value core.fct_shipment.cost, staging.shipments.weight_kg -> mart.carrier_scorecard.cost_per_kg aggregated
+influence core.fct_shipment.carrier_id, staging.shipments.carrier_id -> mart.carrier_scorecard.shipments, mart.carrier_scorecard.cost_per_kg
+note `shipments` is COUNT(*): no value source, but an aggregated column, so the grouping influences it.
+
+@ 113 S7 ordered-set aggregates, one with FILTER
+value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value core.fct_shipment.transit_days, core.fct_shipment.status -> mart.carrier_scorecard.p50_transit_days aggregated
+value core.fct_shipment.weight_kg -> mart.carrier_scorecard.p90_transit_days aggregated
+influence core.fct_shipment.carrier_id -> mart.carrier_scorecard.p50_transit_days, mart.carrier_scorecard.p90_transit_days
+forbid filter core.fct_shipment.status -> mart.carrier_scorecard | FILTER on an ordered-set aggregate changes that one value (D-10)
+
+@ 129 S8 DISTINCT ON and an unfiltered window together
+value core.dim_customer.region -> mart.top_customers.region identity
+value core.dim_customer.customer_key -> mart.top_customers.customer_id identity
+value core.fct_order_line.net_amount -> mart.top_customers.revenue identity
+influence core.dim_customer.region, core.fct_order_line.net_amount -> mart.top_customers.position
+filter core.dim_customer.region, core.fct_order_line.net_amount -> mart.top_customers
+note D-9: region is the DISTINCT ON key, net_amount its tie-breaker. The ROW_NUMBER is never filtered, so it adds influence only.
+
+@ 146 S9 ORDER BY SUM(x) DESC LIMIT 10
+value core.dim_customer.customer_id -> mart.top_customers.customer_id identity
+value core.dim_customer.full_name -> mart.top_customers.full_name identity
+value core.fct_order_line.net_amount -> mart.top_customers.revenue aggregated
+influence core.dim_customer.customer_id, core.dim_customer.full_name -> mart.top_customers.revenue
+filter core.fct_order_line.net_amount -> mart.top_customers post
+note D-9 + D-6: the LIMIT keeps the top 10 by a SUM, so the filter acts after aggregation.
+
+@ 164 S10 LAG(SUM(x)) OVER (ORDER BY month)
+value core.fct_order_line.order_date -> mart.product_performance.period_month derived
+value core.fct_order_line.gross_amount -> mart.product_performance.revenue, mart.product_performance.prev_month_revenue, mart.product_performance.growth_pct aggregated
+influence core.fct_order_line.order_date -> mart.product_performance.revenue, mart.product_performance.prev_month_revenue, mart.product_performance.growth_pct
+
+@ 181 S11 mixed grain in one projection
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.dim_store.region -> mart.sales_daily.region identity
+value core.fct_order_line.order_id -> mart.sales_daily.orders aggregated
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount, mart.sales_daily.avg_order_value aggregated
+influence core.fct_order_line.order_date, core.dim_store.region -> mart.sales_daily.orders, mart.sales_daily.net_amount, mart.sales_daily.avg_order_value, mart.sales_daily.rank_in_region
+forbid influence core.fct_order_line.order_date -> mart.sales_daily.sale_date | a grouping key does not influence itself (D-2)
+forbid influence core.dim_store.region -> mart.sales_daily.region | a grouping key does not influence itself (D-2)
+
+@ 201 S12 compound HAVING
+value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+value staging.orders.id -> mart.customer_summary.lifetime_orders aggregated
+value staging.orders.amount -> mart.customer_summary.avg_basket aggregated
+influence staging.orders.customer_id -> mart.customer_summary.lifetime_orders, mart.customer_summary.avg_basket
+filter staging.orders.store_id, staging.orders.amount -> mart.customer_summary post
+
+@ 218 S13 aggregate + FILTER + HAVING, window, filtered rank
+value core.fct_order_line.order_date -> mart.channel_mix.period_month derived
+value core.fct_order_line.channel -> mart.channel_mix.channel identity
+value core.dim_store.region -> mart.channel_mix.region identity
+value core.fct_order_line.discount_amount -> mart.channel_mix.orders aggregated
+note `orders` is COUNT(*) FILTER (WHERE discount_amount > 0): D-10 makes the FILTER column its only value source.
+value core.fct_order_line.net_amount -> mart.channel_mix.revenue, mart.channel_mix.share_of_region aggregated
+influence core.fct_order_line.order_date, core.fct_order_line.channel, core.dim_store.region -> mart.channel_mix.orders, mart.channel_mix.revenue, mart.channel_mix.share_of_region
+filter core.fct_order_line.status -> mart.channel_mix
+filter core.fct_order_line.quantity -> mart.channel_mix post
+filter core.dim_store.region, core.fct_order_line.order_date, core.fct_order_line.net_amount -> mart.channel_mix post
+note D-9: `rnk <= 3` filters a rank partitioned by region and month and ordered by the monthly SUM, so all three decide which rows survive, after aggregation.
+forbid filter core.fct_order_line.discount_amount -> mart.channel_mix | FILTER changes the count, not which rows land (D-10)

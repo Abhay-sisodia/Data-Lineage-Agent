@@ -1,0 +1,296 @@
+{
+  "question": "Where does <result:pasted/query11111.sql>.row_xmin come from?",
+  "seconds": 32.5,
+  "stage": "agent",
+  "cost_usd": 0.0343606,
+  "turns": 8,
+  "notes": [],
+  "answer": {
+    "question_id": "M10",
+    "status": "answered",
+    "text": "No lineage found. `<result:pasted/query11111.sql>` has no column called `row_xmin`. The file has no boundaries or refusals. The result has 19 columns, and none of them is `row_xmin`. They are: line_updated_at, ext, customer_name, carrier_name, customer_created_at, touch_sources, primary_email, from, customer_status, site_segment, Ship To Site, shipped_qty, status_name, shipment_id, contact_role, region_code, shipment_line_id, last_touch_ts and customer_id. If you meant one of these, tell me which and I'll trace it.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "<result:pasted/query11111.sql>.row_xmin"
+      },
+      "result": []
+    },
+    {
+      "tool": "find",
+      "args": {
+        "name": "row_xmin"
+      },
+      "result": []
+    },
+    {
+      "tool": "find",
+      "args": {
+        "name": "query11111"
+      },
+      "result": [
+        {
+          "id": "<result:pasted/query11111.sql>",
+          "label": "Table"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.ext",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.from",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.customer_id",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.region_code",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.shipment_id",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.shipped_qty",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.status_name",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.Ship To Site",
+          "label": "Column"
+        },
+        {
+          "id": "<result:pasted/query11111.sql>.carrier_name",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "file": "pasted/query11111.sql"
+      },
+      "result": {
+        "scope": "file pasted/query11111.sql",
+        "boundaries": [],
+        "refusals": []
+      }
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "<result:pasted/query11111.sql>"
+      },
+      "result": {
+        "id": "<result:pasted/query11111.sql>",
+        "columns": 19,
+        "columns_with_lineage": 19,
+        "columns_without_lineage": [],
+        "written_by": [
+          "pasted/query11111.sql#<script>:23"
+        ],
+        "found": true,
+        "lineage_note": "with/without lineage counts what FEEDS or INFLUENCES each column (incoming). A source table's columns are usually all 'without lineage' and still feed other tables: use `downstream` for what a column feeds",
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.line_status",
+            "id": "4c8e7265d50b85314a04a7d8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.updated_at",
+            "id": "63b4369286a64023b15fb2b7",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.is_deleted",
+            "id": "6581e3cd5e433026dee2ecc8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.shipped_qty",
+            "id": "881bea9b77923461bbd76250",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.unit_selling_price",
+            "id": "8e258f3bb514783050566f9b",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.shipment_id",
+            "id": "9a71a41d968280483731a7a1",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.promise_date",
+            "id": "eab8917304314c646a1be12a",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.status_code",
+            "id": "f9a8abaebd7b0eef17c2d57e",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    },
+    {
+      "tool": "graph_query",
+      "args": {
+        "cypher": "MATCH (t:Table {id:'<result:pasted/query11111.sql>'})-[:HAS_COLUMN]->(c) RETURN c.id"
+      },
+      "result": {
+        "rejected": false,
+        "query": "MATCH (t:Table {id:'<result:pasted/query11111.sql>'})-[:HAS_COLUMN]->(c) RETURN c.id\nLIMIT 500",
+        "rows": [
+          {
+            "c.id": "<result:pasted/query11111.sql>.line_updated_at"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.ext"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.customer_name"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.carrier_name"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.customer_created_at"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.touch_sources"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.primary_email"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.from"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.customer_status"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.site_segment"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.Ship To Site"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.shipped_qty"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.status_name"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.shipment_id"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.contact_role"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.region_code"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.shipment_line_id"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.last_touch_ts"
+          },
+          {
+            "c.id": "<result:pasted/query11111.sql>.customer_id"
+          }
+        ]
+      }
+    }
+  ]
+}

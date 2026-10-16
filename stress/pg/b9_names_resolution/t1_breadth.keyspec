@@ -1,0 +1,95 @@
+# Answer key for B9 t1_breadth.sql - names and resolution, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B4, plus D-23..D-25 (decided 2026-10-03, not implemented).
+# Every node is schema-qualified (D-25). A forbid applies to the whole file, so a fact that
+# is right in one statement and wrong in another is checked by the facts, not by a forbid.
+
+expect context_dependent_binding <script>:1 | S1 is the first unqualified reference resolved by assumption; one boundary per unit (D-24)
+expect dangling_reference events_log | S3: events_log is in staging and mart and neither is the default, so it is ambiguous (D-24)
+
+@ 18 S1 default schema, no path known
+value core.dim_store.region -> mart.kpi_rollup.region identity
+value core.dim_store.country_code -> mart.kpi_rollup.country_code identity
+
+@ 26 S2 unique name, no path known (D-24)
+value staging.shipments.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value staging.shipments.id -> mart.carrier_scorecard.shipments aggregated
+influence staging.shipments.carrier_id -> mart.carrier_scorecard.shipments
+
+@ 36 S3 ambiguous name, no path known (D-24)
+forbid value staging.events_log.kind -> mart.kpi_rollup.level | events_log is ambiguous with no path known: no edge from either table (D-24)
+# mart.events_log.kind -> mart.kpi_rollup.level is right in S8, so S3's half of the rule is checked by the boundary above.
+
+@ 51 S5 path order: staging before core
+value staging.ledger.account -> mart.kpi_rollup.segment identity
+value staging.ledger.amount -> mart.kpi_rollup.revenue identity
+filter staging.ledger.currency -> mart.kpi_rollup
+
+@ 60 S6 falls through to the path's second schema
+value core.dim_warehouse.region -> mart.kpi_rollup.region identity
+
+@ 68 S7 a qualifier overrides the path
+value core.ledger.account -> mart.kpi_rollup.segment identity
+value core.ledger.balance -> mart.kpi_rollup.revenue identity
+
+@ 79 S8 a new path; unqualified target
+value mart.events_log.kind -> mart.kpi_rollup.level identity
+filter mart.events_log.rolled_up -> mart.kpi_rollup
+
+@ 91 S9 after RESET: the default schema
+value core.ledger.status -> mart.kpi_rollup.segment identity
+
+@ 100 S10 quoted identifiers
+value staging.LegacyFeed.CustomerID -> mart.FeedSummary.CustomerID identity
+value staging.LegacyFeed.Amount -> mart.FeedSummary.Total identity
+value staging.LegacyFeed.amount -> mart.FeedSummary.total identity
+value staging.LegacyFeed.order -> mart.FeedSummary.order identity
+value staging.LegacyFeed.Status Code -> mart.FeedSummary.Status Code identity
+filter staging.LegacyFeed.user -> mart.FeedSummary
+forbid value staging.LegacyFeed.amount -> mart.FeedSummary.Total | "Amount" and amount are different columns
+forbid value staging.LegacyFeed.Amount -> mart.FeedSummary.total | "Total" and total are different columns
+
+@ 109 S11 folding and quoted lower case
+value staging.customers.country_code -> mart.kpi_rollup.region identity
+value staging.customers.segment -> mart.kpi_rollup.segment identity
+
+@ 117 S12 three-part names
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.amount -> mart.channel_mix.revenue identity
+filter staging.orders.status -> mart.channel_mix
+
+@ 126 S13 SELECT * into the same-shaped table
+value core.ledger.id -> core.ledger.id identity
+value core.ledger.account -> core.ledger.account identity
+value core.ledger.balance -> core.ledger.balance identity
+value core.ledger.status -> core.ledger.status identity
+filter core.ledger.status -> core.ledger
+
+@ 136 S14 t.* over a USING join
+value staging.customers.full_name -> mart.top_customers.full_name identity
+value staging.orders.customer_id -> mart.top_customers.customer_id identity
+value staging.orders.amount -> mart.top_customers.revenue identity
+forbid filter staging.customers.id -> mart.top_customers | USING is a join condition: structural (D-5)
+
+@ 149 S15a FULL JOIN USING
+value staging.orders.store_id, core.fct_order_line.store_id -> mart.sales_daily.store_id conditional
+note The merged column is COALESCE(a.store_id, b.store_id): two columns (D-19).
+value staging.orders.amount -> mart.sales_daily.gross_amount identity
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount identity
+
+@ 158 S15b RIGHT JOIN USING
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+repeat value core.fct_order_line.net_amount -> mart.sales_daily.net_amount identity
+forbid value staging.orders.store_id -> mart.sales_daily.store_id identity | under RIGHT JOIN the merged column is the right input's
+
+@ 168 S15c NATURAL JOIN
+repeat value staging.ledger.account -> mart.kpi_rollup.segment identity
+repeat value core.ledger.balance -> mart.kpi_rollup.revenue identity
+forbid filter staging.ledger.id -> mart.kpi_rollup | NATURAL's shared columns are the join condition: structural (D-5)
+
+@ 177 S16 COLLATE
+value staging.customers.segment -> mart.kpi_rollup.segment derived
+note COLLATE stands between the column and the target: derived, as a cast is.
+filter staging.customers.full_name -> mart.kpi_rollup
+note ORDER BY full_name under LIMIT decides which rows land (D-9).

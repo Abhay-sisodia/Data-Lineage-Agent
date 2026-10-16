@@ -118,7 +118,7 @@ from lineage.ir.model import Boundary, IREdge, MatchKey, Mechanism, Tier
 # UNIT, NEVER LINE, in any case. Label and analyser agree on the origin unit for 160 of 170
 # matched edges and on the line for 12.
 # ---------------------------------------------------------------------------------------
-EdgeKey = tuple[str, str, str, str, str]
+EdgeKey = tuple[str, str, str, str, str, str]
 
 # The analyser emits IR edges directly (T2.1). The alias is kept because "predicted" is
 # the right word at a scoring boundary - these are claims being tested, not facts yet.
@@ -612,7 +612,7 @@ def render(report: ScoreReport) -> str:
             "  <- the exact wrong answer this package tests for"
         )
         for key, reason in report.forbidden_violations:
-            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]{_guard_suffix(key)}")
+            lines.append(f"  {describe_key(key)}")
             lines.append(f"      {reason}")
 
     if report.origin_violations:
@@ -622,7 +622,7 @@ def render(report: ScoreReport) -> str:
             "  <- the right edge reached the wrong way"
         )
         for key, actual, allowed, reason in report.origin_violations:
-            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]{_guard_suffix(key)}")
+            lines.append(f"  {describe_key(key)}")
             lines.append(f"      came from {actual}, must come from {allowed}")
             lines.append(f"      {reason}")
     elif report.origin_assertions_checked:
@@ -635,7 +635,7 @@ def render(report: ScoreReport) -> str:
         lines.append("")
         lines.append(f"MISSED ({len(report.missed_edges)})")
         for key in report.missed_edges:
-            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]{_guard_suffix(key)}")
+            lines.append(f"  {describe_key(key)}")
 
     if report.spurious_edges:
         lines.append("")
@@ -643,7 +643,7 @@ def render(report: ScoreReport) -> str:
             f"SPURIOUS ({len(report.spurious_edges)})  <- these are what precision punishes"
         )
         for key in report.spurious_edges:
-            lines.append(f"  {key[0]} -> {key[1]}  [{key[2]}/{key[3]}]{_guard_suffix(key)}")
+            lines.append(f"  {describe_key(key)}")
 
     return "\n".join(lines) + "\n"
 
@@ -652,6 +652,23 @@ def _pct(value: float | None) -> str:
     return "n/a" if value is None else f"{value * 100:.1f}%"
 
 
+def describe_key(key: EdgeKey) -> str:
+    """Render one scored fact for a human: endpoints, flow, transform, phase, guard.
+
+    `EdgeKey` is ``(source, target, flow, transform, phase, guard)``. The guard moved from
+    index 4 to index 5 when `phase` joined the match key under D-2, and every renderer has
+    to move with it - printing `key[4]` now labels the phase as a guard, which is a report
+    that lies rather than one that omits.
+
+    The phase is shown only for a `filter`, because that is the only flow it says anything
+    about. On a value edge it would be noise that reads like a claim.
+    """
+    flow = key[2]
+    phase = f"/{key[4]}" if len(key) > 4 and flow == Flow.FILTER.value else ""
+    guard = f"  when {key[5]}" if len(key) > 5 and key[5] else ""
+    return f"{key[0]} -> {key[1]}  [{flow}/{key[3]}{phase}]{guard}"
+
+
 def _guard_suffix(key: EdgeKey) -> str:
-    """Show the guard when there is one — two edges can now differ by nothing else."""
-    return f"  when {key[4]}" if len(key) > 4 and key[4] else ""
+    """Kept for callers that render the endpoints themselves."""
+    return f"  when {key[5]}" if len(key) > 5 and key[5] else ""

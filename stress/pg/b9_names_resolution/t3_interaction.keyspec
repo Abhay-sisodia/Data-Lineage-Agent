@@ -1,0 +1,56 @@
+# Answer key for B9 t3_interaction.sql - names and resolution, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B4, plus D-23..D-25. Every node is schema-qualified (D-25).
+
+@ 17 S1 GROUP BY: the input column wins
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.id -> mart.channel_mix.orders aggregated
+influence staging.orders.channel, staging.orders.status -> mart.channel_mix.orders
+note GROUP BY `status` is o.status, the input column - not the alias over o.channel.
+forbid influence staging.orders.channel -> mart.channel_mix.channel | a grouping key does not influence itself (D-2)
+
+@ 27 S2 ORDER BY: the output column wins
+value staging.payments.order_id -> mart.top_customers.customer_id identity
+value staging.payments.amount -> mart.top_customers.revenue identity
+filter staging.payments.amount -> mart.top_customers
+forbid filter staging.payments.paid_at -> mart.top_customers | ORDER BY paid_at is the OUTPUT column, the alias over p.amount
+
+@ 37 S3 a window over a USING-merged column
+value staging.orders.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount identity
+influence staging.orders.store_id, core.fct_order_line.net_amount -> mart.sales_daily.rank_in_region
+forbid value core.fct_order_line.store_id -> mart.sales_daily.store_id identity | an INNER JOIN's merged column is the left input's
+
+@ 49 S4 same-named columns, qualified, in GROUP BY and HAVING
+value core.dim_store.status -> mart.kpi_rollup.region identity
+value staging.orders.id -> mart.kpi_rollup.orders aggregated
+influence core.dim_store.status -> mart.kpi_rollup.orders
+filter staging.orders.status, core.dim_store.status -> mart.kpi_rollup post
+note HAVING compares MAX(o.status) with the grouping key: the predicate acts after aggregation (D-6).
+
+@ 62 S5 UPDATE ... FROM, target and FROM share a name
+value staging.ledger.amount -> core.ledger.balance identity
+filter staging.ledger.currency -> core.ledger
+forbid filter staging.ledger.id -> core.ledger | the target-FROM equality is a join (D-11)
+forbid filter core.ledger.id -> core.ledger | the target-FROM equality is a join (D-11)
+
+@ 72 S6 MERGE whose source alias is the target's name
+value core.ledger.balance -> core.ledger.balance derived
+value staging.ledger.amount -> core.ledger.balance derived
+repeat value staging.ledger.amount -> core.ledger.balance identity
+value staging.ledger.id -> core.ledger.id identity
+value staging.ledger.account -> core.ledger.account identity
+note UPDATE adds the amount (derived); INSERT copies it (identity): two facts.
+filter staging.ledger.posted_at -> core.ledger
+
+@ 88 S7 quoted target list and RETURNING
+value staging.LegacyFeed.CustomerID -> mart.FeedSummary.CustomerID identity
+value staging.LegacyFeed.Status Code -> mart.FeedSummary.Status Code identity
+value mart.FeedSummary.CustomerID -> <result>.CustomerID identity
+value mart.FeedSummary.Status Code -> <result>.Status Code identity
+note RETURNING lands in <result>, sourced from the written table's column (D-16).
+
+@ 97 S8 set-operation names from the first arm
+value staging.ledger.account, core.ledger.account -> mart.kpi_rollup.segment identity
+value staging.ledger.amount, core.ledger.balance -> mart.kpi_rollup.revenue identity

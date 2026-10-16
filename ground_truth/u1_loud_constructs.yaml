@@ -16,7 +16,19 @@
 # the other, and a package that passed one while failing the other would look fine.
 
 package: adversarial/unanalysable/u1_loud_constructs.sql
-source_sha256: bde2289d0f1c0f71e9adb6311015f64a6ea8da25451335005bc501fa09bf9690
+# Recorded against LF, which .gitattributes makes canonical for the whole corpus.
+#
+# The original value here was bde2289d0f1c0f71e9adb6311015f64a6ea8da25451335005bc501fa09bf9690.
+# That is THIS SAME TEXT hashed with CRLF endings - verified by re-encoding the committed file
+# and reproducing the old digest exactly. So the source neither changed nor needed re-labelling:
+# every line number in this key still lands on the statement it names.
+#
+# u1 is the only package in the corpus whose hash was recorded from a CRLF working copy; the
+# other thirty-five were recorded against LF and have always verified. It is worth stating that
+# the guard caught this rather than the policy preventing it: .gitattributes pins the checkout,
+# but nothing pinned the bytes the labeller hashed, so a hash taken outside the checkout could
+# still drift. The check firing is the mechanism working as designed.
+source_sha256: 4bd157165297af469e4720df05f010fda47174d8db29734273405a4dff9d521b
 labelled_by: claude+abhay (source_read - the package is parse-only by design)
 labelled_at: "2026-09-08"
 

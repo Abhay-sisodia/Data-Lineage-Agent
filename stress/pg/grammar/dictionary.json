@@ -1,0 +1,68 @@
+{
+  "captured_at": "2026-10-01T00:00:00Z",
+  "default_schema": "src",
+  "dialect": "postgres",
+  "objects": {
+    "src.a": {
+      "owner": "src",
+      "name": "a",
+      "object_type": "TABLE"
+    },
+    "src.b": {
+      "owner": "src",
+      "name": "b",
+      "object_type": "TABLE"
+    },
+    "tgt.t": {
+      "owner": "tgt",
+      "name": "t",
+      "object_type": "TABLE"
+    }
+  },
+  "columns": {
+    "src.a": [
+      "id",
+      "k",
+      "v",
+      "w",
+      "n",
+      "d",
+      "ts",
+      "iv",
+      "b",
+      "j",
+      "x",
+      "arr",
+      "rg",
+      "g"
+    ],
+    "src.b": [
+      "id",
+      "k",
+      "v",
+      "n",
+      "d"
+    ],
+    "tgt.t": [
+      "id",
+      "k",
+      "v",
+      "w",
+      "n",
+      "d",
+      "ts",
+      "iv",
+      "b",
+      "j",
+      "x",
+      "arr",
+      "rg",
+      "g"
+    ]
+  },
+  "temporary": {
+    "src.a": false,
+    "src.b": false,
+    "tgt.t": false
+  }
+}

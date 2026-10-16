@@ -1,0 +1,33 @@
+# Answer key for B5 t2_depth.sql - semi-structured data, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-29 and D-30. Every node is schema-qualified.
+
+@ 17 S1 a document built, extended, then a key extracted and grouped
+value staging.customers.segment, staging.customers.country_code -> mart.kpi_rollup.segment derived
+note Column-level (D-29): 'seg' is extracted from a document built from both columns.
+value staging.customers.id -> mart.kpi_rollup.revenue aggregated
+influence staging.customers.segment, staging.customers.country_code -> mart.kpi_rollup.revenue
+
+@ 38 S2 JSON_TABLE in a CTE, summed above
+value staging.orders.payload -> mart.product_performance.product_id derived
+value staging.orders.payload -> mart.product_performance.units aggregated
+influence staging.orders.payload -> mart.product_performance.units
+filter staging.orders.status -> mart.product_performance
+
+@ 56 S3 elements of elements
+value staging.orders.payload -> mart.channel_mix.channel derived
+
+@ 66 S4 xml built then queried
+value staging.customers.segment, staging.customers.full_name -> mart.customer_summary.segment derived
+
+@ 78 S5 hstore to jsonb, then a key
+value staging.device_attrs.attrs -> mart.top_customers.full_name derived
+
+@ 89 S6 an ordinal carried up and filtered
+value staging.orders.customer_id -> mart.top_customers.customer_id identity
+influence staging.orders.payload -> mart.top_customers.position
+filter staging.orders.payload -> mart.top_customers
+
+@ 102 S7 jsonb_agg exploded again
+value staging.orders.channel -> mart.kpi_rollup.level aggregated

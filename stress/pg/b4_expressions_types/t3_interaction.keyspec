@@ -1,0 +1,90 @@
+# Answer key for B4 t3_interaction.sql - expressions and types, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B3, plus D-19..D-22.
+
+@ 20 S1 expression GROUP BY key, CASE in SUM, window partitioned by an expression
+value core.fct_order_line.product_key -> mart.product_performance.product_id identity
+value core.fct_order_line.order_date -> mart.product_performance.period_month derived
+value core.fct_order_line.status, core.fct_order_line.net_amount -> mart.product_performance.revenue aggregated
+value core.fct_order_line.net_amount -> mart.product_performance.revenue_share, mart.product_performance.running_revenue aggregated
+influence core.fct_order_line.product_key, core.fct_order_line.order_date -> mart.product_performance.revenue, mart.product_performance.revenue_share, mart.product_performance.running_revenue
+note GROUP BY keys (D-2), and the windows' PARTITION BY / ORDER BY over the same columns (D-4).
+forbid influence core.fct_order_line.order_date -> mart.product_performance.period_month | a grouping key expression does not influence itself (D-2)
+forbid influence core.fct_order_line.product_key -> mart.product_performance.product_id | a grouping key does not influence itself (D-2)
+
+@ 40 S2 expressions in ON, array and range WHERE, HAVING
+value staging.orders.channel -> mart.channel_mix.channel derived
+value core.dim_store.region -> mart.channel_mix.region identity
+value staging.orders.id -> mart.channel_mix.orders aggregated
+value staging.orders.amount, staging.fx_rates.rate_to_usd -> mart.channel_mix.revenue aggregated
+influence staging.orders.channel, core.dim_store.region -> mart.channel_mix.orders, mart.channel_mix.revenue
+filter staging.orders.tags, staging.orders.created_at, staging.orders.updated_at, staging.orders.order_ts -> mart.channel_mix
+filter staging.orders.amount, staging.orders.tags -> mart.channel_mix post
+forbid filter core.dim_store.country_code -> mart.channel_mix | an expression in ON is still structural (D-5)
+forbid filter staging.orders.currency -> mart.channel_mix | an expression in ON is still structural (D-5)
+forbid filter staging.fx_rates.rate_date -> mart.channel_mix | an expression in ON is still structural (D-5)
+
+@ 65 S3 scalar subquery in a CASE test, CASE in a scalar subquery (D-12)
+value staging.customers.id -> mart.customer_summary.customer_id identity
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.status's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.customer_summary.status
+note The COUNT(*) subquery's correlation: values of status, aggregated (D-12).
+value staging.customers.status -> mart.customer_summary.status conditional
+value staging.orders.currency, staging.orders.amount, staging.orders.status -> mart.customer_summary.avg_basket aggregated
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.customer_summary.avg_basket's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.customer_summary.avg_basket
+forbid filter staging.orders.status -> mart.customer_summary | a scalar subquery's WHERE decides one value, never which rows land (D-12)
+forbid filter staging.customers.id -> mart.customer_summary | a scalar subquery's correlation is a value (D-12)
+
+@ 86 S4 LAG over an aggregate, one-column CASE, named window
+value core.dim_product.product_id -> mart.product_performance.product_id identity
+repeat value core.fct_order_line.order_date -> mart.product_performance.period_month derived
+value core.fct_order_line.net_amount -> mart.product_performance.prev_month_revenue, mart.product_performance.growth_pct aggregated
+influence core.dim_product.product_id, core.fct_order_line.order_date -> mart.product_performance.prev_month_revenue, mart.product_performance.growth_pct
+note Inner GROUP BY keys, and the named window's PARTITION BY / ORDER BY over them (D-4).
+
+@ 111 S5 DISTINCT ON an expression (D-9)
+value core.dim_customer.region -> mart.top_customers.region derived
+value core.dim_customer.customer_id -> mart.top_customers.customer_id identity
+value core.dim_customer.full_name -> mart.top_customers.full_name derived
+value core.fct_order_line.net_amount -> mart.top_customers.revenue identity
+filter core.dim_customer.region, core.fct_order_line.net_amount -> mart.top_customers
+note The DISTINCT ON key and its tie-breaker decide which row survives (D-9).
+
+@ 126 S6 UNION ALL arms, three transforms
+value staging.orders.currency -> mart.kpi_rollup.region derived
+value staging.orders.amount -> mart.kpi_rollup.revenue identity
+filter staging.orders.status -> mart.kpi_rollup
+value staging.payments.currency -> mart.kpi_rollup.region identity
+value staging.payments.status, staging.payments.amount -> mart.kpi_rollup.revenue conditional
+value staging.returns.amount -> mart.kpi_rollup.revenue derived
+forbid value staging.returns.amount -> mart.kpi_rollup.revenue conditional | GREATEST(x, 0) is a clamp over one column (D-19)
+
+@ 144 S7 FILTER compounds, string_agg ordered by another column
+value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
+value core.dim_warehouse.region -> mart.carrier_scorecard.carrier_name aggregated
+influence core.dim_warehouse.name -> mart.carrier_scorecard.carrier_name
+value core.fct_shipment.status, core.fct_shipment.weight_kg -> mart.carrier_scorecard.shipments aggregated
+value core.fct_shipment.cost, core.fct_shipment.transit_days, core.fct_shipment.weight_kg -> mart.carrier_scorecard.cost_per_kg aggregated
+influence core.dim_carrier.id, core.dim_carrier.name -> mart.carrier_scorecard.carrier_name, mart.carrier_scorecard.shipments, mart.carrier_scorecard.cost_per_kg
+forbid filter core.fct_shipment.status -> mart.carrier_scorecard | FILTER (WHERE) changes one aggregate, not the rows (D-10)
+forbid filter core.fct_shipment.transit_days -> mart.carrier_scorecard | FILTER (WHERE) changes one aggregate, not the rows (D-10)
+
+@ 160 S8 RANK over SUM with an expression partition; precision from an aggregate
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.dim_store.region -> mart.sales_daily.region identity
+influence core.dim_store.region, core.fct_order_line.order_date, core.fct_order_line.net_amount, core.fct_order_line.store_id -> mart.sales_daily.rank_in_region
+note region and date_part(order_date) partition the rank; net_amount orders it through SUM; the GROUP BY keys decide each SUM.
+value core.fct_order_line.net_amount, core.dim_store.country_code -> mart.sales_daily.avg_order_value aggregated
+note The precision MAX(length(country_code)) is a parameter: a value (D-22), aggregated on its path.
+influence core.fct_order_line.order_date, core.fct_order_line.store_id, core.dim_store.region -> mart.sales_daily.avg_order_value
+forbid value core.fct_order_line.net_amount -> mart.sales_daily.rank_in_region | RANK's ORDER BY decides the rank; no part of the sum is in it (D-4)
+forbid influence core.dim_store.region -> mart.sales_daily.region | a grouping key does not influence itself (D-2)
+
+@ 182 S9 band CASE over an aggregate, filtered on the band
+value core.dim_customer.region -> mart.kpi_rollup.region identity
+value core.fct_order_line.net_amount -> mart.kpi_rollup.revenue, mart.kpi_rollup.level aggregated
+influence core.dim_customer.region -> mart.kpi_rollup.revenue, mart.kpi_rollup.level
+filter core.fct_order_line.net_amount -> mart.kpi_rollup post

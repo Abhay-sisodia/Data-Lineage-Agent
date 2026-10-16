@@ -1,0 +1,625 @@
+{
+  "question": "Some columns of <result:pasted/query11111.sql> come from LEFT-JOINed CTEs that filter their own rows, so those columns are NULL when the filter fails. Which result columns are affected that way, and by which filter column?",
+  "seconds": 41.1,
+  "stage": "agent",
+  "cost_usd": 0.0782179,
+  "turns": 11,
+  "notes": [],
+  "answer": {
+    "question_id": "H5",
+    "status": "answered",
+    "text": "The graph does not record per-column CTE filters, and the explain output cuts off before the CTE bodies, so I could not confirm which CTEs are LEFT-JOINed. These result columns have a conditional value edge from a column that looks like a filter. Probable match: contact_role and primary_email, both from crm.contact.is_primary (edges 4f95785a3ee544ce41206617 and d4f3b9ad4f6ed566f676f14a), and status_name, from gold.dim_status.datasource_num_id (73f858abb2b6c6e1563df64f). Uncertain, could be CASE logic or join keys: carrier_name (shipment_id, carrier_code), Ship To Site and site_segment (crm.customer_site.country_code). Columns with only identity or derived edges show no such effect. The query-wide pre-aggregation filters (for example line_status and is_deleted) apply to the whole result and do not make single columns NULL.",
+    "cited_edges": [
+      "4f95785a3ee544ce41206617",
+      "d4f3b9ad4f6ed566f676f14a",
+      "73f858abb2b6c6e1563df64f",
+      "c40aeffeaaf0a48c1970cd49",
+      "770c4afaa06bc09ffe0b6fc1",
+      "c37eb6b592f62d6ea8a1f281",
+      "c9c2ddcf6d2d19734b75d749",
+      "f2f4269d1fbb6fc0800735c2",
+      "b3b8bc87f36c1ff4e286b573",
+      "16976cf4e7525e953707ad8a",
+      "a2cdb1d3def6d781b48289a0"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "gaps",
+      "args": {
+        "file": "pasted/query11111.sql"
+      },
+      "result": {
+        "scope": "file pasted/query11111.sql",
+        "boundaries": [],
+        "refusals": []
+      }
+    },
+    {
+      "tool": "find",
+      "args": {
+        "name": "<result:pasted/query11111.sql>",
+        "limit": 50
+      },
+      "result": [
+        {
+          "id": "<result:pasted/query11111.sql>",
+          "label": "Table"
+        }
+      ]
+    },
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "<result:pasted/query11111.sql>"
+      },
+      "result": {
+        "id": "<result:pasted/query11111.sql>",
+        "columns": 19,
+        "columns_with_lineage": 19,
+        "columns_without_lineage": [],
+        "written_by": [
+          "pasted/query11111.sql#<script>:23"
+        ],
+        "found": true,
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.line_status",
+            "id": "4c8e7265d50b85314a04a7d8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.updated_at",
+            "id": "63b4369286a64023b15fb2b7",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.is_deleted",
+            "id": "6581e3cd5e433026dee2ecc8",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.shipped_qty",
+            "id": "881bea9b77923461bbd76250",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.unit_selling_price",
+            "id": "8e258f3bb514783050566f9b",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.shipment_id",
+            "id": "9a71a41d968280483731a7a1",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_line.promise_date",
+            "id": "eab8917304314c646a1be12a",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          },
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "pasted/query11111.sql",
+            "tier": "A",
+            "line": 23,
+            "guard": null,
+            "statement": "pasted/query11111.sql#<script>:23",
+            "source": "lgx.shipment_header.status_code",
+            "id": "f9a8abaebd7b0eef17c2d57e",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "<result:pasted/query11111.sql>"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    },
+    {
+      "tool": "graph_query",
+      "args": {
+        "cypher": "MATCH (s)-[r:FEEDS|INFLUENCES]->(t:Column) WHERE t.id STARTS WITH '<result:pasted/query11111.sql>' RETURN t.id, type(r), s.id, r.id, r.transform, r.line"
+      },
+      "result": {
+        "rejected": false,
+        "query": "MATCH (s)-[r:FEEDS|INFLUENCES]->(t:Column) WHERE t.id STARTS WITH '<result:pasted/query11111.sql>' RETURN t.id, type(r), s.id, r.id, r.transform, r.line\nLIMIT 500",
+        "rows": [
+          {
+            "t.id": "<result:pasted/query11111.sql>.Ship To Site",
+            "type(r)": "FEEDS",
+            "s.id": "crm.customer_site.country_code",
+            "r.id": "16976cf4e7525e953707ad8a",
+            "r.transform": "conditional",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.Ship To Site",
+            "type(r)": "FEEDS",
+            "s.id": "crm.customer_site.site_code",
+            "r.id": "fcfd707b97b71617e7c3046c",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_header.shipment_id",
+            "r.id": "c9c2ddcf6d2d19734b75d749",
+            "r.transform": "conditional",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_header.carrier_code",
+            "r.id": "f2f4269d1fbb6fc0800735c2",
+            "r.transform": "conditional",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.carrier.carrier_name",
+            "r.id": "49af2ba193dcb18848562fb5",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.carrier_name",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.carrier.carrier_code",
+            "r.id": "b3b8bc87f36c1ff4e286b573",
+            "r.transform": "conditional",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.contact_role",
+            "type(r)": "FEEDS",
+            "s.id": "crm.contact.role",
+            "r.id": "c40aeffeaaf0a48c1970cd49",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.contact_role",
+            "type(r)": "FEEDS",
+            "s.id": "crm.contact.is_primary",
+            "r.id": "4f95785a3ee544ce41206617",
+            "r.transform": "conditional",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.customer_created_at",
+            "type(r)": "FEEDS",
+            "s.id": "crm.customer.created_at",
+            "r.id": "23d1326b43286fa07eeaad95",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.customer_id",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_header.customer_id",
+            "r.id": "6d00ba2ea4948f0c68acdf32",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.customer_name",
+            "type(r)": "FEEDS",
+            "s.id": "crm.customer.customer_name",
+            "r.id": "8b7dc9ecf7de82c6ccb0ffda",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.customer_status",
+            "type(r)": "FEEDS",
+            "s.id": "crm.customer.status",
+            "r.id": "94fd55d63a8e14e094010115",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.ext",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_line.unit_selling_price",
+            "r.id": "7fbfeec0fef587fa35b1911d",
+            "r.transform": "derived",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.ext",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_line.shipped_qty",
+            "r.id": "61c79af8ed72a19f2fff75e3",
+            "r.transform": "derived",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.from",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_header.status_code",
+            "r.id": "54f2767b3546803d12f58e77",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "type(r)": "INFLUENCES",
+            "s.id": "lgx.package_event.shipment_id",
+            "r.id": "5031d6ac456945e36e085a90",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "type(r)": "INFLUENCES",
+            "s.id": "evt.activity.entity_id",
+            "r.id": "3a12485ee68dcf225bc03665",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.package_event.event_ts",
+            "r.id": "d8993d4f5befd90b81492f54",
+            "r.transform": "aggregated",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "type(r)": "FEEDS",
+            "s.id": "evt.activity.kind",
+            "r.id": "a8c6f422f9ed0693c37ed100",
+            "r.transform": "aggregated",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.last_touch_ts",
+            "type(r)": "FEEDS",
+            "s.id": "evt.activity.created_at",
+            "r.id": "c8b75848705bed3a59fb3e62",
+            "r.transform": "aggregated",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.line_updated_at",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_line.last_update_ts",
+            "r.id": "5910d8cda7704ce78d601a80",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.primary_email",
+            "type(r)": "FEEDS",
+            "s.id": "crm.contact.is_primary",
+            "r.id": "d4f3b9ad4f6ed566f676f14a",
+            "r.transform": "conditional",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.primary_email",
+            "type(r)": "FEEDS",
+            "s.id": "crm.contact.email",
+            "r.id": "770c4afaa06bc09ffe0b6fc1",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.region_code",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.warehouse.region_code",
+            "r.id": "19ed7c1a6c35a4a890975061",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.shipment_id",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_header.shipment_id",
+            "r.id": "38430f812c8c41db2cc43e07",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.shipment_line_id",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_line.shipment_line_id",
+            "r.id": "f1eecb0cb336ba17f9b5f01a",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.shipped_qty",
+            "type(r)": "FEEDS",
+            "s.id": "lgx.shipment_line.shipped_qty",
+            "r.id": "46c9e9a221b9f8f6c4935e4b",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.site_segment",
+            "type(r)": "FEEDS",
+            "s.id": "crm.customer_site.country_code",
+            "r.id": "a2cdb1d3def6d781b48289a0",
+            "r.transform": "conditional",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.site_segment",
+            "type(r)": "FEEDS",
+            "s.id": "crm.customer.segment",
+            "r.id": "fef2d2170cedffbfa4ce70c0",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.status_name",
+            "type(r)": "FEEDS",
+            "s.id": "gold.dim_status.status_name",
+            "r.id": "c37eb6b592f62d6ea8a1f281",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.status_name",
+            "type(r)": "FEEDS",
+            "s.id": "gold.dim_status.datasource_num_id",
+            "r.id": "73f858abb2b6c6e1563df64f",
+            "r.transform": "conditional",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.touch_sources",
+            "type(r)": "INFLUENCES",
+            "s.id": "evt.activity.entity_id",
+            "r.id": "92c912f5609982d755a7456f",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.touch_sources",
+            "type(r)": "INFLUENCES",
+            "s.id": "lgx.package_event.shipment_id",
+            "r.id": "316cb13225db89fce37e1b64",
+            "r.transform": "identity",
+            "r.line": 23
+          },
+          {
+            "t.id": "<result:pasted/query11111.sql>.touch_sources",
+            "type(r)": "FEEDS",
+            "s.id": "evt.activity.kind",
+            "r.id": "c5413e46891d780d17f6a49e",
+            "r.transform": "aggregated",
+            "r.line": 23
+          }
+        ]
+      }
+    },
+    {
+      "tool": "graph_query",
+      "args": {
+        "cypher": "MATCH (s)-[r:FILTERS]->(t:Table) WHERE t.id CONTAINS 'query11111' OR s.id CONTAINS 'cte' RETURN s.id, t.id, r.id, r.line, r.phase"
+      },
+      "result": {
+        "rejected": false,
+        "query": "MATCH (s)-[r:FILTERS]->(t:Table) WHERE t.id CONTAINS 'query11111' OR s.id CONTAINS 'cte' RETURN s.id, t.id, r.id, r.line, r.phase\nLIMIT 500",
+        "rows": [
+          {
+            "s.id": "lgx.shipment_line.shipped_qty",
+            "t.id": "<result:pasted/query11111.sql>",
+            "r.id": "881bea9b77923461bbd76250",
+            "r.line": 23,
+            "r.phase": "pre-aggregation"
+          },
+          {
+            "s.id": "lgx.shipment_line.unit_selling_price",
+            "t.id": "<result:pasted/query11111.sql>",
+            "r.id": "8e258f3bb514783050566f9b",
+            "r.line": 23,
+            "r.phase": "pre-aggregation"
+          },
+          {
+            "s.id": "lgx.shipment_line.line_status",
+            "t.id": "<result:pasted/query11111.sql>",
+            "r.id": "4c8e7265d50b85314a04a7d8",
+            "r.line": 23,
+            "r.phase": "pre-aggregation"
+          },
+          {
+            "s.id": "lgx.shipment_header.is_deleted",
+            "t.id": "<result:pasted/query11111.sql>",
+            "r.id": "6581e3cd5e433026dee2ecc8",
+            "r.line": 23,
+            "r.phase": "pre-aggregation"
+          },
+          {
+            "s.id": "lgx.shipment_line.promise_date",
+            "t.id": "<result:pasted/query11111.sql>",
+            "r.id": "eab8917304314c646a1be12a",
+            "r.line": 23,
+            "r.phase": "pre-aggregation"
+          },
+          {
+            "s.id": "lgx.shipment_header.updated_at",
+            "t.id": "<result:pasted/query11111.sql>",
+            "r.id": "63b4369286a64023b15fb2b7",
+            "r.line": 23,
+            "r.phase": "pre-aggregation"
+          },
+          {
+            "s.id": "lgx.shipment_header.status_code",
+            "t.id": "<result:pasted/query11111.sql>",
+            "r.id": "f9a8abaebd7b0eef17c2d57e",
+            "r.line": 23,
+            "r.phase": "pre-aggregation"
+          },
+          {
+            "s.id": "lgx.shipment_header.shipment_id",
+            "t.id": "<result:pasted/query11111.sql>",
+            "r.id": "9a71a41d968280483731a7a1",
+            "r.line": 23,
+            "r.phase": "pre-aggregation"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "4f95785a3ee544ce41206617"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "crm.contact.is_primary",
+        "id": "4f95785a3ee544ce41206617",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.contact_role",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x"
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "73f858abb2b6c6e1563df64f"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "gold.dim_status.datasource_num_id",
+        "id": "73f858abb2b6c6e1563df64f",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.status_name",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x"
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "f2f4269d1fbb6fc0800735c2"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "lgx.shipment_header.carrier_code",
+        "id": "f2f4269d1fbb6fc0800735c2",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.carrier_name",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x"
+      }
+    },
+    {
+      "tool": "explain_edge",
+      "args": {
+        "edge": "16976cf4e7525e953707ad8a"
+      },
+      "result": {
+        "phase": "pre-aggregation",
+        "transform": "conditional",
+        "file": "pasted/query11111.sql",
+        "tier": "A",
+        "line": 23,
+        "guard": null,
+        "statement": "pasted/query11111.sql#<script>:23",
+        "source": "crm.customer_site.country_code",
+        "id": "16976cf4e7525e953707ad8a",
+        "band": 0,
+        "type": "FEEDS",
+        "target": "<result:pasted/query11111.sql>.Ship To Site",
+        "sql": "WITH\n\"Order\" AS (\n    SELECT DISTINCT ON (h.shipment_id)\n           h.shipment_id      AS \"id\",\n           h.customer_id      AS \"Customer_Id\",\n           h.status_code      AS \"select\",\n           h.ship_from_org_id,\n           h.created_at,\n           h.xmin             AS row_xmin\n    FROM lgx.shipment_header AS h\n    WHERE h.is_deleted IS NOT TRUE\n    ORDER BY h.shipment_id, h.updated_at DESC, h.ctid DESC\n),\nLines AS (\n    SELECT *\n    FROM lgx.shipment_line AS LN\n    WHERE ln.line_status <> 'VOID'\n),\nlvl1 AS (\n    SELECT l.*\n    FROM lines AS l\n),\nlvl2 AS (\n    SELECT x.*, x.shipped_qty * x.unit_selling_price AS ext\n    FROM lvl1 AS x"
+      }
+    }
+  ]
+}

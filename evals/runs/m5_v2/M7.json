@@ -1,0 +1,175 @@
+{
+  "question": "If lgx.package_event.event_ts is wrong, which columns of <result:pasted/query11111.sql> are affected?",
+  "seconds": 20.7,
+  "stage": "agent",
+  "cost_usd": 0.024916300000000002,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "M7",
+    "status": "answered",
+    "text": "Only <result:pasted/query11111.sql>.last_touch_ts is affected. lgx.package_event.event_ts feeds it as a value (aggregated, pre-aggregation) at pasted/query11111.sql:23. The graph shows no other value, influence or filter edges from event_ts into this file's result. The file has no boundaries or refusals.",
+    "cited_edges": [
+      "d8993d4f5befd90b81492f54"
+    ],
+    "cited_nodes": [
+      "<result:pasted/query11111.sql>.last_touch_ts"
+    ],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "lgx.package_event.event_ts"
+      },
+      "result": [
+        {
+          "id": "lgx.package_event.event_ts",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.package_event.event_ts",
+        "depth": 3
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "bf927bbd581108386dc25fdb",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "42e44c503ef6723525b96c3b",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_scan_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "medium/m5_names_under_load.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "medium/m5_names_under_load.sql#<script>:23",
+          "source": "lgx.package_event.event_ts",
+          "id": "d82e381b5cd0387b35bf43bc",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m5_names_under_load.sql>.last_touch_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "pasted/query11111.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "pasted/query11111.sql#<script>:23",
+          "source": "lgx.package_event.event_ts",
+          "id": "d8993d4f5befd90b81492f54",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:pasted/query11111.sql>.last_touch_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 40,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:40",
+          "source": "lgx.package_event.event_ts",
+          "id": "c0878ca04f4bfd813355e2fb",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "pg_temp.stg_ship.last_event_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "adf96f9212b3c35d8105c6ae",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_ts",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "48dfb6ba0432e246d3f45e45",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_event_type",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m2_shipment_exceptions.sql",
+          "tier": "A",
+          "line": 22,
+          "guard": null,
+          "statement": "medium/m2_shipment_exceptions.sql#<script>:22",
+          "source": "lgx.package_event.event_ts",
+          "id": "2e0b8f7ac909a9bfa7f67caf",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:medium/m2_shipment_exceptions.sql>.last_location",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "file": "pasted/query11111.sql"
+      },
+      "result": {
+        "scope": "file pasted/query11111.sql",
+        "boundaries": [],
+        "refusals": []
+      }
+    }
+  ]
+}

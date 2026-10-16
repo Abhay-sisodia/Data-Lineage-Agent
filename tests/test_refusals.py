@@ -101,7 +101,6 @@ def test_no_construct_refuses_a_database_link() -> None:
             "SELECT * FROM t PIVOT (SUM(x) FOR c IN (SELECT c FROM u))",
             RefusalCode.SHAPE_NOT_DECIDABLE,
         ),
-        ("SELECT * FROM t PIVOT (SUM(x) FOR c IN ('A', 'B'))", RefusalCode.UNSUPPORTED_CONSTRUCT),
         (
             "SELECT x FROM t START WITH p IS NULL CONNECT BY PRIOR id = p",
             RefusalCode.UNSUPPORTED_CONSTRUCT,
@@ -311,3 +310,331 @@ def test_violations_ignores_an_edge_from_a_different_unit(loud) -> None:
     elsewhere = [e for e in loud.edges if e.origin.unit != model.unit]
 
     assert violations([model], elsewhere) == []
+
+
+# --- S2-04: collections were SILENT, which is the one thing they must not be -------------
+
+
+def test_fetch_bulk_collect_is_refused_not_ignored(dictionary: Dictionary) -> None:
+    """Found by stress 2. The statement produced no edges AND no refusal.
+
+    Neither analyser claimed it: `forall_statement` and the collection form of FETCH are
+    absent from band 0's SUPPORTED set, and a collection of records is a memory location
+    def-use does not model. So both statements were skipped by both passes, five labelled
+    facts vanished, and nothing in the report said so.
+
+    A missing edge is survivable and a declared boundary is the product. An undeclared
+    absence is neither - it is indistinguishable from having correctly found nothing.
+    """
+    source = """CREATE OR REPLACE PROCEDURE bulk_reader IS
+    TYPE t_row IS RECORD (cust_id NUMBER, last_login DATE);
+    TYPE t_rows IS TABLE OF t_row;
+    v_batch t_rows;
+    CURSOR c_src IS SELECT s.cust_id, s.last_login FROM stg_customer s;
+BEGIN
+    OPEN c_src;
+    LOOP
+        FETCH c_src BULK COLLECT INTO v_batch LIMIT 100;
+        EXIT WHEN v_batch.COUNT = 0;
+    END LOOP;
+    CLOSE c_src;
+END bulk_reader;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert [r.code for r in result.refusals] == [RefusalCode.UNSUPPORTED_CONSTRUCT]
+    assert "BULK COLLECT" in result.refusals[0].reason
+
+
+def test_forall_is_refused_not_ignored(dictionary: Dictionary) -> None:
+    """The other half: the DML is driven by a collection subscript."""
+    source = """CREATE OR REPLACE PROCEDURE bulk_writer IS
+    TYPE t_ids IS TABLE OF NUMBER;
+    v_ids t_ids;
+BEGIN
+    FORALL i IN 1 .. v_ids.COUNT
+        INSERT INTO tmp_recent (cust_id, last_login)
+        VALUES (v_ids(i), SYSDATE);
+END bulk_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert any(r.code is RefusalCode.UNSUPPORTED_CONSTRUCT for r in result.refusals)
+    assert any("FORALL" in r.reason for r in result.refusals)
+
+
+def test_select_bulk_collect_still_works(dictionary: Dictionary) -> None:
+    """The over-refusal guard, and the reason the FETCH pattern is FETCH-specific.
+
+    `SELECT ... BULK COLLECT INTO` is analysed correctly today - stress 1 traces
+    `stg_customer.cust_id -> v_ids` through it. A pattern matching BULK COLLECT generally
+    would have refused a statement the analyser already gets right, which is the failure
+    the register's DB-link note warns about: refusing too much looks like discipline.
+    """
+    source = """CREATE OR REPLACE PROCEDURE bulk_select IS
+    TYPE t_ids IS TABLE OF NUMBER;
+    v_ids t_ids;
+BEGIN
+    SELECT cust_id BULK COLLECT INTO v_ids
+      FROM stg_customer
+     WHERE status_code = 'A';
+END bulk_select;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    assert any(str(e.target) == "variable:V_IDS" for e in result.edges)
+
+
+def test_a_literal_list_pivot_is_no_longer_refused() -> None:
+    """The register used to refuse every PIVOT. Stress finding S2-03 removed half of it.
+
+    This case sat in `test_each_loud_construct_is_refused_by_name` asserting
+    `UNSUPPORTED_CONSTRUCT`, and it is moved here rather than deleted, because the change
+    of behaviour is the point: a literal IN-list fixes the output columns at parse time, so
+    refusing it was a false abstention (T3.1d) that also cost parse coverage.
+
+    The subquery form stays in that list. There the output columns ARE the data.
+    """
+    assert classify_statement("SELECT * FROM t PIVOT (SUM(x) FOR c IN ('A', 'B'))") is None
+    assert (
+        classify_statement("SELECT * FROM t PIVOT (SUM(x) FOR c IN (SELECT c FROM u))") is not None
+    )
+
+
+# --- S1-04 / D-1: an INSERT ... VALUES is read, not refused -------------------------------
+
+
+def test_insert_values_from_variables_is_no_longer_refused(dictionary: Dictionary) -> None:
+    """Stress finding S1-04, decision D-1. The one false abstention in the signed run.
+
+    The refusal read *"INSERT ... VALUES carries no column lineage from a relation"* -
+    true of relations and false of the statement. ADR-0001 §3 makes variables first-class
+    nodes, and writing a temp table row-by-row from cursor variables is ordinary PL/SQL.
+
+    Binding is POSITIONAL against the target column list, so this asserts all three
+    bindings and not just that something came out: a positional rule that is off by one
+    produces exactly the right NUMBER of edges into exactly the wrong columns.
+    """
+    source = """CREATE OR REPLACE PROCEDURE row_writer(p_cust_id NUMBER) IS
+    v_last_login DATE;
+BEGIN
+    SELECT last_login INTO v_last_login FROM stg_customer WHERE cust_id = p_cust_id;
+
+    INSERT INTO tmp_recent (cust_id, last_login)
+    VALUES (p_cust_id, v_last_login);
+END row_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert [r for r in result.refusals if "VALUES" in r.reason] == []
+
+    written = {
+        (str(e.source), str(e.target))
+        for e in result.edges
+        if str(e.target).startswith("column:TMP_RECENT")
+    }
+    assert written == {
+        ("variable:P_CUST_ID", "column:TMP_RECENT.CUST_ID"),
+        ("variable:V_LAST_LOGIN", "column:TMP_RECENT.LAST_LOGIN"),
+    }
+
+
+def test_insert_values_of_literals_produces_no_edge_and_no_refusal(
+    dictionary: Dictionary,
+) -> None:
+    """The other half, and the one that keeps the fix honest.
+
+    `VALUES (-1, SYSDATE)` genuinely carries no lineage: a literal has no upstream to
+    name. The old code got the right edge set for the wrong reason, by refusing the whole
+    construct. Emitting nothing here is correct - it is the same rule that gives
+    `is_active <- 1` no edge inside a SELECT - and it must not come back as a refusal,
+    because there is nothing to abstain FROM.
+
+    This is `b1_09_exception_handlers`, which is why the phase-0 cells did not move.
+    """
+    source = """CREATE OR REPLACE PROCEDURE literal_writer IS
+BEGIN
+    INSERT INTO tmp_recent (cust_id, last_login)
+    VALUES (-1, SYSDATE);
+END literal_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    assert [e for e in result.edges if str(e.target).startswith("column:TMP_RECENT")] == []
+    # Counted as analysed rather than skipped - the S2-04 lesson. Silence and "nothing
+    # here" look identical in the output, so the difference has to be in the count.
+    assert result.statements_seen == 1
+    assert result.statements_analysed == 1
+
+
+def test_insert_values_without_a_column_list_declares_rather_than_guesses(
+    dictionary: Dictionary,
+) -> None:
+    """Positional binding needs something to bind TO, and the target's order is a guess.
+
+    `INSERT INTO t VALUES (a, b)` relies on the table's declared column order. Taking it
+    from the dictionary would usually be right and would sometimes write a value into the
+    wrong column - a false edge that type-checks and reads perfectly. Declared instead.
+    """
+    source = """CREATE OR REPLACE PROCEDURE no_column_list(p_cust_id NUMBER) IS
+BEGIN
+    INSERT INTO tmp_recent VALUES (p_cust_id, SYSDATE);
+END no_column_list;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert [e for e in result.edges if str(e.target).startswith("column:TMP_RECENT")] == []
+
+
+def test_a_guarded_insert_values_carries_its_guard(dictionary: Dictionary) -> None:
+    """The write only happens on one branch, and a regulator will ask about exactly that.
+
+    Stress 1's key labels these edges `when 'A' = V_STATUS`, so the guard is part of the
+    match: recovering the edge without it would score as a miss AND a false positive.
+    """
+    source = """CREATE OR REPLACE PROCEDURE guarded_writer(p_cust_id NUMBER) IS
+    v_status VARCHAR2(1);
+BEGIN
+    SELECT status_code INTO v_status FROM stg_customer WHERE cust_id = p_cust_id;
+
+    IF v_status = 'A' THEN
+        INSERT INTO tmp_recent (cust_id, last_login)
+        VALUES (p_cust_id, SYSDATE);
+    END IF;
+END guarded_writer;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    guarded = [e for e in result.edges if str(e.target) == "column:TMP_RECENT.CUST_ID"]
+    assert guarded, "the guarded write produced no edge at all"
+    assert all(e.guard for e in guarded), "the write is conditional and the edge does not say so"
+
+
+# --- S1-04 / D-1: a DELETE's predicate is a dependency of the table's contents ------------
+
+
+def test_delete_predicate_columns_become_filter_edges(dictionary: Dictionary) -> None:
+    """Convention (c), raised by the stress-2 key and settled by D-1.
+
+    A DELETE writes no value, so it has no value edges. What it has is a predicate that
+    decides which rows stop existing, and the table's resulting contents depend on those
+    columns exactly as much as an INSERT's depend on its select list.
+
+    Columns inside the IN subquery count too: `status_code` two levels down still decides
+    which revenue rows are destroyed, and that a policy table silently governs it is
+    precisely the finding no table-level tool produces.
+    """
+    source = """CREATE OR REPLACE PROCEDURE deleter IS
+BEGIN
+    DELETE FROM fct_revenue_stage f
+     WHERE f.cust_id IN (SELECT s.cust_id
+                           FROM stg_customer s
+                          WHERE s.status_code = 'X');
+END deleter;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.refusals == []
+    assert {(str(e.source), str(e.target), e.flow.value) for e in result.edges} == {
+        ("column:FCT_REVENUE_STAGE.CUST_ID", "relation:FCT_REVENUE_STAGE", "filter"),
+        ("column:STG_CUSTOMER.CUST_ID", "relation:FCT_REVENUE_STAGE", "filter"),
+        ("column:STG_CUSTOMER.STATUS_CODE", "relation:FCT_REVENUE_STAGE", "filter"),
+    }
+
+
+def test_a_delete_is_counted_even_when_it_has_no_predicate(dictionary: Dictionary) -> None:
+    """`DELETE FROM t` empties the table and names no column. That is a complete answer.
+
+    The point of the assertion is the COUNT. Before D-1 `delete_statement` was not in
+    band 0's SUPPORTED set, so the loop skipped it with `continue` before
+    `statements_seen += 1` - no edges, no refusal, and not even counted as seen. Def-use
+    did not claim it either. Two passes each correctly deciding the statement was not
+    theirs, and nobody owning the result: the S2-04 shape.
+
+    All three DELETEs in the phase-0 corpus are this unconditional form, which is why
+    convention (c) landing did not move a single phase-0 cell.
+    """
+    source = """CREATE OR REPLACE PROCEDURE truncater IS
+BEGIN
+    DELETE FROM gtt_stage;
+END truncater;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert result.edges == []
+    assert result.refusals == []
+    assert result.statements_seen == 1
+    assert result.statements_analysed == 1
+
+
+def test_update_where_current_of_is_read_rather_than_lost(dictionary: Dictionary) -> None:
+    """`WHERE CURRENT OF` made SQLGlot fail outright, so the whole UPDATE was lost.
+
+    The diagnosis matters more than the fix: this was never an UPDATE gap. An ordinary
+    `UPDATE ... SET c = v WHERE <predicate>` has always been read by
+    `defuse._analyse_update`, and the one miss in `s2_locking` was a PARSE failure on the
+    cursor's rowid clause.
+
+    The clause names no column and no variable, so stripping it before the parser sees it
+    cannot change any edge - only whether the SET clause is readable. And the rows were
+    already chosen by the cursor's own WHERE, which is analysed where it is written.
+
+    The assertion is therefore two-sided: the value edge appears, and NO filter edge is
+    invented for a predicate that names nothing. The stress-2 key states exactly that, and
+    it was written before this code existed.
+    """
+    source = """CREATE OR REPLACE PROCEDURE locker IS
+    CURSOR c_lock IS
+        SELECT d.cust_id, d.lifetime_value
+          FROM dim_customer d
+         WHERE d.is_active = 1
+           FOR UPDATE OF d.lifetime_value;
+    v_id  NUMBER;
+    v_val NUMBER;
+BEGIN
+    OPEN c_lock;
+    LOOP
+        FETCH c_lock INTO v_id, v_val;
+        EXIT WHEN c_lock%NOTFOUND;
+
+        UPDATE dim_customer
+           SET lifetime_value = v_val
+         WHERE CURRENT OF c_lock;
+    END LOOP;
+    CLOSE c_lock;
+END locker;
+/"""
+    result = analyse_source(source, dictionary, AnalysisConfig())
+
+    assert any(
+        str(e.source) == "variable:V_VAL"
+        and str(e.target) == "column:DIM_CUSTOMER.LIFETIME_VALUE"
+        and e.flow.value == "value"
+        for e in result.edges
+    ), "the UPDATE's SET clause produced no edge"
+
+    assert not [
+        e for e in result.edges if e.flow.value == "filter" and "C_LOCK" in str(e.source)
+    ], "a rowid clause that names no column produced a filter edge"
+
+
+def test_the_rewrite_removes_only_what_it_claims_to(dictionary: Dictionary) -> None:
+    """The guard on a text rewrite: an ordinary WHERE must survive it untouched.
+
+    Rewriting SQL before parsing means the tree is not quite the statement the database
+    runs, so the pattern has to be narrow. A rule that ate real predicates would silently
+    NARROW lineage, which is worse than the parse failure it was added to fix.
+    """
+    from lineage.parsing.rewrite import strip_unparseable_clauses
+
+    kept = "UPDATE dim_customer SET lifetime_value = v_val WHERE cust_id = v_id"
+    assert strip_unparseable_clauses(kept) == kept
+
+    stripped = strip_unparseable_clauses(
+        "UPDATE dim_customer SET lifetime_value = v_val WHERE CURRENT OF c_lock"
+    )
+    assert stripped == "UPDATE dim_customer SET lifetime_value = v_val"
+    # Idempotent: applying it twice is the same as applying it once.
+    assert strip_unparseable_clauses(stripped) == stripped

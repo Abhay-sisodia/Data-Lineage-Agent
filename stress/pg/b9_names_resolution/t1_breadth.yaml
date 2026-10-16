@@ -1,0 +1,595 @@
+# GENERATED from t1_breadth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B9 t1_breadth.sql - names and resolution, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B4, plus D-23..D-25 (decided 2026-10-03, not implemented).
+# Every node is schema-qualified (D-25). A forbid applies to the whole file, so a fact that
+# is right in one statement and wrong in another is checked by the facts, not by a forbid.
+package: pg/b9_names_resolution/t1_breadth.sql
+dialect: postgres
+source_sha256: 5ac6414cb7338b0ba33d3f0a42bf87b3ba0d0dafa8ac949aaf20d82e00ac7239
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.carrier_id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.shipments
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.carrier_id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.shipments
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 26
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.account
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.amount
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.currency
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 51
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 60
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.account
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.balance
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.events_log.kind
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 79
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.events_log.rolled_up
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 79
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.status
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 91
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.CustomerID
+  target:
+    kind: column
+    name: mart.FeedSummary.CustomerID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.Amount
+  target:
+    kind: column
+    name: mart.FeedSummary.Total
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.amount
+  target:
+    kind: column
+    name: mart.FeedSummary.total
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.order
+  target:
+    kind: column
+    name: mart.FeedSummary.order
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.Status Code
+  target:
+    kind: column
+    name: mart.FeedSummary.Status Code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.user
+  target:
+    kind: relation
+    name: mart.FeedSummary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 100
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 109
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 109
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 117
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 117
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 117
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.id
+  target:
+    kind: column
+    name: core.ledger.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.account
+  target:
+    kind: column
+    name: core.ledger.account
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.balance
+  target:
+    kind: column
+    name: core.ledger.balance
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.status
+  target:
+    kind: column
+    name: core.ledger.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.status
+  target:
+    kind: relation
+    name: core.ledger
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 126
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 136
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 136
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 136
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 149
+  evidence: source_read
+  note: 'The merged column is COALESCE(a.store_id, b.store_id): two columns (D-19).'
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 149
+  evidence: source_read
+  note: 'The merged column is COALESCE(a.store_id, b.store_id): two columns (D-19).'
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.sales_daily.gross_amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 149
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.net_amount
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 149
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 158
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 177
+  evidence: source_read
+  note: 'COLLATE stands between the column and the target: derived, as a cast is.'
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 177
+  evidence: source_read
+  note: ORDER BY full_name under LIMIT decides which rows land (D-9).
+forbidden:
+- source:
+    kind: column
+    name: staging.events_log.kind
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  reason: 'events_log is ambiguous with no path known: no edge from either table (D-24)'
+- source:
+    kind: column
+    name: staging.LegacyFeed.amount
+  target:
+    kind: column
+    name: mart.FeedSummary.Total
+  flow: value
+  reason: '"Amount" and amount are different columns'
+- source:
+    kind: column
+    name: staging.LegacyFeed.Amount
+  target:
+    kind: column
+    name: mart.FeedSummary.total
+  flow: value
+  reason: '"Total" and total are different columns'
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  reason: 'USING is a join condition: structural (D-5)'
+- source:
+    kind: column
+    name: staging.orders.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  reason: under RIGHT JOIN the merged column is the right input's
+  transform: identity
+- source:
+    kind: column
+    name: staging.ledger.id
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  reason: 'NATURAL''s shared columns are the join condition: structural (D-5)'
+expected_boundaries:
+- kind: context_dependent_binding
+  subject: <script>:1
+  reason: S1 is the first unqualified reference resolved by assumption; one boundary per unit (D-24)
+- kind: dangling_reference
+  subject: events_log
+  reason: 'S3: events_log is in staging and mart and neither is the default, so it is ambiguous (D-24)'

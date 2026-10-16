@@ -1,0 +1,13 @@
+# TEMPORARY. Deliberately NOT part of requirements.txt / requirements-dev.txt.
+#
+# Those two are pip-compiled, fully pinned and hash-checked, and installed with
+# --require-hashes, because a reproducible install is a product requirement here. This
+# file is none of those things on purpose: it is scaffolding for a UI that exists to be
+# deleted, and threading a throwaway dependency through the hashed pins would mean
+# re-compiling them twice - once to add it and once to take it back out - and leaving a
+# hash churn in the history for something that was never part of the build.
+#
+# So: unpinned, unhashed, separate file, separate directory. Removing the frontend is
+# `rm -rf frontend/` and nothing else in the repo changes.
+
+streamlit

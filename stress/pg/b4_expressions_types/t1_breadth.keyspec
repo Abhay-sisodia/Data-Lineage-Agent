@@ -1,0 +1,124 @@
+# Answer key for B4 t1_breadth.sql - expressions and types, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B3, plus D-19..D-22 (decided 2026-10-02, not implemented).
+# A cast is derived. A literal, now() or random() gives nothing (S14's projections).
+
+@ 22 S1 CASE searched, simple, nested (D-19)
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.customers.status, staging.customers.segment -> mart.customer_summary.segment conditional
+value staging.customers.status -> mart.customer_summary.status derived
+note The simple CASE maps one column to constants: derived (D-19).
+value staging.customers.country_code, staging.customers.segment -> mart.customer_summary.region conditional
+note The outer CASE reads country_code and, through the inner CASE, segment.
+forbid value staging.customers.status -> mart.customer_summary.status conditional | a CASE over one column and constants is derived (D-19)
+
+@ 43 S2 COALESCE, NULLIF, GREATEST, LEAST
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.fct_order_line.store_id -> mart.sales_daily.store_id derived
+value core.fct_order_line.gross_amount, core.fct_order_line.net_amount -> mart.sales_daily.gross_amount conditional
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount derived
+value core.fct_order_line.net_amount, core.fct_order_line.quantity -> mart.sales_daily.avg_order_value derived
+value core.fct_order_line.quantity, core.fct_order_line.order_line_id -> mart.sales_daily.units conditional
+forbid value core.fct_order_line.net_amount -> mart.sales_daily.net_amount conditional | LEAST(x, constant) is a clamp over one column: derived (D-19)
+forbid value core.fct_order_line.quantity -> mart.sales_daily.avg_order_value conditional | NULLIF(x, 0) is a guard over one column: derived (D-19)
+
+@ 58 S3 casts
+value staging.orders.order_ts -> mart.channel_mix.period_month derived
+value staging.orders.channel -> mart.channel_mix.channel derived
+value staging.orders.id -> mart.channel_mix.orders derived
+value staging.orders.amount -> mart.channel_mix.revenue derived
+filter staging.orders.created_at, staging.orders.store_id -> mart.channel_mix
+forbid value staging.orders.id -> mart.channel_mix.orders identity | a cast is between the column and the target, even to the same type
+
+@ 72 S4 string functions and ||
+value staging.customers.id -> core.dim_customer.customer_key identity
+value staging.customers.email -> core.dim_customer.email derived
+value staging.customers.full_name, staging.customers.country_code -> core.dim_customer.full_name derived
+value staging.customers.country_code -> core.dim_customer.country_code derived
+value staging.customers.segment, staging.customers.email -> core.dim_customer.segment derived
+value staging.customers.status -> core.dim_customer.status derived
+
+@ 87 S5 date and time
+value staging.shipments.id -> core.fct_shipment.shipment_id identity
+value staging.shipments.order_id -> core.fct_shipment.order_id identity
+value staging.shipments.shipped_at -> core.fct_shipment.shipped_date derived
+value staging.shipments.delivered_at -> core.fct_shipment.delivered_date derived
+value staging.shipments.promised_at -> core.fct_shipment.promised_date derived
+value staging.shipments.delivered_at, staging.shipments.shipped_at -> core.fct_shipment.transit_days derived
+filter staging.shipments.delivered_at, staging.shipments.shipped_at -> core.fct_shipment
+
+@ 103 S6 math
+value staging.products.id -> mart.product_performance.product_id identity
+value staging.products.list_price -> mart.product_performance.revenue derived
+value staging.products.list_price, staging.products.cost -> mart.product_performance.margin derived
+value staging.products.cost, staging.products.list_price -> mart.product_performance.growth_pct derived
+value staging.products.list_price -> mart.product_performance.units derived
+
+@ 118 S7 IS DISTINCT FROM
+value core.dim_customer.segment -> mart.kpi_rollup.segment identity
+value core.dim_customer.region, core.dim_store.region -> mart.kpi_rollup.region derived
+note A comparison computes a boolean; it is not a conditional form.
+filter core.dim_customer.status, core.dim_customer.valid_to, core.dim_customer.valid_from -> mart.kpi_rollup
+forbid filter core.dim_store.country_code -> mart.kpi_rollup | the ON is structural (D-5)
+
+@ 132 S8 regular expressions
+value staging.orders.discount_code -> mart.channel_mix.channel derived
+value staging.orders.channel -> mart.channel_mix.region derived
+filter staging.orders.discount_code, staging.orders.channel, staging.orders.currency -> mart.channel_mix
+
+@ 145 S9 row constructors
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name, staging.customers.email -> mart.top_customers.full_name derived
+filter staging.customers.country_code, staging.customers.segment, staging.customers.created_at, staging.customers.id -> mart.top_customers
+
+@ 159 S10 composite field access and whole row (D-20)
+repeat value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+note (c).id IS c.id: field-exact, identity (D-20).
+value staging.customers.id, staging.customers.email, staging.customers.full_name, staging.customers.country_code, staging.customers.segment, staging.customers.status, staging.customers.signup_ts, staging.customers.attributes, staging.customers.created_at -> mart.top_customers.region derived
+note row_to_json(c) reads every column of the row (D-20).
+
+@ 170 S11 arrays
+value staging.orders.tags -> mart.channel_mix.channel derived
+value staging.orders.tags -> mart.channel_mix.region derived
+value staging.orders.customer_id, staging.orders.store_id -> mart.channel_mix.orders derived
+filter staging.orders.tags -> mart.channel_mix
+
+@ 185 S12 array_agg under array_length
+value core.dim_store.region -> mart.kpi_rollup.region identity
+value staging.orders.customer_id -> mart.kpi_rollup.customers aggregated
+influence core.dim_store.region -> mart.kpi_rollup.customers
+forbid filter staging.orders.store_id -> mart.kpi_rollup | the ON is structural (D-5)
+
+@ 199 S13 ranges
+repeat value staging.shipments.id -> core.fct_shipment.shipment_id identity
+repeat value staging.shipments.shipped_at -> core.fct_shipment.transit_days derived
+repeat value staging.shipments.delivered_at -> core.fct_shipment.transit_days derived
+value staging.shipments.shipped_at, staging.shipments.promised_at, staging.shipments.delivered_at -> core.fct_shipment.status conditional
+repeat filter staging.shipments.shipped_at -> core.fct_shipment
+repeat filter staging.shipments.delivered_at -> core.fct_shipment
+
+@ 217 S14 literals and volatile functions
+filter core.dim_date.is_weekend -> mart.kpi_rollup
+note 'snapshot', to_char(now(), ...) and random() have no source.
+
+@ 231 S15 parameter columns (D-22)
+value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
+value core.dim_carrier.name, core.dim_carrier.mode -> mart.carrier_scorecard.carrier_name derived
+value core.dim_carrier.mode, core.fct_shipment.shipped_date -> mart.carrier_scorecard.period_month derived
+note The unit CASE reads one column (mode): derived (D-19), and a parameter (D-22).
+value core.fct_shipment.cost, core.fct_shipment.weight_kg, core.fct_shipment.transit_days -> mart.carrier_scorecard.cost_per_kg derived
+forbid influence core.dim_carrier.mode -> mart.carrier_scorecard.period_month | a parameter column is a derived value, not influence (D-22)
+forbid filter core.fct_shipment.carrier_id -> mart.carrier_scorecard | the ON is structural (D-5)
+
+@ 244 S16 booleans and a two-column COALESCE
+value core.dim_customer.customer_key -> core.dim_customer.customer_key identity
+value core.dim_customer.valid_to, core.dim_customer.status -> core.dim_customer.is_current derived
+value core.dim_customer.first_order_date, core.dim_customer.valid_from -> core.dim_customer.first_order_date conditional
+
+@ 255 S17 format and to_char
+value core.dim_warehouse.region, core.dim_warehouse.name -> mart.kpi_rollup.level derived
+value core.dim_warehouse.capacity -> mart.kpi_rollup.region derived
+value core.dim_warehouse.region -> mart.kpi_rollup.country_code derived
+filter core.dim_warehouse.capacity -> mart.kpi_rollup

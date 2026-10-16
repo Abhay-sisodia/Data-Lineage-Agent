@@ -1,0 +1,57 @@
+# Answer key for B7 t2_depth.sql - DDL that creates lineage, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-31..D-34. Every node is schema-qualified;
+# a temp table is pg_temp.<name>. Views inline; tables and temp tables are nodes (D-31).
+
+@ 15 S1 view 1
+value staging.orders.customer_id -> mart.v_l1.customer_id identity
+value staging.orders.amount -> mart.v_l1.amount identity
+filter staging.orders.status -> mart.v_l1
+
+@ 28 S2 view 2 over view 1
+value staging.orders.customer_id -> mart.v_l2.customer_id identity
+value staging.orders.amount -> mart.v_l2.total aggregated
+influence staging.orders.customer_id -> mart.v_l2.total
+filter staging.orders.status -> mart.v_l2
+
+@ 37 S3 view 3 over view 2
+value staging.orders.customer_id -> mart.v_l3.customer_id identity
+value staging.orders.amount -> mart.v_l3.total aggregated
+influence staging.orders.customer_id -> mart.v_l3.total
+filter staging.orders.status -> mart.v_l3
+filter staging.orders.amount -> mart.v_l3 post
+
+@ 46 S4 the top view read into a table
+value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+value staging.orders.amount -> mart.customer_summary.lifetime_value aggregated
+influence staging.orders.customer_id -> mart.customer_summary.lifetime_value
+filter staging.orders.status -> mart.customer_summary
+filter staging.orders.amount -> mart.customer_summary post
+
+@ 54 S5 CREATE TABLE AS from a CTE over view 2, ranked
+value staging.orders.customer_id -> mart.top_spenders.customer_id identity
+value staging.orders.amount -> mart.top_spenders.total aggregated
+influence staging.orders.customer_id -> mart.top_spenders.total
+filter staging.orders.status -> mart.top_spenders
+filter staging.orders.amount -> mart.top_spenders post
+note rk <= 10 ranks by SUM(amount): post-aggregation (D-9, B3-10).
+
+@ 67 S6 a materialized view over view 2
+value staging.orders.customer_id -> mart.mv_l2.customer_id identity
+value staging.orders.amount -> mart.mv_l2.total aggregated
+influence staging.orders.customer_id -> mart.mv_l2.total
+filter staging.orders.status -> mart.mv_l2
+
+@ 75 S7 a temp table over view 1
+value staging.orders.customer_id -> pg_temp.t_a.cid identity
+value staging.orders.amount -> pg_temp.t_a.amt identity
+filter staging.orders.status -> pg_temp.t_a
+
+@ 83 S8 a temp table over that temp table
+value pg_temp.t_a.cid -> pg_temp.t_b.cid identity
+value pg_temp.t_a.amt -> pg_temp.t_b.amt2 derived
+
+@ 91 S9 the second temp table read
+value pg_temp.t_b.cid -> mart.kpi_rollup.customers identity
+value pg_temp.t_b.amt2 -> mart.kpi_rollup.revenue identity

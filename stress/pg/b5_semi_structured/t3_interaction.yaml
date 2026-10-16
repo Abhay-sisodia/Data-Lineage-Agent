@@ -1,0 +1,354 @@
+# GENERATED from t3_interaction.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B5 t3_interaction.sql - semi-structured data, interaction.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-29 and D-30. Every node is schema-qualified.
+package: pg/b5_semi_structured/t3_interaction.sql
+dialect: postgres
+source_sha256: 657e20d742d5857fdf8fc0fd946bc02e96732faf2fabdd5f1ea57f2cd4b9537f
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 16
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.product_performance.product_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 25
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.product_performance.running_revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 25
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.product_performance.running_revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 25
+  evidence: source_read
+  note: PARTITION BY o.id; ORDER BY jt.n, whose order is the document's (D-4, D-26, D-30).
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.product_performance.running_revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 25
+  evidence: source_read
+  note: PARTITION BY o.id; ORDER BY jt.n, whose order is the document's (D-4, D-26, D-30).
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.attributes
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: staging.orders.payload
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 60
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: staging.orders.payload
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 60
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: relation
+    name: staging.orders
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 60
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.customer_summary.status
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 70
+  evidence: source_read
+  note: EXCLUDED.status is the proposed document, built from segment; cs.status is the accumulator's self-edge
+    (S3-07).
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 80
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.properties
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 80
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.properties
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 91
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.page
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 91
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.properties
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 91
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.web_events.event_ts
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 91
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.orders.payload
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  reason: a scalar subquery's WHERE decides one value, not which rows land (D-12)
+- source:
+    kind: column
+    name: staging.payments.order_id
+  target:
+    kind: relation
+    name: staging.orders
+  flow: filter
+  reason: p.order_id = o.id joins the target to FROM (D-11)
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  reason: the conflict target is structural (D-15)
+expected_boundaries: []

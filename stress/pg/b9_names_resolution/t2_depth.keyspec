@@ -1,0 +1,49 @@
+# Answer key for B9 t2_depth.sql - names and resolution, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B4, plus D-23..D-25. Every node is schema-qualified (D-25).
+
+expect context_dependent_binding <script>:111 | S6 is the first unqualified relation resolved by assumption (after RESET); S2's `ledger` is a CTE and S5 runs under a SET (D-23, D-24)
+
+@ 16 S1 one alias reused at four levels
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.amount -> mart.channel_mix.revenue, mart.channel_mix.orders aggregated
+influence staging.orders.channel -> mart.channel_mix.revenue, mart.channel_mix.orders
+filter staging.orders.status -> mart.channel_mix
+filter staging.orders.amount -> mart.channel_mix post
+note o.n > 1 cuts on COUNT(o.amount): post-aggregation (B2-06).
+
+@ 37 S2 a CTE named like a real table, and the table qualified beside it
+value staging.ledger.account -> mart.kpi_rollup.segment identity
+value staging.ledger.amount -> mart.kpi_rollup.revenue identity
+value core.ledger.status -> mart.kpi_rollup.level identity
+filter staging.ledger.currency -> mart.kpi_rollup
+forbid filter core.ledger.id -> mart.kpi_rollup | the ON is structural (D-5)
+
+@ 51 S3 SELECT * through three levels, quoted
+value staging.LegacyFeed.CustomerID -> mart.FeedSummary.CustomerID identity
+value staging.LegacyFeed.Amount -> mart.FeedSummary.Total identity
+filter staging.LegacyFeed.Status Code -> mart.FeedSummary
+
+@ 67 S4 NATURAL two levels down, grouped above
+repeat value staging.ledger.account -> mart.kpi_rollup.segment identity
+value staging.ledger.amount -> mart.kpi_rollup.revenue aggregated
+influence staging.ledger.account -> mart.kpi_rollup.revenue
+filter core.ledger.status -> mart.kpi_rollup
+forbid filter staging.ledger.id -> mart.kpi_rollup | NATURAL's shared columns are the join condition (D-5)
+
+@ 88 S5 unqualified names three CTEs deep under SET core, staging
+value core.ledger.account -> mart.kpi_rollup.segment identity
+value core.ledger.balance -> mart.kpi_rollup.revenue derived
+filter core.ledger.account, staging.events_log.kind -> mart.kpi_rollup
+note IN (subquery): both sides of the match decide which rows land, as in B3 P5.
+
+@ 113 S6 after RESET: default schema, declared
+value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
+value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name derived
+filter core.dim_carrier.status -> mart.carrier_scorecard
+
+@ 128 S7 t.* of t.*
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+value staging.customers.country_code -> mart.top_customers.region identity

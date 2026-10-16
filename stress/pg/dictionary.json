@@ -1,0 +1,555 @@
+{
+  "captured_at": "2026-10-01T00:00:00Z",
+  "default_schema": "core",
+  "dialect": "postgres",
+  "objects": {
+    "staging.customers": {
+      "owner": "staging",
+      "name": "customers",
+      "object_type": "TABLE"
+    },
+    "staging.orders": {
+      "owner": "staging",
+      "name": "orders",
+      "object_type": "TABLE"
+    },
+    "staging.order_lines": {
+      "owner": "staging",
+      "name": "order_lines",
+      "object_type": "TABLE"
+    },
+    "staging.products": {
+      "owner": "staging",
+      "name": "products",
+      "object_type": "TABLE"
+    },
+    "staging.payments": {
+      "owner": "staging",
+      "name": "payments",
+      "object_type": "TABLE"
+    },
+    "staging.shipments": {
+      "owner": "staging",
+      "name": "shipments",
+      "object_type": "TABLE"
+    },
+    "staging.returns": {
+      "owner": "staging",
+      "name": "returns",
+      "object_type": "TABLE"
+    },
+    "staging.inventory_snapshots": {
+      "owner": "staging",
+      "name": "inventory_snapshots",
+      "object_type": "TABLE"
+    },
+    "staging.fx_rates": {
+      "owner": "staging",
+      "name": "fx_rates",
+      "object_type": "TABLE"
+    },
+    "staging.web_events": {
+      "owner": "staging",
+      "name": "web_events",
+      "object_type": "TABLE"
+    },
+    "core.dim_date": {
+      "owner": "core",
+      "name": "dim_date",
+      "object_type": "TABLE"
+    },
+    "core.dim_customer": {
+      "owner": "core",
+      "name": "dim_customer",
+      "object_type": "TABLE"
+    },
+    "core.dim_category": {
+      "owner": "core",
+      "name": "dim_category",
+      "object_type": "TABLE"
+    },
+    "core.dim_product": {
+      "owner": "core",
+      "name": "dim_product",
+      "object_type": "TABLE"
+    },
+    "core.dim_store": {
+      "owner": "core",
+      "name": "dim_store",
+      "object_type": "TABLE"
+    },
+    "core.dim_carrier": {
+      "owner": "core",
+      "name": "dim_carrier",
+      "object_type": "TABLE"
+    },
+    "core.dim_warehouse": {
+      "owner": "core",
+      "name": "dim_warehouse",
+      "object_type": "TABLE"
+    },
+    "core.fct_order_line": {
+      "owner": "core",
+      "name": "fct_order_line",
+      "object_type": "TABLE"
+    },
+    "core.fct_shipment": {
+      "owner": "core",
+      "name": "fct_shipment",
+      "object_type": "TABLE"
+    },
+    "core.fct_payment": {
+      "owner": "core",
+      "name": "fct_payment",
+      "object_type": "TABLE"
+    },
+    "mart.sales_daily": {
+      "owner": "mart",
+      "name": "sales_daily",
+      "object_type": "TABLE"
+    },
+    "mart.customer_summary": {
+      "owner": "mart",
+      "name": "customer_summary",
+      "object_type": "TABLE"
+    },
+    "mart.product_performance": {
+      "owner": "mart",
+      "name": "product_performance",
+      "object_type": "TABLE"
+    },
+    "mart.carrier_scorecard": {
+      "owner": "mart",
+      "name": "carrier_scorecard",
+      "object_type": "TABLE"
+    },
+    "mart.channel_mix": {
+      "owner": "mart",
+      "name": "channel_mix",
+      "object_type": "TABLE"
+    },
+    "mart.kpi_rollup": {
+      "owner": "mart",
+      "name": "kpi_rollup",
+      "object_type": "TABLE"
+    },
+    "mart.top_customers": {
+      "owner": "mart",
+      "name": "top_customers",
+      "object_type": "TABLE"
+    },
+    "staging.LegacyFeed": {
+      "owner": "staging",
+      "name": "LegacyFeed",
+      "object_type": "TABLE"
+    },
+    "staging.ledger": {
+      "owner": "staging",
+      "name": "ledger",
+      "object_type": "TABLE"
+    },
+    "core.ledger": {
+      "owner": "core",
+      "name": "ledger",
+      "object_type": "TABLE"
+    },
+    "mart.FeedSummary": {
+      "owner": "mart",
+      "name": "FeedSummary",
+      "object_type": "TABLE"
+    },
+    "staging.events_log": {
+      "owner": "staging",
+      "name": "events_log",
+      "object_type": "TABLE"
+    },
+    "mart.events_log": {
+      "owner": "mart",
+      "name": "events_log",
+      "object_type": "TABLE"
+    },
+    "staging.feed_xml": {
+      "owner": "staging",
+      "name": "feed_xml",
+      "object_type": "TABLE"
+    },
+    "staging.device_attrs": {
+      "owner": "staging",
+      "name": "device_attrs",
+      "object_type": "TABLE"
+    }
+  },
+  "columns": {
+    "staging.customers": [
+      "id",
+      "email",
+      "full_name",
+      "country_code",
+      "segment",
+      "status",
+      "signup_ts",
+      "attributes",
+      "created_at"
+    ],
+    "staging.orders": [
+      "id",
+      "customer_id",
+      "store_id",
+      "status",
+      "order_ts",
+      "channel",
+      "currency",
+      "amount",
+      "discount_code",
+      "payload",
+      "tags",
+      "created_at",
+      "updated_at"
+    ],
+    "staging.order_lines": [
+      "id",
+      "order_id",
+      "product_id",
+      "quantity",
+      "unit_price",
+      "discount_pct",
+      "status",
+      "created_at"
+    ],
+    "staging.products": [
+      "id",
+      "sku",
+      "name",
+      "category_id",
+      "brand",
+      "list_price",
+      "cost",
+      "status",
+      "dims",
+      "tags",
+      "created_at"
+    ],
+    "staging.payments": [
+      "id",
+      "order_id",
+      "method",
+      "amount",
+      "currency",
+      "status",
+      "paid_at",
+      "created_at"
+    ],
+    "staging.shipments": [
+      "id",
+      "order_id",
+      "carrier_id",
+      "warehouse_id",
+      "status",
+      "shipped_at",
+      "delivered_at",
+      "promised_at",
+      "weight_kg",
+      "cost",
+      "tracking",
+      "created_at"
+    ],
+    "staging.returns": [
+      "id",
+      "order_line_id",
+      "reason_code",
+      "quantity",
+      "amount",
+      "status",
+      "created_at"
+    ],
+    "staging.inventory_snapshots": [
+      "id",
+      "warehouse_id",
+      "product_id",
+      "snapshot_date",
+      "on_hand",
+      "reserved",
+      "created_at"
+    ],
+    "staging.fx_rates": [
+      "currency",
+      "rate_date",
+      "rate_to_usd"
+    ],
+    "staging.web_events": [
+      "id",
+      "session_id",
+      "customer_id",
+      "event_type",
+      "event_ts",
+      "page",
+      "properties"
+    ],
+    "core.dim_date": [
+      "date_key",
+      "calendar_date",
+      "year",
+      "quarter",
+      "month",
+      "week",
+      "day_of_week",
+      "is_weekend",
+      "fiscal_year",
+      "fiscal_period"
+    ],
+    "core.dim_customer": [
+      "customer_key",
+      "customer_id",
+      "email",
+      "full_name",
+      "country_code",
+      "region",
+      "segment",
+      "status",
+      "first_order_date",
+      "valid_from",
+      "valid_to",
+      "is_current"
+    ],
+    "core.dim_category": [
+      "id",
+      "name",
+      "department",
+      "parent_id"
+    ],
+    "core.dim_product": [
+      "product_key",
+      "product_id",
+      "sku",
+      "name",
+      "category_id",
+      "category_name",
+      "department",
+      "brand",
+      "list_price",
+      "cost",
+      "status"
+    ],
+    "core.dim_store": [
+      "id",
+      "name",
+      "region",
+      "country_code",
+      "opened_on",
+      "status"
+    ],
+    "core.dim_carrier": [
+      "id",
+      "name",
+      "mode",
+      "status"
+    ],
+    "core.dim_warehouse": [
+      "id",
+      "name",
+      "region",
+      "capacity",
+      "status"
+    ],
+    "core.fct_order_line": [
+      "order_line_id",
+      "order_id",
+      "customer_key",
+      "product_key",
+      "store_id",
+      "order_date",
+      "channel",
+      "quantity",
+      "unit_price",
+      "gross_amount",
+      "discount_amount",
+      "net_amount",
+      "amount_usd",
+      "status"
+    ],
+    "core.fct_shipment": [
+      "shipment_id",
+      "order_id",
+      "carrier_id",
+      "warehouse_id",
+      "shipped_date",
+      "delivered_date",
+      "promised_date",
+      "transit_days",
+      "weight_kg",
+      "cost",
+      "status"
+    ],
+    "core.fct_payment": [
+      "payment_id",
+      "order_id",
+      "method",
+      "amount",
+      "amount_usd",
+      "paid_date",
+      "status"
+    ],
+    "mart.sales_daily": [
+      "sale_date",
+      "store_id",
+      "region",
+      "orders",
+      "units",
+      "gross_amount",
+      "net_amount",
+      "avg_order_value",
+      "rank_in_region"
+    ],
+    "mart.customer_summary": [
+      "customer_id",
+      "full_name",
+      "segment",
+      "region",
+      "first_order_date",
+      "last_order_date",
+      "lifetime_orders",
+      "lifetime_value",
+      "avg_basket",
+      "value_rank",
+      "value_decile",
+      "status"
+    ],
+    "mart.product_performance": [
+      "product_id",
+      "category_name",
+      "period_month",
+      "units",
+      "revenue",
+      "margin",
+      "revenue_share",
+      "running_revenue",
+      "prev_month_revenue",
+      "growth_pct"
+    ],
+    "mart.carrier_scorecard": [
+      "carrier_id",
+      "carrier_name",
+      "period_month",
+      "shipments",
+      "on_time_pct",
+      "avg_transit_days",
+      "p50_transit_days",
+      "p90_transit_days",
+      "cost_per_kg"
+    ],
+    "mart.channel_mix": [
+      "period_month",
+      "channel",
+      "region",
+      "orders",
+      "revenue",
+      "share_of_region"
+    ],
+    "mart.kpi_rollup": [
+      "level",
+      "region",
+      "country_code",
+      "segment",
+      "orders",
+      "revenue",
+      "customers"
+    ],
+    "mart.top_customers": [
+      "region",
+      "customer_id",
+      "full_name",
+      "revenue",
+      "position"
+    ],
+    "staging.LegacyFeed": [
+      "FeedID",
+      "CustomerID",
+      "Amount",
+      "amount",
+      "order",
+      "user",
+      "Status Code",
+      "created_at"
+    ],
+    "staging.ledger": [
+      "id",
+      "account",
+      "amount",
+      "currency",
+      "posted_at"
+    ],
+    "core.ledger": [
+      "id",
+      "account",
+      "balance",
+      "status"
+    ],
+    "mart.FeedSummary": [
+      "CustomerID",
+      "Total",
+      "total",
+      "order",
+      "Status Code"
+    ],
+    "staging.events_log": [
+      "id",
+      "kind",
+      "payload_size",
+      "logged_at"
+    ],
+    "mart.events_log": [
+      "id",
+      "kind",
+      "rolled_up"
+    ],
+    "staging.feed_xml": [
+      "id",
+      "source",
+      "doc",
+      "received_at"
+    ],
+    "staging.device_attrs": [
+      "id",
+      "device_id",
+      "attrs",
+      "updated_at"
+    ]
+  },
+  "temporary": {
+    "staging.customers": false,
+    "staging.orders": false,
+    "staging.order_lines": false,
+    "staging.products": false,
+    "staging.payments": false,
+    "staging.shipments": false,
+    "staging.returns": false,
+    "staging.inventory_snapshots": false,
+    "staging.fx_rates": false,
+    "staging.web_events": false,
+    "core.dim_date": false,
+    "core.dim_customer": false,
+    "core.dim_category": false,
+    "core.dim_product": false,
+    "core.dim_store": false,
+    "core.dim_carrier": false,
+    "core.dim_warehouse": false,
+    "core.fct_order_line": false,
+    "core.fct_shipment": false,
+    "core.fct_payment": false,
+    "mart.sales_daily": false,
+    "mart.customer_summary": false,
+    "mart.product_performance": false,
+    "mart.carrier_scorecard": false,
+    "mart.channel_mix": false,
+    "mart.kpi_rollup": false,
+    "mart.top_customers": false,
+    "staging.LegacyFeed": false,
+    "staging.ledger": false,
+    "core.ledger": false,
+    "mart.FeedSummary": false,
+    "staging.events_log": false,
+    "mart.events_log": false,
+    "staging.feed_xml": false,
+    "staging.device_attrs": false
+  }
+}

@@ -1,0 +1,45 @@
+# Answer key for B5 t4_adversarial.sql - semi-structured data, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-29 and D-30. Every node is schema-qualified.
+# S5's value and S6's element have no source and no boundary - checked in the report.
+
+@ 18 S1 a key named like a column
+value staging.orders.payload -> mart.kpi_rollup.level derived
+value staging.orders.channel -> mart.kpi_rollup.segment identity
+forbid value staging.orders.channel -> mart.kpi_rollup.level derived | 'channel' is a key inside the document, not the column
+
+@ 26 S2 a key whose text names a column
+value staging.orders.payload -> mart.channel_mix.revenue derived
+forbid value staging.orders.amount -> mart.channel_mix.revenue derived | 'amount' is a literal key, not the column
+
+@ 34 S3 ? and ?& as operators
+value staging.products.name -> mart.channel_mix.channel identity
+filter staging.products.dims -> mart.channel_mix
+
+@ 44 S4 a document compared with itself
+value staging.customers.country_code -> mart.kpi_rollup.region identity
+filter staging.customers.attributes -> mart.kpi_rollup
+
+@ 53 S5 a literal-only document
+filter staging.customers.status -> mart.customer_summary
+
+@ 62 S6 an SRF over a literal document
+value staging.customers.id -> mart.customer_summary.customer_id identity
+
+@ 70 S7 a key from another table's column
+value staging.customers.attributes, core.dim_customer.region -> mart.top_customers.full_name derived
+forbid filter core.dim_customer.customer_id -> mart.top_customers | the ON is structural (D-5)
+
+@ 79 S8 a text column cast to jsonb
+value staging.orders.discount_code -> mart.top_customers.region derived
+
+@ 87 S9 jsonpath variables from a column
+value staging.orders.payload, staging.orders.discount_code -> mart.kpi_rollup.revenue derived
+
+@ 99 S10 IS NOT JSON on text
+value staging.orders.channel -> mart.channel_mix.region identity
+filter staging.orders.discount_code -> mart.channel_mix
+
+@ 108 S11 an hstore key from a column
+value staging.device_attrs.attrs, staging.device_attrs.device_id -> mart.customer_summary.region derived

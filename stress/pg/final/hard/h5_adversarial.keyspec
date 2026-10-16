@@ -1,0 +1,189 @@
+# Answer key for H5 (h5_adversarial.sql): metamorphic groups and adversarial traps.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every written column and every filter is stated. Conventions D-1..D-53.
+# Each group's spellings write their own temp table (pg_temp.pN_a / _b / _c, nodes per D-31);
+# the facts are stated once per group with every table as a target, and run.py also checks
+# that the analyser gave the tables of a group IDENTICAL lineage (# metamorphic: lines).
+#
+# metamorphic: pg_temp.p1_a = pg_temp.p1_b
+# metamorphic: pg_temp.p2_a = pg_temp.p2_b
+# metamorphic: pg_temp.p3_a = pg_temp.p3_b
+# metamorphic: pg_temp.p4_a = pg_temp.p4_b = pg_temp.p4_c
+# metamorphic: pg_temp.p5_a = pg_temp.p5_b
+# metamorphic: pg_temp.p6_a = pg_temp.p6_b
+# metamorphic: pg_temp.p7_a = pg_temp.p7_b
+# metamorphic: pg_temp.p8_a = pg_temp.p8_b
+# metamorphic: pg_temp.p9_a = pg_temp.p9_b
+# metamorphic: pg_temp.p10_a = pg_temp.p10_b
+# metamorphic: pg_temp.p11_a = pg_temp.p11_b
+# metamorphic: pg_temp.p12_a = pg_temp.p12_b
+# metamorphic: pg_temp.p13_a = pg_temp.p13_b
+# metamorphic: pg_temp.p14_a = pg_temp.p14_b = pg_temp.p14_c
+# metamorphic: pg_temp.p15_a = pg_temp.p15_b
+# metamorphic: pg_temp.p16_a = pg_temp.p16_b
+# metamorphic: pg_temp.p17_a = pg_temp.p17_b
+# metamorphic: pg_temp.p18_a = pg_temp.p18_b
+# metamorphic: pg_temp.p19_a = pg_temp.p19_b
+# metamorphic: pg_temp.p20_a = pg_temp.p20_b
+
+@ 37 P1 a CTE (p1_a) vs a derived table (p1_b)
+value s2p.supplier.vendor_name -> pg_temp.p1_a.vendor_name, pg_temp.p1_b.vendor_name identity
+value s2p.po_line.amount -> pg_temp.p1_a.total, pg_temp.p1_b.total aggregated
+influence s2p.po_header.vendor_id -> pg_temp.p1_a.total, pg_temp.p1_b.total
+filter s2p.po_header.document_status -> pg_temp.p1_a
+filter s2p.po_header.document_status -> pg_temp.p1_b
+filter s2p.po_line.quantity -> pg_temp.p1_a post
+filter s2p.po_line.quantity -> pg_temp.p1_b post
+
+@ 64 P2 one-relation condition in an INNER ON vs in WHERE (D-48)
+value lgx.shipment_line.shipment_line_id -> pg_temp.p2_a.shipment_line_id, pg_temp.p2_b.shipment_line_id identity
+value lgx.shipment_header.carrier_code -> pg_temp.p2_a.carrier_code, pg_temp.p2_b.carrier_code identity
+filter lgx.shipment_header.status_code -> pg_temp.p2_a
+filter lgx.shipment_header.status_code -> pg_temp.p2_b
+
+@ 78 P3 FILTER vs SUM(CASE) (D-10)
+value evt.activity.entity_id -> pg_temp.p3_a.entity_id, pg_temp.p3_b.entity_id identity
+value evt.activity.kind -> pg_temp.p3_a.x_count, pg_temp.p3_b.x_count aggregated
+value evt.activity.kind, evt.activity.amount -> pg_temp.p3_a.x_amount, pg_temp.p3_b.x_amount aggregated
+influence evt.activity.entity_id -> pg_temp.p3_a.x_count, pg_temp.p3_b.x_count, pg_temp.p3_a.x_amount, pg_temp.p3_b.x_amount
+forbid filter evt.activity.kind -> pg_temp.p3_a | FILTER (WHERE) decides one aggregate's value (D-10)
+
+@ 94 P4 IN vs = ANY vs EXISTS (D-52)
+value crm.customer.customer_id -> pg_temp.p4_a.customer_id, pg_temp.p4_b.customer_id, pg_temp.p4_c.customer_id identity
+value crm.customer.customer_name -> pg_temp.p4_a.customer_name, pg_temp.p4_b.customer_name, pg_temp.p4_c.customer_name identity
+filter crm.customer.customer_id, crm.contact.customer_id, crm.contact.is_primary -> pg_temp.p4_a
+filter crm.customer.customer_id, crm.contact.customer_id, crm.contact.is_primary -> pg_temp.p4_b
+filter crm.customer.customer_id, crm.contact.customer_id, crm.contact.is_primary -> pg_temp.p4_c
+
+@ 115 P5 DISTINCT ON vs ROW_NUMBER() = 1 (D-9)
+value evt.entity_event.entity_id -> pg_temp.p5_a.entity_id, pg_temp.p5_b.entity_id identity
+value evt.entity_event.status -> pg_temp.p5_a.status, pg_temp.p5_b.status identity
+filter evt.entity_event.entity_id, evt.entity_event.created_at -> pg_temp.p5_a
+filter evt.entity_event.entity_id, evt.entity_event.created_at -> pg_temp.p5_b
+
+@ 131 P6 COALESCE vs CASE WHEN IS NOT NULL (D-19)
+value crm.customer_site.site_id -> pg_temp.p6_a.site_id, pg_temp.p6_b.site_id identity
+value crm.customer_site.time_zone_name, crm.customer.country_code -> pg_temp.p6_a.tz, pg_temp.p6_b.tz conditional
+
+@ 144 P7 positions vs names, ORDER BY ... LIMIT (D-9, D-6)
+value lgx.warehouse.region_code -> pg_temp.p7_a.region_code, pg_temp.p7_b.region_code identity
+value lgx.warehouse.org_id -> pg_temp.p7_a.orgs, pg_temp.p7_b.orgs aggregated
+influence lgx.warehouse.region_code -> pg_temp.p7_a.orgs, pg_temp.p7_b.orgs
+filter lgx.warehouse.org_id -> pg_temp.p7_a post
+filter lgx.warehouse.org_id -> pg_temp.p7_b post
+note ORDER BY 2 (= COUNT(DISTINCT org_id)) DESC LIMIT 5: the ordered aggregate decides which groups land (D-9), after aggregation (D-6).
+
+@ 160 P8 JOIN USING vs JOIN ON (D-5)
+value lgx.carrier_service.carrier_code -> pg_temp.p8_a.carrier_code, pg_temp.p8_b.carrier_code identity
+value lgx.carrier_service.service_level -> pg_temp.p8_a.service_level, pg_temp.p8_b.service_level identity
+value lgx.carrier.carrier_name -> pg_temp.p8_a.carrier_name, pg_temp.p8_b.carrier_name identity
+note The merged USING column is the left input's (B1 S8a).
+
+@ 172 P9 inline window vs inherited named window (D-4)
+value evt.activity.activity_id -> pg_temp.p9_a.activity_id, pg_temp.p9_b.activity_id identity
+value evt.activity.amount -> pg_temp.p9_a.running, pg_temp.p9_b.running aggregated
+influence evt.activity.entity_id, evt.activity.created_at -> pg_temp.p9_a.running, pg_temp.p9_b.running
+
+@ 186 P10 scalar subquery vs one-row LEFT LATERAL (D-12, D-14)
+value crm.customer.customer_id -> pg_temp.p10_a.customer_id, pg_temp.p10_b.customer_id identity
+value lgx.shipment_header.created_at -> pg_temp.p10_a.last_ship aggregated
+value lgx.shipment_header.created_at -> pg_temp.p10_b.last_ship aggregated
+# D-58: lgx.shipment_header.customer_id, crm.customer.customer_id matched the aggregated lookup's rows to pg_temp.p10_a.last_ship's - influence, as a GROUP BY is (was a value).
+influence lgx.shipment_header.customer_id, crm.customer.customer_id -> pg_temp.p10_a.last_ship
+# D-58: lgx.shipment_header.customer_id, crm.customer.customer_id matched the aggregated lookup's rows to pg_temp.p10_b.last_ship's - influence, as a GROUP BY is (was a value).
+influence lgx.shipment_header.customer_id, crm.customer.customer_id -> pg_temp.p10_b.last_ship
+forbid filter lgx.shipment_header.customer_id -> pg_temp.p10_b | a one-row LEFT LATERAL's correlation removes no row (D-14)
+
+@ 204 P11 UNION ALL of two arms vs OR
+value evt.entity_event.entity_id -> pg_temp.p11_a.entity_id, pg_temp.p11_b.entity_id identity
+value evt.entity_event.amount -> pg_temp.p11_a.amount, pg_temp.p11_b.amount identity
+filter evt.entity_event.status, evt.entity_event.amount -> pg_temp.p11_a
+filter evt.entity_event.status, evt.entity_event.amount -> pg_temp.p11_b
+
+@ 216 P12 a CTE read twice vs the derived table written twice
+value evt.activity.entity_id -> pg_temp.p12_a.entity_id, pg_temp.p12_b.entity_id identity
+value evt.activity.amount -> pg_temp.p12_a.amt_x, pg_temp.p12_b.amt_x, pg_temp.p12_a.amt_y, pg_temp.p12_b.amt_y identity
+filter evt.activity.amount -> pg_temp.p12_a
+filter evt.activity.amount -> pg_temp.p12_b
+
+@ 232 P13 comma join with the key in WHERE vs JOIN ON (D-11)
+value crm.organization.org_name -> pg_temp.p13_a.org_name, pg_temp.p13_b.org_name identity
+value lgx.warehouse.warehouse_code -> pg_temp.p13_a.warehouse_code, pg_temp.p13_b.warehouse_code identity
+filter crm.organization.is_active -> pg_temp.p13_a
+filter crm.organization.is_active -> pg_temp.p13_b
+forbid filter lgx.warehouse.org_id -> pg_temp.p13_a | an equality between two inner-joined relations is structural wherever written (D-11)
+
+@ 246 P14 NOT IN vs <> ALL vs NOT EXISTS (D-52)
+value lgx.item_master.item_id -> pg_temp.p14_a.item_id, pg_temp.p14_b.item_id, pg_temp.p14_c.item_id identity
+value lgx.item_master.item_code -> pg_temp.p14_a.item_code, pg_temp.p14_b.item_code, pg_temp.p14_c.item_code identity
+filter lgx.item_master.item_id, lgx.bill_of_material.component_item_id, lgx.bill_of_material.bom_status -> pg_temp.p14_a
+filter lgx.item_master.item_id, lgx.bill_of_material.component_item_id, lgx.bill_of_material.bom_status -> pg_temp.p14_b
+filter lgx.item_master.item_id, lgx.bill_of_material.component_item_id, lgx.bill_of_material.bom_status -> pg_temp.p14_c
+
+@ 267 P15 HAVING vs WHERE over the aggregated derived table (D-6)
+value evt.activity.region_code -> pg_temp.p15_a.region_code, pg_temp.p15_b.region_code identity
+value evt.activity.amount -> pg_temp.p15_a.total, pg_temp.p15_b.total aggregated
+influence evt.activity.region_code -> pg_temp.p15_a.total, pg_temp.p15_b.total
+filter evt.activity.amount -> pg_temp.p15_a post
+filter evt.activity.amount -> pg_temp.p15_b post
+
+@ 282 P16 simple CASE vs searched CASE (D-19)
+value evt.activity.activity_id -> pg_temp.p16_a.activity_id, pg_temp.p16_b.activity_id identity
+value evt.activity.kind, evt.activity.amount -> pg_temp.p16_a.signed_amount, pg_temp.p16_b.signed_amount conditional
+
+@ 292 P17 BETWEEN vs >= AND <=
+value evt.metric.entity_id -> pg_temp.p17_a.entity_id, pg_temp.p17_b.entity_id identity
+value evt.metric.metric -> pg_temp.p17_a.metric, pg_temp.p17_b.metric identity
+filter evt.metric.score -> pg_temp.p17_a
+filter evt.metric.score -> pg_temp.p17_b
+
+@ 304 P18 EXTRACT vs date_part
+value evt.metric.entity_id -> pg_temp.p18_a.entity_id, pg_temp.p18_b.entity_id identity
+value evt.metric.event_date -> pg_temp.p18_a.event_year, pg_temp.p18_b.event_year derived
+
+@ 314 P19 || vs concat()
+value crm.contact.contact_id -> pg_temp.p19_a.contact_id, pg_temp.p19_b.contact_id identity
+value crm.contact.role, crm.contact.email -> pg_temp.p19_a.label, pg_temp.p19_b.label derived
+
+@ 324 P20 :: vs CAST
+value evt.relationship.child_id -> pg_temp.p20_a.child_id, pg_temp.p20_b.child_id identity
+value evt.relationship.weight -> pg_temp.p20_a.weight, pg_temp.p20_b.weight derived
+
+@ 338 T1 literals and comments full of SQL; CTEs named like base tables
+value crm.customer.customer_id -> <result>.customer_id identity
+value crm.customer.customer_name -> <result>.customer_name identity
+value crm.contact.email -> <result>.contact_email identity
+value crm.contact.email -> <result>.primary_email identity
+value crm.contact.is_primary -> <result>.primary_email conditional
+value crm.customer.segment -> <result>.select identity
+value crm.customer.status -> <result>.from identity
+value crm.customer.country_code -> <result>.we"ird identity
+value crm.customer.customer_id, crm.customer.status -> <result>.row_text derived
+filter crm.customer.created_at -> <result>
+note The four SQL-bearing literals, NULL::text, now() and (SELECT 1) read no column. `cu` is crm.customer (qualified); `k` is the CTE `customer` over crm.contact; `ct` is crm.contact (qualified), so the CTE `contact` is never read. k's join is a key equality (D-5).
+forbid value crm.contact.email -> <result>.customer_name | cu is the qualified crm.customer; the CTE named customer is k
+forbid value crm.customer.customer_name -> <result>.contact_email | k is the CTE named customer, which reads crm.contact
+forbid value evt.flag.flag_code -> <result>.primary_email | ct is the qualified crm.contact; the CTE named contact is never read
+forbid filter crm.contact.is_primary -> <result> | a LEFT join's one-relation ON condition removes no row (D-48)
+
+@ 369 T2 ORDER BY an OUTPUT alias, with LIMIT
+value crm.customer.segment -> <result>.status identity
+value crm.customer.customer_id -> <result>.seg_customer identity
+filter crm.customer.segment -> <result>
+note PostgreSQL resolves a bare ORDER BY name to an output column first: `status` is c.segment (D-9).
+forbid filter crm.customer.status -> <result> | ORDER BY status names the output alias (segment), not the input column
+
+@ 376 T3 GROUP BY a name that is an INPUT column
+value crm.customer.segment -> <result>.status aggregated
+influence crm.customer.status -> <result>.status, <result>.n
+note PostgreSQL resolves a GROUP BY name to an input column first: GROUP BY status is c.status, not MAX(c.segment).
+forbid influence crm.customer.segment -> <result>.n | GROUP BY status names the input column c.status, not the output alias
+
+@ 382 T4 INSERT with look-alike literals and comments
+value crm.customer.customer_id -> mart.customer_snapshot.customer_id identity
+value crm.customer.customer_name -> mart.customer_snapshot.customer_name identity
+value crm.customer.segment -> mart.customer_snapshot.segment identity
+filter crm.customer.status, crm.customer.customer_name, crm.customer.segment -> mart.customer_snapshot
+note status is the literal 'ACTIVE' and updated_at is now(): nothing. The `;` and 'FROM crm.contact' are inside literals.
+forbid value crm.customer.credit_limit -> mart.customer_snapshot.segment | only a comment names credit_limit

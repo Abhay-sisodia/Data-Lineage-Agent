@@ -38,5 +38,50 @@ services:
       retries: 60
       start_period: 300s
 
+  # The lineage knowledge graph (plan C0-C9). Development infrastructure, like Oracle above.
+  # Start alone with:  docker compose up -d neo4j
+  # Browser UI:        http://localhost:7474   (user neo4j, password below)
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: lineage-neo4j
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      # Local development credentials only (see src/lineage/graph/neo4j_conn.py).
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-lineage_graph}
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p $${NEO4J_AUTH#neo4j/} 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  # A live PostgreSQL catalogue (MVP plan M2): the dictionary is pulled from it with
+  # `lineage schema pull` instead of being built by hand. PostgreSQL 17, as the suites target.
+  # Start alone with:  docker compose up -d postgres
+  # Seed it with:      .\.venv\Scripts\python.exe scripts\pg_seed.py
+  postgres:
+    image: postgres:17
+    container_name: lineage-postgres
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    environment:
+      # Local development credentials only (see src/lineage/resolution/postgres_connect.py).
+      POSTGRES_USER: lineage
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-lineage_pg}
+      POSTGRES_DB: lineage
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lineage -d lineage"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
 volumes:
   oracle-data:
+  neo4j-data:
+  postgres-data:

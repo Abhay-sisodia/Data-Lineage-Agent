@@ -1,0 +1,1039 @@
+# GENERATED from t2_depth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B4 t2_depth.sql - expressions and types, depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1-B3, plus D-19..D-22. The transform is the strongest on the
+# path (D-7); D-19 counts a node's columns in its own scope.
+package: pg/b4_expressions_types/t2_depth.sql
+dialect: postgres
+source_sha256: 41af45b9b663bcbb1dc0f81e966e1a6df9d6e353cc50cacacd5d6b5fdadf6d04
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'The status band is a CASE over SUM(...): the aggregate on the path dominates.'
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+  note: 'The status band is a CASE over SUM(...): the aggregate on the path dominates.'
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.segment
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 19
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.email
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.signup_ts
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.attributes
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.created_at
+  target:
+    kind: column
+    name: mart.top_customers.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 56
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.order_date
+  target:
+    kind: column
+    name: mart.sales_daily.sale_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.gross_amount
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.discount_amount
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.gross_amount
+  target:
+    kind: column
+    name: mart.sales_daily.gross_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.discount_amount
+  target:
+    kind: column
+    name: mart.sales_daily.gross_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 73
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.net_amount
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.net_amount
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_customer.is_current
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.net_amount
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+  note: 't.lvl = ''HIGH'' is a band over SUM(net_amount): post-aggregation (B2-06).'
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+  note: 'FILTER (WHERE f.n > 2) reads n = cardinality(tags || currency): values of that column (D-10).'
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+  note: 'FILTER (WHERE f.n > 2) reads n = cardinality(tags || currency): values of that column (D-10).'
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+  note: 'FILTER (WHERE f.n > 2) reads n = cardinality(tags || currency): values of that column (D-10).'
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.tags
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 119
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.carrier_id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.shipped_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.delivered_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.period_month
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.shipped_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.avg_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.delivered_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.avg_transit_days
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.shipped_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.on_time_pct
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.delivered_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.on_time_pct
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.promised_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.on_time_pct
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.shipments.carrier_id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.avg_transit_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+  note: 'The GROUP BY''s `m` is date_trunc of lower(tstzrange(shipped_at, delivered_at)): both columns.'
+- source:
+    kind: column
+    name: staging.shipments.carrier_id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.on_time_pct
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+  note: 'The GROUP BY''s `m` is date_trunc of lower(tstzrange(shipped_at, delivered_at)): both columns.'
+- source:
+    kind: column
+    name: staging.shipments.shipped_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.avg_transit_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+  note: 'The GROUP BY''s `m` is date_trunc of lower(tstzrange(shipped_at, delivered_at)): both columns.'
+- source:
+    kind: column
+    name: staging.shipments.shipped_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.on_time_pct
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+  note: 'The GROUP BY''s `m` is date_trunc of lower(tstzrange(shipped_at, delivered_at)): both columns.'
+- source:
+    kind: column
+    name: staging.shipments.delivered_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.avg_transit_days
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+  note: 'The GROUP BY''s `m` is date_trunc of lower(tstzrange(shipped_at, delivered_at)): both columns.'
+- source:
+    kind: column
+    name: staging.shipments.delivered_at
+  target:
+    kind: column
+    name: mart.carrier_scorecard.on_time_pct
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+  note: 'The GROUP BY''s `m` is date_trunc of lower(tstzrange(shipped_at, delivered_at)): both columns.'
+- source:
+    kind: column
+    name: staging.shipments.delivered_at
+  target:
+    kind: relation
+    name: mart.carrier_scorecard
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_product.product_id
+  target:
+    kind: column
+    name: mart.product_performance.product_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 168
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_product.category_name
+  target:
+    kind: column
+    name: mart.product_performance.category_name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 168
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_product.list_price
+  target:
+    kind: column
+    name: mart.product_performance.margin
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 168
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_product.cost
+  target:
+    kind: column
+    name: mart.product_performance.margin
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 168
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_product.status
+  target:
+    kind: relation
+    name: mart.product_performance
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 168
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.customer_summary.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+  note: '`c IS NOT NULL` tests every column of the CTE row (D-20).'
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+  note: '`c IS NOT NULL` tests every column of the CTE row (D-20).'
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 199
+  evidence: source_read
+  note: '`c IS NOT NULL` tests every column of the CTE row (D-20).'
+forbidden:
+- source:
+    kind: column
+    name: core.fct_order_line.discount_amount
+  target:
+    kind: column
+    name: mart.sales_daily.net_amount
+  flow: value
+  reason: 'COALESCE(x.net, 0) reads one column in its own scope: derived (D-19)'
+  transform: conditional
+- source:
+    kind: column
+    name: core.fct_order_line.customer_key
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  reason: the ON is structural (D-5)
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  reason: o is on the null side of a LEFT JOIN (D-14)
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  reason: the ON is structural (D-5)
+expected_boundaries: []

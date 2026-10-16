@@ -1,0 +1,678 @@
+# GENERATED from t1_breadth.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B8 t1_breadth.sql - procedural PL/pgSQL, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, the Oracle procedural conventions (OBJECTIVES.md
+# rules 1-9), plus D-39..D-42 (decided 2026-10-04, not implemented). Variables are
+# `var:<name>`. Bands per edge (rule 5). Origin unit = the routine.
+# NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: every CREATE FUNCTION / PROCEDURE /
+# TRIGGER, S2 and S4 and S21 (calls), and the R11 definition give no edge of their own and
+# are not refused for being procedural; a routine the analyser cannot read is refused or
+# declared, never partially analysed.
+package: pg/b8_procedural/t1_breadth.sql
+dialect: postgres
+source_sha256: 9d092497d67f5fafa067eec5fed6651174b43b7486fcdb06dcb79a2671747438
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_load_channel
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: mart.fn_load_channel
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_load_channel
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_load_channel
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_region
+    line: 41
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: mart.pr_region
+    line: 41
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_region
+    line: 41
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_region
+    line: 41
+  evidence: source_read
+- source:
+    kind: variable
+    name: p_region
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.pr_region
+    line: 41
+  evidence: source_read
+  note: 'A parameter on the path is band 1 (Oracle: stress_merge_upsert''s P_REGION).'
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: variable
+    name: v_total
+  flow: value
+  transform: aggregated
+  band: 1
+  origin:
+    unit: mart.fn_pay_total
+    line: 62
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: relation
+    name: staging.payments
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_pay_total
+    line: 62
+  evidence: source_read
+  note: The statement writes a variable, so its filter targets the relation read (rule 2).
+- source:
+    kind: variable
+    name: v_total
+  target:
+    kind: variable
+    name: v_rate
+  flow: value
+  transform: derived
+  band: 1
+  origin:
+    unit: mart.fn_pay_total
+    line: 66
+  evidence: source_read
+- source:
+    kind: variable
+    name: v_rate
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_pay_total
+    line: 68
+  evidence: source_read
+- source:
+    kind: variable
+    name: v_total
+  target:
+    kind: column
+    name: mart.kpi_rollup.orders
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_pay_total
+    line: 68
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.full_name
+  target:
+    kind: column
+    name: mart.customer_summary.full_name
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_loop_cust
+    line: 85
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_loop_cust
+    line: 85
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_loop_cust
+    line: 85
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.customer_summary.customer_id
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_loop_cust
+    line: 85
+  evidence: source_read
+  note: The loop query's WHERE decides which rows the body ever sees (rule 4); r.id is c.id.
+- source:
+    kind: column
+    name: core.dim_store.id
+  target:
+    kind: variable
+    name: v_store_id
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_cursor_store
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.name
+  target:
+    kind: variable
+    name: v_store_name
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_cursor_store
+    line: 103
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.status
+  target:
+    kind: relation
+    name: core.dim_store
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_cursor_store
+    line: 103
+  evidence: source_read
+- source:
+    kind: variable
+    name: v_store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_cursor_store
+    line: 105
+  evidence: source_read
+- source:
+    kind: variable
+    name: v_store_name
+  target:
+    kind: column
+    name: mart.sales_daily.region
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_cursor_store
+    line: 105
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.top_customers.full_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 127
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 127
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 127
+  evidence: source_read
+  note: 'p_ch takes the literal ''web'': no edge. o.channel = p_ch still filters.'
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 127
+  evidence: source_read
+  note: 'p_ch takes the literal ''web'': no edge. o.channel = p_ch still filters.'
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: variable
+    name: v_value
+  flow: value
+  transform: aggregated
+  band: 1
+  origin:
+    unit: mart.fn_cust_value
+    line: 139
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: relation
+    name: staging.orders
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_cust_value
+    line: 139
+  evidence: source_read
+- source:
+    kind: variable
+    name: p_cust
+  target:
+    kind: relation
+    name: staging.orders
+  flow: filter
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_cust_value
+    line: 139
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 147
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 1
+  origin:
+    unit: <script>
+    line: 147
+  evidence: source_read
+  note: 'Rule 6: the columns the return value depends on, band 1.'
+- source:
+    kind: column
+    name: staging.events_log.id
+  target:
+    kind: column
+    name: mart.events_log.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <do>
+    line: 158
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.events_log.kind
+  target:
+    kind: column
+    name: mart.events_log.kind
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <do>
+    line: 158
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.events_log.payload_size
+  target:
+    kind: relation
+    name: mart.events_log
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <do>
+    line: 158
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.segment
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: <do>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 2
+  origin:
+    unit: <do>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.customers.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.country_code
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: <do>
+    line: 183
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.events_log.id
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: mart.trg_order_audit
+    line: 207
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: column
+    name: mart.events_log.kind
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: mart.trg_order_audit
+    line: 207
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.order_id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: mart.trg_pay_history
+    line: 225
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: mart.trg_pay_history
+    line: 225
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.opened_on
+  target:
+    kind: relation
+    name: core.dim_store
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.pr_close_stores
+    line: 243
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.id
+  target:
+    kind: column
+    name: core.ledger.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_upsert_ledger
+    line: 280
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.account
+  target:
+    kind: column
+    name: core.ledger.account
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_upsert_ledger
+    line: 280
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.balance
+  target:
+    kind: column
+    name: core.ledger.balance
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: mart.fn_upsert_ledger
+    line: 284
+  evidence: source_read
+- source:
+    kind: column
+    name: core.ledger.status
+  target:
+    kind: relation
+    name: core.ledger
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_upsert_ledger
+    line: 284
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.events_log.kind
+  target:
+    kind: relation
+    name: mart.events_log
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: mart.fn_count_rows
+    line: 298
+  evidence: source_read
+- source:
+    kind: variable
+    name: v_rows
+  target:
+    kind: column
+    name: mart.kpi_rollup.customers
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_count_rows
+    line: 302
+  evidence: source_read
+  note: GET DIAGNOSTICS gives v_rows no column source; the variable still reaches the column (rule 3).
+forbidden:
+- source:
+    kind: column
+    name: staging.customers.id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  reason: 'c.id is only the function''s argument (Oracle: fn_stress_net)'
+expected_boundaries:
+- kind: dynamic_sql
+  subject: EXECUTE:195
+  reason: 'the table name is p_table, a parameter: undecidable (D-42)'
+- kind: source_unavailable
+  subject: mart.fn_gen_regions
+  reason: its rows are built by RETURN NEXT in a loop (D-40)

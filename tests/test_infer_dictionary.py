@@ -1,0 +1,281 @@
+"""A dictionary inferred from SQL under-reports, and must never invent.
+
+`infer_dictionary` exists for the ordinary case where the real schema is in no captured
+catalogue - a Databricks model against `silver_s2p`, say - and without it every table in
+such a file is a dangling reference and no lineage comes out at all.
+
+**The governing rule is asymmetric on purpose.** Missing a column costs a dangling
+reference, which is visible and survivable. Inventing one puts a name in the dictionary
+that the real table does not have, and everything downstream then resolves against a schema
+that does not exist - a wrong answer wearing the same clothes as a right one. So the
+attribution rules are the two where the answer is DETERMINED, and everything else is
+dropped and counted.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from lineage.resolution.infer import INFERRED_MARKER, infer_dictionary, is_inferred
+
+
+def test_a_qualified_reference_is_attributed() -> None:
+    book, _ = infer_dictionary(
+        "SELECT o.cust_id, o.amount FROM sales.orders o", default_schema="sales"
+    )
+    assert book.columns["sales.orders"] == ["cust_id", "amount"]
+
+
+def test_a_single_table_select_attributes_its_unqualified_columns() -> None:
+    """DETERMINED, not guessed: there is nowhere else the column could come from.
+
+    This is the single-table CTE, which is most of what a warehouse model is made of.
+    Without it those relations land in the dictionary with NO columns, nothing selected
+    from them resolves, and `qualify` then fails the whole statement - measured on a real
+    Databricks model, where one such CTE took the result from 20 edges to zero.
+    """
+    book, warnings = infer_dictionary(
+        """
+        WITH lei AS (
+            SELECT legal_entity_identifier, transacting_entity_indicator
+              FROM silver.legal_entity_profiles
+             WHERE current_indicator = true
+        )
+        SELECT legal_entity_identifier FROM lei
+        """,
+        default_schema="silver",
+    )
+    assert set(book.columns["silver.legal_entity_profiles"]) == {
+        "legal_entity_identifier",
+        "transacting_entity_indicator",
+        "current_indicator",
+    }
+    assert not any("no column is attributed" in w for w in warnings)
+
+
+def test_a_join_does_not_attribute_unqualified_columns() -> None:
+    """The negative half, and the one that makes the test above safe.
+
+    `SELECT cust_id FROM a JOIN b` has two candidates. Picking either would invent a fact,
+    so the column is dropped and COUNTED - the count is what tells a reader the dictionary
+    is thinner than their SQL.
+    """
+    book, warnings = infer_dictionary(
+        "SELECT cust_id, a.x, b.y FROM sales.a a JOIN sales.b b ON a.k = b.k",
+        default_schema="sales",
+    )
+    assert "cust_id" not in book.columns["sales.a"]
+    assert "cust_id" not in book.columns["sales.b"]
+    assert any("name no table" in w for w in warnings)
+
+
+def test_a_cte_is_not_put_in_the_dictionary() -> None:
+    """A CTE is not a stored object.
+
+    Putting one in would make lineage stop AT the CTE instead of resolving through it to
+    the base tables, which is the entire job.
+    """
+    book, _ = infer_dictionary(
+        """
+        WITH scoped AS (SELECT o.cust_id FROM sales.orders o)
+        SELECT s.cust_id FROM scoped s
+        """,
+        default_schema="sales",
+    )
+    assert set(book.objects) == {"sales.orders"}
+
+
+def test_the_provenance_is_impossible_to_mistake_for_a_capture() -> None:
+    """`captured_at` carries a value no real capture can produce.
+
+    Provenance has to survive being saved to disk and read back by someone who was not
+    here, because every number computed against this dictionary inherits it.
+    """
+    book, _ = infer_dictionary("SELECT o.x FROM sales.orders o", default_schema="sales")
+    assert book.captured_at == INFERRED_MARKER
+    assert is_inferred(book)
+    assert not is_inferred(book.model_copy(update={"captured_at": "2026-09-24T00:00:00Z"}))
+
+
+def test_select_star_is_warned_about_rather_than_expanded() -> None:
+    """The quiet failure this inference is most likely to cause.
+
+    An inferred dictionary holds only the columns the text mentions, so expanding `*`
+    against it would bind a handful of columns positionally and confidently - and be wrong
+    wherever the real table has more.
+    """
+    _book, warnings = infer_dictionary("SELECT * FROM sales.orders", default_schema="sales")
+    assert any("SELECT *" in w for w in warnings)
+
+
+def test_unparseable_sql_yields_an_empty_dictionary_and_says_so() -> None:
+    book, warnings = infer_dictionary("this is not sql at all ((((", default_schema="s")
+    assert book.objects == {}
+    assert warnings
+
+
+@pytest.mark.parametrize("dialect", ["postgres", "oracle"])
+def test_inference_folds_identifiers_for_its_dialect(dialect: str) -> None:
+    """Names must be folded the way the analyser will fold them when it looks them up.
+
+    An UPPER key in a PostgreSQL dictionary matches nothing and fails SILENTLY as a
+    dangling reference - the shape `tests/test_identifier_folding.py` exists for.
+    """
+    book, _ = infer_dictionary(
+        "SELECT O.Cust_Id FROM Sales.Orders O", dialect=dialect, default_schema="Sales"
+    )
+    expected = "SALES.ORDERS" if dialect == "oracle" else "sales.orders"
+    assert expected in book.objects, list(book.objects)
+
+
+def test_a_select_star_passthrough_cte_lends_its_relation_the_columns() -> None:
+    """The rule that makes an ETL script built on deduplicating views resolvable at all.
+
+    `pod AS (SELECT * FROM silver.purchase_order_distribution ...)` followed by
+    `pod.some_column` tells us with certainty that the column belongs to that table: the
+    STAR is what makes it so, and ONE relation is what makes it unambiguous.
+
+    Measured on a real 1,914-line consolidated Spark job built on twenty such views:
+    without this rule the inferred dictionary held 84 columns, `qualify` refused the whole
+    statement with "Unknown column: distribution_intended_use", and the run produced ZERO
+    edges. With it, 288 columns and 810 edges at 100% parse coverage.
+    """
+    book, _ = infer_dictionary(
+        """
+        WITH pod AS (
+            SELECT * FROM (
+                SELECT p.*, ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY p.d DESC) AS _rn
+                  FROM silver.purchase_order_distribution p
+            ) q WHERE _rn = 1
+        )
+        SELECT pod.distribution_intended_use, pod.quantity_ordered FROM pod
+        """,
+        default_schema="silver",
+    )
+    cols = book.columns["silver.purchase_order_distribution"]
+    assert "distribution_intended_use" in cols
+    assert "quantity_ordered" in cols
+
+
+def test_a_reused_alias_does_not_mix_two_relations_columns() -> None:
+    """Finding PG-21, and the sharpest case in this file.
+
+    An alias belongs to ONE select. The first implementation kept a file-wide map and wrote
+    `aliases[alias] = key` for every table it saw, so the same letter used in two scopes -
+    which is ordinary SQL, not a trick - merged two tables. Last write won, which made it
+    worse than a merge: one real relation was left with NO columns at all.
+
+    Both halves are the failure this module is supposed to be incapable of. Invented columns
+    let a name bind to a table that does not have it, and an emptied relation is exactly
+    PG-16's trigger for refusing an entire run.
+    """
+    book, _ = infer_dictionary(
+        """
+        WITH a AS (SELECT b.amount, b.order_no FROM sales.orders    b),
+             c AS (SELECT b.region, b.tier     FROM sales.customers b)
+        SELECT a.amount, c.region FROM a CROSS JOIN c
+        """,
+        default_schema="sales",
+    )
+    assert set(book.columns["sales.orders"]) == {"amount", "order_no"}
+    assert set(book.columns["sales.customers"]) == {"region", "tier"}
+
+
+def test_an_inner_alias_shadows_an_outer_one() -> None:
+    """The innermost binding wins, as in SQL - the scope walk must stop at the first hit."""
+    book, _ = infer_dictionary(
+        """
+        SELECT t.outer_col
+        FROM   sales.orders t
+        WHERE  EXISTS (SELECT 1 FROM sales.audit t WHERE t.inner_col > 0)
+        """,
+        default_schema="sales",
+    )
+    assert book.columns["sales.orders"] == ["outer_col"]
+    assert book.columns["sales.audit"] == ["inner_col"]
+
+
+def test_a_correlated_reference_resolves_to_the_outer_relation() -> None:
+    """The scope walk goes OUTWARD, which is the whole reason it is a walk and not a lookup.
+
+    `o.id` inside the subquery is bound by the enclosing select. Stopping at the innermost
+    scope would drop it, and an inferred dictionary that drops a correlation key resolves
+    nothing that depends on it.
+    """
+    book, _ = infer_dictionary(
+        """
+        SELECT o.id,
+               (SELECT max(l.amount) FROM sales.lines l WHERE l.order_id = o.id) AS biggest
+        FROM   sales.orders o
+        """,
+        default_schema="sales",
+    )
+    assert "id" in book.columns["sales.orders"]
+    assert set(book.columns["sales.lines"]) == {"amount", "order_id"}
+
+
+def test_a_cte_that_merely_contains_a_star_is_not_a_passthrough() -> None:
+    """Second half of PG-21: the PROJECTION decides, not the presence of a star anywhere.
+
+    `find_all(exp.Star)` searches the whole subtree, so a CTE whose own select list RENAMES
+    satisfied it on a star nested in a LATERAL - and lent its source table the CTE's output
+    ALIAS, a name that table does not have.
+    """
+    book, _ = infer_dictionary(
+        """
+        WITH e AS (
+            SELECT b.parent_item_id AS top_item_id, b.qty_per
+            FROM   mfg.bom b
+            CROSS  JOIN LATERAL (SELECT * FROM mfg.bom x WHERE x.parent_item_id = b.id) y
+        )
+        SELECT e.top_item_id FROM e
+        """,
+        default_schema="mfg",
+    )
+    assert "top_item_id" not in book.columns["mfg.bom"]
+    assert "parent_item_id" in book.columns["mfg.bom"]
+
+
+def test_a_passthrough_over_two_relations_lends_nothing() -> None:
+    """The negative half. Two candidates is a guess, and this inference never guesses.
+
+    A CTE that stars over a JOIN could take the column from either side. Dropping it costs
+    a dangling reference, which is visible; attributing it would put a column on a table
+    that may not have one.
+    """
+    book, _ = infer_dictionary(
+        """
+        WITH j AS (SELECT * FROM silver.a a JOIN silver.b b ON a.k = b.k)
+        SELECT j.mystery FROM j
+        """,
+        default_schema="silver",
+    )
+    assert "mystery" not in book.columns.get("silver.a", [])
+    assert "mystery" not in book.columns.get("silver.b", [])
+
+
+def test_cte_columns_are_not_reported_as_missing_schema() -> None:
+    """End-to-end gap 7: unqualified references to a CTE's columns resolve through the CTE;
+    counting them as "absent from the dictionary" told a user 47 columns were missing when
+    not one stored column was."""
+    sql = (
+        "WITH lifetime AS (SELECT o.customer_id, MAX(o.order_date) AS last_order "
+        "FROM sales.orders o GROUP BY o.customer_id) "
+        "SELECT customer_id, last_order FROM lifetime"
+    )
+    book, warnings = infer_dictionary(sql)
+    assert book.columns["sales.orders"] == ["customer_id", "order_date"]
+    assert warnings == []
+    _, joined = infer_dictionary(
+        "SELECT cust_id FROM sales.orders o JOIN sales.customers c ON c.id = o.cust_id"
+    )
+    assert any("name no table" in w for w in joined), "a real ambiguity is still reported"
+
+
+def test_the_star_warning_needs_a_star_over_a_stored_table() -> None:
+    computed = (
+        "WITH c AS (SELECT o.id, o.qty * 2 AS q FROM sales.orders o) "
+        "SELECT c.*, COUNT(*) FROM c GROUP BY 1, 2"
+    )
+    assert not any("SELECT *" in w for w in infer_dictionary(computed)[1])
+    assert any("SELECT *" in w for w in infer_dictionary("SELECT * FROM sales.orders")[1])

@@ -1,0 +1,272 @@
+# GENERATED from t4_adversarial.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B7 t4_adversarial.sql - DDL that creates lineage, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-31..D-34. Every node is schema-qualified;
+# a temp table is pg_temp.<name>. DROP / CREATE TABLE / CREATE TEMP TABLE carry no lineage
+# and must be counted, not refused - checked in the report.
+package: pg/b7_ddl_lineage/t4_adversarial.sql
+dialect: postgres
+source_sha256: 1d06f17d45faacf43019ecd87e0ae6755fe6e7b300370d66abb1043aa7a586c2
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.v_x.c
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 18
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 23
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.v_x.c
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 30
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 35
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.v_x.c
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 48
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.id
+  target:
+    kind: column
+    name: pg_temp.orders.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.method
+  target:
+    kind: column
+    name: pg_temp.orders.note
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 58
+  evidence: source_read
+- source:
+    kind: column
+    name: pg_temp.orders.note
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 63
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 63
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_carrier.id
+  target:
+    kind: column
+    name: mart.v_star.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_carrier.name
+  target:
+    kind: column
+    name: mart.v_star.name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_carrier.mode
+  target:
+    kind: column
+    name: mart.v_star.mode
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_carrier.status
+  target:
+    kind: column
+    name: mart.v_star.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 72
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_carrier.id
+  target:
+    kind: column
+    name: mart.carrier_scorecard.carrier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 76
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_carrier.name
+  target:
+    kind: column
+    name: mart.carrier_scorecard.carrier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 76
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.tiered.qty
+  target:
+    kind: column
+    name: mart.tiered.tier
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 91
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.tiered.price
+  target:
+    kind: column
+    name: mart.tiered.tier
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 91
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.kpi_rollup.segment
+  flow: value
+  reason: the view was replaced at S3; the read sees the definition in force (D-31)
+  transform: identity
+- source:
+    kind: column
+    name: staging.orders.currency
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  reason: mart.v_x is a table now, not the dropped view (D-31)
+  transform: derived
+- source:
+    kind: column
+    name: pg_temp.orders.id
+  target:
+    kind: relation
+    name: mart.channel_mix
+  flow: filter
+  reason: the ON is structural (D-5)
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  reason: mart.channel_mix exists, so CREATE TABLE IF NOT EXISTS ... AS does nothing
+  transform: identity
+expected_boundaries: []

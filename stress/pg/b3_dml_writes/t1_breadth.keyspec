@@ -1,0 +1,99 @@
+# Answer key for B3 t1_breadth.sql - DML writes, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all of B1/B2, plus D-15..D-18 (decided 2026-10-02, not implemented).
+#
+# NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: S16a (TRUNCATE) and S16b (COPY) must be
+# REFUSED by name, and S17 after them must be analysed normally. S2a, S2b and S12 produce
+# nothing, correctly; they are here to show nothing is invented for them.
+
+@ 20 S1 INSERT ... SELECT, column list omitted
+value staging.customers.country_code -> mart.top_customers.region identity
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+filter staging.customers.status -> mart.top_customers
+
+@ 43 S3 VALUES of scalar subqueries (D-18)
+value core.fct_order_line.net_amount, core.fct_order_line.status -> mart.kpi_rollup.revenue aggregated
+value staging.customers.id -> mart.kpi_rollup.customers aggregated
+forbid filter core.fct_order_line.status -> mart.kpi_rollup | a scalar subquery in VALUES decides one value; the one row is written regardless (D-18)
+
+@ 56 S4 ON CONFLICT DO NOTHING (D-15)
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.customers.full_name -> mart.customer_summary.full_name identity
+value staging.customers.segment -> mart.customer_summary.segment identity
+forbid filter staging.customers.id -> mart.customer_summary | the conflict target is structural, like a MERGE's ON (D-15)
+
+@ 67 S5 ON CONFLICT DO UPDATE with EXCLUDED and WHERE
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount aggregated
+value core.fct_order_line.order_id -> mart.sales_daily.orders aggregated
+note EXCLUDED.net_amount / EXCLUDED.orders reach the same sources through the proposed row: the same facts.
+value mart.sales_daily.net_amount -> mart.sales_daily.net_amount derived
+note The accumulator `sd.net_amount + EXCLUDED.net_amount`: a real self-edge (S3-07).
+influence core.fct_order_line.order_date, core.fct_order_line.store_id -> mart.sales_daily.net_amount, mart.sales_daily.orders
+filter mart.sales_daily.net_amount -> mart.sales_daily
+filter core.fct_order_line.net_amount -> mart.sales_daily post
+note The DO UPDATE WHERE: the target's own column, and EXCLUDED's value - a SUM, so post-aggregation (D-6).
+forbid filter core.fct_order_line.store_id -> mart.sales_daily | (sale_date, store_id) is the conflict target: structural (D-15)
+
+@ 80 S6 UPDATE with a self-referencing SET
+value core.dim_product.list_price -> core.dim_product.list_price derived
+filter core.dim_product.brand, core.dim_product.status -> core.dim_product
+
+@ 92 S7 UPDATE ... FROM
+value staging.customers.country_code -> core.dim_customer.country_code identity
+value staging.customers.email -> core.dim_customer.email derived
+filter core.dim_customer.valid_to, staging.customers.segment -> core.dim_customer
+forbid filter staging.customers.id -> core.dim_customer | `c.id = d.customer_id` joins the target to the FROM list (D-11)
+forbid filter core.dim_customer.customer_id -> core.dim_customer | `c.id = d.customer_id` joins the target to the FROM list (D-11)
+
+@ 107 S8 UPDATE SET (a, b) = (row subquery) (D-18)
+value core.dim_warehouse.region -> core.dim_store.region identity
+# D-58: core.dim_warehouse.id, core.dim_store.id -> core.dim_store.region is a lookup key (join_key, not scored; was a conditional value).
+# D-58: core.dim_warehouse.id, core.dim_store.id -> core.dim_store.country_code is a lookup key (join_key, not scored; was a conditional value).
+filter core.dim_store.status -> core.dim_store
+forbid filter core.dim_warehouse.id -> core.dim_store | a correlation inside a SET decides values, not rows (D-18)
+
+@ 118 S9 UPDATE SET = correlated aggregate (D-18)
+value staging.payments.amount, staging.payments.currency -> core.fct_payment.amount_usd aggregated
+# D-58: staging.payments.order_id, core.fct_payment.order_id matched the aggregated lookup's rows to core.fct_payment.amount_usd's - influence, as a GROUP BY is (was a value).
+influence staging.payments.order_id, core.fct_payment.order_id -> core.fct_payment.amount_usd
+forbid filter staging.payments.currency -> core.fct_payment | a predicate inside a SET subquery removes no row (D-18)
+
+@ 130 S10 DELETE with OR and IN
+filter core.fct_shipment.status, core.fct_shipment.order_id, staging.orders.id, staging.orders.status -> core.fct_shipment
+
+@ 139 S11 DELETE ... USING
+filter staging.payments.status -> core.fct_payment
+forbid filter staging.payments.id -> core.fct_payment | `p.id = fp.payment_id` joins the target to USING (D-11)
+forbid filter core.fct_payment.payment_id -> core.fct_payment | `p.id = fp.payment_id` joins the target to USING (D-11)
+
+@ 156 S13 UPDATE ... RETURNING (D-16)
+value core.dim_warehouse.capacity -> core.dim_warehouse.capacity derived
+filter core.dim_warehouse.region -> core.dim_warehouse
+value core.dim_warehouse.id -> <result>.warehouse_id identity
+value core.dim_warehouse.capacity -> <result>.new_capacity identity
+filter core.dim_warehouse.region -> <result>
+note D-16: a returned column's source is the written table's column. The WHERE decides which rows are returned as well as updated.
+
+@ 167 S14 DELETE ... RETURNING feeding an INSERT (D-17)
+value staging.returns.id -> mart.sales_daily.orders identity
+value staging.returns.amount -> mart.sales_daily.gross_amount identity
+value staging.returns.created_at -> mart.sales_daily.sale_date derived
+filter staging.returns.status, staging.returns.created_at -> staging.returns
+filter staging.returns.status, staging.returns.created_at -> mart.sales_daily
+note D-17: one predicate, two written tables - which returns are deleted, and which are archived.
+
+@ 182 S15 MERGE with four arms, NOT MATCHED BY SOURCE
+value staging.customers.id -> core.dim_customer.customer_key, core.dim_customer.customer_id identity
+value staging.customers.full_name -> core.dim_customer.full_name identity
+value staging.customers.segment -> core.dim_customer.segment identity
+filter staging.customers.signup_ts, staging.customers.status, core.dim_customer.is_current -> core.dim_customer
+note signup_ts: USING's WHERE. status: the MATCHED ... DELETE arm's condition. is_current: the BY SOURCE arm's condition. The ON is structural.
+
+@ 215 S17 an INSERT after the two refusals
+value staging.payments.method -> mart.channel_mix.channel identity
+value staging.payments.amount -> mart.channel_mix.revenue identity
+filter staging.payments.status -> mart.channel_mix

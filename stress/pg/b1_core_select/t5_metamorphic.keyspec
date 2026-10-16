@@ -1,0 +1,93 @@
+# Answer key for t5_metamorphic.sql - B1 core SELECT, metamorphic pairs + one realistic model.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# Each pair's facts are listed ONCE, at spelling A's line: both spellings write the same
+# target and claim the same facts, and a key cannot hold one fact twice. So the key scores
+# whether the lineage is right; stress/pg/metamorphic.py scores whether B agrees with A.
+# A spelling that is wrong in a way its twin is right shows up in the pair check even
+# when the key is satisfied by the twin.
+
+@ 28 P1 USING vs ON
+value staging.shipments.order_id -> mart.top_customers.customer_id identity
+value staging.shipments.carrier_id -> mart.top_customers.position identity
+value staging.payments.amount -> mart.top_customers.revenue identity
+
+@ 44 P2 named window vs inline
+value core.fct_order_line.product_key -> mart.product_performance.product_id identity
+value core.fct_order_line.net_amount -> mart.product_performance.running_revenue aggregated
+influence core.fct_order_line.store_id, core.fct_order_line.order_date -> mart.product_performance.running_revenue
+
+@ 59 P3 GROUP BY ordinals vs names
+value core.dim_store.region -> mart.kpi_rollup.region identity
+value core.dim_store.country_code -> mart.kpi_rollup.country_code identity
+value core.fct_order_line.amount_usd -> mart.kpi_rollup.revenue aggregated
+influence core.dim_store.region, core.dim_store.country_code -> mart.kpi_rollup.orders, mart.kpi_rollup.revenue
+
+@ 77 P4 DISTINCT vs GROUP BY without aggregates
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.currency -> mart.channel_mix.region identity
+forbid filter staging.orders.channel -> mart.channel_mix | DISTINCT / GROUP BY with no aggregate removes only duplicate written values (D-9)
+
+@ 92 P5 ROLLUP vs the equivalent GROUPING SETS
+value core.dim_customer.region -> mart.kpi_rollup.region identity
+value core.dim_customer.segment -> mart.kpi_rollup.segment identity
+value core.fct_order_line.net_amount -> mart.kpi_rollup.revenue aggregated
+influence core.dim_customer.region, core.dim_customer.segment -> mart.kpi_rollup.revenue
+
+@ 112 P6 HAVING vs WHERE over an aggregating subquery
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.net_amount -> mart.sales_daily.net_amount aggregated
+influence core.fct_order_line.store_id -> mart.sales_daily.net_amount
+filter core.fct_order_line.net_amount -> mart.sales_daily post
+
+@ 133 P7 COUNT(DISTINCT x) vs COUNT(x) over SELECT DISTINCT
+value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+value staging.orders.store_id -> mart.customer_summary.lifetime_orders aggregated
+influence staging.orders.customer_id -> mart.customer_summary.lifetime_orders
+
+@ 152 P8 FILTER vs CASE inside AVG (D-10)
+value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value core.fct_shipment.transit_days, core.fct_shipment.status -> mart.carrier_scorecard.avg_transit_days aggregated
+influence core.fct_shipment.carrier_id -> mart.carrier_scorecard.avg_transit_days
+forbid filter core.fct_shipment.status -> mart.carrier_scorecard | FILTER changes one aggregate's value, exactly as the CASE spelling does (D-10)
+
+@ 168 P9 JOIN ON vs comma join (D-11)
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.dim_store.region -> mart.sales_daily.region identity
+value core.fct_order_line.gross_amount -> mart.sales_daily.gross_amount identity
+forbid filter core.fct_order_line.store_id -> mart.sales_daily | the join condition, whether written in ON or WHERE (D-5, D-11)
+forbid filter core.dim_store.id -> mart.sales_daily | the join condition, whether written in ON or WHERE (D-5, D-11)
+
+@ 184 P10 ROW_NUMBER() = 1 vs DISTINCT ON (D-9)
+value staging.orders.customer_id -> mart.top_customers.customer_id identity
+value staging.orders.amount -> mart.top_customers.revenue identity
+filter staging.orders.customer_id, staging.orders.order_ts -> mart.top_customers
+note D-9: in A the rank's PARTITION BY and ORDER BY decide which row survives `rn = 1`; in B the DISTINCT ON key and its tie-breaker do.
+
+@ 212 R1 the customer summary model
+value core.dim_customer.customer_id -> mart.customer_summary.customer_id identity
+value core.dim_customer.full_name -> mart.customer_summary.full_name derived
+value core.dim_customer.segment -> mart.customer_summary.segment derived
+note COALESCE(segment, 'UNKNOWN'): one column argument, a null guard.
+value core.dim_customer.region -> mart.customer_summary.region identity
+value core.fct_order_line.order_date -> mart.customer_summary.first_order_date, mart.customer_summary.last_order_date aggregated
+value core.fct_order_line.amount_usd -> mart.customer_summary.lifetime_value, mart.customer_summary.avg_basket aggregated
+value core.fct_order_line.order_date -> mart.customer_summary.status aggregated
+note status is a CASE over last_order = MAX(MIN(order_date)); the hardest construct on the path is the aggregate.
+note lifetime_orders is COUNT(*) over order_facts: no value source. value_rank and value_decile are ranks: no value source.
+influence core.fct_order_line.customer_key, core.fct_order_line.order_id -> mart.customer_summary.first_order_date, mart.customer_summary.last_order_date, mart.customer_summary.lifetime_value, mart.customer_summary.avg_basket, mart.customer_summary.status
+note order_facts groups by (customer_key, order_id); customer_rollup groups by customer_key again. Both apply on every path through an aggregate of order_facts.
+influence core.fct_order_line.customer_key, core.fct_order_line.order_id -> mart.customer_summary.lifetime_orders
+note D-55 (2026-10-07): COUNT(*) counts order_facts' groups, so its GROUP BY order_id decides the count, as it decides every other aggregate here; relabelled from customer_key alone (FM-03).
+influence core.dim_customer.region, core.fct_order_line.amount_usd, core.fct_order_line.customer_key, core.fct_order_line.order_id -> mart.customer_summary.value_rank
+influence core.fct_order_line.amount_usd, core.fct_order_line.customer_key, core.fct_order_line.order_id -> mart.customer_summary.value_decile
+filter core.fct_order_line.status -> mart.customer_summary
+filter core.fct_order_line.amount_usd -> mart.customer_summary post
+filter core.dim_customer.customer_id, core.dim_customer.valid_from -> mart.customer_summary
+note D-9: the DISTINCT ON key and tie-breaker pick the current SCD row.
+filter core.dim_customer.region -> mart.customer_summary
+forbid value core.fct_order_line.amount_usd -> mart.customer_summary.value_rank | RANK orders by LTV; no part of LTV is in the rank (D-4)
+forbid value core.fct_order_line.amount_usd -> mart.customer_summary.value_decile | NTILE orders by LTV; no part of LTV is in the decile (D-4)
+forbid filter core.dim_customer.customer_key -> mart.customer_summary | the join between current_customer and customer_rollup is in ON (D-5)
+forbid value core.fct_order_line.quantity -> mart.customer_summary.avg_basket | order_units is computed in order_facts and never read again

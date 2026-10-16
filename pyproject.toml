@@ -20,13 +20,22 @@ dependencies = [
     "typer",
     "rich",
     "oracledb",
+    "pglast",
 ]
+
+# The knowledge graph and agentic Q&A. Optional, so the core analyser installs without a
+# graph database or an AI provider. Pinned set: requirements-kg.txt.
+[project.optional-dependencies]
+kg = ["neo4j", "anthropic", "mcp", "claude-agent-sdk", "psycopg[binary]"]
 
 [project.scripts]
 lineage = "lineage.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"lineage.semantics" = ["*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -35,6 +44,8 @@ addopts = "-ra --strict-markers"
 markers = [
     "adversarial: silent-failure regression cases (T3.4) - never delete one",
     "requires_oracle: needs a live Oracle XE instance",
+    "requires_neo4j: needs a live Neo4j instance (docker compose up -d neo4j)",
+    "requires_postgres: needs a live PostgreSQL (docker compose up -d postgres)",
 ]
 
 [tool.ruff]
@@ -49,6 +60,14 @@ extend-exclude = ["src/lineage/parsing/generated", "grammars"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# The parser and analyser probes are corpora of Oracle statements held as literals. Each
+# one is a construct quoted from the documentation, and wrapping it to 100 columns changes
+# the thing being probed into something adjacent to it - which is exactly the mistake the
+# `trg` episode recorded in probe_parsers.py was made of. The SQL stays verbatim.
+"scripts/probe_parsers.py" = ["E501"]
+"scripts/probe_analyser.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

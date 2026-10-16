@@ -1,0 +1,772 @@
+{
+  "captured_at": "2026-10-01T00:00:00Z",
+  "default_schema": "public",
+  "dialect": "postgres",
+  "objects": {
+    "lgx.shipment_header": {
+      "owner": "lgx",
+      "name": "shipment_header",
+      "object_type": "TABLE"
+    },
+    "lgx.shipment_line": {
+      "owner": "lgx",
+      "name": "shipment_line",
+      "object_type": "TABLE"
+    },
+    "lgx.item_master": {
+      "owner": "lgx",
+      "name": "item_master",
+      "object_type": "TABLE"
+    },
+    "lgx.bill_of_material": {
+      "owner": "lgx",
+      "name": "bill_of_material",
+      "object_type": "TABLE"
+    },
+    "lgx.carrier": {
+      "owner": "lgx",
+      "name": "carrier",
+      "object_type": "TABLE"
+    },
+    "lgx.carrier_service": {
+      "owner": "lgx",
+      "name": "carrier_service",
+      "object_type": "TABLE"
+    },
+    "lgx.transport_mode": {
+      "owner": "lgx",
+      "name": "transport_mode",
+      "object_type": "TABLE"
+    },
+    "lgx.warehouse": {
+      "owner": "lgx",
+      "name": "warehouse",
+      "object_type": "TABLE"
+    },
+    "lgx.package_event": {
+      "owner": "lgx",
+      "name": "package_event",
+      "object_type": "TABLE"
+    },
+    "lgx.edi_document": {
+      "owner": "lgx",
+      "name": "edi_document",
+      "object_type": "TABLE"
+    },
+    "s2p.po_header": {
+      "owner": "s2p",
+      "name": "po_header",
+      "object_type": "TABLE"
+    },
+    "s2p.po_header_ext": {
+      "owner": "s2p",
+      "name": "po_header_ext",
+      "object_type": "TABLE"
+    },
+    "s2p.po_line": {
+      "owner": "s2p",
+      "name": "po_line",
+      "object_type": "TABLE"
+    },
+    "s2p.po_line_ext": {
+      "owner": "s2p",
+      "name": "po_line_ext",
+      "object_type": "TABLE"
+    },
+    "s2p.po_line_location": {
+      "owner": "s2p",
+      "name": "po_line_location",
+      "object_type": "TABLE"
+    },
+    "s2p.po_distribution": {
+      "owner": "s2p",
+      "name": "po_distribution",
+      "object_type": "TABLE"
+    },
+    "s2p.po_version": {
+      "owner": "s2p",
+      "name": "po_version",
+      "object_type": "TABLE"
+    },
+    "s2p.req_header": {
+      "owner": "s2p",
+      "name": "req_header",
+      "object_type": "TABLE"
+    },
+    "s2p.req_line": {
+      "owner": "s2p",
+      "name": "req_line",
+      "object_type": "TABLE"
+    },
+    "s2p.req_distribution": {
+      "owner": "s2p",
+      "name": "req_distribution",
+      "object_type": "TABLE"
+    },
+    "s2p.item_category": {
+      "owner": "s2p",
+      "name": "item_category",
+      "object_type": "TABLE"
+    },
+    "s2p.uom": {
+      "owner": "s2p",
+      "name": "uom",
+      "object_type": "TABLE"
+    },
+    "s2p.ledger": {
+      "owner": "s2p",
+      "name": "ledger",
+      "object_type": "TABLE"
+    },
+    "s2p.supplier": {
+      "owner": "s2p",
+      "name": "supplier",
+      "object_type": "TABLE"
+    },
+    "s2p.supplier_site": {
+      "owner": "s2p",
+      "name": "supplier_site",
+      "object_type": "TABLE"
+    },
+    "s2p.person": {
+      "owner": "s2p",
+      "name": "person",
+      "object_type": "TABLE"
+    },
+    "crm.customer": {
+      "owner": "crm",
+      "name": "customer",
+      "object_type": "TABLE"
+    },
+    "crm.customer_site": {
+      "owner": "crm",
+      "name": "customer_site",
+      "object_type": "TABLE"
+    },
+    "crm.organization": {
+      "owner": "crm",
+      "name": "organization",
+      "object_type": "TABLE"
+    },
+    "crm.contact": {
+      "owner": "crm",
+      "name": "contact",
+      "object_type": "TABLE"
+    },
+    "evt.entity_event": {
+      "owner": "evt",
+      "name": "entity_event",
+      "object_type": "TABLE"
+    },
+    "evt.activity": {
+      "owner": "evt",
+      "name": "activity",
+      "object_type": "TABLE"
+    },
+    "evt.metric": {
+      "owner": "evt",
+      "name": "metric",
+      "object_type": "TABLE"
+    },
+    "evt.relationship": {
+      "owner": "evt",
+      "name": "relationship",
+      "object_type": "TABLE"
+    },
+    "evt.flag": {
+      "owner": "evt",
+      "name": "flag",
+      "object_type": "TABLE"
+    },
+    "evt.audit_log": {
+      "owner": "evt",
+      "name": "audit_log",
+      "object_type": "TABLE"
+    },
+    "gold.dim_status": {
+      "owner": "gold",
+      "name": "dim_status",
+      "object_type": "TABLE"
+    },
+    "gold.dim_organization": {
+      "owner": "gold",
+      "name": "dim_organization",
+      "object_type": "TABLE"
+    },
+    "gold.dim_date": {
+      "owner": "gold",
+      "name": "dim_date",
+      "object_type": "TABLE"
+    },
+    "gold.dim_employee": {
+      "owner": "gold",
+      "name": "dim_employee",
+      "object_type": "TABLE"
+    },
+    "gold.dim_supplier": {
+      "owner": "gold",
+      "name": "dim_supplier",
+      "object_type": "TABLE"
+    },
+    "gold.fx_rate": {
+      "owner": "gold",
+      "name": "fx_rate",
+      "object_type": "TABLE"
+    },
+    "gold.dim_currency": {
+      "owner": "gold",
+      "name": "dim_currency",
+      "object_type": "TABLE"
+    },
+    "mart.fact_po_line": {
+      "owner": "mart",
+      "name": "fact_po_line",
+      "object_type": "TABLE"
+    },
+    "mart.supplier_spend": {
+      "owner": "mart",
+      "name": "supplier_spend",
+      "object_type": "TABLE"
+    },
+    "mart.shipment_fact": {
+      "owner": "mart",
+      "name": "shipment_fact",
+      "object_type": "TABLE"
+    },
+    "mart.customer_snapshot": {
+      "owner": "mart",
+      "name": "customer_snapshot",
+      "object_type": "TABLE"
+    },
+    "mart.entity_state": {
+      "owner": "mart",
+      "name": "entity_state",
+      "object_type": "TABLE"
+    },
+    "mart.load_audit": {
+      "owner": "mart",
+      "name": "load_audit",
+      "object_type": "TABLE"
+    }
+  },
+  "columns": {
+    "lgx.shipment_header": [
+      "shipment_id",
+      "source_system",
+      "shipment_number",
+      "customer_id",
+      "ship_from_org_id",
+      "ship_to_site_id",
+      "carrier_code",
+      "incoterm_code",
+      "currency_code",
+      "status_code",
+      "header_attrs",
+      "version_no",
+      "is_deleted",
+      "created_at",
+      "updated_at"
+    ],
+    "lgx.shipment_line": [
+      "shipment_line_id",
+      "shipment_id",
+      "source_system",
+      "item_id",
+      "line_type_code",
+      "line_status",
+      "ordered_qty",
+      "shipped_qty",
+      "cancelled_qty",
+      "unit_selling_price",
+      "ship_date",
+      "promise_date",
+      "request_date",
+      "line_attrs",
+      "etl_batch_id",
+      "last_update_ts"
+    ],
+    "lgx.item_master": [
+      "item_id",
+      "item_code",
+      "item_desc",
+      "item_class",
+      "uom_code",
+      "std_cost",
+      "list_price",
+      "weight_kg",
+      "attrs",
+      "tags",
+      "created_at"
+    ],
+    "lgx.bill_of_material": [
+      "parent_item_id",
+      "component_item_id",
+      "qty_per",
+      "scrap_pct",
+      "bom_status",
+      "effective_from",
+      "effective_to"
+    ],
+    "lgx.carrier": [
+      "carrier_code",
+      "carrier_name",
+      "mode_code",
+      "active_flag",
+      "end_date"
+    ],
+    "lgx.carrier_service": [
+      "carrier_code",
+      "service_level",
+      "transit_days",
+      "mode_code"
+    ],
+    "lgx.transport_mode": [
+      "mode_code",
+      "mode_desc"
+    ],
+    "lgx.warehouse": [
+      "warehouse_id",
+      "warehouse_code",
+      "org_id",
+      "region_code",
+      "latitude",
+      "longitude"
+    ],
+    "lgx.package_event": [
+      "event_id",
+      "shipment_id",
+      "event_type",
+      "event_ts",
+      "location_code",
+      "payload"
+    ],
+    "lgx.edi_document": [
+      "edi_doc_id",
+      "doc_status",
+      "payload",
+      "received_at"
+    ],
+    "s2p.po_header": [
+      "po_header_id",
+      "segment1",
+      "type_lookup_code",
+      "document_status",
+      "vendor_id",
+      "vendor_site_id",
+      "agent_id",
+      "currency_code",
+      "rate",
+      "approved_flag",
+      "approved_date",
+      "closed_date",
+      "style_id",
+      "terms_id",
+      "fob_lookup_code",
+      "created_at",
+      "last_modification_date_time"
+    ],
+    "s2p.po_header_ext": [
+      "po_header_id",
+      "attribute1",
+      "attribute4",
+      "attribute9",
+      "attribute12",
+      "attribute_number1"
+    ],
+    "s2p.po_line": [
+      "po_line_id",
+      "po_header_id",
+      "line_number",
+      "item_id",
+      "category_id",
+      "item_description",
+      "uom_code",
+      "unit_price",
+      "quantity",
+      "amount",
+      "list_price_per_unit",
+      "market_price",
+      "from_header_id",
+      "from_line_id",
+      "contract_id",
+      "line_status",
+      "purchase_basis",
+      "matching_basis",
+      "line_type_id",
+      "created_at",
+      "last_modification_date_time"
+    ],
+    "s2p.po_line_ext": [
+      "po_line_id",
+      "attribute1",
+      "attribute2",
+      "attribute4",
+      "attribute12",
+      "attribute13",
+      "attribute19"
+    ],
+    "s2p.po_line_location": [
+      "line_location_id",
+      "po_line_id",
+      "shipment_num",
+      "quantity",
+      "price_override",
+      "need_by_date",
+      "promised_date",
+      "ship_to_location_id",
+      "receipt_required_flag",
+      "inspection_required_flag",
+      "match_option",
+      "schedule_status",
+      "closed_reason",
+      "last_modification_date_time"
+    ],
+    "s2p.po_distribution": [
+      "distribution_id",
+      "line_location_id",
+      "distribution_num",
+      "quantity_ordered",
+      "quantity_delivered",
+      "quantity_billed",
+      "quantity_cancelled",
+      "amount_ordered",
+      "amount_delivered",
+      "amount_billed",
+      "amount_cancelled",
+      "recoverable_tax",
+      "nonrecoverable_tax",
+      "code_combination_id",
+      "set_of_books_id",
+      "req_distribution_id",
+      "deliver_to_person_id",
+      "created_at",
+      "last_modification_date_time"
+    ],
+    "s2p.po_version": [
+      "po_header_id",
+      "revision_num",
+      "submitted_date",
+      "document_date",
+      "processed_date",
+      "accepted_date",
+      "approved_date",
+      "change_order_description"
+    ],
+    "s2p.req_header": [
+      "req_header_id",
+      "requisition_number",
+      "preparer_id",
+      "interface_source_code",
+      "approved_date",
+      "justification",
+      "last_modification_date_time"
+    ],
+    "s2p.req_line": [
+      "req_line_id",
+      "req_header_id",
+      "line_number",
+      "unit_price",
+      "quantity",
+      "need_by_date",
+      "unspsc_code",
+      "last_approval_date",
+      "last_modification_date_time"
+    ],
+    "s2p.req_distribution": [
+      "req_distribution_id",
+      "req_line_id",
+      "distribution_num",
+      "distribution_quantity",
+      "code_combination_id",
+      "last_modification_date_time"
+    ],
+    "s2p.item_category": [
+      "category_id",
+      "category_name",
+      "parent_category_id"
+    ],
+    "s2p.uom": [
+      "uom_code",
+      "uom_name"
+    ],
+    "s2p.ledger": [
+      "ledger_id",
+      "currency_code",
+      "ledger_type_code"
+    ],
+    "s2p.supplier": [
+      "vendor_id",
+      "vendor_name",
+      "vendor_type",
+      "parent_vendor_id",
+      "status"
+    ],
+    "s2p.supplier_site": [
+      "vendor_site_id",
+      "vendor_id",
+      "vendor_site_code",
+      "country_code"
+    ],
+    "s2p.person": [
+      "person_id",
+      "username",
+      "full_name",
+      "active_flag"
+    ],
+    "crm.customer": [
+      "customer_id",
+      "customer_name",
+      "customer_class",
+      "parent_customer_id",
+      "country_code",
+      "credit_limit",
+      "segment",
+      "status",
+      "valid_from",
+      "valid_to",
+      "created_at"
+    ],
+    "crm.customer_site": [
+      "site_id",
+      "site_code",
+      "customer_id",
+      "country_code",
+      "latitude",
+      "longitude",
+      "time_zone_name",
+      "address_lines"
+    ],
+    "crm.organization": [
+      "org_id",
+      "parent_org_id",
+      "org_name",
+      "org_type",
+      "is_active"
+    ],
+    "crm.contact": [
+      "contact_id",
+      "customer_id",
+      "email",
+      "role",
+      "is_primary",
+      "created_at"
+    ],
+    "evt.entity_event": [
+      "event_id",
+      "entity_id",
+      "parent_id",
+      "status",
+      "payload",
+      "display_name",
+      "amount",
+      "created_at",
+      "ingested_at"
+    ],
+    "evt.activity": [
+      "activity_id",
+      "entity_id",
+      "kind",
+      "amount",
+      "label",
+      "note",
+      "region_code",
+      "sequence_no",
+      "created_at"
+    ],
+    "evt.metric": [
+      "entity_id",
+      "region_code",
+      "category_code",
+      "score",
+      "metric",
+      "event_date"
+    ],
+    "evt.relationship": [
+      "child_id",
+      "parent_id",
+      "edge_type",
+      "weight"
+    ],
+    "evt.flag": [
+      "entity_id",
+      "flag_code",
+      "active_at",
+      "active_flag",
+      "reason_code"
+    ],
+    "evt.audit_log": [
+      "audit_id",
+      "entity_type",
+      "entity_id",
+      "audit_ts",
+      "audit_user",
+      "audit_action"
+    ],
+    "gold.dim_status": [
+      "row_wid",
+      "integration_id",
+      "status_code",
+      "status_name",
+      "status_category",
+      "datasource_num_id"
+    ],
+    "gold.dim_organization": [
+      "row_wid",
+      "integration_id",
+      "org_name",
+      "organization_start_date",
+      "organization_end_date",
+      "datasource_num_id"
+    ],
+    "gold.dim_date": [
+      "date_wid",
+      "calendar_date",
+      "fiscal_year",
+      "fiscal_period_name",
+      "is_holiday"
+    ],
+    "gold.dim_employee": [
+      "employee_sk",
+      "integration_id",
+      "full_name",
+      "effective_from_date",
+      "effective_to_date",
+      "is_delete",
+      "datasource_num_id"
+    ],
+    "gold.dim_supplier": [
+      "vendor_key",
+      "integration_id",
+      "supplier_name",
+      "datasource_num_id"
+    ],
+    "gold.fx_rate": [
+      "from_ccy",
+      "to_ccy",
+      "rate_date",
+      "rate_type",
+      "conversion_rate",
+      "loaded_at"
+    ],
+    "gold.dim_currency": [
+      "row_wid",
+      "currency_code",
+      "currency_name"
+    ],
+    "mart.fact_po_line": [
+      "integration_id",
+      "po_header_id",
+      "po_number",
+      "line_number",
+      "supplier_id",
+      "buyer_id",
+      "item_description",
+      "line_amt",
+      "po_dist_qty",
+      "should_cost",
+      "savings_amt",
+      "x_po_match",
+      "overdue_days",
+      "overdue_bucket",
+      "status_code",
+      "load_ts"
+    ],
+    "mart.supplier_spend": [
+      "supplier_id",
+      "supplier_name",
+      "spend_year",
+      "po_count",
+      "total_spend",
+      "total_savings",
+      "spend_rank"
+    ],
+    "mart.shipment_fact": [
+      "shipment_line_id",
+      "shipment_id",
+      "customer_id",
+      "item_id",
+      "ship_date",
+      "shipped_qty",
+      "ext_amount_usd",
+      "gross_margin_usd",
+      "delivery_class",
+      "is_late",
+      "load_ts"
+    ],
+    "mart.customer_snapshot": [
+      "customer_id",
+      "customer_name",
+      "segment",
+      "lifetime_revenue",
+      "last_ship_date",
+      "open_lines",
+      "status",
+      "updated_at"
+    ],
+    "mart.entity_state": [
+      "entity_id",
+      "status",
+      "amount",
+      "activity_total",
+      "flag_count",
+      "last_seen"
+    ],
+    "mart.load_audit": [
+      "run_id",
+      "table_name",
+      "rows_affected",
+      "run_ts"
+    ]
+  },
+  "temporary": {
+    "lgx.shipment_header": false,
+    "lgx.shipment_line": false,
+    "lgx.item_master": false,
+    "lgx.bill_of_material": false,
+    "lgx.carrier": false,
+    "lgx.carrier_service": false,
+    "lgx.transport_mode": false,
+    "lgx.warehouse": false,
+    "lgx.package_event": false,
+    "lgx.edi_document": false,
+    "s2p.po_header": false,
+    "s2p.po_header_ext": false,
+    "s2p.po_line": false,
+    "s2p.po_line_ext": false,
+    "s2p.po_line_location": false,
+    "s2p.po_distribution": false,
+    "s2p.po_version": false,
+    "s2p.req_header": false,
+    "s2p.req_line": false,
+    "s2p.req_distribution": false,
+    "s2p.item_category": false,
+    "s2p.uom": false,
+    "s2p.ledger": false,
+    "s2p.supplier": false,
+    "s2p.supplier_site": false,
+    "s2p.person": false,
+    "crm.customer": false,
+    "crm.customer_site": false,
+    "crm.organization": false,
+    "crm.contact": false,
+    "evt.entity_event": false,
+    "evt.activity": false,
+    "evt.metric": false,
+    "evt.relationship": false,
+    "evt.flag": false,
+    "evt.audit_log": false,
+    "gold.dim_status": false,
+    "gold.dim_organization": false,
+    "gold.dim_date": false,
+    "gold.dim_employee": false,
+    "gold.dim_supplier": false,
+    "gold.fx_rate": false,
+    "gold.dim_currency": false,
+    "mart.fact_po_line": false,
+    "mart.supplier_spend": false,
+    "mart.shipment_fact": false,
+    "mart.customer_snapshot": false,
+    "mart.entity_state": false,
+    "mart.load_audit": false
+  }
+}

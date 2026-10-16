@@ -1,0 +1,82 @@
+# Answer key for B2 t3_interaction.sql - subqueries meeting B1's rules.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions as T1; D-12 and D-13 not yet implemented.
+
+@ 18 S1 a per-row FX lookup, then summed
+value staging.orders.store_id -> mart.sales_daily.store_id identity
+value staging.orders.amount, staging.fx_rates.rate_to_usd -> mart.sales_daily.net_amount aggregated
+# D-58: staging.fx_rates.currency, staging.orders.currency, staging.fx_rates.rate_date, staging.orders.order_ts -> mart.sales_daily.net_amount is a lookup key (join_key, not scored; was an aggregated value).
+note D-12: the lookup keys select which rate arrives; the outer SUM is the hardest step on every path.
+influence staging.orders.store_id -> mart.sales_daily.net_amount
+forbid filter staging.fx_rates.currency -> mart.sales_daily | a lookup key in a scalar subquery removes no row (D-12)
+forbid filter staging.orders.order_ts -> mart.sales_daily | a lookup key in a scalar subquery removes no row (D-12)
+
+@ 36 S2 a UNION ALL feeding two windows
+value staging.orders.customer_id, staging.returns.order_line_id -> mart.customer_summary.customer_id identity
+value staging.orders.amount, staging.returns.amount -> mart.customer_summary.lifetime_value aggregated
+influence staging.orders.customer_id, staging.returns.order_line_id, staging.orders.order_ts, staging.returns.created_at -> mart.customer_summary.lifetime_value, mart.customer_summary.value_rank
+
+@ 54 S3 EXISTS over a HAVING-filtered CTE
+value core.dim_store.name -> mart.kpi_rollup.region identity
+value core.dim_store.country_code -> mart.kpi_rollup.country_code identity
+filter core.fct_order_line.store_id, core.dim_store.id -> mart.kpi_rollup
+filter core.fct_order_line.quantity -> mart.kpi_rollup post
+
+@ 70 S4 recursion feeding GROUP BY and a window
+value core.dim_category.department -> mart.channel_mix.channel identity
+influence core.dim_category.department -> mart.channel_mix.orders, mart.channel_mix.share_of_region
+filter core.dim_category.parent_id -> mart.channel_mix
+note Both counts are COUNT(*): no value source, but aggregated, so the grouping reaches them.
+
+@ 92 S5 IN over an INTERSECT, aggregating with HAVING
+value core.fct_order_line.product_key -> mart.product_performance.product_id identity
+value core.fct_order_line.quantity -> mart.product_performance.units aggregated
+value core.fct_order_line.net_amount -> mart.product_performance.revenue aggregated
+influence core.fct_order_line.product_key -> mart.product_performance.units, mart.product_performance.revenue
+filter core.fct_order_line.product_key, core.dim_product.product_key, core.dim_product.brand, core.dim_product.status -> mart.product_performance
+filter core.fct_order_line.quantity -> mart.product_performance post
+
+@ 112 S6 scalar subqueries deciding a CASE and inside COALESCE
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name conditional
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.top_customers.full_name's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.top_customers.full_name
+value staging.payments.amount -> mart.top_customers.revenue aggregated
+# D-58: staging.orders.customer_id, staging.customers.id matched the aggregated lookup's rows to mart.top_customers.revenue's - influence, as a GROUP BY is (was a value).
+influence staging.orders.customer_id, staging.customers.id -> mart.top_customers.revenue
+note D-12 in a CASE condition: the count decides the branch, so its correlation is a value of full_name.
+forbid filter staging.orders.customer_id -> mart.top_customers | the correlation of a SELECT-list scalar subquery removes no row (D-12)
+
+@ 137 S7 LEFT JOIN LATERAL of an aggregate, with NOT IN
+value core.dim_carrier.name -> mart.kpi_rollup.segment identity
+value core.fct_shipment.transit_days -> mart.kpi_rollup.revenue aggregated
+value core.fct_shipment.shipment_id, staging.shipments.id, staging.shipments.status -> mart.kpi_rollup.orders aggregated
+value core.fct_shipment.shipment_id, staging.shipments.id, staging.shipments.status -> mart.kpi_rollup.revenue aggregated
+# D-58: core.fct_shipment.carrier_id, core.dim_carrier.id matched the aggregated lookup's rows to mart.kpi_rollup.orders's - influence, as a GROUP BY is (was a value).
+influence core.fct_shipment.carrier_id, core.dim_carrier.id -> mart.kpi_rollup.orders
+# D-58: core.fct_shipment.carrier_id, core.dim_carrier.id matched the aggregated lookup's rows to mart.kpi_rollup.revenue's - influence, as a GROUP BY is (was a value).
+influence core.fct_shipment.carrier_id, core.dim_carrier.id -> mart.kpi_rollup.revenue
+note RELABELLED UNDER D-14 (decided after the first run): a LEFT JOIN LATERAL that aggregates without GROUP BY returns one row for every carrier, so its WHERE cannot remove a result row. Its columns decide the values of the two columns it feeds - both aggregated.
+
+@ 157 S8 LIMIT over a UNION ALL of two aggregations
+value core.dim_store.region, core.dim_warehouse.region -> mart.kpi_rollup.region identity
+value core.fct_order_line.net_amount, core.fct_shipment.cost -> mart.kpi_rollup.revenue aggregated
+influence core.dim_store.region, core.dim_warehouse.region -> mart.kpi_rollup.revenue
+filter core.fct_order_line.net_amount, core.fct_shipment.cost -> mart.kpi_rollup post
+note D-9 over a set operation: ORDER BY 3 is the SUM both arms supply.
+
+@ 176 S9 a HAVING against an aggregate of aggregates
+value core.fct_order_line.store_id -> mart.sales_daily.store_id identity
+value core.fct_order_line.gross_amount -> mart.sales_daily.gross_amount aggregated
+influence core.fct_order_line.store_id -> mart.sales_daily.gross_amount
+filter core.fct_order_line.gross_amount -> mart.sales_daily post
+
+@ 193 S10 DISTINCT ON over a UNION ALL, with a lookup
+value core.fct_shipment.carrier_id, staging.shipments.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name identity
+# D-58: core.dim_carrier.id, core.fct_shipment.carrier_id, staging.shipments.carrier_id -> mart.carrier_scorecard.carrier_name is a lookup key (join_key, not scored; was a conditional value).
+value core.fct_shipment.cost, staging.shipments.cost -> mart.carrier_scorecard.cost_per_kg identity
+filter core.fct_shipment.carrier_id, staging.shipments.carrier_id, core.fct_shipment.shipped_date, staging.shipments.shipped_at -> mart.carrier_scorecard
+note D-9: the DISTINCT ON key and tie-breaker, from both union arms.
+forbid filter core.dim_carrier.id -> mart.carrier_scorecard | a lookup key in a SELECT-list scalar subquery (D-12)

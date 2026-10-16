@@ -1,0 +1,2495 @@
+# GENERATED from h5_adversarial.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for H5 (h5_adversarial.sql): metamorphic groups and adversarial traps.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every written column and every filter is stated. Conventions D-1..D-53.
+# Each group's spellings write their own temp table (pg_temp.pN_a / _b / _c, nodes per D-31);
+# the facts are stated once per group with every table as a target, and run.py also checks
+# that the analyser gave the tables of a group IDENTICAL lineage (# metamorphic: lines).
+#
+# metamorphic: pg_temp.p1_a = pg_temp.p1_b
+# metamorphic: pg_temp.p2_a = pg_temp.p2_b
+# metamorphic: pg_temp.p3_a = pg_temp.p3_b
+# metamorphic: pg_temp.p4_a = pg_temp.p4_b = pg_temp.p4_c
+# metamorphic: pg_temp.p5_a = pg_temp.p5_b
+# metamorphic: pg_temp.p6_a = pg_temp.p6_b
+# metamorphic: pg_temp.p7_a = pg_temp.p7_b
+# metamorphic: pg_temp.p8_a = pg_temp.p8_b
+# metamorphic: pg_temp.p9_a = pg_temp.p9_b
+# metamorphic: pg_temp.p10_a = pg_temp.p10_b
+# metamorphic: pg_temp.p11_a = pg_temp.p11_b
+# metamorphic: pg_temp.p12_a = pg_temp.p12_b
+# metamorphic: pg_temp.p13_a = pg_temp.p13_b
+# metamorphic: pg_temp.p14_a = pg_temp.p14_b = pg_temp.p14_c
+# metamorphic: pg_temp.p15_a = pg_temp.p15_b
+# metamorphic: pg_temp.p16_a = pg_temp.p16_b
+# metamorphic: pg_temp.p17_a = pg_temp.p17_b
+# metamorphic: pg_temp.p18_a = pg_temp.p18_b
+# metamorphic: pg_temp.p19_a = pg_temp.p19_b
+# metamorphic: pg_temp.p20_a = pg_temp.p20_b
+package: pg/final/hard/h5_adversarial.sql
+dialect: postgres
+source_sha256: e97a7d44f9830f7bf9f0c70245c45a6430b83f2deb25416fa0af3636b0bf0563
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: s2p.supplier.vendor_name
+  target:
+    kind: column
+    name: pg_temp.p1_a.vendor_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.supplier.vendor_name
+  target:
+    kind: column
+    name: pg_temp.p1_b.vendor_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: pg_temp.p1_a.total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: pg_temp.p1_b.total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: pg_temp.p1_a.total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: pg_temp.p1_b.total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.document_status
+  target:
+    kind: relation
+    name: pg_temp.p1_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.document_status
+  target:
+    kind: relation
+    name: pg_temp.p1_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: relation
+    name: pg_temp.p1_a
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: relation
+    name: pg_temp.p1_b
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 37
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: pg_temp.p2_a.shipment_line_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 64
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: pg_temp.p2_b.shipment_line_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 64
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.carrier_code
+  target:
+    kind: column
+    name: pg_temp.p2_a.carrier_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 64
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.carrier_code
+  target:
+    kind: column
+    name: pg_temp.p2_b.carrier_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 64
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.status_code
+  target:
+    kind: relation
+    name: pg_temp.p2_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 64
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.status_code
+  target:
+    kind: relation
+    name: pg_temp.p2_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 64
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p3_a.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p3_b.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: pg_temp.p3_a.x_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: pg_temp.p3_b.x_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: pg_temp.p3_a.x_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: pg_temp.p3_b.x_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p3_a.x_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p3_b.x_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p3_a.x_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p3_b.x_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p3_a.x_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p3_b.x_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 78
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: pg_temp.p4_a.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: pg_temp.p4_b.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: pg_temp.p4_c.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: pg_temp.p4_a.customer_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: pg_temp.p4_b.customer_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: pg_temp.p4_c.customer_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: relation
+    name: pg_temp.p4_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.customer_id
+  target:
+    kind: relation
+    name: pg_temp.p4_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.is_primary
+  target:
+    kind: relation
+    name: pg_temp.p4_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: relation
+    name: pg_temp.p4_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.customer_id
+  target:
+    kind: relation
+    name: pg_temp.p4_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.is_primary
+  target:
+    kind: relation
+    name: pg_temp.p4_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: relation
+    name: pg_temp.p4_c
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.customer_id
+  target:
+    kind: relation
+    name: pg_temp.p4_c
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.is_primary
+  target:
+    kind: relation
+    name: pg_temp.p4_c
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 94
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: pg_temp.p5_a.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: pg_temp.p5_b.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: pg_temp.p5_a.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: column
+    name: pg_temp.p5_b.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: relation
+    name: pg_temp.p5_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.created_at
+  target:
+    kind: relation
+    name: pg_temp.p5_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: relation
+    name: pg_temp.p5_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.created_at
+  target:
+    kind: relation
+    name: pg_temp.p5_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.site_id
+  target:
+    kind: column
+    name: pg_temp.p6_a.site_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.site_id
+  target:
+    kind: column
+    name: pg_temp.p6_b.site_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.time_zone_name
+  target:
+    kind: column
+    name: pg_temp.p6_a.tz
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer_site.time_zone_name
+  target:
+    kind: column
+    name: pg_temp.p6_b.tz
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.country_code
+  target:
+    kind: column
+    name: pg_temp.p6_a.tz
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.country_code
+  target:
+    kind: column
+    name: pg_temp.p6_b.tz
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 131
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.region_code
+  target:
+    kind: column
+    name: pg_temp.p7_a.region_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.region_code
+  target:
+    kind: column
+    name: pg_temp.p7_b.region_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.org_id
+  target:
+    kind: column
+    name: pg_temp.p7_a.orgs
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.org_id
+  target:
+    kind: column
+    name: pg_temp.p7_b.orgs
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.region_code
+  target:
+    kind: column
+    name: pg_temp.p7_a.orgs
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.region_code
+  target:
+    kind: column
+    name: pg_temp.p7_b.orgs
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.org_id
+  target:
+    kind: relation
+    name: pg_temp.p7_a
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.org_id
+  target:
+    kind: relation
+    name: pg_temp.p7_b
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 144
+  evidence: source_read
+  note: 'ORDER BY 2 (= COUNT(DISTINCT org_id)) DESC LIMIT 5: the ordered aggregate decides which groups
+    land (D-9), after aggregation (D-6).'
+- source:
+    kind: column
+    name: lgx.carrier_service.carrier_code
+  target:
+    kind: column
+    name: pg_temp.p8_a.carrier_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 160
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier_service.carrier_code
+  target:
+    kind: column
+    name: pg_temp.p8_b.carrier_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 160
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier_service.service_level
+  target:
+    kind: column
+    name: pg_temp.p8_a.service_level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 160
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier_service.service_level
+  target:
+    kind: column
+    name: pg_temp.p8_b.service_level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 160
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.carrier.carrier_name
+  target:
+    kind: column
+    name: pg_temp.p8_a.carrier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 160
+  evidence: source_read
+  note: The merged USING column is the left input's (B1 S8a).
+- source:
+    kind: column
+    name: lgx.carrier.carrier_name
+  target:
+    kind: column
+    name: pg_temp.p8_b.carrier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 160
+  evidence: source_read
+  note: The merged USING column is the left input's (B1 S8a).
+- source:
+    kind: column
+    name: evt.activity.activity_id
+  target:
+    kind: column
+    name: pg_temp.p9_a.activity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.activity_id
+  target:
+    kind: column
+    name: pg_temp.p9_b.activity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p9_a.running
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p9_b.running
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p9_a.running
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p9_b.running
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: pg_temp.p9_a.running
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.created_at
+  target:
+    kind: column
+    name: pg_temp.p9_b.running
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 172
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: pg_temp.p10_a.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 186
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: pg_temp.p10_b.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 186
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.created_at
+  target:
+    kind: column
+    name: pg_temp.p10_a.last_ship
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 186
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.created_at
+  target:
+    kind: column
+    name: pg_temp.p10_b.last_ship
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 186
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: pg_temp.p10_a.last_ship
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 186
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: pg_temp.p10_a.last_ship
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 186
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: pg_temp.p10_b.last_ship
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 186
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: pg_temp.p10_b.last_ship
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 186
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: pg_temp.p11_a.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 204
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.entity_id
+  target:
+    kind: column
+    name: pg_temp.p11_b.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 204
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: column
+    name: pg_temp.p11_a.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 204
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: column
+    name: pg_temp.p11_b.amount
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 204
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: relation
+    name: pg_temp.p11_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 204
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: relation
+    name: pg_temp.p11_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 204
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.status
+  target:
+    kind: relation
+    name: pg_temp.p11_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 204
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.entity_event.amount
+  target:
+    kind: relation
+    name: pg_temp.p11_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 204
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p12_a.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 216
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.entity_id
+  target:
+    kind: column
+    name: pg_temp.p12_b.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 216
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p12_a.amt_x
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 216
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p12_b.amt_x
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 216
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p12_a.amt_y
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 216
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p12_b.amt_y
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 216
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: relation
+    name: pg_temp.p12_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 216
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: relation
+    name: pg_temp.p12_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 216
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.org_name
+  target:
+    kind: column
+    name: pg_temp.p13_a.org_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 232
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.org_name
+  target:
+    kind: column
+    name: pg_temp.p13_b.org_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 232
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.warehouse_code
+  target:
+    kind: column
+    name: pg_temp.p13_a.warehouse_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 232
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.warehouse_code
+  target:
+    kind: column
+    name: pg_temp.p13_b.warehouse_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 232
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.is_active
+  target:
+    kind: relation
+    name: pg_temp.p13_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 232
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.is_active
+  target:
+    kind: relation
+    name: pg_temp.p13_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 232
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: column
+    name: pg_temp.p14_a.item_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: column
+    name: pg_temp.p14_b.item_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: column
+    name: pg_temp.p14_c.item_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: pg_temp.p14_a.item_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: pg_temp.p14_b.item_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_code
+  target:
+    kind: column
+    name: pg_temp.p14_c.item_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: relation
+    name: pg_temp.p14_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.component_item_id
+  target:
+    kind: relation
+    name: pg_temp.p14_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.bom_status
+  target:
+    kind: relation
+    name: pg_temp.p14_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: relation
+    name: pg_temp.p14_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.component_item_id
+  target:
+    kind: relation
+    name: pg_temp.p14_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.bom_status
+  target:
+    kind: relation
+    name: pg_temp.p14_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.item_master.item_id
+  target:
+    kind: relation
+    name: pg_temp.p14_c
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.component_item_id
+  target:
+    kind: relation
+    name: pg_temp.p14_c
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.bom_status
+  target:
+    kind: relation
+    name: pg_temp.p14_c
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 246
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: pg_temp.p15_a.region_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 267
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: pg_temp.p15_b.region_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 267
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p15_a.total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 267
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p15_b.total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 267
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: pg_temp.p15_a.total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 267
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.region_code
+  target:
+    kind: column
+    name: pg_temp.p15_b.total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 267
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: relation
+    name: pg_temp.p15_a
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 267
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: relation
+    name: pg_temp.p15_b
+  flow: filter
+  transform: identity
+  phase: post-aggregation
+  band: 0
+  origin:
+    unit: <script>
+    line: 267
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.activity_id
+  target:
+    kind: column
+    name: pg_temp.p16_a.activity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 282
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.activity_id
+  target:
+    kind: column
+    name: pg_temp.p16_b.activity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 282
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: pg_temp.p16_a.signed_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 282
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: column
+    name: pg_temp.p16_b.signed_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 282
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p16_a.signed_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 282
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.activity.amount
+  target:
+    kind: column
+    name: pg_temp.p16_b.signed_amount
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 282
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.entity_id
+  target:
+    kind: column
+    name: pg_temp.p17_a.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 292
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.entity_id
+  target:
+    kind: column
+    name: pg_temp.p17_b.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 292
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.metric
+  target:
+    kind: column
+    name: pg_temp.p17_a.metric
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 292
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.metric
+  target:
+    kind: column
+    name: pg_temp.p17_b.metric
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 292
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.score
+  target:
+    kind: relation
+    name: pg_temp.p17_a
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 292
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.score
+  target:
+    kind: relation
+    name: pg_temp.p17_b
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 292
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.entity_id
+  target:
+    kind: column
+    name: pg_temp.p18_a.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 304
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.entity_id
+  target:
+    kind: column
+    name: pg_temp.p18_b.entity_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 304
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.event_date
+  target:
+    kind: column
+    name: pg_temp.p18_a.event_year
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 304
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.metric.event_date
+  target:
+    kind: column
+    name: pg_temp.p18_b.event_year
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 304
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.contact_id
+  target:
+    kind: column
+    name: pg_temp.p19_a.contact_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 314
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.contact_id
+  target:
+    kind: column
+    name: pg_temp.p19_b.contact_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 314
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.role
+  target:
+    kind: column
+    name: pg_temp.p19_a.label
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 314
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.role
+  target:
+    kind: column
+    name: pg_temp.p19_b.label
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 314
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.email
+  target:
+    kind: column
+    name: pg_temp.p19_a.label
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 314
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.email
+  target:
+    kind: column
+    name: pg_temp.p19_b.label
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 314
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.relationship.child_id
+  target:
+    kind: column
+    name: pg_temp.p20_a.child_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 324
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.relationship.child_id
+  target:
+    kind: column
+    name: pg_temp.p20_b.child_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 324
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.relationship.weight
+  target:
+    kind: column
+    name: pg_temp.p20_a.weight
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 324
+  evidence: source_read
+- source:
+    kind: column
+    name: evt.relationship.weight
+  target:
+    kind: column
+    name: pg_temp.p20_b.weight
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 324
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: <result>.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: <result>.customer_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.email
+  target:
+    kind: column
+    name: <result>.contact_email
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.email
+  target:
+    kind: column
+    name: <result>.primary_email
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.contact.is_primary
+  target:
+    kind: column
+    name: <result>.primary_email
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.segment
+  target:
+    kind: column
+    name: <result>.select
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.status
+  target:
+    kind: column
+    name: <result>.from
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.country_code
+  target:
+    kind: column
+    name: <result>.we"ird
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: <result>.row_text
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.status
+  target:
+    kind: column
+    name: <result>.row_text
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.created_at
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 338
+  evidence: source_read
+  note: The four SQL-bearing literals, NULL::text, now() and (SELECT 1) read no column. `cu` is crm.customer
+    (qualified); `k` is the CTE `customer` over crm.contact; `ct` is crm.contact (qualified), so the CTE
+    `contact` is never read. k's join is a key equality (D-5).
+- source:
+    kind: column
+    name: crm.customer.segment
+  target:
+    kind: column
+    name: <result>.status
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 369
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: <result>.seg_customer
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 369
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.segment
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 369
+  evidence: source_read
+  note: 'PostgreSQL resolves a bare ORDER BY name to an output column first: `status` is c.segment (D-9).'
+- source:
+    kind: column
+    name: crm.customer.segment
+  target:
+    kind: column
+    name: <result>.status
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 376
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.status
+  target:
+    kind: column
+    name: <result>.status
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 376
+  evidence: source_read
+  note: 'PostgreSQL resolves a GROUP BY name to an input column first: GROUP BY status is c.status, not
+    MAX(c.segment).'
+- source:
+    kind: column
+    name: crm.customer.status
+  target:
+    kind: column
+    name: <result>.n
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 376
+  evidence: source_read
+  note: 'PostgreSQL resolves a GROUP BY name to an input column first: GROUP BY status is c.status, not
+    MAX(c.segment).'
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: mart.customer_snapshot.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 382
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: mart.customer_snapshot.customer_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 382
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.segment
+  target:
+    kind: column
+    name: mart.customer_snapshot.segment
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 382
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.status
+  target:
+    kind: relation
+    name: mart.customer_snapshot
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 382
+  evidence: source_read
+  note: 'status is the literal ''ACTIVE'' and updated_at is now(): nothing. The `;` and ''FROM crm.contact''
+    are inside literals.'
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: relation
+    name: mart.customer_snapshot
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 382
+  evidence: source_read
+  note: 'status is the literal ''ACTIVE'' and updated_at is now(): nothing. The `;` and ''FROM crm.contact''
+    are inside literals.'
+- source:
+    kind: column
+    name: crm.customer.segment
+  target:
+    kind: relation
+    name: mart.customer_snapshot
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 382
+  evidence: source_read
+  note: 'status is the literal ''ACTIVE'' and updated_at is now(): nothing. The `;` and ''FROM crm.contact''
+    are inside literals.'
+forbidden:
+- source:
+    kind: column
+    name: evt.activity.kind
+  target:
+    kind: relation
+    name: pg_temp.p3_a
+  flow: filter
+  reason: FILTER (WHERE) decides one aggregate's value (D-10)
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: relation
+    name: pg_temp.p10_b
+  flow: filter
+  reason: a one-row LEFT LATERAL's correlation removes no row (D-14)
+- source:
+    kind: column
+    name: lgx.warehouse.org_id
+  target:
+    kind: relation
+    name: pg_temp.p13_a
+  flow: filter
+  reason: an equality between two inner-joined relations is structural wherever written (D-11)
+- source:
+    kind: column
+    name: crm.contact.email
+  target:
+    kind: column
+    name: <result>.customer_name
+  flow: value
+  reason: cu is the qualified crm.customer; the CTE named customer is k
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: <result>.contact_email
+  flow: value
+  reason: k is the CTE named customer, which reads crm.contact
+- source:
+    kind: column
+    name: evt.flag.flag_code
+  target:
+    kind: column
+    name: <result>.primary_email
+  flow: value
+  reason: ct is the qualified crm.contact; the CTE named contact is never read
+- source:
+    kind: column
+    name: crm.contact.is_primary
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: a LEFT join's one-relation ON condition removes no row (D-48)
+- source:
+    kind: column
+    name: crm.customer.status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: ORDER BY status names the output alias (segment), not the input column
+- source:
+    kind: column
+    name: crm.customer.segment
+  target:
+    kind: column
+    name: <result>.n
+  flow: influence
+  reason: GROUP BY status names the input column c.status, not the output alias
+- source:
+    kind: column
+    name: crm.customer.credit_limit
+  target:
+    kind: column
+    name: mart.customer_snapshot.segment
+  flow: value
+  reason: only a comment names credit_limit
+expected_boundaries: []

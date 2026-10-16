@@ -1,0 +1,213 @@
+{
+  "question": "What is directly affected if mart.shipment_fact.customer_id changes?",
+  "seconds": 23.1,
+  "stage": "agent",
+  "cost_usd": 0.0209834,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "D2",
+    "status": "answered",
+    "text": "One hop downstream of mart.shipment_fact.customer_id, all in hard/h4_nightly_load.sql, all pre-aggregation:\n\nValue (FEEDS, identity copy):\n- mart.customer_snapshot.customer_id (line 168)\n- pg_temp.cust_metrics.customer_id (line 212)\n\nInfluence (INFLUENCES, identity):\n- Line 168, on mart.customer_snapshot: last_ship_date, lifetime_revenue, open_lines\n- Line 212, on pg_temp.cust_metrics: late_ratio, margin_pct, revenue, revenue_rank, segment_hint\n\nNo boundaries or refusals limit this column's lineage.",
+    "cited_edges": [
+      "75e23c64707e1e1e7b1d044b",
+      "8d9a5feee7bf63f967018526",
+      "9cc13eb3ad0222ff92633580",
+      "f0b22314608b1f03c50a248d",
+      "a64427679c1d7eef79fe6393",
+      "9f47dfe73ba0ccfcd3389feb",
+      "14a22b6a5f6f6786f81e74df",
+      "1545f354233b2a64f27ce9d9",
+      "7f11e6e927bb1707c4dcc887",
+      "0a00c56d15f0b6f786160f66"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.shipment_fact.customer_id"
+      },
+      "result": [
+        {
+          "id": "mart.shipment_fact.customer_id",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "mart.shipment_fact.customer_id",
+        "depth": 1
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 168,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:168",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "75e23c64707e1e1e7b1d044b",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.customer_snapshot.customer_id",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 212,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:212",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "8d9a5feee7bf63f967018526",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "pg_temp.cust_metrics.customer_id",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 168,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:168",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "9cc13eb3ad0222ff92633580",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "mart.customer_snapshot.last_ship_date",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 168,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:168",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "f0b22314608b1f03c50a248d",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "mart.customer_snapshot.lifetime_revenue",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 168,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:168",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "a64427679c1d7eef79fe6393",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "mart.customer_snapshot.open_lines",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 212,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:212",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "9f47dfe73ba0ccfcd3389feb",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "pg_temp.cust_metrics.late_ratio",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 212,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:212",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "14a22b6a5f6f6786f81e74df",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "pg_temp.cust_metrics.margin_pct",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 212,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:212",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "1545f354233b2a64f27ce9d9",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "pg_temp.cust_metrics.revenue",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 212,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:212",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "7f11e6e927bb1707c4dcc887",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "pg_temp.cust_metrics.revenue_rank",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 212,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:212",
+          "source": "mart.shipment_fact.customer_id",
+          "id": "0a00c56d15f0b6f786160f66",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "pg_temp.cust_metrics.segment_hint",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "mart.shipment_fact.customer_id"
+      },
+      "result": {
+        "scope": "lineage of mart.shipment_fact.customer_id",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "a refused statement has no edges: it is listed when its SQL names a table on this lineage, or when it names no table at all (then per file)"
+      }
+    }
+  ]
+}

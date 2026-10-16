@@ -1,0 +1,45 @@
+# Answer key for E2 (e2_aggregation.sql): supplier spend aggregation, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# h = s2p.po_header, l = s2p.po_line (lines / vendor_year), s = s2p.supplier.
+
+@ 15 the whole statement
+
+# --- vendor_year: GROUP BY vendor_id, EXTRACT(YEAR FROM created_at) ------------------------
+value s2p.supplier.vendor_name -> <result>.supplier_name identity
+value s2p.po_header.created_at -> <result>.spend_year derived
+value s2p.po_line.category_id -> <result>.category_count aggregated
+value s2p.po_line.amount, s2p.po_line.quantity, s2p.po_line.unit_price -> <result>.total_spend, <result>.share_of_year aggregated
+note COALESCE(amount, quantity * unit_price) is conditional per row; SUM makes it aggregated (D-7, D-51).
+value s2p.po_line.amount, s2p.po_line.purchase_basis -> <result>.qty_spend, <result>.fixed_spend aggregated
+note FILTER (WHERE purchase_basis ...) and SUM(CASE WHEN purchase_basis ...) both make it a value of that one aggregate (D-10).
+value s2p.po_line.unit_price -> <result>.premium_lines, <result>.avg_unit_price, <result>.median_unit_price aggregated
+note premium_lines is COUNT(*) FILTER (WHERE unit_price > 1000): the FILTER column is its only value (D-10).
+value s2p.po_header.created_at -> <result>.last_po_ts aggregated
+value s2p.po_header.currency_code -> <result>.currencies aggregated
+influence s2p.po_header.currency_code -> <result>.currencies
+note KEY ERROR KE-01, ADDED AFTER THE FIRST RUN (2026-10-07): string_agg's own ORDER BY decides the order of the pieces (B1 S11), and D-47 lets the ordered column also be the value. The blind key missed it; the analyser was right.
+value s2p.po_line.line_status -> <result>.any_open aggregated
+influence s2p.po_header.vendor_id, s2p.po_header.created_at -> <result>.line_count, <result>.category_count, <result>.total_spend, <result>.qty_spend, <result>.fixed_spend, <result>.premium_lines, <result>.avg_unit_price, <result>.last_po_ts, <result>.median_unit_price, <result>.currencies, <result>.any_open, <result>.share_of_year, <result>.spend_rank
+note The GROUP BY keys decide every aggregate (D-2), including last_po_ts = MAX(created_at), which created_at also supplies (D-47). The grouping keys' own outputs (spend_year; vendor_id is not projected) are not influenced. share_of_year's window partition is spend_year, i.e. created_at again.
+influence s2p.po_line.amount, s2p.po_line.quantity, s2p.po_line.unit_price -> <result>.spend_rank
+note RANK() ORDER BY total_spend: the aggregate's columns decide the rank (D-4); the GROUP BY behind it (D-46) is the vendor_id / created_at line above.
+forbid value s2p.po_line.amount -> <result>.spend_rank aggregated | RANK's ORDER BY decides the rank; no part of total_spend is in it (D-4)
+
+# --- the scalar subquery over the ROLLUP --------------------------------------------------
+value s2p.po_line.amount -> <result>.grand_category_spend aggregated
+influence s2p.item_category.parent_category_id, s2p.po_line.category_id -> <result>.grand_category_spend
+note WHERE grouping_level = 3 reads GROUPING(...) only, which carries no lineage (D-50), so the D-12 predicate adds no value.
+forbid value s2p.item_category.parent_category_id -> <result>.grand_category_spend conditional | a predicate on GROUPING() reads nothing traceable (D-50)
+
+# --- filters -------------------------------------------------------------------------------
+filter s2p.po_header.document_status -> <result>
+filter s2p.supplier.status -> <result>
+filter s2p.po_line.amount, s2p.po_line.quantity, s2p.po_line.unit_price -> <result> post
+note HAVING SUM(quantity) (post), WHERE vy.total_spend > 1000 over the aggregated CTE (D-6, post), and total_spend in the ORDER BY of the LIMIT (D-9).
+filter s2p.po_header.created_at -> <result> post
+note spend_year leads the ORDER BY of the LIMIT (D-9). RELABELLED UNDER D-56 (2026-10-07): a row limit over an aggregated query removes groups, so every sort key is post-aggregation, the grouping key included. The blind key said pre (D-6 per column); FE-01's alternative reading was decided the other way.
+forbid filter s2p.po_line.purchase_basis -> <result> | FILTER (WHERE) and CASE change one aggregate's value, not which rows land (D-10)
+note metric_family ('SPEND') reads no column.

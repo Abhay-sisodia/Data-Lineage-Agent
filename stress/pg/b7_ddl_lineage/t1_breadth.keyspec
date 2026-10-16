@@ -1,0 +1,122 @@
+# Answer key for B7 t1_breadth.sql - DDL that creates lineage, breadth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-31..D-34 (decided 2026-10-03, not
+# implemented). Every node is schema-qualified; a temp table is pg_temp.<name>.
+# S3 (WITH NO DATA), S15 (LIKE), S17a (LIKE), S19 (DETACH) and S20a (identity) have no
+# lineage and must not be refused - checked in the report.
+
+@ 19 S1 CREATE TABLE AS, grouped and filtered
+value staging.orders.channel -> mart.ch_rev.channel identity
+value staging.orders.amount -> mart.ch_rev.rev aggregated
+influence staging.orders.channel -> mart.ch_rev.rev
+filter staging.orders.status -> mart.ch_rev
+
+@ 29 S2 CREATE TABLE AS with a column list
+value staging.orders.channel -> mart.ch_pair.ch identity
+value staging.orders.amount -> mart.ch_pair.amt identity
+
+@ 37 S3 WITH NO DATA
+
+@ 46 S4 SELECT INTO TEMP
+value staging.customers.id -> pg_temp.tmp_cust.id identity
+value staging.customers.email -> pg_temp.tmp_cust.email identity
+filter staging.customers.status -> pg_temp.tmp_cust
+forbid value staging.customers.id -> <result>.id identity | SELECT INTO creates a table; it is not a query into <result>
+
+@ 55 S5 reading the temp table (a node)
+value pg_temp.tmp_cust.id -> mart.customer_summary.customer_id identity
+value pg_temp.tmp_cust.email -> mart.customer_summary.full_name identity
+forbid value staging.customers.id -> mart.customer_summary.customer_id identity | a temp table holds data: it is a node, not inlined (D-31)
+
+@ 63 S6 CREATE VIEW with a WHERE
+value staging.orders.id -> mart.v_paid.id identity
+value staging.orders.channel -> mart.v_paid.channel identity
+value staging.orders.amount -> mart.v_paid.amount identity
+filter staging.orders.status -> mart.v_paid
+
+@ 72 S7 reading the view: inlined
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.amount -> mart.channel_mix.revenue aggregated
+influence staging.orders.channel -> mart.channel_mix.revenue
+filter staging.orders.status -> mart.channel_mix
+note The view's WHERE decides which orders reach the target (D-31: a view is its query).
+forbid value mart.v_paid.amount -> mart.channel_mix.revenue aggregated | a view holds no data: it is inlined, not a node (D-31)
+
+@ 81 S8 a view with a column list
+value staging.customers.id -> mart.v_cust.cid identity
+value staging.customers.full_name -> mart.v_cust.nm identity
+
+@ 89 S9 a view on a view
+value staging.customers.id -> mart.v_cust2.cid identity
+value staging.customers.full_name -> mart.v_cust2.nm derived
+
+@ 97 S10 a materialized view
+value core.dim_store.region -> mart.mv_store.region identity
+value core.dim_store.id -> mart.mv_store.n aggregated
+influence core.dim_store.region -> mart.mv_store.n
+
+@ 106 S11 REFRESH re-derives (D-32)
+repeat value core.dim_store.region -> mart.mv_store.region identity
+repeat value core.dim_store.id -> mart.mv_store.n aggregated
+repeat influence core.dim_store.region -> mart.mv_store.n
+
+@ 112 S12 reading the materialized view (a node)
+value mart.mv_store.region -> mart.kpi_rollup.region identity
+value mart.mv_store.n -> mart.kpi_rollup.customers identity
+
+@ 120 S13 generated columns (D-33)
+value mart.price_band.list_price, mart.price_band.cost -> mart.price_band.margin derived
+value mart.price_band.list_price -> mart.price_band.band derived
+note The band CASE reads one column: derived (D-19).
+
+@ 132 S14 insert into the table created above
+value staging.products.id -> mart.price_band.product_id identity
+value staging.products.list_price -> mart.price_band.list_price identity
+value staging.products.cost -> mart.price_band.cost identity
+
+@ 140 S15 LIKE
+
+@ 146 S16 PARTITION OF (D-34)
+value staging.web_events_2024.id -> staging.web_events.id identity
+value staging.web_events_2024.session_id -> staging.web_events.session_id identity
+value staging.web_events_2024.customer_id -> staging.web_events.customer_id identity
+value staging.web_events_2024.event_type -> staging.web_events.event_type identity
+value staging.web_events_2024.event_ts -> staging.web_events.event_ts identity
+value staging.web_events_2024.page -> staging.web_events.page identity
+value staging.web_events_2024.properties -> staging.web_events.properties identity
+
+@ 153 S17a a table shaped like the parent
+
+@ 156 S17 ATTACH PARTITION (D-34)
+value staging.web_events_2023.id -> staging.web_events.id identity
+value staging.web_events_2023.session_id -> staging.web_events.session_id identity
+value staging.web_events_2023.customer_id -> staging.web_events.customer_id identity
+value staging.web_events_2023.event_type -> staging.web_events.event_type identity
+value staging.web_events_2023.event_ts -> staging.web_events.event_ts identity
+value staging.web_events_2023.page -> staging.web_events.page identity
+value staging.web_events_2023.properties -> staging.web_events.properties identity
+
+@ 164 S18 INHERITS (D-34)
+value staging.orders_archive.id -> staging.orders.id identity
+value staging.orders_archive.customer_id -> staging.orders.customer_id identity
+value staging.orders_archive.store_id -> staging.orders.store_id identity
+value staging.orders_archive.status -> staging.orders.status identity
+value staging.orders_archive.order_ts -> staging.orders.order_ts identity
+value staging.orders_archive.channel -> staging.orders.channel identity
+value staging.orders_archive.currency -> staging.orders.currency identity
+value staging.orders_archive.amount -> staging.orders.amount identity
+value staging.orders_archive.discount_code -> staging.orders.discount_code identity
+value staging.orders_archive.payload -> staging.orders.payload identity
+value staging.orders_archive.tags -> staging.orders.tags identity
+value staging.orders_archive.created_at -> staging.orders.created_at identity
+value staging.orders_archive.updated_at -> staging.orders.updated_at identity
+note archived_at is the child's own column: the parent has none, so it flows nowhere.
+
+@ 172 S19 DETACH
+
+@ 178 S20a an identity column
+
+@ 184 S20 OVERRIDING SYSTEM VALUE
+value staging.customers.id -> mart.seq_demo.id identity
+value staging.customers.full_name -> mart.seq_demo.label identity

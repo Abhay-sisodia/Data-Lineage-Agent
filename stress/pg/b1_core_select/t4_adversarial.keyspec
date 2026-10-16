@@ -1,0 +1,122 @@
+# Answer key for t4_adversarial.sql - B1 core SELECT, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# The forbidden list is the point of this file. Each forbidden edge is the confident
+# wrong answer its statement was built to elicit, and an analyser that produces one has
+# invented a fact about the data. A miss on the edge list is a recall number; a hit on the
+# forbidden list is a correctness failure.
+#
+# S7 expects NO refusal: its construct keywords are all inside literals and comments. A
+# refusal there removes its two facts and shows up as two misses.
+
+@ 23 S1 unqualified names, two relations in scope
+value staging.orders.id -> mart.top_customers.customer_id identity
+value staging.orders.amount -> mart.top_customers.revenue identity
+value core.dim_store.country_code -> mart.top_customers.region identity
+value staging.orders.discount_code -> mart.top_customers.full_name identity
+filter staging.orders.channel, core.dim_store.opened_on -> mart.top_customers
+forbid value staging.orders.country_code -> mart.top_customers.region | country_code is unqualified and belongs to the SECOND relation; orders has no such column
+forbid filter staging.orders.opened_on -> mart.top_customers | opened_on is unqualified and belongs to the SECOND relation; orders has no such column
+
+@ 41 S2 a table alias spelled like another table
+value staging.orders.id -> mart.customer_summary.customer_id identity
+value staging.orders.discount_code -> mart.customer_summary.full_name identity
+value staging.orders.status -> mart.customer_summary.status identity
+filter staging.orders.channel -> mart.customer_summary
+forbid value staging.customers.id -> mart.customer_summary.customer_id | the alias `customers` is staging.orders; staging.customers is never read
+forbid value staging.customers.status -> mart.customer_summary.status | the alias `customers` is staging.orders; staging.customers is never read
+
+@ 55 S3 one alias, two scopes, two tables
+value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name identity
+value core.fct_shipment.cost -> mart.carrier_scorecard.cost_per_kg derived
+# Relabelled 2026-10-02 under D-19 (B4-02): was `conditional`. NULLIF(x, 0) reads one column.
+value core.fct_shipment.weight_kg -> mart.carrier_scorecard.cost_per_kg derived
+filter core.dim_carrier.status -> mart.carrier_scorecard
+forbid filter core.fct_shipment.status -> mart.carrier_scorecard | the `x` filtered on status is dim_carrier; the fct_shipment `x` has no WHERE
+forbid value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id | the projection reads a.cid (fct_shipment); b.cid is only the join partner
+
+@ 80 S4 an output alias that is also an input column
+value staging.shipments.order_id -> mart.top_customers.customer_id identity
+value staging.shipments.weight_kg -> mart.top_customers.revenue identity
+filter staging.shipments.cost, staging.shipments.weight_kg -> mart.top_customers
+note WHERE cost reads the INPUT column (shipments.cost); ORDER BY cost reads the OUTPUT column (weight_kg). With the LIMIT both decide what lands (D-9).
+
+@ 95 S5 ordinals in GROUP BY and ORDER BY
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.currency -> mart.channel_mix.region identity
+value staging.orders.id -> mart.channel_mix.orders aggregated
+value staging.orders.amount -> mart.channel_mix.revenue aggregated
+influence staging.orders.channel, staging.orders.currency -> mart.channel_mix.orders, mart.channel_mix.revenue
+filter staging.orders.amount -> mart.channel_mix post
+note ORDER BY 4 is SUM(o.amount); with LIMIT 5 it is a post-aggregation filter (D-9, D-6).
+
+@ 113 S6 keyword-like identifiers
+value core.dim_date.year -> mart.kpi_rollup.level derived
+value core.dim_date.month -> mart.kpi_rollup.region derived
+value core.dim_warehouse.name -> mart.kpi_rollup.segment identity
+value core.dim_date.quarter -> mart.kpi_rollup.orders identity
+filter core.dim_date.year, core.dim_warehouse.name -> mart.kpi_rollup
+
+@ 130 S7 construct names in literals and comments
+value core.dim_category.name -> mart.kpi_rollup.region identity
+filter core.dim_category.department -> mart.kpi_rollup
+
+@ 145 S8 a self-join
+value core.dim_customer.customer_key -> mart.customer_summary.customer_id identity
+value core.dim_customer.full_name -> mart.customer_summary.full_name identity
+value core.dim_customer.segment -> mart.customer_summary.segment identity
+value core.dim_customer.region -> mart.customer_summary.region identity
+filter core.dim_customer.is_current -> mart.customer_summary
+note From child's WHERE. parent.is_current sits in the ON and adds nothing, but it is the same node, so it cannot be told apart here.
+forbid value core.dim_customer.full_name -> mart.customer_summary.segment | the two aliases crossing: segment comes from parent.segment
+forbid value core.dim_customer.segment -> mart.customer_summary.full_name | the two aliases crossing: full_name comes from child.full_name
+forbid filter core.dim_customer.customer_id -> mart.customer_summary | the self-join key is in ON (D-5)
+
+@ 163 S9 COUNT(*), COUNT(col), COUNT(1)
+value staging.customers.segment -> mart.kpi_rollup.segment identity
+value staging.customers.email -> mart.kpi_rollup.customers aggregated
+influence staging.customers.segment -> mart.kpi_rollup.orders, mart.kpi_rollup.customers, mart.kpi_rollup.revenue
+forbid value staging.customers.id -> mart.kpi_rollup.orders | COUNT(*) has no value source; it is not COUNT of the key
+forbid value staging.customers.segment -> mart.kpi_rollup.revenue | COUNT(1) counts rows; the literal is not a column
+
+@ 177 S10 values from nowhere
+value core.dim_warehouse.id -> mart.sales_daily.store_id identity
+
+@ 190 S11 columns only inside an ON
+value staging.orders.status -> mart.channel_mix.channel identity
+value staging.payments.amount -> mart.channel_mix.revenue identity
+forbid filter staging.payments.currency -> mart.channel_mix | appears only in the ON clause (D-5)
+forbid filter staging.orders.currency -> mart.channel_mix | appears only in the ON clause (D-5)
+
+@ 205 S12 one column, three targets, three transforms
+value core.fct_order_line.product_key -> mart.product_performance.product_id identity
+value core.fct_order_line.net_amount -> mart.product_performance.revenue identity
+value core.fct_order_line.net_amount -> mart.product_performance.prev_month_revenue derived
+value core.fct_order_line.net_amount -> mart.product_performance.running_revenue aggregated
+influence core.fct_order_line.product_key, core.fct_order_line.order_date -> mart.product_performance.prev_month_revenue, mart.product_performance.running_revenue
+forbid value core.fct_order_line.net_amount -> mart.product_performance.revenue aggregated | the SUM OVER feeds running_revenue only; revenue is the bare column
+forbid influence core.fct_order_line.order_date -> mart.product_performance.revenue | the window feeds the other two targets, not the bare column
+
+@ 220 S13 "Region" beside region
+value core.dim_customer.segment -> mart.kpi_rollup.region identity
+value core.dim_customer.region -> mart.kpi_rollup.segment identity
+forbid value core.dim_customer.region -> mart.kpi_rollup.region | "Region" is quoted, so it is case-sensitive and is NOT region; it is segment
+forbid value core.dim_customer.segment -> mart.kpi_rollup.segment | "Region" and region are different identifiers; folding merged them
+
+@ 236 S14 a cross-relation WHERE after a LEFT JOIN
+value core.dim_carrier.name -> mart.kpi_rollup.level identity
+value core.dim_carrier.mode -> mart.kpi_rollup.region identity
+value core.fct_shipment.shipment_id -> mart.kpi_rollup.orders identity
+filter core.fct_shipment.status, core.dim_carrier.status -> mart.kpi_rollup
+note D-11's exception: the comparison touches the null-supplying side, so it removes rows the join kept.
+
+@ 252 S15 a comma join with its join conditions in WHERE
+value core.fct_order_line.order_date -> mart.sales_daily.sale_date identity
+value core.dim_store.id -> mart.sales_daily.store_id identity
+value core.fct_order_line.gross_amount -> mart.sales_daily.gross_amount identity
+filter core.dim_store.status, core.fct_order_line.order_date, core.dim_store.opened_on -> mart.sales_daily
+note KEY CORRECTED 2026-10-01: order_date and opened_on were forbidden, under a D-11 written wider than decided. D-11 covers equalities only; the >= is a filter until B1-Q2 says otherwise.
+forbid filter core.fct_order_line.store_id -> mart.sales_daily | f.store_id = s.id is the join, written in WHERE (D-11)
+forbid filter core.dim_store.id -> mart.sales_daily | f.store_id = s.id is the join, written in WHERE (D-11)

@@ -1,0 +1,347 @@
+{
+  "question": "Which tables are filtered by a column named status_code?",
+  "seconds": 30.3,
+  "stage": "agent",
+  "cost_usd": 0.0297867,
+  "turns": 7,
+  "notes": [],
+  "answer": {
+    "question_id": "H1",
+    "status": "answered",
+    "text": "Four columns are named status_code. Three of them filter tables (FILTERS edges):\n- gold.dim_status.status_code filters mart.fact_po_line (h2_po_fact_load.sql:31).\n- mart.fact_po_line.status_code filters mart.fact_po_line (h2_po_fact_load.sql:31) and mart.po_supplier_summary (h2_po_fact_load.sql:345).\n- lgx.shipment_header.status_code filters these:\n  - the result of easy/e3_joins.sql (line 17)\n  - the result of hard/h1_shipment_margin.sql (line 26)\n  - the result of medium/m5_names_under_load.sql (line 23)\n  - pg_temp.p2_a (hard/h5_adversarial.sql:64)\n  - pg_temp.p2_b (hard/h5_adversarial.sql:71)\n\nThe fourth column, <result:hard/h2_po_fact_load.sql>.status_code, has no downstream edges, so it filters nothing.\n\nAll of these filters are pre-aggregation. I did not run the gaps tool, so I have not checked for boundaries or refusals.",
+    "cited_edges": [
+      "576b7019a60325dfc579c66e",
+      "82899d8501b754bd29b34604",
+      "e9a392e6bd79b47dcc85ae48",
+      "e97f94e95abc1256cb516d16",
+      "825c5ca94c8659b5853c75b8",
+      "2609fab8447ff41b1c74f188",
+      "18b9ba5d785d2fcf6beef9c8",
+      "ffd6cd314baa0df688306f1e"
+    ],
+    "cited_nodes": [
+      "mart.fact_po_line",
+      "mart.po_supplier_summary",
+      "<result:easy/e3_joins.sql>",
+      "<result:hard/h1_shipment_margin.sql>",
+      "<result:medium/m5_names_under_load.sql>",
+      "pg_temp.p2_a",
+      "pg_temp.p2_b"
+    ],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "status_code",
+        "limit": 50
+      },
+      "result": [
+        {
+          "id": "gold.dim_status.status_code",
+          "label": "Column"
+        },
+        {
+          "id": "mart.fact_po_line.status_code",
+          "label": "Column"
+        },
+        {
+          "id": "lgx.shipment_header.status_code",
+          "label": "Column"
+        },
+        {
+          "id": "<result:hard/h2_po_fact_load.sql>.status_code",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "gold.dim_status.status_code"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 31,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:31",
+          "source": "gold.dim_status.status_code",
+          "id": "48adef0230cdeb293987b8ad",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.fact_po_line.status_code",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 31,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:31",
+          "source": "gold.dim_status.status_code",
+          "id": "576b7019a60325dfc579c66e",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.fact_po_line",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "mart.fact_po_line.status_code"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "18986e75b567fbc6197a5da6",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:hard/h2_po_fact_load.sql>.status_code",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 31,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:31",
+          "source": "mart.fact_po_line.status_code",
+          "id": "82899d8501b754bd29b34604",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.fact_po_line",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 345,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:345",
+          "source": "mart.fact_po_line.status_code",
+          "id": "e9a392e6bd79b47dcc85ae48",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.po_supplier_summary",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "03a1a2933748b1bec225010b",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:hard/h2_po_fact_load.sql>.avg_overdue",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "8b6feb8601a4e618856085fb",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:hard/h2_po_fact_load.sql>.line_amt",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "8fdad7058831eddc6eac59a6",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:hard/h2_po_fact_load.sql>.lines",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.status_code",
+          "id": "c94da1ccffa9a700b8e30efc",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "<result:hard/h2_po_fact_load.sql>.overdue_savings",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "lgx.shipment_header.status_code"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "hard/h1_shipment_margin.sql",
+          "tier": "A",
+          "line": 26,
+          "guard": null,
+          "statement": "hard/h1_shipment_margin.sql#<script>:26",
+          "source": "lgx.shipment_header.status_code",
+          "id": "01588612216d458cc107c98d",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:hard/h1_shipment_margin.sql>.delivery_class",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "conditional",
+          "file": "hard/h1_shipment_margin.sql",
+          "tier": "A",
+          "line": 26,
+          "guard": null,
+          "statement": "hard/h1_shipment_margin.sql#<script>:26",
+          "source": "lgx.shipment_header.status_code",
+          "id": "b64711b518268a93dd09d641",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:hard/h1_shipment_margin.sql>.row_summary_json",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m5_names_under_load.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "medium/m5_names_under_load.sql#<script>:23",
+          "source": "lgx.shipment_header.status_code",
+          "id": "3b81921910108bd90d015192",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:medium/m5_names_under_load.sql>.from",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "easy/e3_joins.sql",
+          "tier": "A",
+          "line": 17,
+          "guard": null,
+          "statement": "easy/e3_joins.sql#<script>:17",
+          "source": "lgx.shipment_header.status_code",
+          "id": "e97f94e95abc1256cb516d16",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:easy/e3_joins.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h1_shipment_margin.sql",
+          "tier": "A",
+          "line": 26,
+          "guard": null,
+          "statement": "hard/h1_shipment_margin.sql#<script>:26",
+          "source": "lgx.shipment_header.status_code",
+          "id": "825c5ca94c8659b5853c75b8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:hard/h1_shipment_margin.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "medium/m5_names_under_load.sql",
+          "tier": "A",
+          "line": 23,
+          "guard": null,
+          "statement": "medium/m5_names_under_load.sql#<script>:23",
+          "source": "lgx.shipment_header.status_code",
+          "id": "2609fab8447ff41b1c74f188",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "<result:medium/m5_names_under_load.sql>",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h5_adversarial.sql",
+          "tier": "A",
+          "line": 64,
+          "guard": null,
+          "statement": "hard/h5_adversarial.sql#<script>:64",
+          "source": "lgx.shipment_header.status_code",
+          "id": "18b9ba5d785d2fcf6beef9c8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "pg_temp.p2_a",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h5_adversarial.sql",
+          "tier": "A",
+          "line": 71,
+          "guard": null,
+          "statement": "hard/h5_adversarial.sql#<script>:71",
+          "source": "lgx.shipment_header.status_code",
+          "id": "ffd6cd314baa0df688306f1e",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "pg_temp.p2_b",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "<result:hard/h2_po_fact_load.sql>.status_code"
+      },
+      "result": []
+    }
+  ]
+}

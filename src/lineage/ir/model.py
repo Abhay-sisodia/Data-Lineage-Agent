@@ -112,7 +112,93 @@ class Flow(StrEnum):
     """What kind of claim the edge makes. Scored separately, never blended."""
 
     VALUE = "value"
+    """This column supplied the value. `a -> b` means b's contents came from a."""
+
     FILTER = "filter"
+    """This column decided WHICH ROWS landed. The target is the written relation."""
+
+    INFLUENCE = "influence"
+    """This column decided which value a SURVIVING row received, without supplying it.
+
+    Stress finding S2-12, decision D-4. A window's `PARTITION BY` and `ORDER BY` are
+    neither of the two flows above and were being reported as `filter`:
+
+    * they are not `value` - `ROW_NUMBER() OVER (ORDER BY total DESC)` does not take its
+      value from `total`, and the corpus has said so since `sq_03`;
+    * they are not `filter` either, and that is the half that was wrong. **A window
+      function removes no rows.** Every input row survives it. An edge saying
+      `period_month` decided which rows landed in `fct_product_sales` is simply false.
+
+    What is true is that `rank_in_month`'s value depends on `period_month` and on `gross`
+    - change either and the rank changes - while neither is copied into it. That is a
+    third kind of claim, and giving it a third name is the same argument D-2 makes about
+    `WHERE` versus `HAVING`: one word covering two behaviours tells a reader less than the
+    source does.
+
+    **The target is the COLUMN, not the relation.** A filter edge points at the relation
+    because it is a statement about rows. This one is about one output column, and saying
+    so is the difference between "something about this table depends on order_date" and
+    "rank_in_month depends on order_date".
+    """
+
+    JOIN_KEY = "join_key"
+    """This column chose which row of a LOOKUP the target's value was read from (D-57).
+
+    `LEFT JOIN map AS m ON m.code = upper(o.status)` with `m.label` projected: `o.status`
+    supplies none of the label and removes no row, yet change it and a different label
+    lands. D-5 gives a join key no edge, and every closed-world key is written that way, so
+    this is a separate claim rather than a reinterpreted influence: it is reported in
+    `AnalysisResult.join_keys`, beside the edges and never among them, and scored by
+    nothing. The target is the output column, as for `INFLUENCE`.
+
+    D-58 makes it one answer for every spelling of a lookup: a LATERAL or scalar subquery's
+    correlation, and an outer join's range condition, are join keys too. Under an
+    aggregate the key decides which rows are summed, and is `INFLUENCE` instead.
+    """
+
+    MENTION = "mention"
+    """The target column's expression NAMES this column, in a statement the analyser refused
+    (plan step 4, rung 3; D-60).
+
+    Read from PostgreSQL's own parse tree when the column-lineage analysis could not run, so
+    no claim is made about HOW the column is used - value, filter or key - only that it is
+    there. Column-level and unclassified: reported in `AnalysisResult.fallback`, never among
+    the scored edges, and shown as such, so a refused statement still connects its columns.
+    """
+
+    OPAQUE = "opaque"
+    """A refused statement read this relation and wrote that one (plan step 4, rung 4; D-60).
+
+    Relation to relation, from PostgreSQL's own parse tree - the last rung, for a statement
+    whose columns cannot even be named (a refused routine, a write whose target columns are
+    not stated). Table-level and unverified: in `AnalysisResult.fallback`, never scored.
+    """
+
+
+class FilterPhase(StrEnum):
+    """WHEN a filter acts, relative to aggregation. Part of the match key.
+
+    Stress finding S1-03, decision D-2. `WHERE` and `HAVING` both remove rows, so both are
+    `Flow.FILTER` — but they do it at different points and **produce different results from
+    the same-looking predicate**. `WHERE amount > 100` discards rows before they are summed;
+    `HAVING SUM(amount) > 100` discards groups after. A report that cannot tell them apart
+    cannot answer the question a reader actually has about an aggregate.
+
+    This field answers exactly one question: *does this predicate run after aggregation?*
+    It makes no claim about anything else, which is why `PRE_AGGREGATION` is the default and
+    is correct for every filter edge that is not a `HAVING` — a set operation's later arm, a
+    `PIVOT`'s `FOR` column, a `DELETE`'s predicate and an ordinary `WHERE` all select rows
+    without waiting for a group to form.
+
+    **Defaulting rather than requiring it is a deliberate choice about the keys.** There are
+    170 filter labels across 38 key files and every one of them predates D-2. Adding
+    `phase: pre-aggregation` to all of them would restate the default 170 times, and the
+    churn would be indistinguishable from a real change in any future diff. The default is
+    the assertion; only a `HAVING` writes the field.
+    """
+
+    PRE_AGGREGATION = "pre-aggregation"
+    POST_AGGREGATION = "post-aggregation"
 
 
 class Transform(StrEnum):
@@ -153,9 +239,24 @@ class Node(BaseModel):
 
     @model_validator(mode="after")
     def _normalise(self) -> Self:
-        # Oracle identifiers are case-insensitive; comparing raw case would produce
-        # mismatches that say nothing about the analysis.
-        object.__setattr__(self, "name", self.name.strip().upper())
+        """Whitespace only. **Case is decided by the dialect, not here.**
+
+        This used to upper-case the name, on the reasoning that *"Oracle identifiers are
+        case-insensitive"* - true, and the right call while Oracle was the only dialect.
+
+        It is the wrong call for a second one, and it fails in the most expensive way: this
+        validator runs on EVERY node, so it silently overrode all seventy of the folding
+        conversions in A2 at once. The analyser folded each name correctly through
+        `dialects.fold` and the model upper-cased it again on the way into the IR - so a
+        PostgreSQL run would have produced `STG_ORDERS.CUST_ID` for a catalogue that
+        contains `stg_orders.cust_id`, with nothing in the output to say why nothing matched.
+
+        Found by `tests/test_identifier_folding.py`, which is the only reason A2 is not
+        seventy careful edits that did nothing. Every path that builds a node name now folds
+        it with the dialect in force; that test is what keeps this true, because on Oracle
+        `fold` IS `upper` and the difference is otherwise invisible.
+        """
+        object.__setattr__(self, "name", self.name.strip())
         return self
 
     def __str__(self) -> str:
@@ -176,6 +277,37 @@ class Origin(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.unit}:{self.line}"
+
+
+class OperationKind(StrEnum):
+    """What a statement does to a relation, as opposed to the columns flowing into it (D-62)."""
+
+    RESETS = "resets"
+    """Empties it: TRUNCATE, or a DELETE with no WHERE. What it held before is gone."""
+
+    DROPS = "drops"
+    """Removes it: DROP TABLE / VIEW / MATERIALIZED VIEW / FOREIGN TABLE."""
+
+    ALTERS = "alters"
+    """Changes what it is or holds: a column dropped or retyped, a partition attached or
+    detached, a rename, a move to another schema."""
+
+
+class Operation(BaseModel):
+    """A statement's effect on a whole relation (plan step 6, D-62).
+
+    Not a lineage edge: no column's value comes from it. But a TRUNCATE before a reload, or
+    a DROP between two loads, decides what a table contains - an answer that leaves it out
+    describes a different program.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: OperationKind
+    relation: str = Field(min_length=1, description="schema.name of the relation affected")
+    detail: str = Field(description="What it does, for a reader: `emptied (TRUNCATE)` ...")
+    unit: str = Field(min_length=1)
+    line: int = Field(ge=1)
 
 
 class Boundary(BaseModel):
@@ -230,8 +362,18 @@ class Boundary(BaseModel):
         return (self.kind.value, self.subject.upper())
 
     def as_node(self) -> Node:
-        """The boundary as a graph endpoint, so lineage can actually terminate on it."""
-        return Node(kind=NodeKind.BOUNDARY, name=f"{self.kind.value}:{self.subject}")
+        """The boundary as a graph endpoint, so lineage can actually terminate on it.
+
+        Upper-cased HERE rather than in `Node`, which now only strips. A boundary node's
+        name is `KIND:SUBJECT` and neither half is a database identifier: the kind is an
+        enum value and the subject is a label whose only requirement is that two statements
+        of the same boundary compare equal (`identity`). Both are dialect-independent and
+        stay upper in every dialect, deliberately - unlike a column name, which is folded by
+        whoever builds it.
+        """
+        return Node(
+            kind=NodeKind.BOUNDARY, name=f"{self.kind.value}:{self.subject}".upper()
+        )
 
     def prefixed(self, prefix: str, *, subject_prefix: str = "") -> Boundary:
         """The same fact with context prepended to its prose, and optionally its subject.
@@ -257,7 +399,7 @@ class Boundary(BaseModel):
         return self.detail
 
 
-MatchKey = tuple[str, str, str, str]
+MatchKey = tuple[str, str, str, str, str]
 IdentityKey = tuple[str, str, str, str, str, str]
 
 
@@ -274,6 +416,7 @@ class IREdge(BaseModel):
     target: Node
     flow: Flow = Flow.VALUE
     transform: Transform = Transform.IDENTITY
+    phase: FilterPhase = FilterPhase.PRE_AGGREGATION
     band: int = Field(ge=0, le=3)
 
     mechanism: Mechanism
@@ -313,7 +456,13 @@ class IREdge(BaseModel):
         Guard and origin are excluded on purpose (ADR-0001 §5): otherwise the gate would
         move on string-comparison noise rather than on analysis quality.
         """
-        return (str(self.source), str(self.target), self.flow.value, self.transform.value)
+        return (
+            str(self.source),
+            str(self.target),
+            self.flow.value,
+            self.transform.value,
+            self.phase.value,
+        )
 
     def identity(self) -> IdentityKey:
         """What makes this fact distinct in the ledger (ADR-0001 amendment 1).

@@ -21,7 +21,9 @@ be wrong in a year and load-bearing by then.
 ```python
 class Node:
     kind: COLUMN | VARIABLE | RELATION | PROCEDURE | STATEMENT | BOUNDARY | LITERAL
-    name: str                       # upper-cased on construction
+    name: str                       # in the dialect's own case (no folding here); PostgreSQL
+                                    # names are schema-qualified - schema.table[.column] (D-25,
+                                    # 2026-10-03) - Oracle's are TABLE[.COLUMN]
 
 class Origin:
     unit: str                       # program unit, e.g. PKG_POLICY.LOAD

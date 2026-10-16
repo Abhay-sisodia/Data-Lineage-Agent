@@ -1,0 +1,71 @@
+# Answer key for B2 t5_metamorphic.sql - pairs and one realistic model.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+#
+# P1-P4 must be equal: their facts are listed once, at spelling A.
+# P5-P8 are SEAM pairs: the same rows, labelled differently by today's conventions. The
+# key holds the UNION of both spellings' facts, each labelled by the rule its own
+# spelling falls under, and says which spelling owns which. The pair check is expected to
+# report them as DIFFER; that difference is the finding, put up for decision.
+
+@ 24 P1 EXISTS vs IN
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.segment -> mart.top_customers.region identity
+filter staging.orders.customer_id, staging.customers.id, staging.orders.status -> mart.top_customers
+
+@ 45 P2 IN vs = ANY
+value staging.orders.id -> mart.channel_mix.orders identity
+value staging.orders.channel -> mart.channel_mix.channel identity
+filter staging.orders.id, staging.payments.order_id, staging.payments.method -> mart.channel_mix
+
+@ 61 P3 CTE vs inlined derived table
+value core.dim_store.region, core.dim_warehouse.region -> mart.kpi_rollup.region identity
+filter core.dim_warehouse.status -> mart.kpi_rollup
+
+@ 83 P4 UNION vs UNION of DISTINCTs
+value staging.orders.channel, staging.payments.method -> mart.sales_daily.region identity
+
+@ 100 P5 SEAM semi-join: IN vs JOIN + DISTINCT
+value core.dim_product.product_key -> mart.product_performance.product_id identity
+value core.dim_product.category_name -> mart.product_performance.category_name identity
+filter core.fct_order_line.quantity -> mart.product_performance
+filter core.dim_product.product_key, core.fct_order_line.product_key -> mart.product_performance
+note Spelling A only: the IN's match columns are filters. In B they are a join key, structural under D-5. DECIDED 2026-10-07 (D-52): a semi-join's key is a filter, and this divergence is by design.
+
+@ 122 P6 SEAM anti-join: EXCEPT vs NOT EXISTS
+value staging.customers.id -> mart.customer_summary.customer_id identity
+filter staging.orders.customer_id, staging.orders.status -> mart.customer_summary
+@ 128 P6 B (spelling B's own facts, at its line - B4-04)
+filter staging.customers.id -> mart.customer_summary
+note Spelling B only: the correlation's outer operand. In A, customers.id is the first arm and supplies only a value (convention (a)). DECIDED 2026-10-07 (D-52): an anti-join's key is a filter; the EXCEPT spelling differs by design.
+
+@ 143 P7 SEAM scalar subquery vs LEFT JOIN LATERAL
+value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
+value core.fct_shipment.transit_days -> mart.carrier_scorecard.avg_transit_days aggregated
+# D-58: core.fct_shipment.carrier_id, core.dim_carrier.id matched the aggregated lookup's rows to mart.carrier_scorecard.avg_transit_days's - influence, as a GROUP BY is (was a value).
+influence core.fct_shipment.carrier_id, core.dim_carrier.id -> mart.carrier_scorecard.avg_transit_days
+note Spelling A only (D-12).
+note RELABELLED UNDER D-14: spelling B's LATERAL cannot remove a carrier, so its WHERE is the same value as A's (D-12). P7 is now a MUST-EQUAL pair.
+
+@ 166 P8 SEAM ordered pick vs LEFT JOIN to DISTINCT ON
+value staging.orders.id -> mart.sales_daily.orders identity
+value staging.payments.amount -> mart.sales_daily.net_amount identity
+# D-58: staging.payments.order_id, staging.orders.id -> mart.sales_daily.net_amount is a lookup key (join_key, not scored; was a conditional value).
+influence staging.payments.paid_at -> mart.sales_daily.net_amount
+note Spelling A only (D-12, D-13).
+@ 176 P8 B (spelling B's own facts, at its line - B4-04)
+influence staging.payments.order_id -> mart.sales_daily.net_amount
+note RELABELLED UNDER D-14: under the LEFT JOIN the DISTINCT ON removes no order, so its key and tie-breaker decide WHICH amount arrives - influence, as D-13 says of the ordered pick. paid_at now agrees across the pair. payments.order_id still differs (influence in B, a conditional value in A): that is the match-key seam of P5/P6, decided as D-52 (2026-10-07): a divergence by design.
+
+@ 196 R1 the monthly carrier scorecard
+value core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_id identity
+value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name identity
+# D-58: core.dim_carrier.id, core.fct_shipment.carrier_id -> mart.carrier_scorecard.carrier_name is a lookup key (join_key, not scored; was a conditional value).
+value core.fct_shipment.shipped_date -> mart.carrier_scorecard.period_month derived
+value core.fct_shipment.delivered_date, core.fct_shipment.promised_date -> mart.carrier_scorecard.on_time_pct aggregated
+value core.fct_shipment.cost, core.fct_shipment.weight_kg -> mart.carrier_scorecard.cost_per_kg aggregated
+influence core.fct_shipment.carrier_id, core.fct_shipment.shipped_date -> mart.carrier_scorecard.shipments, mart.carrier_scorecard.on_time_pct, mart.carrier_scorecard.cost_per_kg
+note `shipments` is COUNT(*): no value source, but aggregated, so the grouping reaches it.
+filter core.fct_shipment.status, core.fct_payment.order_id, core.fct_shipment.order_id, core.fct_payment.status -> mart.carrier_scorecard
+filter staging.shipments.order_id, staging.shipments.status, staging.returns.order_line_id, staging.returns.reason_code -> mart.carrier_scorecard
+note `WHERE mo.n >= 10` tests COUNT(*), which has no column to name.

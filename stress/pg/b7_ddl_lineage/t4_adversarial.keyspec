@@ -1,0 +1,54 @@
+# Answer key for B7 t4_adversarial.sql - DDL that creates lineage, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-31..D-34. Every node is schema-qualified;
+# a temp table is pg_temp.<name>. DROP / CREATE TABLE / CREATE TEMP TABLE carry no lineage
+# and must be counted, not refused - checked in the report.
+
+@ 18 S1 a view, first definition
+value staging.orders.channel -> mart.v_x.c identity
+
+@ 23 S2 read under the first definition
+value staging.orders.channel -> mart.kpi_rollup.level identity
+
+@ 30 S3 CREATE OR REPLACE
+value staging.orders.currency -> mart.v_x.c derived
+
+@ 35 S4 read under the second definition
+value staging.orders.currency -> mart.kpi_rollup.segment derived
+forbid value staging.orders.channel -> mart.kpi_rollup.segment identity | the view was replaced at S3; the read sees the definition in force (D-31)
+
+@ 42 S5a the view dropped
+
+@ 45 S5b the replacing table
+
+@ 48 S5 read now: a table node
+value mart.v_x.c -> mart.kpi_rollup.region identity
+forbid value staging.orders.currency -> mart.kpi_rollup.region derived | mart.v_x is a table now, not the dropped view (D-31)
+
+@ 55 S6a a temp table named orders
+
+@ 58 S6b filled through the unqualified name
+value staging.payments.id -> pg_temp.orders.id identity
+value staging.payments.method -> pg_temp.orders.note identity
+
+@ 63 S6 unqualified orders is the temp table
+value pg_temp.orders.note -> mart.channel_mix.channel identity
+value staging.orders.channel -> mart.channel_mix.region identity
+forbid filter pg_temp.orders.id -> mart.channel_mix | the ON is structural (D-5)
+
+@ 72 S7a a view over *
+value core.dim_carrier.id -> mart.v_star.id identity
+value core.dim_carrier.name -> mart.v_star.name identity
+value core.dim_carrier.mode -> mart.v_star.mode identity
+value core.dim_carrier.status -> mart.v_star.status identity
+
+@ 76 S7 read through the starred view
+value core.dim_carrier.id -> mart.carrier_scorecard.carrier_id identity
+value core.dim_carrier.name -> mart.carrier_scorecard.carrier_name identity
+
+@ 84 S8 IF NOT EXISTS on an existing table
+forbid value staging.orders.channel -> mart.channel_mix.channel identity | mart.channel_mix exists, so CREATE TABLE IF NOT EXISTS ... AS does nothing
+
+@ 91 S9 a generated CASE over two columns
+value mart.tiered.qty, mart.tiered.price -> mart.tiered.tier conditional

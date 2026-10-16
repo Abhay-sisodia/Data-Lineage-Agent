@@ -1,0 +1,217 @@
+{
+  "question": "Which columns feed the value of mart.shipment_fact.gross_margin_usd?",
+  "seconds": 22.6,
+  "stage": "agent",
+  "cost_usd": 0.049232899999999996,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "A7",
+    "status": "answered",
+    "text": "Only one column feeds the value of mart.shipment_fact.gross_margin_usd directly: **pg_temp.stg_ship.gross_margin_usd**. It is copied unchanged (identity) by two statements in hard/h4_nightly_load.sql:\n- line 106 (edge 57896c742b1c7e6ae5773f04)\n- line 121 (edge 24d1f5a96ebe9679c00a4685)\n\nOther columns decide which rows of mart.shipment_fact land (filter edges, pre-aggregation), but none of their data is in the value, so I left them out: stg_ship.delivery_class, ext_amount_usd, line_status and shipment_line_id; lgx.shipment_line.line_status; and the table's own delivery_class, ext_amount_usd and shipment_line_id.\n\nOne unknown: the TRUNCATE at hard/h4_nightly_load.sql:196 was not analysed (UNSUPPORTED_CONSTRUCT).\n\nI did not trace what feeds pg_temp.stg_ship.gross_margin_usd further upstream.",
+    "cited_edges": [
+      "57896c742b1c7e6ae5773f04",
+      "24d1f5a96ebe9679c00a4685"
+    ],
+    "cited_nodes": [
+      "pg_temp.stg_ship.gross_margin_usd"
+    ],
+    "unknowns": [
+      "hard/h4_nightly_load.sql#<script>:196:statement"
+    ],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.shipment_fact.gross_margin_usd"
+      },
+      "result": [
+        {
+          "id": "mart.shipment_fact.gross_margin_usd",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "upstream",
+      "args": {
+        "node": "mart.shipment_fact.gross_margin_usd"
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 121,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:121",
+          "source": "pg_temp.stg_ship.gross_margin_usd",
+          "id": "24d1f5a96ebe9679c00a4685",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.shipment_fact.gross_margin_usd",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 106,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:106",
+          "source": "pg_temp.stg_ship.gross_margin_usd",
+          "id": "57896c742b1c7e6ae5773f04",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.shipment_fact.gross_margin_usd",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 144,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:144",
+          "source": "lgx.shipment_line.line_status",
+          "id": "a491df39b753c506f7b603ed",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 106,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:106",
+          "source": "mart.shipment_fact.delivery_class",
+          "id": "e2eade0df02ab6213e57d76c",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 106,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:106",
+          "source": "mart.shipment_fact.ext_amount_usd",
+          "id": "b4ee268b9192a2cba615a93f",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 121,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:121",
+          "source": "mart.shipment_fact.shipment_line_id",
+          "id": "f9cb1da711fd52350b6aa09f",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 106,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:106",
+          "source": "pg_temp.stg_ship.delivery_class",
+          "id": "056660ee8bb6c930798327f8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 106,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:106",
+          "source": "pg_temp.stg_ship.ext_amount_usd",
+          "id": "c3b986e91e01e3270e78df36",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 121,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:121",
+          "source": "pg_temp.stg_ship.line_status",
+          "id": "ecac703e1300d4193927e32d",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h4_nightly_load.sql",
+          "tier": "A",
+          "line": 121,
+          "guard": null,
+          "statement": "hard/h4_nightly_load.sql#<script>:121",
+          "source": "pg_temp.stg_ship.shipment_line_id",
+          "id": "962514e748651ce5bfca7938",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.shipment_fact",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "mart.shipment_fact.gross_margin_usd"
+      },
+      "result": {
+        "scope": "lineage of mart.shipment_fact.gross_margin_usd",
+        "boundaries": [],
+        "refusals": [
+          {
+            "id": "hard/h4_nightly_load.sql#<script>:196:statement",
+            "code": "UNSUPPORTED_CONSTRUCT",
+            "file": "hard/h4_nightly_load.sql",
+            "line": 196,
+            "statement_kind": "truncatetable_statement",
+            "reason": "TRUNCATE empties a relation unconditionally. No column has a source to name - the same shape as a DELETE with no predicate - but the statement decides what the table contains afterwards, so it is recorded rather than skipped"
+          }
+        ],
+        "refusals_note": "refusals are listed per file: a refused statement has no edges to tie it to one column"
+      }
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+# Answer key for H1 (h1_shipment_margin.sql): the shipment margin fact, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: shp_line JOIN shp_hdr JOIN cust JOIN cust_rollup (LEFT item_master) ->
+# line_base -> line_fx / line_running / line_ranked -> line_enriched -> line_overdue ->
+# line_with_ctx -> final_src (DISTINCT ON), then the final WHERE and the WITH TIES page.
+# Every other CTE is LEFT joined. site_geo is ALSO read inside the final WHERE's NOT IN
+# (via orphan_checks), where it decides rows: its WHERE stays a filter there and adds no
+# value to what its LEFT join feeds (D-45's exception).
+#
+# Sets used below (written out in full on each line):
+#   EXT = shipment_line.shipped_qty, shipment_line.unit_selling_price, fx_rate.conversion_rate
+#   FXC = fx_rate.from_ccy, fx_rate.to_ccy, fx_rate.rate_date, shipment_header.currency_code,
+#         shipment_line.ship_date  (the one-row FX LATERAL's WHERE, D-14)
+#   DC  = the delivery_class CASE's columns: shipment_header.status_code,
+#         shipment_line.line_status, ship_date, promise_date, request_date, shipped_qty, ordered_qty
+#   WC  = shipment_header.customer_id, shipment_line.ship_date, shipment_line.shipment_line_id
+#         (every window partitioned by customer and ordered by ship date and line)
+
+@ 26 the whole statement
+
+# --- keys and identifiers ---------------------------------------------------------------------
+value lgx.shipment_header.source_system, lgx.shipment_line.shipment_line_id -> <result>.integration_id derived
+value lgx.shipment_header.source_system, lgx.shipment_header.shipment_id, lgx.shipment_line.shipment_line_id -> <result>.row_hash derived
+value lgx.shipment_line.shipment_line_id -> <result>.shipment_line_id identity
+value lgx.shipment_header.shipment_number -> <result>.shipment_number identity
+value lgx.shipment_header.source_system -> <result>.datasource_num_id derived
+value lgx.shipment_header.customer_id -> <result>.customer_id identity
+value crm.customer.customer_id -> <result>.ultimate_parent_id identity
+value lgx.item_master.item_code -> <result>.item_code identity
+note line_status_rank comes from status_map (literal arrays): nothing. shipped_on_weekend from the literal calendar: nothing.
+forbid value lgx.shipment_line.ship_date -> <result>.shipped_on_weekend | the calendar is a literal series; its join key decides no value (D-28, D-5)
+
+# --- gold dimensions in the final SELECT ----------------------------------------------------------
+value gold.dim_status.row_wid -> <result>.status_wid derived
+value gold.dim_status.datasource_num_id -> <result>.status_wid conditional
+forbid filter gold.dim_status.datasource_num_id -> <result> | a LEFT join's literal ON test removes no row (D-48)
+value gold.dim_date.date_wid -> <result>.ship_date_wid, <result>.promise_date_wid derived
+
+# --- classification and quantities ---------------------------------------------------------------
+value lgx.shipment_header.status_code, lgx.shipment_line.line_status, lgx.shipment_line.ship_date, lgx.shipment_line.promise_date, lgx.shipment_line.request_date, lgx.shipment_line.shipped_qty, lgx.shipment_line.ordered_qty -> <result>.delivery_class conditional
+value lgx.shipment_line.unit_selling_price, lgx.item_master.std_cost -> <result>.margin_class conditional
+value lgx.shipment_line.ordered_qty, lgx.shipment_line.shipped_qty, lgx.shipment_line.cancelled_qty -> <result>.open_qty derived
+value lgx.shipment_line.ordered_qty, lgx.shipment_line.shipped_qty, lgx.shipment_line.cancelled_qty, lgx.shipment_line.promise_date -> <result>.overdue_days conditional
+# D-58: lgx.shipment_line.promise_date, lgx.shipment_line.ship_date matched the aggregated lookup's rows to <result>.business_days_late's - influence, as a GROUP BY is (was a value).
+influence lgx.shipment_line.promise_date, lgx.shipment_line.ship_date -> <result>.business_days_late
+note A SELECT-list COUNT(*) over the literal calendar: its WHERE's columns are aggregated values (D-12); cal_date and is_weekend have no source.
+
+# --- money (the FX LATERAL, D-14) ------------------------------------------------------------------
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate -> <result>.ext_amount_usd, <result>.gross_margin_usd derived
+value lgx.item_master.std_cost -> <result>.gross_margin_usd derived
+value gold.fx_rate.to_ccy -> <result>.ext_amount_usd conditional
+value gold.fx_rate.to_ccy -> <result>.gross_margin_usd conditional
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.ext_amount_usd is a lookup key (join_key, not scored; was a conditional value).
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.gross_margin_usd is a lookup key (join_key, not scored; was a conditional value).
+influence gold.fx_rate.rate_date -> <result>.ext_amount_usd, <result>.gross_margin_usd, <result>.cust_total_usd, <result>.share_of_cust, <result>.cust_running_usd
+forbid filter gold.fx_rate.rate_date -> <result> | a one-row LATERAL removes no row (D-14)
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.to_ccy -> <result>.cust_total_usd aggregated
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.to_ccy -> <result>.share_of_cust aggregated
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.to_ccy -> <result>.cust_running_usd aggregated
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.cust_total_usd is a lookup key (join_key, not scored; was a aggregated value).
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.share_of_cust is a lookup key (join_key, not scored; was a aggregated value).
+# D-58: gold.fx_rate.from_ccy, gold.fx_rate.rate_date, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date -> <result>.cust_running_usd is a lookup key (join_key, not scored; was a aggregated value).
+influence lgx.shipment_header.customer_id -> <result>.cust_total_usd, <result>.share_of_cust, <result>.rank_in_cust
+influence lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, gold.fx_rate.conversion_rate, gold.fx_rate.to_ccy, gold.fx_rate.rate_date -> <result>.rank_in_cust
+# D-58: gold.fx_rate.from_ccy, lgx.shipment_header.currency_code, lgx.shipment_line.ship_date match the FX lookup's row - join keys of ext_amount_usd, so no longer values the ranking orders by.
+note RANK() OVER (w_c ORDER BY ext_amount_usd): every source of the ordered amount decides the rank (D-4).
+
+# --- line windows (line_running, line_ranked, final named windows) ---------------------------------
+value lgx.shipment_line.unit_selling_price -> <result>.item_median_price aggregated
+influence lgx.shipment_line.item_id -> <result>.item_median_price
+value lgx.shipment_line.shipped_qty -> <result>.cum_qty aggregated
+value lgx.shipment_line.unit_selling_price -> <result>.avg_price_neighbours aggregated
+influence lgx.shipment_line.item_id, lgx.shipment_line.ship_date -> <result>.avg_price_neighbours
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price -> <result>.parent_month_revenue aggregated
+influence crm.customer.customer_id, lgx.shipment_line.ship_date -> <result>.parent_month_revenue
+note PARTITION BY ultimate_parent_id, date_trunc('month', ship_date).
+value lgx.shipment_line.unit_selling_price -> <result>.prev_price, <result>.first_price derived
+value lgx.shipment_line.ship_date -> <result>.prev_ship_date derived
+influence lgx.shipment_header.customer_id, lgx.shipment_line.ship_date, lgx.shipment_line.shipment_line_id -> <result>.cum_qty, <result>.rn_cust, <result>.prev_price, <result>.first_price, <result>.quartile_cust, <result>.final_row_no, <result>.prev_ship_date, <result>.cust_running_usd
+note WC: w_cust_date / w_cust_frame inherit w_cust (D-4); w_final orders by customer_id, ship_date, shipment_line_id; w_cust_ship partitions by customer_id and orders by ship_date, shipment_line_id.
+influence lgx.shipment_header.shipment_id -> <result>.lines_in_shipment
+
+# --- documents ------------------------------------------------------------------------------------
+value lgx.shipment_line.line_attrs -> <result>.hazmat_class, <result>.is_heavy conditional
+note derived out of the document (D-29), and line_attr_flat's own WHERE line_attrs IS NOT NULL is a conditional value through its LEFT join (D-45).
+forbid filter lgx.shipment_line.line_attrs -> <result> | line_attr_flat is reached only through a LEFT join (D-45)
+value lgx.shipment_header.header_attrs -> <result>.priority_num derived
+value lgx.shipment_header.header_attrs -> <result>.freight_amount aggregated
+influence lgx.shipment_header.shipment_id -> <result>.freight_amount
+
+# --- LEFT-joined reference CTEs ------------------------------------------------------------------
+value crm.organization.org_name -> <result>.ship_from_org_name identity
+value crm.organization.is_active -> <result>.ship_from_org_name conditional
+forbid filter crm.organization.is_active -> <result> | wh_org is reached only through a LEFT join (D-45)
+value crm.customer_site.site_code -> <result>.ship_to_site_code identity
+value crm.customer_site.address_lines -> <result>.ship_to_addr1 derived
+forbid value crm.customer_site.latitude -> <result>.ship_to_site_code conditional | site_geo also decides rows through the final NOT IN, so its WHERE stays a filter only (D-45's exception)
+value lgx.carrier.carrier_name -> <result>.carrier_name identity
+value lgx.carrier_service.transit_days -> <result>.transit_days identity
+value lgx.carrier.active_flag, lgx.carrier.end_date -> <result>.carrier_name, <result>.transit_days conditional
+forbid filter lgx.carrier.active_flag -> <result> | carrier_dim is reached only through a LEFT join (D-45)
+# D-58: lgx.shipment_header.created_at -> <result>.fx_floor is a lookup key (join_key, not scored; was a conditional value).
+note param_grid's columns are literals; its ON range `hdr_created_at::date BETWEEN eff_from AND eff_to` sits on a LEFT join's null side: a value of what that side feeds, with the only operand that has a source (D-49, D-48). The region equality is the key (D-5).
+
+# --- LEFT-joined aggregates -----------------------------------------------------------------------
+value lgx.shipment_line.item_id -> <result>.cust_distinct_items aggregated
+value lgx.item_master.item_code -> <result>.cust_item_list aggregated
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.ship_date, lgx.shipment_line.promise_date -> <result>.cust_late_qty aggregated
+influence lgx.shipment_header.customer_id -> <result>.cust_distinct_items, <result>.cust_item_list, <result>.cust_late_qty
+influence lgx.item_master.item_code -> <result>.cust_item_list
+note string_agg's own ORDER BY (B1 S11, D-47); HAVING COUNT(*) reads no column.
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.unit_selling_price, lgx.item_master.std_cost, lgx.shipment_header.header_attrs -> <result>.cust_net_margin aggregated
+influence lgx.shipment_header.customer_id, lgx.shipment_header.shipment_id -> <result>.cust_net_margin
+note The waterfall's three arms (revenue, cost, freight from hdr_charges, itself grouped by shipment) summed by a window; `mw.step_no = 3` tests a literal-only column: nothing.
+value lgx.shipment_line.ship_date, lgx.shipment_line.promise_date -> <result>.carrier_month_otd_ratio aggregated
+influence lgx.shipment_header.carrier_code, lgx.shipment_line.ship_date, lgx.shipment_line.promise_date -> <result>.carrier_month_otd_ratio
+note carrier_perf's GROUP BY (D-2); the null-side cut otd_rank <= 3 over RANK() ORDER BY otd_ratio is an ordering cut: influence (D-45, D-46), as E1 measured for ROW_NUMBER.
+influence lgx.shipment_header.customer_id -> <result>.cust_volume_decile
+note NTILE(10) OVER (ORDER BY COUNT(*)) grouped by customer_id (D-46).
+value lgx.shipment_line.shipped_qty -> <result>.cust_deep_metric aggregated
+influence lgx.shipment_header.customer_id -> <result>.cust_deep_metric
+
+# --- the JSON summary -------------------------------------------------------------------------------
+value lgx.shipment_header.source_system, lgx.shipment_line.shipment_line_id -> <result>.row_summary_json derived
+value lgx.shipment_header.status_code, lgx.shipment_line.line_status, lgx.shipment_line.ship_date, lgx.shipment_line.promise_date, lgx.shipment_line.request_date, lgx.shipment_line.shipped_qty, lgx.shipment_line.ordered_qty -> <result>.row_summary_json conditional
+note delete_flg and w_insert_dt read nothing.
+
+# --- filters -------------------------------------------------------------------------------
+filter lgx.shipment_header.is_deleted, lgx.shipment_header.created_at, lgx.shipment_header.shipment_id, lgx.shipment_header.source_system, lgx.shipment_header.updated_at, lgx.shipment_header.version_no -> <result>
+note shp_hdr's WHERE and DISTINCT ON (two keys, two tie-breakers); the final WHERE's created_at and source_system = ANY (...) restate two of them.
+filter lgx.shipment_line.line_type_code, lgx.shipment_line.shipment_line_id, lgx.shipment_line.last_update_ts, lgx.shipment_line.etl_batch_id -> <result>
+note shp_line's SIMILAR TO and ROW_NUMBER cut (D-9); final_src's DISTINCT ON (integration_id) ORDER BY line_updated_at, row_hash restates them.
+filter crm.customer.customer_id, crm.customer.valid_from, crm.customer.valid_to, crm.customer.parent_customer_id -> <result>
+note cust's DENSE_RANK() OVER w_cust = 1 (D-9); cust_rollup's anchor and its cycle guard on customer_id.
+filter lgx.shipment_header.status_code, lgx.shipment_line.shipped_qty -> <result>
+filter lgx.item_master.item_id, lgx.shipment_line.item_id, lgx.shipment_header.ship_to_site_id, crm.customer_site.site_id, crm.customer_site.latitude -> <result>
+note NOT IN (SELECT key_id FROM orphan_checks): its match key is shipment_line_id (stated above); the arms' NOT EXISTS and NOT IN, and site_geo's WHERE, decide that list (D-52 at depth).
+filter evt.flag.entity_id, evt.flag.flag_code, evt.flag.active_flag -> <result>
+filter lgx.shipment_header.customer_id, lgx.shipment_line.ship_date -> <result>
+note ORDER BY customer_id, ship_date, shipment_line_id with OFFSET ... FETCH FIRST ... WITH TIES (D-9).

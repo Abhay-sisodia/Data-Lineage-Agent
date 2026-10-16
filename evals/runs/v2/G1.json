@@ -1,0 +1,67 @@
+{
+  "question": "Which columns of mart.po_supplier_summary have no lineage?",
+  "seconds": 16.5,
+  "stage": "agent",
+  "cost_usd": 0.0084607,
+  "turns": 4,
+  "notes": [],
+  "answer": {
+    "question_id": "G1",
+    "status": "answered",
+    "text": "None. All 6 columns of mart.po_supplier_summary have lineage. The table is written by hard/h2_po_fact_load.sql:345. No boundaries or refusals apply.",
+    "cited_edges": [],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "coverage",
+      "args": {
+        "table": "mart.po_supplier_summary"
+      },
+      "result": {
+        "id": "mart.po_supplier_summary",
+        "columns": 6,
+        "columns_with_lineage": 6,
+        "columns_without_lineage": [],
+        "written_by": [
+          "hard/h2_po_fact_load.sql#<script>:345"
+        ],
+        "found": true,
+        "filters": [
+          {
+            "phase": "pre-aggregation",
+            "transform": "identity",
+            "file": "hard/h2_po_fact_load.sql",
+            "tier": "A",
+            "line": 345,
+            "guard": null,
+            "statement": "hard/h2_po_fact_load.sql#<script>:345",
+            "source": "mart.fact_po_line.status_code",
+            "id": "e9a392e6bd79b47dcc85ae48",
+            "band": 0,
+            "type": "FILTERS",
+            "target": "mart.po_supplier_summary"
+          }
+        ],
+        "gaps": {
+          "boundaries": [],
+          "refusals": []
+        }
+      }
+    },
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.po_supplier_summary"
+      },
+      "result": [
+        {
+          "id": "mart.po_supplier_summary",
+          "label": "Table"
+        }
+      ]
+    }
+  ]
+}

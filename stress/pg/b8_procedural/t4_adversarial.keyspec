@@ -1,0 +1,54 @@
+# Answer key for B8 t4_adversarial.sql - procedural PL/pgSQL, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, OBJECTIVES.md rules 1-9, D-39..D-42 (decided
+# 2026-10-04, not implemented). Variables are `var:<name>`; bands per edge (rule 5).
+
+@ 19 S1 a function never called
+origin mart.fn_never_called 0
+value staging.customers.country_code -> mart.kpi_rollup.country_code identity
+
+@ 31 S2 a trigger function never bound
+forbid value staging.orders.status -> mart.events_log.kind identity | NEW has no table until CREATE TRIGGER binds one (D-41); no table may be guessed
+
+@ 44 S3 one trigger function, bound to two tables
+origin mart.trg_stamp 2
+value staging.returns.id, staging.shipments.id -> mart.events_log.id identity
+
+@ 67 S4 a function with its own search_path
+origin mart.fn_pathed 0
+value staging.ledger.account -> core.ledger.account identity
+forbid value staging.ledger.account -> staging.ledger.account identity | the function's SET search_path = core decides `ledger`, not the script's path (D-23)
+
+@ 80 S5 the real statement after a RAISE
+origin mart.fn_noisy 0
+value staging.customers.segment -> mart.kpi_rollup.segment identity
+filter staging.customers.status -> mart.kpi_rollup
+forbid value staging.customers.email -> mart.kpi_rollup.segment identity | the INSERT before it is the text of a RAISE
+
+@ 92 S6 EXECUTE of a parameter
+expect dynamic_sql EXECUTE:92 | the whole statement is p_sql (D-42; Oracle EXECUTE IMMEDIATE:267)
+
+@ 104 S7 a write whose failure is swallowed
+origin mart.fn_swallow 0
+value core.dim_store.region -> mart.top_customers.region identity
+expect suppressed_error mart.fn_swallow:105 | WHEN OTHERS THEN NULL: the absence of a write below proves nothing (rule 7)
+
+@ 118 S8 PERFORM
+forbid value staging.orders.amount -> <result>.amount identity | PERFORM discards its query's rows
+
+@ 145 S9 the read sees the second body
+value staging.customers.full_name -> mart.top_customers.full_name identity
+forbid value staging.customers.email -> mart.top_customers.full_name identity | that body was dropped before the read (D-31)
+
+@ 155 S10 a variable named like a column
+origin mart.fn_shadow 1
+value staging.payments.amount -> var:amount aggregated
+
+@ 157 S11 the variable in VALUES
+origin mart.fn_shadow 1
+value var:amount -> mart.top_customers.revenue identity
+
+@ 169 S12 a $body$-quoted body holding $$
+origin mart.fn_tagged 0
+value staging.orders.currency -> mart.kpi_rollup.level identity

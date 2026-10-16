@@ -1,0 +1,96 @@
+# Answer key for B8 t5_metamorphic.sql - procedural PL/pgSQL, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, OBJECTIVES.md rules 1-9, D-39..D-42 (decided
+# 2026-10-04, not implemented). Pair facts are stated at A and restated at B; a fact is
+# scored in the band stated here, the A half's.
+# NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: the handler re-raises (RAISE), so it
+# suppresses nothing and declares no suppressed_error; the CALL gives no edge.
+
+@ 22 P1A in a function
+origin mart.fn_p1 0
+value staging.orders.channel -> mart.channel_mix.channel identity
+filter staging.orders.status -> mart.channel_mix
+@ 28 P1B at top level
+repeat value staging.orders.channel -> mart.channel_mix.channel identity
+repeat filter staging.orders.status -> mart.channel_mix
+
+@ 41 P2A a FOR loop
+origin mart.fn_p2 1
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.segment -> mart.top_customers.region identity
+filter staging.customers.status -> mart.top_customers
+@ 47 P2B INSERT ... SELECT
+repeat value staging.customers.id -> mart.top_customers.customer_id identity
+repeat value staging.customers.segment -> mart.top_customers.region identity
+repeat filter staging.customers.status -> mart.top_customers
+
+@ 57 P3A constant dynamic SQL
+origin <do> 2
+value staging.customers.segment -> mart.kpi_rollup.segment identity
+filter staging.customers.status -> mart.kpi_rollup
+@ 62 P3B static
+repeat value staging.customers.segment -> mart.kpi_rollup.segment identity
+repeat filter staging.customers.status -> mart.kpi_rollup
+
+@ 78 P4A a RETURN QUERY function read
+value staging.orders.id -> mart.sales_daily.orders identity
+value staging.orders.amount -> mart.sales_daily.net_amount identity
+filter staging.orders.currency -> mart.sales_daily
+@ 82 P4B the derived table
+repeat value staging.orders.id -> mart.sales_daily.orders identity
+repeat value staging.orders.amount -> mart.sales_daily.net_amount identity
+repeat filter staging.orders.currency -> mart.sales_daily
+
+@ 93 P5A in a DO block
+origin <do> 0
+value staging.payments.method -> core.dim_carrier.name identity
+value staging.payments.currency -> core.dim_carrier.mode identity
+filter staging.payments.status -> core.dim_carrier
+@ 99 P5B plain
+repeat value staging.payments.method -> core.dim_carrier.name identity
+repeat value staging.payments.currency -> core.dim_carrier.mode identity
+repeat filter staging.payments.status -> core.dim_carrier
+
+@ 109 P6A format('%I.%I')
+origin <do> 2
+value core.dim_store.region -> mart.channel_mix.region identity
+@ 111 P6B concatenation
+repeat value core.dim_store.region -> mart.channel_mix.region identity
+
+@ 128 R1 the day's rate into a variable
+origin mart.pr_nightly_load 1
+value staging.fx_rates.rate_to_usd -> var:v_fx identity
+filter staging.fx_rates.currency, staging.fx_rates.rate_date, var:p_day -> staging.fx_rates
+
+@ 132 R2 the set-based load
+origin mart.pr_nightly_load 0
+value staging.payments.id -> core.fct_payment.payment_id identity
+value staging.payments.order_id -> core.fct_payment.order_id identity
+value staging.payments.method -> core.fct_payment.method identity
+value staging.payments.amount -> core.fct_payment.amount identity
+value staging.payments.amount -> core.fct_payment.amount_usd derived
+value staging.payments.paid_at -> core.fct_payment.paid_date derived
+value staging.payments.status -> core.fct_payment.status identity
+filter staging.payments.paid_at, staging.payments.currency -> core.fct_payment
+origin mart.pr_nightly_load 1
+value var:v_fx -> core.fct_payment.amount_usd derived
+filter var:p_day -> core.fct_payment
+
+@ 143 R3 each customer touched today
+origin mart.pr_nightly_load 1
+value staging.customers.segment -> mart.customer_summary.segment identity
+value var:p_day -> mart.customer_summary.last_order_date identity
+filter staging.orders.order_ts, var:p_day, staging.customers.id, mart.customer_summary.customer_id -> mart.customer_summary
+note The loop query's WHERE (o.order_ts::date = p_day) filters the body's write (rule 4); its JOIN is structural (D-5).
+
+@ 148 R4 the partition's name
+origin mart.pr_nightly_load 1
+value var:p_day -> var:v_part derived
+
+@ 150 R5 the undecidable EXECUTE
+expect dynamic_sql EXECUTE:150 | the target is v_part, built from p_day (D-42)
+
+@ 152 R6 the run log
+origin mart.pr_nightly_load 1
+value var:v_rows -> mart.events_log.id identity

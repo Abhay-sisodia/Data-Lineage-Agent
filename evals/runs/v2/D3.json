@@ -1,0 +1,149 @@
+{
+  "question": "What is directly affected if mart.fact_po_line.line_amt changes?",
+  "seconds": 17.2,
+  "stage": "agent",
+  "cost_usd": 0.0175614,
+  "turns": 5,
+  "notes": [],
+  "answer": {
+    "question_id": "D3",
+    "status": "answered",
+    "text": "One hop out of mart.fact_po_line.line_amt (no boundaries or refusals):\nValue (aggregated):\n- mart.po_supplier_summary.total_spend (h2_po_fact_load.sql:345)\n- mart.supplier_spend.total_spend (:452)\n- <result:hard/h2_po_fact_load.sql>.line_amt (bare SELECT output, :436)\nInfluence:\n- mart.po_supplier_summary.spend_rank (:345)\n- mart.supplier_spend.spend_rank (:452)\nFilter (pre-aggregation): it decides which rows of mart.fact_po_line land, at h2_po_fact_load.sql:31.",
+    "cited_edges": [
+      "773fe2bb7be4139db1ae7231",
+      "bdfa0cdbea618eeb3f02b1f8",
+      "f6e23f2b199e4d105d43b5ae",
+      "4cd0b3a59c8773262c2d3af5",
+      "4a4c19b429d148b04781a97c",
+      "1ed609da20c58fb8a3e39be8"
+    ],
+    "cited_nodes": [],
+    "unknowns": [],
+    "candidates": []
+  },
+  "tool_calls": [
+    {
+      "tool": "find",
+      "args": {
+        "name": "mart.fact_po_line.line_amt"
+      },
+      "result": [
+        {
+          "id": "mart.fact_po_line.line_amt",
+          "label": "Column"
+        }
+      ]
+    },
+    {
+      "tool": "downstream",
+      "args": {
+        "node": "mart.fact_po_line.line_amt",
+        "depth": 1
+      },
+      "result": [
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 436,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:436",
+          "source": "mart.fact_po_line.line_amt",
+          "id": "773fe2bb7be4139db1ae7231",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "<result:hard/h2_po_fact_load.sql>.line_amt",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 345,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:345",
+          "source": "mart.fact_po_line.line_amt",
+          "id": "bdfa0cdbea618eeb3f02b1f8",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.po_supplier_summary.total_spend",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "aggregated",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 452,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:452",
+          "source": "mart.fact_po_line.line_amt",
+          "id": "f6e23f2b199e4d105d43b5ae",
+          "band": 0,
+          "type": "FEEDS",
+          "target": "mart.supplier_spend.total_spend",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 31,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:31",
+          "source": "mart.fact_po_line.line_amt",
+          "id": "1ed609da20c58fb8a3e39be8",
+          "band": 0,
+          "type": "FILTERS",
+          "target": "mart.fact_po_line",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 345,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:345",
+          "source": "mart.fact_po_line.line_amt",
+          "id": "4cd0b3a59c8773262c2d3af5",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "mart.po_supplier_summary.spend_rank",
+          "depth": 1
+        },
+        {
+          "phase": "pre-aggregation",
+          "transform": "identity",
+          "file": "hard/h2_po_fact_load.sql",
+          "tier": "A",
+          "line": 452,
+          "guard": null,
+          "statement": "hard/h2_po_fact_load.sql#<script>:452",
+          "source": "mart.fact_po_line.line_amt",
+          "id": "4a4c19b429d148b04781a97c",
+          "band": 0,
+          "type": "INFLUENCES",
+          "target": "mart.supplier_spend.spend_rank",
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "tool": "gaps",
+      "args": {
+        "node": "mart.fact_po_line.line_amt"
+      },
+      "result": {
+        "scope": "lineage of mart.fact_po_line.line_amt",
+        "boundaries": [],
+        "refusals": [],
+        "refusals_note": "a refused statement has no edges: it is listed when its SQL names a table on this lineage, or when it names no table at all (then per file)"
+      }
+    }
+  ]
+}

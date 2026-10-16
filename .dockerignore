@@ -1,0 +1,22 @@
+# Only what the review image needs goes into the build context.
+.git
+.venv
+venv
+.env
+.lineage_cache
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+src/lineage/parsing/generated
+tools
+corpus
+evals
+evidence
+measurements
+trackers
+tests
+stress/pg/torture*
+out
+*.log

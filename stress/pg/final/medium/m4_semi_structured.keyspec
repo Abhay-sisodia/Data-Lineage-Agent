@@ -1,0 +1,68 @@
+# Answer key for M4 (m4_semi_structured.sql): semi-structured shipment documents.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: hdr JOIN shipment_line JOIN item_master, and the final WHERE. Every
+# other CTE is LEFT joined: its own WHERE is a value of what it feeds (aggregated where it
+# aggregates, D-45). A document column is the node for anything read out of it (D-29); a
+# set-returning function in FROM is structural (D-27); an ordinality is an influence from
+# its document or arrays (D-26, D-30); a series is derived from its bound columns (D-28).
+
+@ 19 the whole statement
+
+# --- main path ---------------------------------------------------------------------------------
+value lgx.shipment_line.shipment_line_id -> <result>.shipment_line_id identity
+value lgx.shipment_header.shipment_id -> <result>.shipment_id identity
+value lgx.shipment_header.header_attrs -> <result>.priority, <result>.delivery_window_start, <result>.first_contact_email, <result>.policy_no, <result>.service_level derived
+note JSON_VALUE(... RETURNING text DEFAULT 'STD' ON EMPTY) reads the document only (D-29).
+value lgx.shipment_line.line_attrs -> <result>.is_hazmat derived
+value lgx.item_master.attrs, lgx.item_master.item_code -> <result>.item_doc derived
+value lgx.shipment_line.shipped_qty, lgx.shipment_line.ordered_qty -> <result>.qty_pair derived
+
+# --- charge_summary: jsonb_to_recordset, WHERE amount <> 0 -------------------------------------
+value lgx.shipment_header.header_attrs -> <result>.freight_amount, <result>.charges_by_code, <result>.charge_count aggregated
+influence lgx.shipment_header.shipment_id -> <result>.freight_amount, <result>.charges_by_code, <result>.charge_count
+note charge_count is COUNT(*): its only value is charges' WHERE ch.amount, read out of the document (D-45, D-29).
+
+# --- pkg_summary: JSON_TABLE with FOR ORDINALITY and EXISTS PATH -------------------------------
+value lgx.shipment_header.header_attrs -> <result>.total_weight, <result>.void_count aggregated
+influence lgx.shipment_header.shipment_id -> <result>.pkg_count, <result>.total_weight, <result>.void_count, <result>.max_pkg_ord
+influence lgx.shipment_header.header_attrs -> <result>.max_pkg_ord
+note MAX(pkg_ord): FOR ORDINALITY has no value, only the document's influence (D-30). pkg_count is COUNT(*): packages has no WHERE.
+forbid value lgx.shipment_header.header_attrs -> <result>.pkg_count | JSON_TABLE in FROM is structural (D-27) and COUNT(*) reads nothing
+
+# --- line_kv_summary: jsonb_each WITH ORDINALITY, WHERE key !~ '^_' -----------------------------
+value lgx.shipment_line.line_attrs -> <result>.attr_keys, <result>.attrs_clean aggregated
+influence lgx.shipment_line.shipment_line_id -> <result>.attr_keys, <result>.attrs_clean
+influence lgx.shipment_line.line_attrs -> <result>.attr_keys
+note array_agg(attr_key ORDER BY attr_ord): the ordinal, an influence of the document (D-26), orders the aggregate (B1 S11); D-47 lets line_attrs be both.
+
+# --- tag_summary: multi-array unnest WITH ORDINALITY, WHERE tag IS NOT NULL ---------------------
+value lgx.item_master.tags -> <result>.tag_list aggregated
+influence lgx.item_master.tags, lgx.item_master.item_id -> <result>.tag_list
+note The literal array ARRAY['A','B','C'] has no source; the ordinal's influence is from im.tags (D-26).
+
+# --- promise_days: generate_series(promise_date, ship_date), WHERE on the series ---------------
+value lgx.shipment_line.promise_date, lgx.shipment_line.ship_date -> <result>.business_days aggregated
+influence lgx.shipment_line.shipment_line_id -> <result>.business_days
+note COUNT(*): its value is the WHERE on g.d, which is derived from the series' bounds (D-28, D-45).
+
+# --- calendar: ROWS FROM over literals -----------------------------------------------------------
+forbid value lgx.shipment_line.ship_date -> <result>.holiday_flag | the calendar is literal series; the join key decides no value (D-28, D-5)
+note holiday_flag reads no column.
+
+# --- edi_summary: XMLTABLE + xpath(), WHERE doc_status ------------------------------------------
+value lgx.edi_document.payload, lgx.edi_document.doc_status -> <result>.edi_qty, <result>.edi_orders aggregated
+influence lgx.edi_document.payload -> <result>.edi_qty, <result>.edi_orders
+note GROUP BY sku, a COLUMNS column derived from the document (D-30): the document is the grouping influence (D-47).
+forbid filter lgx.edi_document.doc_status -> <result> | edi_summary is reached only through a LEFT join (D-45)
+
+# --- ship_to_contact: jsonb_array_elements WITH ORDINALITY, DISTINCT ON on the null side ---------
+value lgx.shipment_header.header_attrs -> <result>.ship_to_email conditional
+influence lgx.shipment_header.shipment_id, lgx.shipment_header.header_attrs -> <result>.ship_to_email
+note email is read out of the document (derived) and the WHERE role = 'SHIP_TO' reads it too (conditional, D-45, D-51). DISTINCT ON key and ordering are influence (D-45): shipment_id, and the ordinal from the document.
+
+# --- filters -------------------------------------------------------------------------------
+filter lgx.shipment_header.header_attrs -> <result>
+filter lgx.shipment_line.line_attrs -> <result>

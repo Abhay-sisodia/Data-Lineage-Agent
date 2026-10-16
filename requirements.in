@@ -27,3 +27,8 @@ rich
 # Oracle driver - corpus execution and V$SQL capture for the log-recovery
 # sub-spike (T3.3). Thin mode, no Instant Client needed.
 oracledb
+
+# PostgreSQL's own grammar (libpg_query): the referee for every PostgreSQL statement - valid
+# or not, its exact kind and tables, PL/pgSQL block structure - and the source of the
+# grammar checklist. SQLGlot stays the column-lineage workhorse.
+pglast

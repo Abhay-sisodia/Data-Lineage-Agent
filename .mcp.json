@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "lineage-graph": {
+      "type": "stdio",
+      "command": ".venv/Scripts/python.exe",
+      "args": ["-m", "lineage.mcp.server"],
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687"
+      }
+    }
+  }
+}

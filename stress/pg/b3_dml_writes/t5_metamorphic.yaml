@@ -1,0 +1,537 @@
+# GENERATED from t5_metamorphic.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B3 t5_metamorphic.sql - pairs and one realistic job.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# P1-P5 must be equal: facts listed once, at spelling A. P6 is a SEAM pair: the key holds
+# both spellings' facts and says which owns which. Conventions: B1/B2 plus D-15..D-18.
+package: pg/b3_dml_writes/t5_metamorphic.sql
+dialect: postgres
+source_sha256: 893f968235c9833ebc87288005924ac9b6bd12cda358745576058a8302747d6e
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: core.fct_order_line.order_date
+  target:
+    kind: column
+    name: mart.sales_daily.sale_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.store_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.gross_amount
+  target:
+    kind: column
+    name: mart.sales_daily.gross_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.order_date
+  target:
+    kind: column
+    name: mart.sales_daily.gross_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: column
+    name: mart.sales_daily.gross_amount
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.order_id
+  target:
+    kind: column
+    name: mart.top_customers.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: mart.top_customers.revenue
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.method
+  target:
+    kind: relation
+    name: mart.top_customers
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 47
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.kpi_rollup.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 66
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.country_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.country_code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 66
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_store.status
+  target:
+    kind: relation
+    name: mart.kpi_rollup
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 66
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.name
+  target:
+    kind: column
+    name: core.dim_warehouse.name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.capacity
+  target:
+    kind: column
+    name: core.dim_warehouse.capacity
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_warehouse.status
+  target:
+    kind: relation
+    name: core.dim_warehouse
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 82
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.returns.order_line_id
+  target:
+    kind: relation
+    name: staging.returns
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 96
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.id
+  target:
+    kind: relation
+    name: staging.returns
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 96
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.order_lines.status
+  target:
+    kind: relation
+    name: staging.returns
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 96
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: staging.payments
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 115
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: relation
+    name: staging.payments
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 121
+  evidence: source_read
+  note: 'Spelling B only: the EXISTS correlation''s operands. In A, `o.id = p.order_id` joins USING to
+    the target (D-11) - the semi-join seam left open in B2.'
+- source:
+    kind: column
+    name: staging.payments.order_id
+  target:
+    kind: relation
+    name: staging.payments
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 121
+  evidence: source_read
+  note: 'Spelling B only: the EXISTS correlation''s operands. In A, `o.id = p.order_id` joins USING to
+    the target (D-11) - the semi-join seam left open in B2.'
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: column
+    name: mart.customer_summary.first_order_date
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: column
+    name: mart.customer_summary.last_order_date
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.order_ts
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+  note: The accumulator `cs.lifetime_orders + EXCLUDED.lifetime_orders`; the inserted count is COUNT(*),
+    which has no source.
+- source:
+    kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.amount
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+  note: 'D-14: the archived refunds reach the summary only through a LEFT JOIN, so their predicate decides
+    lifetime_value and removes no summary row.'
+- source:
+    kind: column
+    name: staging.payments.paid_at
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+  note: 'D-14: the archived refunds reach the summary only through a LEFT JOIN, so their predicate decides
+    lifetime_value and removes no summary row.'
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.first_order_date
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.last_order_date
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_orders
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.lifetime_value
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.customer_id
+  target:
+    kind: column
+    name: mart.customer_summary.status
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: mart.customer_summary.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: relation
+    name: staging.payments
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+  note: The DELETE in `archived` removes those payments (convention (c)).
+- source:
+    kind: column
+    name: staging.payments.paid_at
+  target:
+    kind: relation
+    name: staging.payments
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+  note: The DELETE in `archived` removes those payments (convention (c)).
+forbidden:
+- source:
+    kind: column
+    name: core.fct_order_line.store_id
+  target:
+    kind: relation
+    name: mart.sales_daily
+  flow: filter
+  reason: the conflict target (A) and the MERGE ON (B) are both structural (D-15, D-5)
+- source:
+    kind: column
+    name: staging.payments.status
+  target:
+    kind: relation
+    name: mart.customer_summary
+  flow: filter
+  reason: 'reaches the summary only through a LEFT JOIN: it cannot remove a summary row (D-14)'
+expected_boundaries: []

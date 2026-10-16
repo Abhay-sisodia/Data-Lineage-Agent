@@ -31,10 +31,15 @@ from __future__ import annotations
 import sqlglot
 from sqlglot import exp
 
+from lineage.dialects import fold
 from lineage.ir.model import IREdge, Node, NodeKind
 from lineage.resolution.dictionary import Dictionary
 
-DIALECT = "oracle"
+# The dialect is not a constant here any more. It travels on the captured dictionary,
+# because a dictionary belongs to one database and already reaches every resolver in this
+# module - see `lineage.dialects.base` for what the seam holds and what it deliberately
+# does not. `AnalysisConfig.dialect` stays the declared authority and the entry points
+# check the two agree.
 
 __all__ = ["base_column", "base_tables_of", "is_view", "resolve_views"]
 
@@ -62,7 +67,7 @@ def _definition(relation: str, dictionary: Dictionary) -> exp.Select | None:
     if not text:
         return None
     try:
-        parsed = sqlglot.parse_one(text, dialect=DIALECT)
+        parsed = sqlglot.parse_one(text, dialect=dictionary.dialect)
     except Exception:
         return None
     return parsed if isinstance(parsed, exp.Select) else None
@@ -75,7 +80,7 @@ def base_tables_of(relation: str, dictionary: Dictionary) -> list[str]:
         return []
     seen: list[str] = []
     for table in select.find_all(exp.Table):
-        name = table.name.upper()
+        name = fold(table.name, dictionary.dialect)
         if name and name not in seen:
             seen.append(name)
     return seen
@@ -93,7 +98,7 @@ def base_column(relation: str, column: str, dictionary: Dictionary) -> str | Non
         return None
 
     sources = {
-        (alias or table.name).upper(): table.name.upper()
+        fold(alias or table.name, dictionary.dialect): fold(table.name, dictionary.dialect)
         for table in select.find_all(exp.Table)
         for alias in [table.alias]
     }
@@ -102,20 +107,31 @@ def base_column(relation: str, column: str, dictionary: Dictionary) -> str | Non
         if (projection.alias_or_name or "").upper() != column.upper():
             continue
         for reference in projection.find_all(exp.Column):
-            qualifier = (reference.table or "").upper()
+            qualifier = fold(reference.table or "", dictionary.dialect)
             base = sources.get(qualifier) or next(iter(sources.values()), None)
             if base is None:
                 continue
-            return f"{base}.{reference.name.upper()}"
+            return f"{base}.{fold(reference.name, dictionary.dialect)}"
     return None
 
 
-def resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IREdge], list[str]]:
+def resolve_views(
+    edges: list[IREdge],
+    dictionary: Dictionary,
+    defined: set[tuple[str, int]] | None = None,
+) -> tuple[list[IREdge], list[str]]:
     """Rewrite every view reference on an edge to the base object underneath it.
 
     Idempotent, and safe to run over edges whose views some other pass already inlined:
     a node naming a table is left exactly as it is.
+
+    `defined` holds (view, line) for each `CREATE VIEW` in the script. An edge INTO a view
+    from the statement that defines it is the view's own definition, not a write through
+    it: left as it is. Rewriting it sent every column of a live-catalogued view's
+    definition onto names from inside its query (`recent.net_revenue_last_3m_usd`), and the
+    view itself vanished from the graph.
     """
+    defined = defined or set()
     rewritten: list[IREdge] = []
     unresolved: list[str] = []
 
@@ -123,12 +139,17 @@ def resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IRE
         update: dict[str, Node] = {}
         resolved_to: dict[str, str] = {}
 
+        defining = {
+            view for view, line in defined if line == getattr(edge.origin, "line", None)
+        }
         for side in ("source", "target"):
             node: Node = getattr(edge, side)
             if node.kind is not NodeKind.COLUMN or "." not in node.name:
                 continue
             relation, _, column = node.name.rpartition(".")
             if not is_view(relation, dictionary):
+                continue
+            if side == "target" and fold(relation, dictionary.dialect) in defining:
                 continue
             base = base_column(relation, column, dictionary)
             if base is None:
@@ -138,7 +159,7 @@ def resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IRE
                 )
                 continue
             update[side] = Node(kind=NodeKind.COLUMN, name=base)
-            resolved_to[relation.upper()] = base.rpartition(".")[0]
+            resolved_to[fold(relation, dictionary.dialect)] = base.rpartition(".")[0]
 
         # The relation end follows the column end. Doing this the other way round - or not
         # at all - leaves an edge asserting that a column of `dim_customer` filters
@@ -147,7 +168,9 @@ def resolve_views(edges: list[IREdge], dictionary: Dictionary) -> tuple[list[IRE
             node = getattr(edge, side)
             if node.kind is not NodeKind.RELATION or not is_view(node.name, dictionary):
                 continue
-            followed = resolved_to.get(node.name.upper())
+            if side == "target" and fold(node.name, dictionary.dialect) in defining:
+                continue
+            followed = resolved_to.get(fold(node.name, dictionary.dialect))
             if followed is None:
                 bases = base_tables_of(node.name, dictionary)
                 if len(bases) != 1:

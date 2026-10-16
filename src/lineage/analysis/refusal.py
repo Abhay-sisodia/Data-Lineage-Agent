@@ -35,20 +35,29 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Literal
 
+from lineage.dialects import fold
 from lineage.parsing.plsql import ParsedStatement, Program
 
 __all__ = [
     "CONSTRUCTS",
+    "PoisonedCte",
     "Refusal",
     "RefusalCode",
+    "RefusalScope",
     "classify_program",
     "classify_statement",
     "conditional_compilation_spans",
+    "cte_bodies",
+    "cte_scoped_construct",
     "enclosing_unit_at",
     "last_line",
     "violations",
 ]
+
+RefusalScope = Literal["statement", "cte"]
+"""How much of a statement a refusal withdraws. See `Refusal.scope` (finding PG-20)."""
 
 
 class RefusalCode(StrEnum):
@@ -115,6 +124,20 @@ class Refusal:
     excerpt: str
     code: RefusalCode = RefusalCode.UNSUPPORTED_CONSTRUCT
     unit: str = "<anonymous>"
+    scope: RefusalScope = "statement"
+    """How much of the statement this refusal withdraws (finding PG-20).
+
+    `"statement"` is the original and still the default: nothing in the statement was
+    analysed, so it costs one statement of parse coverage.
+
+    `"cte"` says the construct was confined to one named CTE of a statement whose other
+    CTEs were read normally. Such a refusal **does not** subtract from
+    `statements_analysed`, because the statement WAS analysed - counting it as unanalysed
+    while it contributes edges is an incoherence, not a conservatism. What it costs is
+    recorded separately as `partial_statements`, so the new category is visible rather
+    than folded into a number that already existed.
+    """
+
     end_line: int | None = None
     """Last line of the refused statement.
 
@@ -139,12 +162,25 @@ class Refusal:
 
 @dataclass(frozen=True)
 class Construct:
-    """One named construct the analyser refuses on sight."""
+    """One named construct the analyser refuses on sight.
+
+    `dialects` scopes a refusal to the dialects it is true for, and None means all of them.
+    Most constructs here are refused because they are undecidable in principle - a MODEL
+    clause computes by inter-row reference whoever wrote it - and those apply everywhere.
+    Some are refused only because a particular front end cannot read them yet: `CREATE
+    TRIGGER` is fully HANDLED in Oracle, through the dictionary, and unhandled in
+    PostgreSQL, where the trigger's body lives in a function this project cannot parse.
+    Refusing it for both would be false about Oracle and would move a signed measurement.
+    """
 
     name: str
     pattern: re.Pattern[str]
     code: RefusalCode
     reason: str
+    dialects: frozenset[str] | None = None
+
+    def applies_to(self, dialect: str) -> bool:
+        return self.dialects is None or dialect in self.dialects
 
 
 def last_line(statement: ParsedStatement) -> int:
@@ -160,6 +196,49 @@ def _rx(pattern: str) -> re.Pattern[str]:
 # where two patterns can match the same text: the first match wins, so the more specific
 # construct is listed first.
 CONSTRUCTS: tuple[Construct, ...] = (
+    # --- PostgreSQL only. Each of these was SILENT until 2026-09-23 - not counted,
+    # not refused, not visible in parse coverage. Silence is the one outcome that is
+    # never acceptable, in scope or out, so each became a refusal with its own reason.
+    Construct(
+        name="DO_BLOCK",
+        pattern=_rx(r"\bDO\s*\$[A-Za-z_0-9]*\$"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="DO block - an anonymous PL/pgSQL body, dollar-quoted like a routine's and just as "
+        "unreadable until a grammar is chosen (ADR-0002 section 5)",
+        dialects=frozenset({"postgres"}),
+    ),
+    Construct(
+        name="COPY",
+        pattern=_rx(r"\bCOPY\s+[A-Za-z_0-9.$\"]+\s*(?:\([^)]*\)\s*)?(?:FROM|TO)\s"),
+        code=RefusalCode.SOURCE_UNAVAILABLE,
+        reason="COPY moves rows between a relation and something OUTSIDE the database - a file, a "
+        "program, or the client. The relation's contents depend on data this analysis can never "
+        "see, so the honest answer is to name the boundary rather than report the table as having "
+        "no writer",
+        dialects=frozenset({"postgres"}),
+    ),
+    Construct(
+        name="CREATE_TRIGGER_PG",
+        pattern=_rx(r"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?TRIGGER\b"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="CREATE TRIGGER - PostgreSQL triggers name a FUNCTION that holds the body, "
+        "so the lineage "
+        "is in a routine this project cannot yet parse. Oracle triggers are handled through the "
+        "dictionary and are deliberately NOT refused, which is why this construct is scoped to "
+        "one dialect",
+        dialects=frozenset({"postgres"}),
+    ),
+    # TRUNCATE_PG lived here until D-62 (plan step 6): it empties a relation and moves no
+    # column, so it is not refused but recorded as an `Operation` (RESETS) by
+    # `analysis.effects`, with the relation and the line, from PostgreSQL's own parse.
+    Construct(
+        name="DOLLAR_QUOTED_ROUTINE_BODY",
+        pattern=_rx(r"CREATE(?:\s+OR\s+REPLACE)?\s+(?:FUNCTION|PROCEDURE)\s[\s\S]{0,2000}?\bAS\s*\$[A-Za-z_0-9]*\$"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="PL/pgSQL routine body - the body after `AS $$` is a dollar-quoted string "
+        "literal rather than part of the SQL parse tree, and no grammar has been chosen "
+        "for it yet (ADR-0002 section 5). Refused by name so the cost is counted, never silent",
+    ),
     Construct(
         name="MODEL",
         pattern=_rx(r"\bMODEL\b\s+(?:\w+\s+)*?(?:PARTITION\s+BY|DIMENSION\s+BY|MEASURES)\b"),
@@ -182,13 +261,15 @@ CONSTRUCTS: tuple[Construct, ...] = (
         reason="PIVOT with a subquery or ANY column list - the output columns are the "
         "DATA in the pivot column, so the statement's shape is not fixed by its text",
     ),
-    Construct(
-        name="PIVOT",
-        pattern=_rx(r"\b(?:UN)?PIVOT\s*\("),
-        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
-        reason="PIVOT/UNPIVOT - the column set is transposed from row values; the "
-        "literal-list form is decidable in principle but is not implemented",
-    ),
+    # NOTE the absence of a blanket PIVOT entry, which this register carried until
+    # 2026-09-09. Its own reason admitted the problem - "the literal-list form is decidable
+    # in principle but is not implemented" - and stress 2 measured the cost: a static
+    # `PIVOT (SUM(x) FOR c IN ('GBP' AS gbp))` and an `UNPIVOT (v FOR m IN (a, b))` were
+    # both refused although their output columns are fixed by the text. That is a false
+    # abstention (T3.1d), and it costs parse coverage on top of the lost edges.
+    #
+    # Now implemented in `band0._pivot_columns`. `PIVOT_SUBQUERY` above still catches the
+    # undecidable form, where the output columns ARE the data.
     Construct(
         name="CONNECT_BY",
         pattern=_rx(r"\bCONNECT\s+BY\b|\bSTART\s+WITH\b"),
@@ -204,6 +285,25 @@ CONSTRUCTS: tuple[Construct, ...] = (
         reason="XMLTABLE/JSON_TABLE - columns are projected out of a document by path "
         "expression, and the document's structure is not in the dictionary",
     ),
+    # Scoped to Oracle, and the scoping is the whole of finding PG-17. Conditional
+    # compilation is an Oracle PL/SQL preprocessor feature; PostgreSQL has no equivalent,
+    # so nothing in a PostgreSQL file can be one. Unscoped, BOTH alternatives collide with
+    # ordinary PostgreSQL syntax, because `$` is a quoting character there rather than a
+    # directive sigil:
+    #
+    #   `$$[A-Za-z_]\w*`  intends Oracle's `$$PLSQL_UNIT` inquiry directive, and also
+    #                     matches the dollar-quoted string literal `$$it's a value$$`
+    #   `\$IF\b`          intends the `$IF` directive, and also matches `$IF$`, which is a
+    #                     legal dollar-quote TAG (`DO $IF$ ... $IF$`)
+    #
+    # Measured cost before the scoping, on two spellings PostgreSQL treats as identical:
+    # `'manual review'` gave 3 edges at 100% coverage and `$$manual review$$` gave 0 edges,
+    # 1 refusal, 0% coverage - a false abstention (T3.1d) on a completely readable INSERT,
+    # and the lost edges included a filter edge with no connection to the literal.
+    #
+    # Narrowing the regex was the wrong repair and was considered: it would have left the
+    # seam - an Oracle-only construct live against every dialect - intact, and the next
+    # collision undiscovered.
     Construct(
         name="CONDITIONAL_COMPILATION",
         pattern=_rx(r"\$IF\b|\$\$[A-Za-z_]\w*"),
@@ -211,6 +311,7 @@ CONSTRUCTS: tuple[Construct, ...] = (
         reason="conditional compilation - which branch exists in the compiled unit depends "
         "on PLSQL_CCFLAGS at compile time, so the source alone describes several different "
         "programs",
+        dialects=frozenset({"oracle"}),
     ),
     Construct(
         name="WRAPPED",
@@ -219,7 +320,40 @@ CONSTRUCTS: tuple[Construct, ...] = (
         reason="wrapped PL/SQL - the body is stored obfuscated and there is no source to "
         "read; only runtime evidence can say what it touches",
     ),
+    # --- collections (stress finding S2-04) --------------------------------------------
+    #
+    # Added because these two were SILENT, not because they are hard. Neither band 0 nor
+    # def-use claims them: `forall_statement` is not in band 0's SUPPORTED set, and the
+    # collection is a memory location def-use does not model - so the statements were
+    # skipped by both, produced no edges, and raised no refusal. Five labelled facts
+    # vanished from `s2_bulk_limit` with no symptom anywhere in the report.
+    #
+    # A missing edge is survivable and a declared boundary is the product; an undeclared
+    # absence is neither. Refusing is the honest floor here, not the ambition - both are
+    # implementable, and the reasons say so rather than implying the language beat us.
+    Construct(
+        name="FETCH_BULK_COLLECT",
+        pattern=_rx(r"\bFETCH\b[^;]{0,400}?\bBULK\s+COLLECT\b"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="FETCH ... BULK COLLECT INTO - the whole result set lands in a collection, "
+        "and a collection of records is a memory location this analysis does not model; "
+        "the cursor's select list is known, so this is implementable and simply is not "
+        "implemented",
+    ),
+    Construct(
+        name="FORALL",
+        pattern=_rx(r"\bFORALL\s+\w+\s+IN\b"),
+        code=RefusalCode.UNSUPPORTED_CONSTRUCT,
+        reason="FORALL - the DML is driven by a collection subscript, so its values come "
+        "from elements def-use does not track; SAVE EXCEPTIONS makes it worse, because "
+        "the loop continues past failures and the absence of a row proves nothing",
+    ),
 )
+# NOTE what is deliberately NOT here: `SELECT ... BULK COLLECT INTO`. It works today -
+# stress 1 traces `stg_customer.cust_id -> v_ids` correctly - and a pattern matching BULK
+# COLLECT generally would refuse a statement the analyser already gets right. Refusing too
+# much looks like discipline, which is what makes it hard to notice; the FETCH form is
+# named specifically for that reason.
 # NOTE the absence of a DB-link entry, which the first draft had. `b2_06` refuted it:
 # the local half of `INSERT INTO dim_customer ... FROM remote_customer@crm_link` is fully
 # provable, and refusing the statement would have destroyed seven labelled edges to buy
@@ -253,8 +387,17 @@ def _strip_noise(text: str) -> str:
                     out[position] = " "
             index = end
         elif char == "'":
+            # PG-23: an `E'...'` literal also honours BACKSLASH escapes, so `E'O\'Reilly'`
+            # is one string. Read as standard-conforming, `\'` closes it and every quote
+            # after it in the file flips polarity - real code blanked, real literals left
+            # visible. The prefix counts only as a whole token: `LIKE'...'` ends in an E
+            # too. Oracle has no `E'...'` form, so this cannot change an Oracle reading.
+            escaped = _is_escape_string_prefix(text, index)
             end = index + 1
             while end < length:
+                if escaped and text[end] == "\\":
+                    end += 2
+                    continue
                 if text[end] == "'":
                     if end + 1 < length and text[end + 1] == "'":
                         end += 2
@@ -271,23 +414,198 @@ def _strip_noise(text: str) -> str:
     return "".join(out)
 
 
-def classify_statement(text: str) -> Construct | None:
+def _is_escape_string_prefix(text: str, quote: int) -> bool:
+    """True when the quote at `quote` opens a PostgreSQL `E'...'` escape string."""
+    if quote == 0 or text[quote - 1] not in "Ee":
+        return False
+    return quote == 1 or not (text[quote - 2].isalnum() or text[quote - 2] in "_$#\"")
+
+
+def classify_statement(text: str, dialect: str = "oracle") -> Construct | None:
     """The first construct this text contains that the analyser cannot resolve.
 
     Returns the construct rather than a bare bool so the caller gets the code and the
     reason from one place - a reason written at the call site is a reason that will
     diverge from the code beside it.
+
+    **`dialect` defaults to Oracle, and that default is a hazard worth naming.** It is what
+    hid finding PG-17: `band0.analyse_source` called this without a dialect, so every
+    PostgreSQL statement was classified against the Oracle register no matter what the
+    config said, and scoping the `Construct` alone did not fix anything. The default is kept
+    only because the Oracle call sites predate the parameter. **A new caller should pass
+    `program.dialect` explicitly** - omitting it is silently wrong rather than loudly wrong,
+    which is the shape this project treats as the worst kind of defect.
     """
     clean = _strip_noise(text)
     for construct in CONSTRUCTS:
-        if construct.pattern.search(clean):
+        if construct.applies_to(dialect) and construct.pattern.search(clean):
             return construct
     return None
 
 
+@dataclass(frozen=True)
+class PoisonedCte:
+    """One CTE of a statement whose construct the analyser refuses, located exactly.
+
+    `line` and `end_line` are 1-based and relative to the START of the statement text, so
+    a caller holding the statement's own line adds `statement.line - 1` to each. They
+    bound the CTE's BODY - the parenthesised query - which is the span the construct
+    actually sits in and therefore the span a refusal is entitled to withdraw.
+    """
+
+    name: str
+    line: int
+    end_line: int
+
+
+_WITH_HEAD = re.compile(r"WITH\s+(?:RECURSIVE\s+)?", re.IGNORECASE)
+_CTE_HEAD = re.compile(
+    r"""\s*(?:"(?P<quoted>[^"]+)"|(?P<bare>[A-Za-z_]\w*))   # the CTE's name
+        \s*(?:\([^()]*\)\s*)?                               # its optional column list
+        AS\s+(?:NOT\s+)?(?:MATERIALIZED\s+)?\(              # PG's materialisation hints
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _matching_paren(clean: str, opening: int) -> int | None:
+    """Offset of the `)` closing the `(` at `opening`, or None if it is never closed.
+
+    `clean` must be noise-stripped, so a parenthesis inside a string literal or a comment
+    cannot unbalance the count. Regex cannot do this - a CTE body contains `count(*)`,
+    `coalesce(a, b)` and nested subqueries - and getting it wrong in the *silent*
+    direction was the shape of two separate defects in this project's rewrite rules.
+    """
+    depth = 0
+    for index in range(opening, len(clean)):
+        if clean[index] == "(":
+            depth += 1
+        elif clean[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+def cte_bodies(text: str) -> list[tuple[str, int, int]]:
+    """Every top-level CTE in this statement, as `(name, body_start, body_end)` offsets.
+
+    Body offsets are half-open over the text INSIDE the parentheses, so blanking
+    `text[start:end]` removes the CTE's query and nothing else.
+
+    **Text scanning rather than SQLGlot, deliberately.** This module classifies constructs
+    the SQL parser may not be able to read at all - that is `classify_program`'s third
+    pass, and a construct that fails to parse is *more* reason to refuse, not less. Asking
+    SQLGlot to find the CTEs would make the refusal depend on the very parse whose failure
+    is the thing being refused, and would put the answer in a different coordinate space
+    from the line numbers every `Refusal` is addressed by.
+
+    Returns `[]` for a statement with no `WITH` clause, which is the common case and not
+    an error. Nested CTEs - a `WITH` inside a CTE body - are not returned: the outer body
+    already contains them, and the poison is confined by the outermost one that holds it.
+    """
+    clean = _strip_noise(text)
+
+    # The opening `WITH`, found at paren depth 0 so that a `WITH` inside a subquery does
+    # not start the scan, and confirmed by the `name AS (` that must follow it - `WITH` is
+    # also a modifier in `GROUP BY ... WITH ROLLUP` and `unnest(...) WITH ORDINALITY`.
+    start: int | None = None
+    depth = 0
+    for index, char in enumerate(clean):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif depth == 0 and (char in "Ww") and (head := _WITH_HEAD.match(clean, index)):
+            if index and (clean[index - 1].isalnum() or clean[index - 1] == "_"):
+                continue
+            if _CTE_HEAD.match(clean, head.end()):
+                start = head.end()
+                break
+
+    if start is None:
+        return []
+
+    bodies: list[tuple[str, int, int]] = []
+    position = start
+    while (head := _CTE_HEAD.match(clean, position)) is not None:
+        opening = head.end() - 1
+        closing = _matching_paren(clean, opening)
+        if closing is None:
+            break
+        bodies.append((head.group("quoted") or head.group("bare"), opening + 1, closing))
+        separator = re.compile(r"\s*,\s*").match(clean, closing + 1)
+        if separator is None:
+            break
+        position = separator.end()
+
+    return bodies
+
+
+def cte_scoped_construct(
+    text: str, dialect: str = "oracle"
+) -> tuple[Construct, list[PoisonedCte]] | None:
+    """The refused construct and the CTEs it is CONFINED to, or None if it is not confined.
+
+    **Finding PG-20.** The refusal unit was the statement, and a modern analytical query is
+    one statement with eighty-five CTEs in it. One `JSON_TABLE` in one CTE therefore
+    discarded the other eighty-four, which are ordinary joins and aggregates the analyser
+    reads perfectly well. Measured on a three-CTE reduction: four correct edges lost to
+    abstain from one.
+
+    None means "refuse the whole statement", and it is returned generously, because every
+    case this cannot prove is a case where the old behaviour is still right:
+
+    * the statement has no `WITH` clause, so there is nothing narrower to refuse;
+    * the construct is `CONTEXT_DEPENDENT`, whose poison is not bounded by syntax at all -
+      conditional compilation governs the statements AROUND it (see
+      `conditional_compilation_spans`), so a syntactic span would be the wrong instrument;
+    * no CTE body contains the construct, so it is in the main query and owns the statement;
+    * **anything at all is still refused once the poisoned bodies are blanked out.** This
+      is the load-bearing check and it is exact rather than inferential: the same
+      classifier is re-run over the same text with the poison removed, so a second
+      construct elsewhere - in the main query, or in a DIFFERENT CTE - falls back to the
+      whole-statement refusal instead of being quietly analysed.
+
+    That last clause means a statement poisoned by TWO different constructs is still
+    refused whole. Narrowing it further would mean classifying every construct rather than
+    the first, which is a larger change and a separate measurement; the cost of leaving it
+    is one refusal that is broader than it needs to be, which is the safe direction.
+    """
+    construct = classify_statement(text, dialect)
+    if construct is None or construct.code is RefusalCode.CONTEXT_DEPENDENT:
+        return None
+
+    bodies = cte_bodies(text)
+    if not bodies:
+        return None
+
+    clean = _strip_noise(text)
+    poisoned = [
+        (name, start, end)
+        for name, start, end in bodies
+        if construct.pattern.search(clean, start, end)
+    ]
+    if not poisoned:
+        return None
+
+    blanked = list(clean)
+    for _, start, end in poisoned:
+        for position in range(start, end):
+            if blanked[position] != "\n":
+                blanked[position] = " "
+    if classify_statement("".join(blanked), dialect) is not None:
+        return None
+
+    return construct, [
+        PoisonedCte(name=name, line=_line_of(text, start), end_line=_line_of(text, end))
+        for name, start, end in poisoned
+    ]
+
+
 def _enclosing_unit(program: Program, statement: ParsedStatement) -> str:
     candidates = [unit for unit in program.units if unit.line <= statement.line]
-    return candidates[-1].name.upper() if candidates else "<anonymous>"
+    return fold(candidates[-1].name, program.dialect) if candidates else "<anonymous>"
 
 
 def _innermost(flagged: list[tuple[ParsedStatement, Construct]]) -> list[int]:
@@ -318,8 +636,8 @@ def _line_of(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
 
 
-def conditional_compilation_spans(source: str) -> list[tuple[int, int]]:
-    """Line ranges governed by a `$IF ... $END` block.
+def conditional_compilation_spans(source: str, dialect: str = "oracle") -> list[tuple[int, int]]:
+    """Line ranges governed by a `$IF ... $END` block. Oracle only.
 
     Conditional compilation is the one construct here that poisons *neighbouring*
     statements rather than itself. The `$IF` carries no lineage; the INSERTs inside its
@@ -327,7 +645,15 @@ def conditional_compilation_spans(source: str) -> list[tuple[int, int]]:
     `PLSQL_CCFLAGS` and is not in the file. Measured, not assumed: the first version
     flagged only the directive line and cheerfully emitted edges for **both** arms of
     `u1_conditional_compilation` - two contradictory answers, each stated as fact.
+
+    **The dialect gate lives here rather than at the call sites** (finding PG-17). There are
+    two callers - this module's own pass 2 and `band0.analyse_source` - and a gate written
+    twice is a gate the third caller forgets. `$IF\\b` matches `$IF$`, which in PostgreSQL is
+    a legal dollar-quote tag rather than a directive, so an unscoped span would refuse every
+    statement inside `DO $IF$ ... $IF$` for a reason that cannot be true of PostgreSQL.
     """
+    if dialect != "oracle":
+        return []
     clean = _strip_noise(source)
     spans: list[tuple[int, int]] = []
     for opening in re.finditer(r"\$IF\b", clean, re.IGNORECASE):
@@ -357,7 +683,7 @@ def classify_program(program: Program) -> list[Refusal]:
     """
     flagged: list[tuple[ParsedStatement, Construct]] = []
     for statement in program.statements:
-        construct = classify_statement(statement.text)
+        construct = classify_statement(statement.text, program.dialect)
         if construct is not None:
             flagged.append((statement, construct))
 
@@ -376,7 +702,7 @@ def classify_program(program: Program) -> list[Refusal]:
             )
         )
 
-    for first, last in conditional_compilation_spans(program.source):
+    for first, last in conditional_compilation_spans(program.source, program.dialect):
         for statement in program.statements:
             if not first <= statement.line <= last:
                 continue
@@ -397,6 +723,8 @@ def classify_program(program: Program) -> list[Refusal]:
     covered = {(refusal.line, refusal.code) for refusal in refusals}
     clean_source = _strip_noise(program.source)
     for construct in CONSTRUCTS:
+        if not construct.applies_to(program.dialect):
+            continue
         for match in construct.pattern.finditer(clean_source):
             line = _line_of(clean_source, match.start())
             if any(
@@ -436,7 +764,7 @@ def _deduplicate(refusals: list[Refusal]) -> list[Refusal]:
 def enclosing_unit_at(program: Program, line: int) -> str:
     """The program unit a line falls inside. Public: procedure.py needs it too."""
     candidates = [unit for unit in program.units if unit.line <= line]
-    return candidates[-1].name.upper() if candidates else "<anonymous>"
+    return fold(candidates[-1].name, program.dialect) if candidates else "<anonymous>"
 
 
 def violations(refusals: list[Refusal], edges: list) -> list[tuple[Refusal, list]]:  # type: ignore[type-arg]
@@ -451,6 +779,14 @@ def violations(refusals: list[Refusal], edges: list) -> list[tuple[Refusal, list
     physical line share an address, so an edge from the innocent one would read as a
     violation. Nothing in this corpus does that, and a false alarm here is the safe
     direction of the error.
+
+    **A SECOND LIMITATION IS NOT SAFE IN THAT DIRECTION, AND IT IS WHY
+    `not_cross_checkable` EXISTS** (stress finding S2-10). A trigger body is analysed from
+    the DICTIONARY, wrapped in a synthetic procedure, so its edges carry lines relative to
+    that wrapper - 3, 4, 7. A refusal raised over the same statement by the file pass
+    carries the line in the FILE - 39. `covers()` compares two different coordinate spaces
+    and can only ever answer "no", so for a trigger unit this function silently reports
+    clean. That is a guard passing without looking, which is worse than a guard that fails.
     """
     found: list[tuple[Refusal, list]] = []  # type: ignore[type-arg]
     for refusal in refusals:
@@ -458,3 +794,40 @@ def violations(refusals: list[Refusal], edges: list) -> list[tuple[Refusal, list
         if clashing:
             found.append((refusal, clashing))
     return found
+
+
+def not_cross_checkable(
+    refusals: list[Refusal],
+    edges: list,  # type: ignore[type-arg]
+    incomparable_units: frozenset[str] | set[str],
+) -> list[Refusal]:
+    """Refusals whose contradiction check could not run, because the line spaces differ.
+
+    Stress finding S2-10. `violations` above and `measure`'s `false_abstentions_recovered`
+    both ask "is there an edge whose (unit, line) falls inside this refusal's span?" - and
+    for a trigger unit the two sides are numbered in different spaces, so the answer is
+    structurally "no" whatever the truth is.
+
+    **This returns the refusals for which the answer is UNKNOWN rather than no.** Reporting
+    that count is the whole fix: the numbers stay as they are, and they stop being read as
+    evidence of something nobody checked. There is currently no such refusal in the corpus -
+    the one that raised the finding, `s6`'s `INSERT ... VALUES`, was removed by D-1 - so this
+    is a guard against the defect coming back rather than a repair of a live one.
+
+    The larger fix is architectural and is recorded rather than taken: band 0 analyses trigger
+    bodies out of the FILE while `triggers.py` analyses them out of the DICTIONARY, so the
+    same statement is read twice in two coordinate spaces. Only the dictionary pass's edges
+    are kept - band 0 contributes no trigger edges at all today - so the file pass's reading
+    exists only to produce refusals and statement counts. Collapsing that is the right
+    change and it moves parse coverage, which makes it a separate measurement.
+    """
+    units = {unit.upper() for unit in incomparable_units}
+    if not units:
+        return []
+    return [
+        refusal
+        for refusal in refusals
+        if refusal.unit
+        and refusal.unit.upper() in units
+        and any(edge.origin.unit.upper() in units for edge in edges)
+    ]

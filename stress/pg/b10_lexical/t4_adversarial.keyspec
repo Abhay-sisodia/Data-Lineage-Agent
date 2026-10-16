@@ -1,0 +1,66 @@
+# Answer key for B10 t4_adversarial.sql - lexical robustness, adversarial.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-35..D-38 (decided 2026-10-04, not
+# implemented). standard_conforming_strings is on. NOT EXPRESSIBLE IN A KEY, CHECKED IN
+# THE REPORT: S6, S12 (PREPARE) and S14 (DEALLOCATE ALL) are counted with no edges; S16
+# is refused or declared, never resolved to a guessed table.
+
+@ 16 S1 a dollar tag that spells a column
+value staging.orders.currency -> mart.kpi_rollup.level derived
+forbid value staging.orders.channel -> mart.kpi_rollup.level derived | o.channel is the text of a dollar-quoted literal
+
+@ 24 S2 E'' escapes hide c.email inside the literal
+value staging.customers.full_name -> mart.top_customers.full_name derived
+forbid value staging.customers.email -> mart.top_customers.full_name derived | c.email is between escaped quotes, inside one E'' literal
+
+@ 32 S3 a standard string ending in a backslash
+value staging.customers.email -> mart.customer_summary.full_name derived
+
+@ 40 S4 -- glued to an operand
+value staging.orders.amount -> mart.channel_mix.revenue identity
+forbid value staging.orders.amount -> mart.channel_mix.revenue derived | --1 is a comment, not minus minus one
+
+@ 49 S5 a nested comment
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.segment -> mart.top_customers.region identity
+forbid value staging.customers.email -> mart.top_customers.region identity | c.email is inside the nested comment, which a non-nesting lexer would end early
+forbid value staging.customers.email -> mart.kpi_rollup.segment identity | the INSERT after S5 is inside a nested comment
+
+@ 70 S7 EXECUTE p_lit: '$2' is text
+value staging.customers.country_code -> mart.kpi_rollup.country_code identity
+filter staging.customers.segment, staging.customers.email -> mart.kpi_rollup
+
+@ 77 S8 :: casts and a [1:2] slice beside :lo
+value staging.orders.tags, staging.orders.amount -> mart.channel_mix.channel derived
+filter staging.orders.id -> mart.channel_mix
+
+@ 86 S9 quoted identifiers containing /* and --
+value staging.customers.email -> mart.top_customers.full_name identity
+filter staging.customers.status -> mart.top_customers
+
+@ 98 S10 a U&"" identifier spelling id
+value staging.customers.id -> mart.kpi_rollup.customers identity
+
+@ 106 S11 EXECUTE before PREPARE
+expect source_unavailable p_late | S11: p_late is prepared only at S12 (D-35)
+
+@ 122 S13 EXECUTE after PREPARE
+value core.dim_store.region -> mart.channel_mix.region identity
+filter core.dim_store.status -> mart.channel_mix
+
+@ 134 S15 EXECUTE after DEALLOCATE ALL
+expect source_unavailable p_lit | S15: DEALLOCATE ALL at S14 forgot p_lit (D-35); S7's edges must not be emitted again here
+
+@ 141 S16 a psql variable as an identifier
+forbid value staging.orders.channel -> mart.kpi_rollup.level identity | :tbl cannot be resolved by the analysis; refused or declared, never guessed (D-36)
+
+@ 149 S17 dollar quotes glued to operators
+value staging.orders.id -> mart.sales_daily.orders identity
+filter staging.orders.status, staging.orders.channel, staging.orders.discount_code -> mart.sales_daily
+
+@ 158 S18 E'a\\' ends after the escaped backslash
+value staging.customers.email -> mart.customer_summary.segment derived
+
+@ 166 S19 an identifier containing $
+value staging.customers.segment -> mart.kpi_rollup.region identity

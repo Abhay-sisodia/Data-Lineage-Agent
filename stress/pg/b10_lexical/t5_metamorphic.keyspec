@@ -1,0 +1,101 @@
+# Answer key for B10 t5_metamorphic.sql - lexical robustness, metamorphic.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: all earlier decisions, plus D-35..D-38 (decided 2026-10-04, not
+# implemented). Pair facts are stated at A and restated at B. NOT EXPRESSIBLE IN A KEY,
+# CHECKED IN THE REPORT: PREPARE, DEALLOCATE, DROP, BEGIN and COMMIT are counted with no
+# edges and not refused; no meta-command is counted.
+
+@ 17 P1A a standard literal
+value staging.orders.channel -> mart.channel_mix.channel identity
+filter staging.orders.status -> mart.channel_mix
+@ 21 P1B a dollar-quoted literal
+repeat value staging.orders.channel -> mart.channel_mix.channel identity
+repeat filter staging.orders.status -> mart.channel_mix
+
+@ 27 P2A a doubled quote
+value staging.customers.segment -> mart.kpi_rollup.segment derived
+@ 31 P2B an E'' escape
+repeat value staging.customers.segment -> mart.kpi_rollup.segment derived
+
+@ 37 P3A a direct INSERT
+value staging.orders.store_id -> mart.sales_daily.store_id identity
+value staging.orders.amount -> mart.sales_daily.net_amount aggregated
+influence staging.orders.store_id -> mart.sales_daily.net_amount
+filter staging.orders.currency -> mart.sales_daily
+@ 51 P3B EXECUTE of the same statement prepared
+repeat value staging.orders.store_id -> mart.sales_daily.store_id identity
+repeat value staging.orders.amount -> mart.sales_daily.net_amount aggregated
+repeat influence staging.orders.store_id -> mart.sales_daily.net_amount
+repeat filter staging.orders.currency -> mart.sales_daily
+
+@ 56 P4A ||
+value staging.customers.full_name, staging.customers.email -> mart.top_customers.full_name derived
+@ 60 P4B OPERATOR(pg_catalog.||)
+repeat value staging.customers.full_name -> mart.top_customers.full_name derived
+repeat value staging.customers.email -> mart.top_customers.full_name derived
+
+@ 66 P5A heavily commented
+value staging.customers.id -> mart.customer_summary.customer_id identity
+value staging.orders.amount -> mart.customer_summary.lifetime_value aggregated
+influence staging.customers.id -> mart.customer_summary.lifetime_value
+filter staging.orders.status -> mart.customer_summary
+forbid value staging.orders.discount_code -> mart.customer_summary.lifetime_value aggregated | inside a nested comment
+forbid filter staging.orders.channel -> mart.customer_summary | the AND is a line comment
+forbid influence staging.customers.segment -> mart.customer_summary.lifetime_value | the second GROUP BY key is a comment
+@ 76 P5B clean
+repeat value staging.customers.id -> mart.customer_summary.customer_id identity
+repeat value staging.orders.amount -> mart.customer_summary.lifetime_value aggregated
+repeat influence staging.customers.id -> mart.customer_summary.lifetime_value
+repeat filter staging.orders.status -> mart.customer_summary
+
+@ 87 P6A a psql variable
+value staging.orders.currency -> mart.kpi_rollup.level identity
+filter staging.orders.channel -> mart.kpi_rollup
+@ 91 P6B a literal
+repeat value staging.orders.currency -> mart.kpi_rollup.level identity
+repeat filter staging.orders.channel -> mart.kpi_rollup
+
+@ 97 P7A CREATE TABLE AS SELECT
+value staging.payments.id -> mart.p7.id identity
+value staging.payments.method -> mart.p7.method identity
+filter staging.payments.status -> mart.p7
+@ 106 P7B CREATE TABLE AS EXECUTE
+repeat value staging.payments.id -> mart.p7.id identity
+repeat value staging.payments.method -> mart.p7.method identity
+repeat filter staging.payments.status -> mart.p7
+
+@ 111 P8A a U&'' literal
+value staging.customers.country_code -> mart.kpi_rollup.country_code identity
+filter staging.customers.segment -> mart.kpi_rollup
+@ 115 P8B the plain literal
+repeat value staging.customers.country_code -> mart.kpi_rollup.country_code identity
+repeat filter staging.customers.segment -> mart.kpi_rollup
+
+@ 154 R1 the first month (D-35)
+value staging.order_lines.product_id -> mart.product_performance.product_id identity
+value core.dim_category.name -> mart.product_performance.category_name identity
+value staging.order_lines.quantity -> mart.product_performance.units aggregated
+value staging.order_lines.quantity, staging.order_lines.unit_price -> mart.product_performance.revenue aggregated
+value staging.order_lines.quantity, staging.order_lines.unit_price, staging.products.cost -> mart.product_performance.margin aggregated
+influence staging.order_lines.product_id, core.dim_category.name -> mart.product_performance.units, mart.product_performance.revenue, mart.product_performance.margin
+filter staging.order_lines.status, staging.order_lines.created_at -> mart.product_performance
+note period_month is $1, an external value (D-36): no edge. The two JOINs are structural (D-5).
+
+@ 157 R2 the second month: the same edges again
+repeat value staging.order_lines.product_id -> mart.product_performance.product_id identity
+repeat value core.dim_category.name -> mart.product_performance.category_name identity
+repeat value staging.order_lines.quantity -> mart.product_performance.units aggregated
+repeat value staging.order_lines.quantity -> mart.product_performance.revenue aggregated
+repeat value staging.order_lines.unit_price -> mart.product_performance.revenue aggregated
+repeat value staging.order_lines.quantity -> mart.product_performance.margin aggregated
+repeat value staging.order_lines.unit_price -> mart.product_performance.margin aggregated
+repeat value staging.products.cost -> mart.product_performance.margin aggregated
+repeat influence staging.order_lines.product_id -> mart.product_performance.units
+repeat influence staging.order_lines.product_id -> mart.product_performance.revenue
+repeat influence staging.order_lines.product_id -> mart.product_performance.margin
+repeat influence core.dim_category.name -> mart.product_performance.units
+repeat influence core.dim_category.name -> mart.product_performance.revenue
+repeat influence core.dim_category.name -> mart.product_performance.margin
+repeat filter staging.order_lines.status -> mart.product_performance
+repeat filter staging.order_lines.created_at -> mart.product_performance

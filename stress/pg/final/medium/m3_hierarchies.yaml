@@ -1,0 +1,681 @@
+# GENERATED from m3_hierarchies.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for M3 (m3_hierarchies.sql): hierarchies, islands and sessions.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: lines (shipment_line JOIN shipment_header) JOIN cust_rollup JOIN
+# org_tree JOIN sessions, and the final WHERE. Recursion counters (lvl, hop, bom_level) start
+# at a literal and only add to themselves: no base source (B2 S11).
+#
+# Convention readings flagged for the report:
+# * SEARCH ... SET dfs_order and CYCLE ... SET is_cycle are built from the BY / CYCLE
+# column (org_id), as PostgreSQL builds them: derived values of org_id.
+# * CYCLE also stops the recursive arm from extending a row that closed a cycle - the same
+# guard as cust_rollup's explicit `NOT customer_id = ANY (chain)` - so org_id is keyed as
+# a filter, like that explicit guard.
+# * island_count is COUNT(*) over `islands`, whose GROUP BY (customer_id, grp_key) decides
+# how many island rows exist: grp_key's source ship_date is keyed as an influence.
+package: pg/final/medium/m3_hierarchies.sql
+dialect: postgres
+source_sha256: b5fa0f16551891684baeaecf5b9e47805e4557dd23c0027e3cf189245e5e4e06
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.shipment_line_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.customer_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.ship_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: column
+    name: <result>.shipped_qty
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.customer_lines
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: COUNT(*) OVER (PARTITION BY customer_id) (D-4).
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: <result>.ultimate_parent_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: <result>.hierarchy_depth
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: chain = ARRAY[customer_id] || customer_id ...; cardinality() and array_to_string() over it.
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: column
+    name: <result>.hierarchy_path
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: chain = ARRAY[customer_id] || customer_id ...; cardinality() and array_to_string() over it.
+- source:
+    kind: column
+    name: crm.customer.customer_name
+  target:
+    kind: column
+    name: <result>.ultimate_parent_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: '`up` is a plain LEFT join to crm.customer on the root''s id: no predicate on it.'
+- source:
+    kind: column
+    name: crm.organization.org_name
+  target:
+    kind: column
+    name: <result>.ship_from_org
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: root_name is the anchor's org_name, carried unchanged by the recursive arm (B2-10).
+- source:
+    kind: column
+    name: crm.organization.org_name
+  target:
+    kind: column
+    name: <result>.ship_from_root
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: root_name is the anchor's org_name, carried unchanged by the recursive arm (B2-10).
+- source:
+    kind: column
+    name: crm.organization.org_name
+  target:
+    kind: column
+    name: <result>.org_path
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.org_id
+  target:
+    kind: column
+    name: <result>.org_dfs_order
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.organization.org_id
+  target:
+    kind: column
+    name: <result>.org_is_cycle
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.session_no
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.session_no
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'is_new = CASE over LAG(ship_date) and ship_date (one column: derived), windowed by customer_id
+    / ship_date; session_no = SUM(is_new) OVER (customer_id ORDER BY ship_date, shipment_line_id).'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.session_no
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'is_new = CASE over LAG(ship_date) and ship_date (one column: derived), windowed by customer_id
+    / ship_date; session_no = SUM(is_new) OVER (customer_id ORDER BY ship_date, shipment_line_id).'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.session_no
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'is_new = CASE over LAG(ship_date) and ship_date (one column: derived), windowed by customer_id
+    / ship_date; session_no = SUM(is_new) OVER (customer_id ORDER BY ship_date, shipment_line_id).'
+- source:
+    kind: column
+    name: lgx.bill_of_material.component_item_id
+  target:
+    kind: column
+    name: <result>.component_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.qty_per
+  target:
+    kind: column
+    name: <result>.total_component_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.scrap_pct
+  target:
+    kind: column
+    name: <result>.total_component_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.bom_status
+  target:
+    kind: column
+    name: <result>.component_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.bom_status
+  target:
+    kind: column
+    name: <result>.total_component_qty
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.bom_status
+  target:
+    kind: column
+    name: <result>.bom_depth
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.bill_of_material.parent_item_id
+  target:
+    kind: column
+    name: <result>.component_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'bom_depth = MAX(bom_level), a counter: no value of its own. top_item_id is the anchor''s parent_item_id
+    carried down.'
+- source:
+    kind: column
+    name: lgx.bill_of_material.parent_item_id
+  target:
+    kind: column
+    name: <result>.total_component_qty
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'bom_depth = MAX(bom_level), a counter: no value of its own. top_item_id is the anchor''s parent_item_id
+    carried down.'
+- source:
+    kind: column
+    name: lgx.bill_of_material.parent_item_id
+  target:
+    kind: column
+    name: <result>.bom_depth
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'bom_depth = MAX(bom_level), a counter: no value of its own. top_item_id is the anchor''s parent_item_id
+    carried down.'
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.island_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: Neither has a value source (COUNT(*) all the way down). lines is on the main path, so its WHERE
+    adds nothing; islands' HAVING COUNT(*) reads no column.
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.longest_island
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: Neither has a value source (COUNT(*) all the way down). lines is on the main path, so its WHERE
+    adds nothing; islands' HAVING COUNT(*) reads no column.
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.island_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: Neither has a value source (COUNT(*) all the way down). lines is on the main path, so its WHERE
+    adds nothing; islands' HAVING COUNT(*) reads no column.
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.longest_island
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: Neither has a value source (COUNT(*) all the way down). lines is on the main path, so its WHERE
+    adds nothing; islands' HAVING COUNT(*) reads no column.
+- source:
+    kind: column
+    name: lgx.warehouse.org_id
+  target:
+    kind: column
+    name: <result>.warehouse_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.org_id
+  target:
+    kind: column
+    name: <result>.warehouse_codes
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.warehouse_code
+  target:
+    kind: column
+    name: <result>.warehouse_codes
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.warehouse.warehouse_code
+  target:
+    kind: column
+    name: <result>.warehouse_codes
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: string_agg's own ORDER BY (B1 S11, D-47).
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.session_count
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: lgx.shipment_header.customer_id
+  target:
+    kind: column
+    name: <result>.session_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'MAX(session_no) GROUP BY customer_id: session_no''s value and influence are carried.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: column
+    name: <result>.session_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'MAX(session_no) GROUP BY customer_id: session_no''s value and influence are carried.'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipment_line_id
+  target:
+    kind: column
+    name: <result>.session_count
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'MAX(session_no) GROUP BY customer_id: session_no''s value and influence are carried.'
+- source:
+    kind: column
+    name: lgx.shipment_line.ship_date
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+- source:
+    kind: column
+    name: crm.customer.parent_customer_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'cust_rollup: the anchor picks the roots; the recursive arm''s NOT customer_id = ANY (chain) is
+    a cycle guard on customer_id. The hop counter test reads nothing.'
+- source:
+    kind: column
+    name: crm.customer.customer_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'cust_rollup: the anchor picks the roots; the recursive arm''s NOT customer_id = ANY (chain) is
+    a cycle guard on customer_id. The hop counter test reads nothing.'
+- source:
+    kind: column
+    name: crm.organization.parent_org_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'org_tree: the anchor''s predicates, and CYCLE''s implicit guard on org_id (the reading flagged
+    above).'
+- source:
+    kind: column
+    name: crm.organization.is_active
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'org_tree: the anchor''s predicates, and CYCLE''s implicit guard on org_id (the reading flagged
+    above).'
+- source:
+    kind: column
+    name: crm.organization.org_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+  note: 'org_tree: the anchor''s predicates, and CYCLE''s implicit guard on org_id (the reading flagged
+    above).'
+- source:
+    kind: column
+    name: lgx.shipment_line.shipped_qty
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 20
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: crm.organization.org_id
+  target:
+    kind: column
+    name: <result>.org_level
+  flow: value
+  reason: lvl counts recursion steps; the join key is not in it (B2 S11)
+- source:
+    kind: column
+    name: lgx.bill_of_material.bom_status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: bom_summary is reached only through a LEFT join (D-45)
+expected_boundaries: []

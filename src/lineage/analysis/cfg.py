@@ -25,14 +25,9 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-from lineage.parsing.generated.PlSqlParser import PlSqlParser
-from lineage.parsing.plsql import (
-    Program,
-    iter_contexts,
-    most_specific,
-    rule_name,
-    source_slice,
-)
+from lineage.dialects import fold
+from lineage.parsing.frontend import Frontend, IfShape, LoopShape
+from lineage.parsing.plsql import Program
 
 # Guard against pathological nesting rather than recursing forever.
 MAX_NESTING = 64
@@ -154,9 +149,13 @@ Exits = list[tuple[int, EdgeKind, str | None]]
 
 
 class _Builder:
-    def __init__(self, unit: str) -> None:
+    def __init__(self, unit: str, frontend: Frontend) -> None:
         self.cfg = Cfg(unit=unit)
         self._next_id = 0
+        # The only thing that knows the grammar. Every question about the tree below goes
+        # through it, so this builder is written against SHAPES - a branch has a condition
+        # and arms, a loop has a body - and never against how a dialect spells them (A3b).
+        self._frontend = frontend
 
     def add_node(
         self,
@@ -178,51 +177,40 @@ class _Builder:
     # ---- statement dispatch --------------------------------------------------------
 
     def build_sequence(self, seq_ctx: Any, incoming: Exits, depth: int = 0) -> Exits:
-        """Build a seq_of_statements. Returns the exits of the whole sequence."""
-        if seq_ctx is None or depth > MAX_NESTING:
-            return incoming
-
-        exits = incoming
-        for statement in self._statements_of(seq_ctx):
-            exits = self.build_statement(statement, exits, depth + 1)
-        return exits
-
-    def _statements_of(self, seq_ctx: Any) -> list[Any]:
-        """Direct child statements of a sequence, in source order.
+        """Build a statement sequence. Returns the exits of the whole sequence.
 
         Only DIRECT children: nested statements belong to their own construct and are
         walked when that construct is built, not flattened into the parent.
         """
-        found = []
-        for index in range(seq_ctx.getChildCount()):
-            child = seq_ctx.getChild(index)
-            if isinstance(child, PlSqlParser.StatementContext):
-                found.append(child)
-        return found
+        if seq_ctx is None or depth > MAX_NESTING:
+            return incoming
+
+        exits = incoming
+        for statement in self._frontend.statements_of(seq_ctx):
+            exits = self.build_statement(statement, exits, depth + 1)
+        return exits
 
     def build_statement(self, statement_ctx: Any, incoming: Exits, depth: int) -> Exits:
-        inner = most_specific(statement_ctx)
-        kind = rule_name(inner)
-
-        if isinstance(inner, PlSqlParser.If_statementContext):
-            return self._build_if(inner, incoming, depth)
-        if isinstance(inner, PlSqlParser.Loop_statementContext):
-            return self._build_loop(inner, incoming, depth)
+        shape = self._frontend.shape(statement_ctx)
+        if isinstance(shape, IfShape):
+            return self._build_if(statement_ctx, shape, incoming, depth)
+        if isinstance(shape, LoopShape):
+            return self._build_loop(statement_ctx, shape, incoming, depth)
 
         node = self.add_node(
             NodeKind.STATEMENT,
-            _one_line(source_slice(statement_ctx)),
-            statement_ctx.start.line,
-            kind,
+            _one_line(self._frontend.text(statement_ctx)),
+            self._frontend.line(statement_ctx),
+            self._frontend.statement_kind(statement_ctx),
             statement_ctx,
         )
         self.connect(incoming, node)
         return [(node, EdgeKind.SEQUENTIAL, None)]
 
-    def _build_if(self, ctx: Any, incoming: Exits, depth: int) -> Exits:
-        condition = _text(ctx.condition())
+    def _build_if(self, ctx: Any, shape: IfShape, incoming: Exits, depth: int) -> Exits:
+        condition = shape.condition
         branch = self.add_node(
-            NodeKind.BRANCH, f"IF {condition}", ctx.start.line, "if_statement", ctx
+            NodeKind.BRANCH, f"IF {condition}", self._frontend.line(ctx), "if_statement", ctx
         )
         self.connect(incoming, branch)
 
@@ -231,23 +219,21 @@ class _Builder:
 
         # THEN arm
         exits += self.build_sequence(
-            ctx.seq_of_statements(), [(branch, EdgeKind.TRUE, condition)], depth
+            shape.then_sequence, [(branch, EdgeKind.TRUE, condition)], depth
         )
 
         # ELSIF arms: each guarded by its own condition AND the negation of all before it.
-        for part in ctx.elsif_part() or []:
-            part_condition = _text(part.condition())
+        for part_condition, part_sequence in shape.elsifs:
             combined = " AND ".join([*negated, part_condition])
             exits += self.build_sequence(
-                part.seq_of_statements(), [(branch, EdgeKind.TRUE, combined)], depth
+                part_sequence, [(branch, EdgeKind.TRUE, combined)], depth
             )
             negated.append(_negate(part_condition))
 
         # ELSE arm: its condition appears nowhere in the source and must be reconstructed.
-        else_part = ctx.else_part()
-        if else_part is not None:
+        if shape.else_sequence is not None:
             exits += self.build_sequence(
-                else_part.seq_of_statements(),
+                shape.else_sequence,
                 [(branch, EdgeKind.FALSE, " AND ".join(negated))],
                 depth,
             )
@@ -257,7 +243,7 @@ class _Builder:
 
         return exits
 
-    def _build_loop(self, ctx: Any, incoming: Exits, depth: int) -> Exits:
+    def _build_loop(self, ctx: Any, shape: LoopShape, incoming: Exits, depth: int) -> Exits:
         # Only a WHILE contributes a guard. A guard is a condition under which an edge
         # fires or does not; a FOR loop's body always runs, once per iteration, so its
         # iteration spec is not a condition at all. Treating `i IN 1 .. 12` as a guard
@@ -265,28 +251,20 @@ class _Builder:
         #
         # The loop variable's real influence - deciding WHICH rows a statement reads - is
         # carried as a filter edge by the def-use analysis, which is where it belongs.
-        condition = None
-        exit_is_conditional = False
-        label_text = ""
-
-        if ctx.condition() is not None:  # WHILE
-            condition = _text(ctx.condition())
-            exit_is_conditional = True
-            label_text = condition
-        elif ctx.cursor_loop_param() is not None:  # FOR
-            label_text = _text(ctx.cursor_loop_param())
+        condition = shape.condition
+        exit_is_conditional = condition is not None
 
         head = self.add_node(
             NodeKind.LOOP,
-            f"LOOP {label_text}".strip(),
-            ctx.start.line,
+            f"LOOP {shape.label}".strip(),
+            self._frontend.line(ctx),
             "loop_statement",
             ctx,
         )
         self.connect(incoming, head)
 
         body_exits = self.build_sequence(
-            ctx.seq_of_statements(), [(head, EdgeKind.LOOP_BODY, condition)], depth
+            shape.body_sequence, [(head, EdgeKind.LOOP_BODY, condition)], depth
         )
         # The back edge. Without it, a value accumulated across iterations looks like a
         # single assignment and def-use reports a chain one iteration deep.
@@ -299,11 +277,12 @@ class _Builder:
 
 def build_cfg(program: Program, unit_ctx: Any, unit_name: str) -> Cfg:
     """Build the CFG for one program unit."""
-    builder = _Builder(unit_name)
+    frontend: Frontend = program.frontend
+    builder = _Builder(unit_name, frontend)
     cfg = builder.cfg
 
-    body = unit_ctx.body() if hasattr(unit_ctx, "body") else None
-    start_line = unit_ctx.start.line
+    body = frontend.body(unit_ctx)
+    start_line = frontend.line(unit_ctx)
 
     cfg.entry = builder.add_node(NodeKind.ENTRY, f"ENTRY {unit_name}", start_line)
     if body is None:
@@ -311,62 +290,51 @@ def build_cfg(program: Program, unit_ctx: Any, unit_name: str) -> Cfg:
         builder.connect([(cfg.entry, EdgeKind.SEQUENTIAL, None)], cfg.exit)
         return cfg
 
-    exits = builder.build_sequence(
-        body.seq_of_statements(), [(cfg.entry, EdgeKind.SEQUENTIAL, None)]
-    )
+    exits = builder.build_sequence(body.sequence, [(cfg.entry, EdgeKind.SEQUENTIAL, None)])
 
-    cfg.exit = builder.add_node(NodeKind.EXIT, f"EXIT {unit_name}", body.stop.line)
+    cfg.exit = builder.add_node(NodeKind.EXIT, f"EXIT {unit_name}", body.end_line)
     builder.connect(exits, cfg.exit)
 
     # Exception handlers. Any statement in the protected block can raise, so every
     # statement gets an edge to every handler - which is what makes an error-path write
     # reachable in the analysis at all.
     protected = [n.id for n in cfg.statement_nodes()]
-    for handler in body.exception_handler() or []:
-        names = " OR ".join(_text(n) for n in handler.exception_name())
+    for handler in body.handlers:
         handler_entry = builder.add_node(
-            NodeKind.HANDLER, f"WHEN {names}", handler.start.line, "exception_handler", handler
+            NodeKind.HANDLER,
+            f"WHEN {handler.names}",
+            handler.line,
+            "exception_handler",
+            handler.ctx,
         )
         for statement_id in protected:
             cfg.edges.append(
-                CfgEdge(statement_id, handler_entry, EdgeKind.EXCEPTION, f"EXCEPTION {names}")
+                CfgEdge(
+                    statement_id, handler_entry, EdgeKind.EXCEPTION, f"EXCEPTION {handler.names}"
+                )
             )
         handler_exits = builder.build_sequence(
-            handler.seq_of_statements(), [(handler_entry, EdgeKind.SEQUENTIAL, None)]
+            handler.sequence, [(handler_entry, EdgeKind.SEQUENTIAL, None)]
         )
         builder.connect(handler_exits, cfg.exit)
 
     return cfg
 
 
-def build_all(program: Program) -> dict[str, Cfg]:
+def build_all(program: Program, dialect: str = "oracle") -> dict[str, Cfg]:
     """A CFG per program unit in the source."""
     graphs: dict[str, Cfg] = {}
-    unit_types = [
-        ("Create_procedure_bodyContext", "procedure_name"),
-        ("Create_function_bodyContext", "function_name"),
-        ("Procedure_bodyContext", "identifier"),
-        ("Function_bodyContext", "identifier"),
-    ]
-
-    for context_name, accessor in unit_types:
-        context_class = getattr(PlSqlParser, context_name, None)
-        if context_class is None:
-            continue
-        for ctx in iter_contexts(program.tree, context_class):
-            name_node = getattr(ctx, accessor, lambda: None)()
-            if isinstance(name_node, list):
-                name_node = name_node[0] if name_node else None
-            if name_node is None:
-                continue
-            name = str(name_node.getText()).upper()
-            graphs[name] = build_cfg(program, ctx, name)
+    # Unit names are FOLDED with the dialect's rule, not upper-cased. A2 recorded this
+    # as residue on the grounds that a unit name is only an Origin label and a
+    # comparison key - true for Oracle, where fold IS upper. PostgreSQL proved it
+    # false: `collect_scopes` folded to `<script>` while this keyed `<SCRIPT>`, so
+    # `scopes.get(unit)` missed and BAND 1 SILENTLY DID NOTHING. Producers fold; the
+    # sites that compare two produced names normalise both sides and are unaffected.
+    for unit in program.frontend.units(program.tree):
+        name = fold(unit.name, dialect)
+        graphs[name] = build_cfg(program, unit.ctx, name)
 
     return graphs
-
-
-def _text(ctx: Any) -> str:
-    return _one_line(source_slice(ctx)) if ctx is not None else ""
 
 
 def _one_line(text: str) -> str:

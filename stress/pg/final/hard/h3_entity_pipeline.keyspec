@@ -1,0 +1,92 @@
+# Answer key for H3 (h3_entity_pipeline.sql): entity pipeline at depth.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every written column, every filter, and the REFRESH's repeats are stated.
+# Conventions D-1..D-53. EE = evt.entity_event, the seed.
+#
+# Stage shapes (gen_h3.py), each carrying p.* from the stage before:
+#   A adj_i = CASE WHEN amount > 1000 THEN amount * 1.05 ELSE amount END: one column, derived
+#     (D-19); WHERE on amount: a filter.
+#   B LEFT JOIN LATERAL (SUM / COUNT over evt.activity WHERE entity_id = p.entity_id AND kind
+#     = 'Ki'): one row per outer row, so the WHERE columns, both correlation operands, are
+#     aggregated values (D-14, D-12).
+#   C LEFT JOIN LATERAL (flag ORDER BY active_at DESC LIMIT 1): correlation operands
+#     conditional values; the ordering an influence (D-13).
+#   D DISTINCT ON (entity_id) ORDER BY entity_id, created_at: filters (D-9).
+# Every repetition states the same facts; one fact per (source, target) (D-51).
+# The view is inlined where it is read; the materialized view is a node (D-31).
+
+@ 17 S1 CREATE VIEW mart.v_entity_pipeline
+value evt.entity_event.entity_id -> mart.v_entity_pipeline.entity_id identity
+value evt.entity_event.parent_id -> mart.v_entity_pipeline.parent_id identity
+value evt.entity_event.status -> mart.v_entity_pipeline.status identity
+value evt.entity_event.display_name -> mart.v_entity_pipeline.display_name identity
+value evt.entity_event.amount -> mart.v_entity_pipeline.amount identity
+value evt.entity_event.amount -> mart.v_entity_pipeline.adj_1, mart.v_entity_pipeline.adj_57 derived
+value evt.activity.amount -> mart.v_entity_pipeline.act_total_2, mart.v_entity_pipeline.act_total_58, mart.v_entity_pipeline.act_total_sum aggregated
+value evt.activity.kind -> mart.v_entity_pipeline.act_total_2 aggregated
+value evt.activity.kind -> mart.v_entity_pipeline.act_total_58 aggregated
+value evt.activity.kind -> mart.v_entity_pipeline.act_count_58 aggregated
+value evt.activity.kind -> mart.v_entity_pipeline.act_total_sum aggregated
+# D-58: evt.activity.entity_id, evt.entity_event.entity_id matched the aggregated lookup's rows to mart.v_entity_pipeline.act_total_2's - influence, as a GROUP BY is (was a value).
+influence evt.activity.entity_id, evt.entity_event.entity_id -> mart.v_entity_pipeline.act_total_2
+# D-58: evt.activity.entity_id, evt.entity_event.entity_id matched the aggregated lookup's rows to mart.v_entity_pipeline.act_total_58's - influence, as a GROUP BY is (was a value).
+influence evt.activity.entity_id, evt.entity_event.entity_id -> mart.v_entity_pipeline.act_total_58
+# D-58: evt.activity.entity_id, evt.entity_event.entity_id matched the aggregated lookup's rows to mart.v_entity_pipeline.act_count_58's - influence, as a GROUP BY is (was a value).
+influence evt.activity.entity_id, evt.entity_event.entity_id -> mart.v_entity_pipeline.act_count_58
+# D-58: evt.activity.entity_id, evt.entity_event.entity_id matched the aggregated lookup's rows to mart.v_entity_pipeline.act_total_sum's - influence, as a GROUP BY is (was a value).
+influence evt.activity.entity_id, evt.entity_event.entity_id -> mart.v_entity_pipeline.act_total_sum
+note act_total_sum = COALESCE(act_total_2, 0) + COALESCE(act_total_58, 0): one column per COALESCE, aggregated below.
+value evt.flag.flag_code -> mart.v_entity_pipeline.flag_3 identity
+value evt.flag.active_at -> mart.v_entity_pipeline.flag_at_59 identity
+# D-58: evt.flag.entity_id, evt.entity_event.entity_id -> mart.v_entity_pipeline.flag_3 is a lookup key (join_key, not scored; was a conditional value).
+# D-58: evt.flag.entity_id, evt.entity_event.entity_id -> mart.v_entity_pipeline.flag_at_59 is a lookup key (join_key, not scored; was a conditional value).
+influence evt.flag.active_at -> mart.v_entity_pipeline.flag_3, mart.v_entity_pipeline.flag_at_59, mart.v_entity_pipeline.state
+value evt.flag.flag_code, evt.entity_event.amount -> mart.v_entity_pipeline.state conditional
+# D-58: evt.flag.entity_id, evt.entity_event.entity_id -> mart.v_entity_pipeline.state is a lookup key (join_key, not scored; was a conditional value).
+note state = CASE WHEN flag_59 IS NOT NULL AND adj_57 > 0: two columns (D-19); flag_59 carries its lateral's values and ordering.
+value evt.entity_event.payload -> mart.v_entity_pipeline.tier derived
+filter evt.entity_event.created_at, evt.entity_event.entity_id, evt.entity_event.ingested_at, evt.entity_event.amount -> mart.v_entity_pipeline
+note The seed's WHERE and DISTINCT ON, every A stage's WHERE amount, every D stage's DISTINCT ON.
+forbid filter evt.activity.kind -> mart.v_entity_pipeline | a one-row LEFT LATERAL removes no row (D-14)
+forbid filter evt.flag.active_at -> mart.v_entity_pipeline | a one-row LEFT LATERAL's ordering picks a value (D-14, D-13)
+
+@ 525 S2 CREATE MATERIALIZED VIEW over the view (inlined)
+value evt.entity_event.status -> mart.mv_entity_status.status identity
+influence evt.entity_event.status -> mart.mv_entity_status.entities, mart.mv_entity_status.act_total, mart.mv_entity_status.avg_adj, mart.mv_entity_status.last_flag_at
+value evt.activity.amount, evt.activity.kind -> mart.mv_entity_status.act_total aggregated
+# D-58: evt.activity.entity_id, evt.entity_event.entity_id matched the aggregated lookup's rows to mart.mv_entity_status.act_total's - influence, as a GROUP BY is (was a value).
+influence evt.activity.entity_id, evt.entity_event.entity_id -> mart.mv_entity_status.act_total
+value evt.entity_event.amount -> mart.mv_entity_status.avg_adj aggregated
+value evt.flag.active_at -> mart.mv_entity_status.last_flag_at aggregated
+# D-58: evt.flag.entity_id, evt.entity_event.entity_id -> mart.mv_entity_status.last_flag_at is a lookup key (join_key, not scored; was an aggregated value).
+influence evt.flag.active_at -> mart.mv_entity_status.last_flag_at
+filter evt.entity_event.created_at, evt.entity_event.entity_id, evt.entity_event.ingested_at, evt.entity_event.amount, evt.entity_event.status -> mart.mv_entity_status
+note The view's filters reach every statement that reads it (D-31), plus WHERE status <> 'DELETED'.
+forbid value mart.v_entity_pipeline.act_total_sum -> mart.mv_entity_status.act_total aggregated | a view holds no data: it is inlined (D-31)
+
+@ 535 S3 INSERT reading the view and the materialized view
+value evt.entity_event.entity_id -> mart.entity_state.entity_id identity
+value evt.entity_event.status -> mart.entity_state.status identity
+value evt.entity_event.amount -> mart.entity_state.amount identity
+value evt.activity.amount, evt.activity.kind -> mart.entity_state.activity_total aggregated
+# D-58: evt.activity.entity_id, evt.entity_event.entity_id matched the aggregated lookup's rows to mart.entity_state.activity_total's - influence, as a GROUP BY is (was a value).
+influence evt.activity.entity_id, evt.entity_event.entity_id -> mart.entity_state.activity_total
+value evt.flag.active_flag -> mart.entity_state.flag_count aggregated
+# D-58: evt.flag.entity_id, evt.entity_event.entity_id matched the aggregated lookup's rows to mart.entity_state.flag_count's - influence, as a GROUP BY is (was a value).
+influence evt.flag.entity_id, evt.entity_event.entity_id -> mart.entity_state.flag_count
+value mart.mv_entity_status.last_flag_at -> mart.entity_state.last_seen identity
+filter evt.entity_event.created_at, evt.entity_event.entity_id, evt.entity_event.ingested_at, evt.entity_event.amount -> mart.entity_state
+note The join m.status = v.status is structural (D-5).
+forbid value evt.flag.active_at -> mart.entity_state.last_seen aggregated | a materialized view holds data: it is a node, not inlined (D-31)
+forbid filter evt.flag.active_flag -> mart.entity_state | the scalar subquery decides a value, not a row (D-12)
+
+@ 548 S4 REFRESH MATERIALIZED VIEW re-derives (D-32)
+repeat value evt.entity_event.status -> mart.mv_entity_status.status identity
+repeat influence evt.entity_event.status -> mart.mv_entity_status.entities, mart.mv_entity_status.act_total, mart.mv_entity_status.avg_adj, mart.mv_entity_status.last_flag_at
+repeat value evt.activity.amount, evt.activity.kind -> mart.mv_entity_status.act_total aggregated
+repeat influence evt.activity.entity_id, evt.entity_event.entity_id -> mart.mv_entity_status.act_total
+repeat value evt.entity_event.amount -> mart.mv_entity_status.avg_adj aggregated
+repeat value evt.flag.active_at -> mart.mv_entity_status.last_flag_at aggregated
+repeat influence evt.flag.active_at -> mart.mv_entity_status.last_flag_at
+repeat filter evt.entity_event.created_at, evt.entity_event.entity_id, evt.entity_event.ingested_at, evt.entity_event.amount, evt.entity_event.status -> mart.mv_entity_status

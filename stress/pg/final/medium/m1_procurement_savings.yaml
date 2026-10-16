@@ -1,0 +1,1573 @@
+# GENERATED from m1_procurement_savings.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for M1 (m1_procurement_savings.sql): the procurement savings chain.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# Row-deciding path: pod JOIN poll JOIN pol JOIN poh -> cte_dedup (d), and the chain
+# cte_amounts -> cte_savings_base -> cte_should_cost -> cte_savings (sv), joined back to d.
+# poh and pol are re-joined on the null side (bpa_hdr, contract_hdr, bpa_line): they are on
+# the main path, so their own WHERE / DISTINCT ON stay filters there and add nothing to what
+# those instances feed (D-45's exception). cte_starting_price reads cte_dedup and is LEFT
+# JOINed back: the same exception.
+#
+# LA = the sources of line_amt = CASE WHEN matching_basis = 'AMOUNT' THEN amount_ordered -
+# COALESCE(amount_cancelled, 0) ELSE (COALESCE(quantity_ordered,0) -
+# COALESCE(quantity_cancelled,0)) * COALESCE(price_override, 0) END
+# = po_line.matching_basis, po_distribution.amount_ordered, .amount_cancelled,
+# .quantity_ordered, .quantity_cancelled, po_line_location.price_override.
+# SC = the sources of should_cost (a CASE over everything below it) = LA + po_line.purchase_basis,
+# po_line_ext.attribute1 (both starting prices), po_line.unit_price, po_line.amount (the
+# line amount AND the BPA line amount: one node), po_line.quantity.
+package: pg/final/medium/m1_procurement_savings.sql
+dialect: postgres
+source_sha256: cbca347b4d93d8ac6b4fbb850c9de1ae30ed0d5a2e708d78402206e8825867f7
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: s2p.po_distribution.distribution_id
+  target:
+    kind: column
+    name: <result>.integration_id
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.segment1
+  target:
+    kind: column
+    name: <result>.po_number
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.line_number
+  target:
+    kind: column
+    name: <result>.line_number
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.vendor_id
+  target:
+    kind: column
+    name: <result>.supplier_id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.item_description
+  target:
+    kind: column
+    name: <result>.item_description
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header_ext.attribute_number1
+  target:
+    kind: column
+    name: <result>.x_cpa_discount
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.agent_id
+  target:
+    kind: column
+    name: <result>.buyer_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: 'Two columns in the COALESCE''s scope (d.agent_id, d.bpa_agent_id), one base node: conditional
+    (D-19).'
+- source:
+    kind: column
+    name: s2p.po_header.type_lookup_code
+  target:
+    kind: column
+    name: <result>.buyer_id
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: 'bpa_hdr''s ON ... AND type_lookup_code = ''BLANKET'' on a LEFT join''s null side: a value of
+    what that side feeds (D-48).'
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: <result>.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: <result>.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: <result>.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: <result>.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: <result>.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: <result>.line_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: <result>.po_dist_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: <result>.po_dist_qty
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: <result>.po_total_amt
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: <result>.share_of_po
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: <result>.po_total_amt
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: <result>.share_of_po
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: <result>.po_total_amt
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: <result>.share_of_po
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: <result>.po_total_amt
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: <result>.share_of_po
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: <result>.po_total_amt
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: <result>.share_of_po
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: <result>.po_total_amt
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: <result>.share_of_po
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.po_header_id
+  target:
+    kind: column
+    name: <result>.po_total_amt
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: SUM(line_amt) OVER (PARTITION BY po_header_id); lines_in_po is COUNT(*) OVER the same partition.
+- source:
+    kind: column
+    name: s2p.po_header.po_header_id
+  target:
+    kind: column
+    name: <result>.share_of_po
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: SUM(line_amt) OVER (PARTITION BY po_header_id); lines_in_po is COUNT(*) OVER the same partition.
+- source:
+    kind: column
+    name: s2p.po_header.po_header_id
+  target:
+    kind: column
+    name: <result>.lines_in_po
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: SUM(line_amt) OVER (PARTITION BY po_header_id); lines_in_po is COUNT(*) OVER the same partition.
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.purchase_basis
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.purchase_basis
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.purchase_basis
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.purchase_basis
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute1
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute1
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute1
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute1
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.unit_price
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.amount
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.quantity
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: <result>.should_cost
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: 'pole and bpa_line_ext are null-side ROW_NUMBER dedups of po_line_ext (ORDER BY the constant 1):
+    their partition influences every column built from attribute1 / attribute12 (D-45, as E1 measured).'
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: <result>.savings_amt
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: 'pole and bpa_line_ext are null-side ROW_NUMBER dedups of po_line_ext (ORDER BY the constant 1):
+    their partition influences every column built from attribute1 / attribute12 (D-45, as E1 measured).'
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: <result>.savings_pct
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: 'pole and bpa_line_ext are null-side ROW_NUMBER dedups of po_line_ext (ORDER BY the constant 1):
+    their partition influences every column built from attribute1 / attribute12 (D-45, as E1 measured).'
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: <result>.zerorized_savings
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: 'pole and bpa_line_ext are null-side ROW_NUMBER dedups of po_line_ext (ORDER BY the constant 1):
+    their partition influences every column built from attribute1 / attribute12 (D-45, as E1 measured).'
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute12
+  target:
+    kind: column
+    name: <result>.x_should_cost_avbl
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.attribute12
+  target:
+    kind: column
+    name: <result>.x_should_cost_level
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header_ext.attribute4
+  target:
+    kind: column
+    name: <result>.x_should_cost_avbl
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header_ext.attribute4
+  target:
+    kind: column
+    name: <result>.x_should_cost_level
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: <result>.x_should_cost_avbl
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: 'contract_attribute4 reaches through contract_hdr, a null-side instance of poh: poh''s DISTINCT
+    ON is on the main path, so it adds nothing here.'
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: column
+    name: <result>.x_should_cost_level
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: 'contract_attribute4 reaches through contract_hdr, a null-side instance of poh: poh''s DISTINCT
+    ON is on the main path, so it adds nothing here.'
+- source:
+    kind: column
+    name: s2p.po_line_location.inspection_required_flag
+  target:
+    kind: column
+    name: <result>.x_po_match
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.receipt_required_flag
+  target:
+    kind: column
+    name: <result>.x_po_match
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.line_status
+  target:
+    kind: column
+    name: <result>.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.line_status
+  target:
+    kind: column
+    name: <result>.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.promised_date
+  target:
+    kind: column
+    name: <result>.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.promised_date
+  target:
+    kind: column
+    name: <result>.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.need_by_date
+  target:
+    kind: column
+    name: <result>.overdue_days
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.need_by_date
+  target:
+    kind: column
+    name: <result>.overdue_bucket
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.req_header.requisition_number
+  target:
+    kind: column
+    name: <result>.purch_requisition_number
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.req_header.approved_date
+  target:
+    kind: column
+    name: <result>.req_approved_date
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.req_distribution.distribution_quantity
+  target:
+    kind: column
+    name: <result>.purch_requisition_number
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.req_distribution.distribution_quantity
+  target:
+    kind: column
+    name: <result>.req_approved_date
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.dim_status.status_name
+  target:
+    kind: column
+    name: <result>.po_status_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: gold.dim_status.datasource_num_id
+  target:
+    kind: column
+    name: <result>.po_status_name
+  flow: value
+  transform: conditional
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: ds's ON integration_id = 'PURCHASE_ORDER_STATUS~' || document_status is the key equality (structural);
+    the literal test is D-48.
+- source:
+    kind: column
+    name: gold.dim_supplier.supplier_name
+  target:
+    kind: column
+    name: <result>.supplier_name
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: load_ts (CURRENT_TIMESTAMP) reads nothing.
+- source:
+    kind: column
+    name: s2p.po_distribution.distribution_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_distribution.last_modification_date_time
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.line_location_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line_location.last_modification_date_time
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.line_status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.po_header_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.last_modification_date_time
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_header.document_status
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+- source:
+    kind: column
+    name: s2p.po_line.matching_basis
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: sv.line_amt <> 0 reads every operand of the CASE.
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_ordered
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: sv.line_amt <> 0 reads every operand of the CASE.
+- source:
+    kind: column
+    name: s2p.po_distribution.amount_cancelled
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: sv.line_amt <> 0 reads every operand of the CASE.
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_ordered
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: sv.line_amt <> 0 reads every operand of the CASE.
+- source:
+    kind: column
+    name: s2p.po_distribution.quantity_cancelled
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: sv.line_amt <> 0 reads every operand of the CASE.
+- source:
+    kind: column
+    name: s2p.po_line_location.price_override
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 21
+  evidence: source_read
+  note: sv.line_amt <> 0 reads every operand of the CASE.
+forbidden:
+- source:
+    kind: column
+    name: s2p.po_header.type_lookup_code
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: a one-relation condition on a LEFT join's null side removes no row (D-48)
+- source:
+    kind: column
+    name: s2p.po_line_ext.po_line_id
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: the ext dedups are on LEFT joins' null side (D-14, D-45)
+- source:
+    kind: column
+    name: s2p.po_header.last_modification_date_time
+  target:
+    kind: column
+    name: <result>.x_should_cost_avbl
+  flow: influence
+  reason: poh's DISTINCT ON stays a filter on the main path; its contract_hdr instance adds nothing (D-45
+    exception)
+- source:
+    kind: column
+    name: s2p.req_distribution.distribution_quantity
+  target:
+    kind: relation
+    name: <result>
+  flow: filter
+  reason: cte_requisition is reached only through a LEFT join (D-45)
+expected_boundaries: []

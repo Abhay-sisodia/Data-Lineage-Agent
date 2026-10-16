@@ -1,0 +1,48 @@
+# Answer key for E5 (e5_windows.sql): entity activity windows, one bare SELECT.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE (2026-10-07).
+# CLOSED WORLD: every <result> column and every filter is stated. Conventions D-1..D-53.
+#
+# a = evt.activity. w_entity = PARTITION BY entity_id; w_entity_ordered inherits it and adds
+# ORDER BY created_at, sequence_no. A window's partition and order are INFLUENCE (D-4), and
+# influence is carried into any column computed from a windowed one.
+
+@ 15 the whole statement
+
+# --- plain columns ---------------------------------------------------------------------------
+value evt.activity.activity_id -> <result>.activity_id identity
+value evt.activity.entity_id -> <result>.entity_id identity
+value evt.activity.kind -> <result>.kind identity
+value evt.activity.amount -> <result>.amount identity
+
+# --- running: windows over acts --------------------------------------------------------------
+value evt.activity.amount -> <result>.running_amount, <result>.amount_30d, <result>.moving_avg_3 aggregated
+value evt.activity.amount -> <result>.prev_amount, <result>.delta_amount derived
+note LAG is derived (D-3); delta_amount = amount - COALESCE(prev_amount, 0), one column per COALESCE (D-19).
+value evt.activity.created_at -> <result>.next_activity_ts derived
+value evt.activity.kind -> <result>.first_kind derived
+influence evt.activity.entity_id, evt.activity.created_at, evt.activity.sequence_no -> <result>.running_amount, <result>.moving_avg_3, <result>.prev_amount, <result>.delta_amount, <result>.next_activity_ts, <result>.activity_seq
+note next_activity_ts: created_at is both its value and part of its ordering (D-47).
+influence evt.activity.entity_id, evt.activity.created_at -> <result>.amount_30d, <result>.first_kind
+influence evt.activity.region_code -> <result>.region_events, <result>.region_amount_rank
+influence evt.activity.amount -> <result>.region_amount_rank
+forbid value evt.activity.amount -> <result>.region_amount_rank | DENSE_RANK's ORDER BY decides the rank; no part of amount is in it (D-4)
+
+# --- entity_totals / ranked_entities: windows over an aggregate ------------------------------
+value evt.activity.amount -> <result>.entity_total, <result>.share_in_region aggregated
+influence evt.activity.entity_id, evt.activity.region_code -> <result>.entity_total, <result>.share_in_region, <result>.entity_rank_in_region, <result>.activity_quartile
+note The GROUP BY decides each aggregate (D-2) and so each window ordered or partitioned by one (D-46): activity_quartile is NTILE ordered by COUNT(*), which has no column of its own.
+influence evt.activity.amount -> <result>.entity_rank_in_region
+note RANK() ORDER BY total_amount (D-4).
+
+# --- the final SELECT ------------------------------------------------------------------------
+value evt.entity_event.display_name -> <result>.display_name identity
+value evt.entity_event.status -> <result>.display_name conditional
+forbid filter evt.entity_event.status -> <result> | a LEFT join's one-relation ON condition removes no row (D-48)
+influence evt.activity.amount -> <result>.amount_pct_rank
+note PERCENT_RANK() OVER (ORDER BY r.amount) (D-4).
+
+# --- filters -------------------------------------------------------------------------------
+filter evt.activity.created_at, evt.activity.entity_id, evt.activity.sequence_no -> <result>
+note acts' WHERE created_at, and activity_seq <= 10 cuts ROW_NUMBER() OVER w_entity_ordered: its partition and order decide which rows survive (D-9). ORDER BY with no limit gives nothing.
+forbid filter evt.activity.region_code -> <result> | a window removes no rows (D-4)

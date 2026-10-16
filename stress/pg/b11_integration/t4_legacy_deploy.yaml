@@ -1,0 +1,318 @@
+# GENERATED from t4_legacy_deploy.keyspec by stress/pg/keygen.py - edit the keyspec, not this file.
+#
+# Answer key for B11 t4_legacy_deploy.sql - integration: a legacy psql deploy.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: every decision D-1..D-44. Quoted names keep their case (B9); the session
+# path binds unqualified names until RESET (D-23).
+# NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: \copy is refused by name, alone (D-37);
+# SET, RESET, PREPARE and the meta-commands give no edge.
+package: pg/b11_integration/t4_legacy_deploy.sql
+dialect: postgres
+source_sha256: 714bafc4a50408d7e9a6d8bcfb2db8764641988641ee0957ebe6f720690f3653
+labelled_by: claude (source_read; written before the analyser was run; synthetic schema)
+labelled_at: '2026-10-01'
+edges:
+- source:
+    kind: column
+    name: staging.LegacyFeed.CustomerID
+  target:
+    kind: column
+    name: mart.FeedSummary.CustomerID
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.Amount
+  target:
+    kind: column
+    name: mart.FeedSummary.Total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.Status Code
+  target:
+    kind: column
+    name: mart.FeedSummary.Status Code
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.CustomerID
+  target:
+    kind: column
+    name: mart.FeedSummary.Total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.Status Code
+  target:
+    kind: column
+    name: mart.FeedSummary.Total
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.created_at
+  target:
+    kind: relation
+    name: mart.FeedSummary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 22
+  evidence: source_read
+  note: :'run_day' is an external value (D-36). "LegacyFeed" binds to staging through the path.
+- source:
+    kind: column
+    name: staging.LegacyFeed.amount
+  target:
+    kind: column
+    name: mart.FeedSummary.total
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 32
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.order
+  target:
+    kind: column
+    name: mart.FeedSummary.order
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 40
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.LegacyFeed.user
+  target:
+    kind: relation
+    name: mart.FeedSummary
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 40
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.id
+  target:
+    kind: column
+    name: core.ledger.id
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.account
+  target:
+    kind: column
+    name: core.ledger.account
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.amount
+  target:
+    kind: column
+    name: core.ledger.balance
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.ledger.currency
+  target:
+    kind: relation
+    name: core.ledger
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+  note: '`ledger` binds to staging.ledger through the session path; core.ledger is the qualified target.'
+- source:
+    kind: column
+    name: staging.ledger.account
+  target:
+    kind: relation
+    name: core.ledger
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 59
+  evidence: source_read
+  note: '`ledger` binds to staging.ledger through the session path; core.ledger is the qualified target.'
+- source:
+    kind: column
+    name: core.dim_product.sku
+  target:
+    kind: column
+    name: core.dim_product.name
+  flow: value
+  transform: derived
+  band: 0
+  origin:
+    unit: <script>
+    line: 65
+  evidence: source_read
+- source:
+    kind: column
+    name: core.dim_product.status
+  target:
+    kind: relation
+    name: core.dim_product
+  flow: filter
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 65
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.channel
+  flow: value
+  transform: identity
+  band: 2
+  origin:
+    unit: <do>
+    line: 80
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.id
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: value
+  transform: aggregated
+  band: 2
+  origin:
+    unit: <do>
+    line: 80
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.channel_mix.orders
+  flow: influence
+  transform: identity
+  band: 2
+  origin:
+    unit: <do>
+    line: 80
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.returns.reason_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.returns.amount
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+- source:
+    kind: column
+    name: staging.returns.reason_code
+  target:
+    kind: column
+    name: mart.kpi_rollup.revenue
+  flow: influence
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 89
+  evidence: source_read
+forbidden:
+- source:
+    kind: column
+    name: core.ledger.account
+  target:
+    kind: column
+    name: core.ledger.account
+  flow: value
+  reason: the unqualified `ledger` is staging's under the path, not the target
+  transform: identity
+expected_boundaries:
+- kind: source_unavailable
+  subject: deploy/grants.sql
+  reason: \i runs another file, out of this analysis (D-37)

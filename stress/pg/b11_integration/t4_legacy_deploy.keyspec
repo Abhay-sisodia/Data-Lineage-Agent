@@ -1,0 +1,46 @@
+# Answer key for B11 t4_legacy_deploy.sql - integration: a legacy psql deploy.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: every decision D-1..D-44. Quoted names keep their case (B9); the session
+# path binds unqualified names until RESET (D-23).
+# NOT EXPRESSIBLE IN A KEY, CHECKED IN THE REPORT: \copy is refused by name, alone (D-37);
+# SET, RESET, PREPARE and the meta-commands give no edge.
+
+@ 22 S1 the legacy feed rolled up
+value staging.LegacyFeed.CustomerID -> mart.FeedSummary.CustomerID identity
+value staging.LegacyFeed.Amount -> mart.FeedSummary.Total aggregated
+value staging.LegacyFeed.Status Code -> mart.FeedSummary.Status Code identity
+influence staging.LegacyFeed.CustomerID, staging.LegacyFeed.Status Code -> mart.FeedSummary.Total
+filter staging.LegacyFeed.created_at -> mart.FeedSummary
+note :'run_day' is an external value (D-36). "LegacyFeed" binds to staging through the path.
+
+@ 32 S2 the lower-case amount
+value staging.LegacyFeed.amount -> mart.FeedSummary.total aggregated
+
+@ 40 S3 keyword-named columns
+value staging.LegacyFeed.order -> mart.FeedSummary.order identity
+filter staging.LegacyFeed.user -> mart.FeedSummary
+
+@ 59 S5 EXECUTE the ledger copy
+value staging.ledger.id -> core.ledger.id identity
+value staging.ledger.account -> core.ledger.account identity
+value staging.ledger.amount -> core.ledger.balance identity
+filter staging.ledger.currency, staging.ledger.account -> core.ledger
+note `ledger` binds to staging.ledger through the session path; core.ledger is the qualified target.
+forbid value core.ledger.account -> core.ledger.account identity | the unqualified `ledger` is staging's under the path, not the target
+
+@ 65 S6 a dollar-quoted literal in an UPDATE
+value core.dim_product.sku -> core.dim_product.name derived
+filter core.dim_product.status -> core.dim_product
+
+@ 80 S7 the folded dynamic statement
+origin <do> 2
+value staging.orders.channel -> mart.channel_mix.channel identity
+value staging.orders.id -> mart.channel_mix.orders aggregated
+influence staging.orders.channel -> mart.channel_mix.orders
+expect source_unavailable deploy/grants.sql | \i runs another file, out of this analysis (D-37)
+
+@ 89 S8 after the \copy
+value staging.returns.reason_code -> mart.kpi_rollup.level identity
+value staging.returns.amount -> mart.kpi_rollup.revenue aggregated
+influence staging.returns.reason_code -> mart.kpi_rollup.revenue

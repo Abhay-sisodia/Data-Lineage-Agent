@@ -1,0 +1,68 @@
+# Answer key for B3 t2_depth.sql - DML writes fed by deep sources.
+#
+# WRITTEN FROM SOURCE BEFORE THE ANALYSER WAS RUN OVER THIS FILE.
+# Conventions: B1/B2 plus D-15..D-18 (not implemented).
+
+@ 18 S1 WITH ... UPDATE ... FROM a four-CTE chain
+value core.fct_order_line.net_amount -> mart.customer_summary.lifetime_value aggregated
+influence core.fct_order_line.customer_key -> mart.customer_summary.lifetime_value, mart.customer_summary.value_decile
+influence core.fct_order_line.net_amount -> mart.customer_summary.value_decile
+note value_decile is NTILE over SUM(net_amount): no value source; its ordering and b's grouping reach it.
+filter core.fct_order_line.order_date, core.fct_order_line.status -> mart.customer_summary
+filter core.fct_order_line.net_amount -> mart.customer_summary post
+note D-9: `c.decile >= 5` filters a window ordered by the SUM - post-aggregation.
+forbid filter core.fct_order_line.customer_key -> mart.customer_summary | joins d to the target in UPDATE ... FROM (D-11)
+
+@ 48 S2 upsert from a UNION ALL over CTEs
+value staging.orders.customer_id -> mart.customer_summary.customer_id identity
+value staging.orders.amount -> mart.customer_summary.lifetime_value aggregated
+influence staging.orders.customer_id -> mart.customer_summary.lifetime_value, mart.customer_summary.lifetime_orders
+filter staging.orders.channel -> mart.customer_summary
+forbid filter staging.orders.customer_id -> mart.customer_summary | the conflict target is structural (D-15)
+
+@ 71 S3 MERGE with a five-level USING
+value core.fct_order_line.product_key -> mart.product_performance.product_id identity
+value core.fct_order_line.order_date -> mart.product_performance.period_month derived
+value core.fct_order_line.net_amount -> mart.product_performance.revenue aggregated
+value core.fct_order_line.quantity -> mart.product_performance.units aggregated
+influence core.fct_order_line.product_key, core.fct_order_line.order_date -> mart.product_performance.revenue, mart.product_performance.units
+filter core.fct_order_line.status -> mart.product_performance
+filter core.fct_order_line.quantity -> mart.product_performance post
+forbid filter core.fct_order_line.product_key -> mart.product_performance | the MERGE ON is structural (D-5)
+
+@ 105 S4 three writes chained through RETURNING (D-16, D-17)
+value core.fct_payment.order_id -> mart.channel_mix.orders identity
+value core.fct_payment.amount -> mart.channel_mix.revenue identity
+filter core.fct_shipment.delivered_date, core.fct_shipment.shipped_date -> core.fct_shipment
+filter core.fct_shipment.delivered_date, core.fct_shipment.shipped_date -> core.fct_payment
+filter core.fct_shipment.delivered_date, core.fct_shipment.shipped_date -> mart.channel_mix
+note D-17: upd's predicate decides which order_ids reach del's IN, so which payments are deleted and archived.
+filter core.fct_payment.order_id, core.fct_shipment.order_id, core.fct_payment.status -> core.fct_payment
+filter core.fct_payment.order_id, core.fct_shipment.order_id, core.fct_payment.status -> mart.channel_mix
+note fct_shipment.order_id is u.order_id, returned by upd and compared in del's IN.
+
+@ 126 S5 INSERT ... RETURNING counted by the next INSERT
+value staging.customers.id -> mart.top_customers.customer_id identity
+value staging.customers.full_name -> mart.top_customers.full_name identity
+value mart.top_customers.customer_id -> mart.kpi_rollup.customers aggregated
+note D-16: the returned column is the written table's column; COUNT of it.
+filter staging.customers.segment -> mart.top_customers
+filter staging.customers.segment -> mart.kpi_rollup
+
+@ 143 S6 WITH ... DELETE driven by HAVING and a correlated comparison
+filter core.dim_product.product_id, staging.inventory_snapshots.product_id, core.dim_product.list_price, core.dim_product.category_id -> core.dim_product
+filter staging.inventory_snapshots.snapshot_date, core.dim_product.list_price -> core.dim_product post
+
+@ 161 S7 UPDATE ... FROM an aggregating derived table
+value core.fct_order_line.order_date -> core.dim_store.opened_on aggregated
+influence core.fct_order_line.store_id -> core.dim_store.opened_on
+forbid filter core.fct_order_line.store_id -> core.dim_store | `x.store_id = s.id` joins the derived table to the target (D-11)
+
+@ 176 S8 WITH ... MERGE ... RETURNING (D-16)
+value core.dim_warehouse.name -> core.dim_store.name identity
+filter core.dim_warehouse.status -> core.dim_store
+value core.dim_store.id -> <result>.store_id identity
+value core.dim_store.name -> <result>.store_name identity
+filter core.dim_warehouse.status -> <result>
+note merge_action() reports which arm ran: no source. USING's filter decides which rows are merged and returned.
+forbid filter core.dim_warehouse.id -> core.dim_store | the MERGE ON is structural (D-5)
