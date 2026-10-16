@@ -30,7 +30,7 @@ The parsers (pglast / libpg_query, our PL/pgSQL reader, SQLGlot) do not change.
 
 | # | Task | Fixes | Status |
 |---|---|---|---|
-| T0 | Lineage contract: `\gset` variables, row-deciding join keys, R2, D-42 USING (`BIND_USING`) | H4, ~4.6 pts | `\gset` = BIND, traced and labelled (decided 2026-10-16); rest pending |
+| T0 | Lineage contract: `\gset` variables, row-deciding join keys, R2, D-42 USING (`BIND_USING`) | H4, ~4.6 pts | decided 2026-10-16: `\gset` = BIND; `\set` substituted as psql does (D-36 amended). Pending: join keys, R2, USING |
 | T1 | Gate script: all holdouts vs the baseline, thresholds, one verdict | go / no-go | done |
 | T2 | `analysis/routine_ir.py`: the primitives and ONE lowering table from the reader's tree | the base | table + output shapes done; dispatch moves over with T3/T4 |
 | T2b | Variables scoped per routine (5 of holdout4's 39 variable nodes are shared by unrelated routines) | precision | |
@@ -39,7 +39,7 @@ The parsers (pglast / libpg_query, our PL/pgSQL reader, SQLGlot) do not change.
 | T5 | DYN: one fold for every position, `format()` positional args, `$q$` texts, named call arguments | H7 | done: holdout4 77.2% -> 84.6% (keys 79.8% -> 87.5%), holdout1/3 unchanged |
 | T6 | BEGIN ATOMIC read as one statement, body as a LANGUAGE sql body | H2 | |
 | T7 | OPAQUE: a statement not followed gives labelled conservative edges, not zero | cascade | |
-| T8 | psql (static): COPY FROM STDIN data skipped, `FETCH :n`, `MOVE`, `\gset` per T0 | H1, H3, H4 | |
+| T8 | psql (static): COPY FROM STDIN data skipped, `FETCH :n`, `MOVE`, `\gset` per T0 | H1, H3, H4 | done: holdout4 keys 92.5%, column-level 98.2% (passes); H1 rest = join keys (T0) |
 | T9 | Scan and ledger agree on every new form (holdout4's 8 mismatches) | scan gate | |
 | T10 | Retire the form-specific branches T2-T7 replaced; full suite green | cleanup | |
 | T11 | Oracle on PG17 (auto_explain, pg_depend), checklist v2 matrix | find gaps early | after go |

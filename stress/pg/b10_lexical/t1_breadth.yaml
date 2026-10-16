@@ -485,6 +485,34 @@ edges:
   evidence: source_read
 - source:
     kind: column
+    name: staging.orders.amount
+  target:
+    kind: column
+    name: pg_temp.psql_gset_l203_a00576.top_amount
+  flow: value
+  transform: aggregated
+  band: 0
+  origin:
+    unit: <script>
+    line: 203
+  evidence: source_read
+  note: 'semantic-ir T0 (2026-10-16): \gset is a BIND - its row goes into psql variables, here a relation
+    named for the line and query; until 2026-10-16 (D-37) it gave nothing.'
+- source:
+    kind: column
+    name: pg_temp.psql_gset_l203_a00576.top_amount
+  target:
+    kind: column
+    name: <result>.echoed
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 205
+  evidence: source_read
+- source:
+    kind: column
     name: staging.customers.id
   target:
     kind: column

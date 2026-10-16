@@ -389,7 +389,8 @@ INERT_KINDS = frozenset(
         "CreateSubscriptionStmt", "CreateTableSpaceStmt", "CreateTransformStmt",
         "CreateUserMappingStmt", "CreatedbStmt", "DiscardStmt", "DropOwnedStmt",
         "DropRoleStmt", "DropSubscriptionStmt", "DropTableSpaceStmt", "DropUserMappingStmt",
-        "DropdbStmt", "GrantRoleStmt", "GrantStmt", "ImportForeignSchemaStmt", "ListenStmt",
+        "DropdbStmt", "FetchStmt", "GrantRoleStmt", "GrantStmt", "ImportForeignSchemaStmt",
+        "ListenStmt",
         "LoadStmt", "LockStmt", "NotifyStmt", "ReassignOwnedStmt", "ReindexStmt",
         "ReplicaIdentityStmt", "SecLabelStmt", "TransactionStmt", "UnlistenStmt",
         "VacuumStmt", "VariableShowStmt",
@@ -401,7 +402,9 @@ them, as PostgreSQL's parser already said what they are; six of them (CLUSTER, N
 SECURITY LABEL, REASSIGN OWNED, IMPORT FOREIGN SCHEMA, CREATE TRANSFORM) were refused
 PARSE_FAILED only because SQLGlot has no rule for them. The ledger lists each as
 `no_lineage`, with its kind. D-67: so are BEGIN / COMMIT / SAVEPOINT / RELEASE / ROLLBACK -
-`RELEASE SAVEPOINT x` was refused PARSE_FAILED (holdout3)."""
+`RELEASE SAVEPOINT x` was refused PARSE_FAILED (holdout3). semantic-ir T8: so are a
+top-level FETCH / MOVE - rows of a cursor to the client, or none (`MOVE FORWARD 2 IN c` was
+refused PARSE_FAILED, holdout4 H3)."""
 
 
 def set_aside_inert(source: str, found: list[Verdict]) -> str:

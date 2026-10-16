@@ -90,7 +90,12 @@ expect source_unavailable deploy/extra_views.sql | \i includes another file's li
 forbid value staging.orders.status -> mart.kpi_rollup.level identity | the INSERT is text inside an \echo
 
 @ 203 S23 a query sent with \gset
+value staging.orders.amount -> pg_temp.psql_gset_l203_a00576.top_amount aggregated
+note semantic-ir T0 (2026-10-16): \gset is a BIND - its row goes into psql variables, here a relation named for the line and query; until 2026-10-16 (D-37) it gave nothing.
 forbid value staging.orders.amount -> <result>.top_amount aggregated | \gset writes psql variables, not <result> (D-37)
+
+@ 205 S23b the \gset variable read back
+value pg_temp.psql_gset_l203_a00576.top_amount -> <result>.echoed identity
 
 @ 211 S24 two statements on one line
 value staging.customers.id -> mart.kpi_rollup.customers identity
