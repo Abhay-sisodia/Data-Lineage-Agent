@@ -57,6 +57,7 @@ class Loop:
     cursor: str = ""
     body: list[Node] = field(default_factory=list)
     reason: str = ""  # opaque: why the header could not be followed (its body still is)
+    using: str = ""  # execute: the USING expressions its `$n` are bound to
 
 
 @dataclass
@@ -446,14 +447,14 @@ def _loop_header(word: str, header: str, header_start: int) -> Loop:
             query_start=offset,
         )
     if first_word == "execute":
-        text = lead[len("execute") :]
-        using = find_word(text, "using")
+        query, using = _execute_parts(lead[len("execute") :])
         return Loop(
             start=header_start,
             kind="execute",
             variable=variable,
-            query=(text[:using] if using >= 0 else text).strip(),
+            query=query,
             query_start=offset,
+            using=using,
         )
     if _top_level(lead, "..") >= 0:
         return Loop(start=header_start, kind="range", variable=variable)
@@ -462,6 +463,14 @@ def _loop_header(word: str, header: str, header_start: int) -> Loop:
             start=header_start, kind="cursor", variable=variable, cursor=lead.split("(")[0].strip()
         )
     raise UnsupportedError(f"FOR ... IN {lead[:20]!r}")
+
+
+def _execute_parts(text: str) -> tuple[str, str]:
+    """`<text expression> [USING a, b]` -> (expression, USING list), split at the top level."""
+    found = find_word(text, "using")
+    if found < 0:
+        return text.strip().rstrip(";").strip(), ""
+    return text[:found].strip(), text[found + len("using") :].strip().rstrip(";").strip()
 
 
 def classify(text: str, start: int) -> Stmt:
@@ -507,10 +516,14 @@ def classify(text: str, start: int) -> Stmt:
         if found >= 0:
             query = stripped[found + 3 :].strip()
             opener = _WORD.match(query)
-            if opener is not None and opener.group(0).lower() == "execute":
-                raise UnsupportedError("OPEN ... FOR EXECUTE")
             head = stripped[len("open") : found].split()
             cursor = head[0] if head else ""
+            if opener is not None and opener.group(0).lower() == "execute":
+                # Dynamic text the cursor runs (semantic-ir T5): DYN, then BIND at FETCH.
+                body, using = _execute_parts(query[len("execute") :])
+                return Stmt(
+                    "open_execute", stripped, start, cursor=cursor, expression=body, using=using
+                )
             return Stmt("open", stripped, start, cursor=cursor, expression=query)
         return Stmt("noop", stripped, start)
     if word == "execute":
@@ -541,7 +554,9 @@ def classify(text: str, start: int) -> Stmt:
         if second == "query":
             query = rest[len("query") :].strip()
             if _WORD.match(query) and _WORD.match(query).group(0).lower() == "execute":
-                raise UnsupportedError("RETURN QUERY EXECUTE")
+                # The rows of dynamic text (semantic-ir T5, holdout4 H7): DYN, then EMIT.
+                body, using = _execute_parts(query[len("execute") :])
+                return Stmt("return_query_execute", stripped, start, expression=body, using=using)
             return Stmt("return_query", stripped, start, expression=query)
         if second == "next":
             return Stmt("return_next", stripped, start, expression=rest[4:].strip())
@@ -611,6 +626,8 @@ class Routine:
     body_end: int
     out_params: list[str] = field(default_factory=list)
     """OUT / INOUT parameters: variables the body sets; with one, it is the value returned."""
+    setof: str = ""
+    """RETURNS SETOF <t>: the row type's name as written (folded), `record` included."""
 
 
 def _matching(text: str, opening: int) -> int:
@@ -712,6 +729,7 @@ def read_routine(source: str, start: int, end: int) -> Routine | None:
     returns_match = re.search(r"(?i)\bRETURNS\s+(SETOF\s+|TABLE\s*\()?\s*([\w.\"]*)", options)
     out_columns: list[str] = []
     returns = ""
+    setof = ""
     if returns_match:
         head = (returns_match.group(1) or "").strip().lower()
         if head.startswith("table"):
@@ -724,9 +742,15 @@ def read_routine(source: str, start: int, end: int) -> Routine | None:
             ]
         elif head.startswith("setof"):
             returns = "setof"
+            setof = fold_name(returns_match.group(2))
         else:
             kind = returns_match.group(2).lower()
-            returns = kind if kind in ("trigger", "void") else "scalar"
+            if kind in ("trigger", "void"):
+                returns = kind
+            elif kind == "record" and len(out_params) > 1:
+                returns = "record"  # one row whose columns are the OUT parameters
+            else:
+                returns = "scalar"
     elif out_params:
         returns = "scalar" if len(out_params) == 1 else "record"
     return Routine(
@@ -740,6 +764,7 @@ def read_routine(source: str, start: int, end: int) -> Routine | None:
         body_start=body_start,
         body_end=body_end,
         out_params=out_params,
+        setof=setof,
     )
 
 

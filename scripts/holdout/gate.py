@@ -1,4 +1,6 @@
-"""The semantic-ir gate: every holdout's run against the baseline, one verdict (docs/semantic-ir-plan.md).
+"""The semantic-ir gate: every holdout's run against the baseline, one verdict.
+
+The thresholds are those of docs/semantic-ir-plan.md.
 
 Reads what `run.sh` wrote for each holdout - check.txt, score.txt, score--keys.txt - in a run
 folder and in the baseline folder, and checks the plan's thresholds:
@@ -7,7 +9,7 @@ folder and in the baseline folder, and checks the plan's thresholds:
 * holdout4 recall with keys reaches its floor;
 * column-level >= 98%, scan vs ledger 0 mismatches, 0 silent, for every holdout.
 
-    python scripts/holdout/gate.py [--runs .holdout-runs] [--baseline .holdout-runs/baseline-ccaa793]
+    python scripts/holdout/gate.py [--runs DIR] [--baseline .holdout-runs/baseline-ccaa793]
 
 Exit status 0 when every check passes, 1 otherwise.
 """

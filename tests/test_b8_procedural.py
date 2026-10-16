@@ -103,13 +103,15 @@ def test_call_is_counted() -> None:
 
 def test_a_statement_the_reader_does_not_know_is_refused_alone() -> None:
     """The control, since D-61 (plan step 5): a statement the reader cannot follow - a
-    cursor opened on dynamic SQL - is refused at its own line; the INSERT beside it in
-    the same routine is still read. Until then it refused the whole routine."""
+    FETCH from a cursor this routine never opens, so its query is not here - is refused at
+    its own line; the INSERT beside it in the same routine is still read. Until then it
+    refused the whole routine. (A cursor opened on constant dynamic SQL was the example
+    until semantic-ir T5 made that readable.)"""
     result = _result(
         _routine(
-            "DECLARE\n    c refcursor;\nBEGIN\n"
+            "DECLARE\n    c refcursor; v integer;\nBEGIN\n"
             "    INSERT INTO mart.kpi_rollup (level) SELECT o.channel FROM staging.orders AS o;\n"
-            "    OPEN c FOR EXECUTE 'SELECT 1';\nEND;"
+            "    FETCH c INTO v;\nEND;"
         )
     )
     assert ("column:staging.orders.channel", "column:mart.kpi_rollup.level") in {

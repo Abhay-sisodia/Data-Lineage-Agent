@@ -40,6 +40,7 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
+from lineage.analysis import routine_ir
 from lineage.analysis.interproc import ReturnSource, Summary, _combine
 from lineage.analysis.transforms import transform_of_path
 from lineage.harness.scoring import PredictedEdge
@@ -61,6 +62,11 @@ from lineage.resolution.dictionary import Dictionary
 
 PHANTOM = "__pl"
 DIALECT = "postgres"
+
+BIND_USING = False
+"""D-42 holds: a dynamic statement's USING values are external, `$n` reads no column. True
+would bind `$n` to the USING expressions (a variable or record field passed there is then
+traced). A lineage-contract decision pending with semantic-ir T0 - flip it with the keys."""
 
 _NAME = r"[A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?"
 _INTO_TARGETS = re.compile(
@@ -303,23 +309,23 @@ class _Desugarer:
             if function is None or function.routine.returns not in ("void", ""):
                 continue
             params = function.routine.params
-            arguments = list(call.expressions)[: len(params)]
+            bound = _call_arguments(call, params)
+            names = [name for name in params if name in bound]
             select = call.find_ancestor(exp.Select)
-            if not arguments or select is None:
+            if not names or select is None:
                 continue
             query = select.copy()
             query.set(
                 "expressions",
-                [exp.alias_(argument.copy(), f"__c{i}") for i, argument in enumerate(arguments)],
+                [exp.alias_(bound[name].copy(), f"__c{i}") for i, name in enumerate(names)],
             )
             for clause in ("order", "limit", "offset", "group", "having"):
                 query.set(clause, None)
             context = _Context(unit=function.routine.name, variables=set(params), band=1)
             try:
                 emitted = self._phantom(
-                    query.sql(dialect=DIALECT), start, context, "into",
-                    tuple(params[: len(arguments)]),
-                )  # fmt: skip
+                    query.sql(dialect=DIALECT), start, context, "into", tuple(names)
+                )
             except pl.UnsupportedError:
                 continue
             emitted.binding = True
@@ -498,7 +504,7 @@ class _Desugarer:
             context.variables.add(name)
             if declaration.cursor_query:
                 context.cursors[name] = declaration.cursor_query
-            constant = _literal(declaration.default)
+            constant = routine_ir.fold(declaration.default, context.constants)
             if constant is not None:
                 context.constants[name] = constant
             elif declaration.default and not declaration.cursor_query:
@@ -580,24 +586,13 @@ class _Desugarer:
         number = self.loops
         inner = context.inside_loop(number)
         if loop.kind == "execute":
-            folded = _fold(loop.query, context.constants)
-            line = self._line(loop.start)
+            folded = self._dynamic(loop.query, loop.using, loop.start, context, "loops over")
             if folded is None:
-                self.result.boundaries.append(
-                    Boundary(
-                        kind=BoundaryKind.DYNAMIC_SQL,
-                        subject=f"EXECUTE:{line}",
-                        detail=f"{context.unit}: line {line} loops over text that does not "
-                        "fold to a constant, so its rows are not decidable (D-42)",
-                        unit=context.unit,
-                        line=line,
-                    )
-                )
                 inner.variables.add(loop.variable.lower())
             else:
                 record = loop.variable.lower()
                 phantom = self._phantom(
-                    re.sub(r"\$\d+", "NULL", folded),
+                    folded,
                     loop.query_start or loop.start,
                     inner.dynamic(),
                     "loop",
@@ -650,6 +645,9 @@ class _Desugarer:
         kind = stmt.kind
         if kind == "noop":
             return
+        if routine_ir.Prim.OPAQUE in routine_ir.lower(stmt):
+            # A form the lowering table does not map: refused alone (plan step 5), by name.
+            raise pl.UnsupportedError(f"a PL/pgSQL form no primitive covers yet ({kind})")
         if kind == "sql":
             self._sql(stmt.text, stmt.start, context)
         elif kind == "select_into":
@@ -672,8 +670,17 @@ class _Desugarer:
         elif kind == "open":
             # `OPEN c FOR <query>`: from here on, FETCH c reads that query.
             context.cursors[stmt.cursor.lower()] = stmt.expression
+        elif kind == "open_execute":
+            folded = self._dynamic(stmt.expression, stmt.using, stmt.start, context, "opens")
+            if folded is not None:
+                context.cursors[stmt.cursor.lower()] = folded
         elif kind == "return_query":
             function.queries.append(stmt.expression)
+        elif kind == "return_query_execute":
+            # holdout4 H7: the rows of constant dynamic text are the rows of that query.
+            folded = self._dynamic(stmt.expression, stmt.using, stmt.start, context, "returns")
+            if folded is not None:
+                function.queries.append(folded)
         elif kind == "return_next":
             function.procedural_rows = True
         elif kind == "return" and stmt.expression and function.routine.returns == "scalar":
@@ -779,7 +786,9 @@ class _Desugarer:
             )  # fmt: skip
             context.records[record] = [*context.records.get(record, []), phantom.phantom]
             return
-        constant = _literal(expression)
+        # A text that folds to a constant (a literal, `format()` of constants ...) is kept, so
+        # a later EXECUTE of it is read (holdout4 H7: `v_sql := format(...)`).
+        constant = routine_ir.fold(expression, context.constants)
         if constant is not None:
             context.constants[target] = constant
         else:
@@ -804,23 +813,34 @@ class _Desugarer:
             )
         )
 
-    def _execute(self, stmt: pl.Stmt, context: _Context) -> None:
-        folded = _fold(stmt.expression, context.constants)
-        line = self._line(stmt.start)
+    def _dynamic(
+        self, expression: str, using: str, start: int, context: _Context, verb: str = "executes"
+    ) -> str | None:
+        """DYN, in every position (semantic-ir T5): the SQL the text runs, or a boundary.
+
+        `$n` is NULL - a USING value is an external value (D-42) - unless `BIND_USING`, which
+        binds it to the n-th USING expression so a variable passed there stays traced.
+        """
+        bound = using if BIND_USING else ""
+        folded = routine_ir.dynamic_text(expression, context.constants, bound)
         if folded is None:
+            line = self._line(start)
             self.result.boundaries.append(
                 Boundary(
                     kind=BoundaryKind.DYNAMIC_SQL,
                     subject=f"EXECUTE:{line}",
-                    detail=f"{context.unit}: line {line} executes text that does not fold "
+                    detail=f"{context.unit}: line {line} {verb} text that does not fold "
                     "to a constant, so its lineage is not decidable (D-42)",
                     unit=context.unit,
                     line=line,
                 )
             )
+        return folded
+
+    def _execute(self, stmt: pl.Stmt, context: _Context) -> None:
+        folded = self._dynamic(stmt.expression, stmt.using, stmt.start, context)
+        if folded is None:
             return
-        # USING values are external values (D-42): `$n` reads no column.
-        folded = re.sub(r"\$\d+", "NULL", folded)
         dynamic = context.dynamic()
         if stmt.targets:
             targets = tuple(t.lower() for t in stmt.targets)
@@ -927,22 +947,15 @@ class _Desugarer:
                     )
                 )
                 continue
-            arguments = list(call.expressions)
+            bound = _call_arguments(call, function.routine.params)
             parts = []
             for text in function.queries:
                 query = _parse(text)
                 if not isinstance(query, exp.Query):
                     break
                 for column in list(query.find_all(exp.Column)):
-                    if column.table:
-                        continue
-                    position = (
-                        function.routine.params.index(column.name.lower())
-                        if column.name.lower() in function.routine.params
-                        else -1
-                    )
-                    if 0 <= position < len(arguments):
-                        column.replace(arguments[position].copy())
+                    if not column.table and column.name.lower() in bound:
+                        column.replace(bound[column.name.lower()].copy())
                 parts.append(query)
             else:
                 union = parts[0]
@@ -950,12 +963,17 @@ class _Desugarer:
                     union = exp.union(union, part, distinct=False)
                 alias = node.args.get("alias")
                 alias_name = alias.this if alias is not None else exp.to_identifier(call.name)
-                columns = (
-                    list(alias.columns)
+                # The output names go on the projections themselves: band 0 does not read an
+                # alias column list over a LATERAL subquery ("no matching projection",
+                # holdout4 H9). The call's own list wins over the routine's signature.
+                names = (
+                    [column.name.lower() for column in alias.columns]
                     if alias is not None and alias.columns
-                    else [exp.to_identifier(c) for c in function.routine.out_columns]
+                    else routine_ir.output_columns(function.routine, self.dictionary)
                 )
-                named = exp.TableAlias(this=alias_name, columns=columns)
+                for part in parts:
+                    _name_projections(part, names)
+                named = exp.TableAlias(this=alias_name)
                 if isinstance(node, exp.Lateral):
                     node.set("this", exp.Subquery(this=union))
                     node.set("alias", named)
@@ -1182,6 +1200,48 @@ def _a_returned_argument(column: Any, functions: dict[str, _Function]) -> bool:
     return False
 
 
+def _name_projections(query: Any, names: list[str]) -> None:
+    """Alias each top-level projection of `query` (every branch of a set operation) to
+    `names`, by position - what a routine's rows are called where it is read."""
+    if not names:
+        return
+    selects = (
+        [query]
+        if isinstance(query, exp.Select)
+        else [s for s in query.find_all(exp.Select) if s.parent_select is None]
+    )
+    for select in selects:
+        if any(isinstance(e, exp.Star) or isinstance(e.this, exp.Star) for e in select.expressions):
+            continue  # `*` is not positional text; band 0 expands it itself
+        select.set(
+            "expressions",
+            [
+                exp.alias_(e.this if isinstance(e, exp.Alias) else e, names[i])
+                if i < len(names)
+                else e
+                for i, e in enumerate(select.expressions)
+            ],
+        )
+
+
+def _call_arguments(call: Any, params: list[str]) -> dict[str, Any]:
+    """Parameter name -> the argument expression a call binds to it.
+
+    Positional arguments first, then named ones (`p => expr`, holdout4 H7's call), as
+    PostgreSQL binds them. A `VARIADIC ARRAY(...)` argument binds to its parameter like any
+    other; a variadic LIST of several arguments binds only its first (an under-approximation).
+    """
+    bound: dict[str, Any] = {}
+    position = 0
+    for argument in call.expressions:
+        if isinstance(argument, exp.Kwarg):
+            bound[argument.this.name.lower()] = argument.expression
+        elif position < len(params):
+            bound[params[position]] = argument
+            position += 1
+    return bound
+
+
 def _qualified(table: exp.Table) -> str:
     parts = [p for p in (table.catalog, table.db, table.name) if p]
     return ".".join(p.lower() for p in parts)
@@ -1273,76 +1333,6 @@ def _relations_beside(column: exp.Column, parsed: Any) -> tuple[str, ...]:
     if near:
         return tuple(dict.fromkeys(aliases[c.table.lower()] for c in near))
     return tuple(dict.fromkeys(aliases.values()))
-
-
-def _literal(text: str) -> str | None:
-    parsed = _parse(f"SELECT {text}") if text else None
-    if parsed is None or not parsed.selects:
-        return None
-    value = parsed.selects[0]
-    return value.this if isinstance(value, exp.Literal) and value.is_string else None
-
-
-def _fold(text: str, constants: dict[str, str]) -> str | None:
-    """The text an EXECUTE runs, if it is a constant (D-42); otherwise None."""
-    parsed = _parse(f"SELECT {text}")
-    if parsed is None or not parsed.selects:
-        return None
-
-    def value(node: Any) -> str | None:
-        if isinstance(node, exp.Literal) and node.is_string:
-            return str(node.this)
-        if isinstance(node, exp.Paren):
-            return value(node.this)
-        if isinstance(node, exp.Column) and not node.table:
-            return constants.get(node.name.lower())
-        if isinstance(node, exp.DPipe):
-            left, right = value(node.this), value(node.expression)
-            return None if left is None or right is None else left + right
-        if isinstance(node, exp.Format) or (
-            isinstance(node, exp.Anonymous) and node.name.lower() == "format"
-        ):
-            pieces = (
-                [node.this, *node.expressions]
-                if isinstance(node, exp.Format)
-                else list(node.expressions)
-            )
-            values = [value(piece) for piece in pieces]
-            if any(v is None for v in values):
-                return None
-            return _format(values[0], values[1:])
-        return None
-
-    return value(parsed.selects[0])
-
-
-def _format(template: str, arguments: list[str | None]) -> str | None:
-    out, index, position = [], 0, 0
-    while position < len(template):
-        char = template[position]
-        if char == "%" and position + 1 < len(template):
-            spec = template[position + 1]
-            position += 2
-            if spec == "%":
-                out.append("%")
-                continue
-            if index >= len(arguments) or arguments[index] is None:
-                return None
-            argument = str(arguments[index])
-            index += 1
-            if spec == "I":
-                plain = re.fullmatch(r"[a-z_][a-z0-9_$]*", argument)
-                out.append(argument if plain else '"' + argument.replace('"', '""') + '"')
-            elif spec == "L":
-                out.append("'" + argument.replace("'", "''") + "'")
-            elif spec == "s":
-                out.append(argument)
-            else:
-                return None
-            continue
-        out.append(char)
-        position += 1
-    return "".join(out)
 
 
 def _bind_trigger(uses: list[Use], table: str) -> list[Use]:
