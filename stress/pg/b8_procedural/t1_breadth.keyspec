@@ -23,23 +23,23 @@ value staging.orders.amount -> mart.kpi_rollup.revenue aggregated
 influence core.dim_store.region -> mart.kpi_rollup.revenue
 filter core.dim_store.region -> mart.kpi_rollup
 origin mart.pr_region 1
-filter var:p_region -> mart.kpi_rollup
+filter var:mart.pr_region.p_region -> mart.kpi_rollup
 note A parameter on the path is band 1 (Oracle: stress_merge_upsert's P_REGION).
 
 @ 62 S5 SELECT ... INTO a variable
 origin mart.fn_pay_total 1
-value staging.payments.amount -> var:v_total aggregated
+value staging.payments.amount -> var:mart.fn_pay_total.v_total aggregated
 filter staging.payments.status -> staging.payments
 note The statement writes a variable, so its filter targets the relation read (rule 2).
 
 @ 66 S6 an assignment
 origin mart.fn_pay_total 1
-value var:v_total -> var:v_rate derived
+value var:mart.fn_pay_total.v_total -> var:mart.fn_pay_total.v_rate derived
 
 @ 68 S7 the variables as values
 origin mart.fn_pay_total 1
-value var:v_rate -> mart.kpi_rollup.revenue identity
-value var:v_total -> mart.kpi_rollup.orders identity
+value var:mart.fn_pay_total.v_rate -> mart.kpi_rollup.revenue identity
+value var:mart.fn_pay_total.v_total -> mart.kpi_rollup.orders identity
 
 @ 85 S8 the loop body: the record is transparent
 origin mart.fn_loop_cust 1
@@ -51,14 +51,14 @@ note The loop query's WHERE decides which rows the body ever sees (rule 4); r.id
 
 @ 103 S9 FETCH into variables
 origin mart.fn_cursor_store 1
-value core.dim_store.id -> var:v_store_id identity
-value core.dim_store.name -> var:v_store_name identity
+value core.dim_store.id -> var:mart.fn_cursor_store.v_store_id identity
+value core.dim_store.name -> var:mart.fn_cursor_store.v_store_name identity
 filter core.dim_store.status -> core.dim_store
 
 @ 105 S10 the fetched variables as values
 origin mart.fn_cursor_store 1
-value var:v_store_id -> mart.sales_daily.store_id identity
-value var:v_store_name -> mart.sales_daily.region identity
+value var:mart.fn_cursor_store.v_store_id -> mart.sales_daily.store_id identity
+value var:mart.fn_cursor_store.v_store_name -> mart.sales_daily.region identity
 
 @ 127 S11 reading a RETURN QUERY function: inlined (D-40)
 value staging.orders.channel -> mart.top_customers.full_name identity
@@ -68,9 +68,9 @@ note p_ch takes the literal 'web': no edge. o.channel = p_ch still filters.
 
 @ 139 S12 SELECT INTO inside a scalar function
 origin mart.fn_cust_value 1
-value staging.orders.amount -> var:v_value aggregated
+value staging.orders.amount -> var:mart.fn_cust_value.v_value aggregated
 filter staging.orders.customer_id -> staging.orders
-filter var:p_cust -> staging.orders
+filter var:mart.fn_cust_value.p_cust -> staging.orders
 
 @ 147 S13 a scalar function in a query
 value staging.customers.id -> mart.customer_summary.customer_id identity
@@ -111,8 +111,13 @@ value staging.payments.amount -> mart.top_customers.revenue identity
 origin mart.pr_close_stores 0
 filter core.dim_store.opened_on -> core.dim_store
 
+@ 262 S22a RETURN NEXT of a SETOF text routine
+origin mart.fn_gen_regions 1
+value core.dim_store.region -> mart.fn_gen_regions.fn_gen_regions identity
+note semantic-ir T3/T10 (2026-10-18): rows built by RETURN NEXT go into the routine's output relation, one column named after the function (PostgreSQL's own name for SETOF a base type). Until then declared source_unavailable (D-40).
+
 @ 268 S22 reading a RETURN NEXT function
-expect source_unavailable mart.fn_gen_regions | its rows are built by RETURN NEXT in a loop (D-40)
+value mart.fn_gen_regions.fn_gen_regions -> mart.channel_mix.region identity
 
 @ 280 S23 the protected statement
 origin mart.fn_upsert_ledger 0
@@ -130,5 +135,5 @@ filter staging.events_log.kind -> mart.events_log
 
 @ 302 S26 the count as a value
 origin mart.fn_count_rows 1
-value var:v_rows -> mart.kpi_rollup.customers identity
+value var:mart.fn_count_rows.v_rows -> mart.kpi_rollup.customers identity
 note GET DIAGNOSTICS gives v_rows no column source; the variable still reaches the column (rule 3).

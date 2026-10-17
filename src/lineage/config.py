@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, Self
 
@@ -110,6 +111,19 @@ class AnalysisConfig(BaseModel):
     budgets: Budgets = Field(default_factory=Budgets)
     log_recovery: LogRecovery = Field(default_factory=LogRecovery)
     scoring: Scoring = Field(default_factory=Scoring)
+    row_deciding_keys: bool = Field(
+        default=False,
+        description=(
+            "Row-deciding mode (semantic-ir T0, option C, decided 2026-10-18). Off: D-5 - a "
+            "join key equality only matches rows and gives no edge. On: the key equality of "
+            "an INNER join (ON, a WHERE-written join, UPDATE ... FROM, DELETE ... USING) "
+            "decides which rows survive, so its columns are filters - the impact view. Inside "
+            "a scope that cannot remove a row (a scalar subquery, D-45) they decide which rows "
+            "are aggregated and feed the value, as any predicate there does. An outer join's "
+            "keys never remove a row and stay structural either way. Also set by the "
+            "environment variable LINEAGE_ROW_DECIDING_KEYS=1."
+        ),
+    )
 
     @classmethod
     def load(cls, path: Path | None = None) -> Self:
@@ -118,9 +132,13 @@ class AnalysisConfig(BaseModel):
         if not resolved.exists():
             if path is not None:
                 raise FileNotFoundError(f"No configuration file at {resolved}")
-            return cls()
-        raw = yaml.safe_load(resolved.read_text(encoding="utf-8")) or {}
-        return cls.model_validate(raw)
+            loaded = cls()
+        else:
+            raw = yaml.safe_load(resolved.read_text(encoding="utf-8")) or {}
+            loaded = cls.model_validate(raw)
+        if os.environ.get("LINEAGE_ROW_DECIDING_KEYS", "").lower() in ("1", "true", "yes"):
+            loaded = loaded.model_copy(update={"row_deciding_keys": True})
+        return loaded
 
     def declared_limits(self) -> dict[str, Any]:
         """The limits in force, flattened for the coverage statement.
@@ -137,6 +155,7 @@ class AnalysisConfig(BaseModel):
             "query_log_retention_months": self.log_recovery.retention_months,
             "log_statement_truncated_at": self.log_recovery.statement_text_truncated_at,
             "scoring_origin_in_dedup": self.scoring.origin_in_dedup,
+            "row_deciding_keys": self.row_deciding_keys,
         }
 
     def fingerprint(self) -> str:

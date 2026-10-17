@@ -120,7 +120,7 @@ edges:
     name: staging.payments.amount
   target:
     kind: variable
-    name: amount
+    name: mart.fn_shadow.amount
   flow: value
   transform: aggregated
   band: 1
@@ -130,7 +130,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: amount
+    name: mart.fn_shadow.amount
   target:
     kind: column
     name: mart.top_customers.revenue

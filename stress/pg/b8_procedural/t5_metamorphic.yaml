@@ -201,7 +201,7 @@ edges:
     name: staging.fx_rates.rate_to_usd
   target:
     kind: variable
-    name: v_fx
+    name: mart.pr_nightly_load.v_fx
   flow: value
   transform: identity
   band: 1
@@ -237,7 +237,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: p_day
+    name: mart.pr_nightly_load.p_day
   target:
     kind: relation
     name: staging.fx_rates
@@ -367,7 +367,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: v_fx
+    name: mart.pr_nightly_load.v_fx
   target:
     kind: column
     name: core.fct_payment.amount_usd
@@ -380,7 +380,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: p_day
+    name: mart.pr_nightly_load.p_day
   target:
     kind: relation
     name: core.fct_payment
@@ -406,7 +406,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: p_day
+    name: mart.pr_nightly_load.p_day
   target:
     kind: column
     name: mart.customer_summary.last_order_date
@@ -434,7 +434,7 @@ edges:
     is structural (D-5).
 - source:
     kind: variable
-    name: p_day
+    name: mart.pr_nightly_load.p_day
   target:
     kind: relation
     name: mart.customer_summary
@@ -479,10 +479,10 @@ edges:
     is structural (D-5).
 - source:
     kind: variable
-    name: p_day
+    name: mart.pr_nightly_load.p_day
   target:
     kind: variable
-    name: v_part
+    name: mart.pr_nightly_load.v_part
   flow: value
   transform: derived
   band: 1
@@ -492,7 +492,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: v_rows
+    name: mart.pr_nightly_load.v_rows
   target:
     kind: column
     name: mart.events_log.id

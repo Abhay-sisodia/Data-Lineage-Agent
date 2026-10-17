@@ -250,7 +250,7 @@ edges:
     name: core.fct_payment.paid_date
   target:
     kind: variable
-    name: v_wm
+    name: mart.pr_load_payments.v_wm
   flow: value
   transform: aggregated
   band: 1
@@ -391,7 +391,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: v_wm
+    name: mart.pr_load_payments.v_wm
   target:
     kind: relation
     name: core.fct_payment
@@ -405,7 +405,7 @@ edges:
   note: The fx join's ON is structural (D-5), its cast operand included.
 - source:
     kind: variable
-    name: v_rows
+    name: mart.pr_load_payments.v_rows
   target:
     kind: column
     name: mart.events_log.id

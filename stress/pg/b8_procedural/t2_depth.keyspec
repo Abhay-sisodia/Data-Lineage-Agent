@@ -8,24 +8,24 @@
 
 @ 20 S1 depth 1: SELECT INTO
 origin mart.fn_nested 1
-value staging.orders.amount -> var:v_a aggregated
+value staging.orders.amount -> var:mart.fn_nested.v_a aggregated
 filter staging.orders.currency -> staging.orders
 
 @ 25 S2 depth 2
 origin mart.fn_nested 1
-value var:v_a -> var:v_b derived
+value var:mart.fn_nested.v_a -> var:mart.fn_nested.v_b derived
 
 @ 31 S3 depth 3
 origin mart.fn_nested 1
-value var:v_b -> var:v_c derived
+value var:mart.fn_nested.v_b -> var:mart.fn_nested.v_c derived
 
 @ 33 S4 depth 3
 origin mart.fn_nested 1
-value var:v_c -> var:v_d derived
+value var:mart.fn_nested.v_c -> var:mart.fn_nested.v_d derived
 
 @ 35 S5 depth 3: the last variable as a value
 origin mart.fn_nested 1
-value var:v_d -> mart.kpi_rollup.revenue identity
+value var:mart.fn_nested.v_d -> mart.kpi_rollup.revenue identity
 
 @ 55 S6 two records, from two loops
 origin mart.fn_loop2 1
@@ -36,17 +36,17 @@ note Both loop queries' WHEREs filter what the body writes; r_store.id is s.id (
 
 @ 70 S7 the inner function
 origin mart.fn_unit_cost 1
-value staging.products.cost -> var:v_cost identity
+value staging.products.cost -> var:mart.fn_unit_cost.v_cost identity
 filter staging.products.id -> staging.products
-filter var:p_prod -> staging.products
+filter var:mart.fn_unit_cost.p_prod -> staging.products
 
 @ 81 S8 the outer function
 origin mart.fn_line_margin 1
-value staging.order_lines.unit_price, staging.products.cost -> var:v_margin derived
+value staging.order_lines.unit_price, staging.products.cost -> var:mart.fn_line_margin.v_margin derived
 filter staging.order_lines.id -> staging.order_lines
-filter var:p_line -> staging.order_lines
+filter var:mart.fn_line_margin.p_line -> staging.order_lines
 note fn_unit_cost contributes products.cost, the column its return value depends on - not ol.product_id, its argument (rule 6).
-forbid value staging.order_lines.product_id -> var:v_margin derived | only fn_unit_cost's argument
+forbid value staging.order_lines.product_id -> var:mart.fn_line_margin.v_margin derived | only fn_unit_cost's argument
 
 @ 89 S9 the outer function in a grouped query
 value staging.order_lines.product_id -> mart.product_performance.product_id identity

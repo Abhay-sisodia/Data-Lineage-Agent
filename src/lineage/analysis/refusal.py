@@ -209,7 +209,10 @@ CONSTRUCTS: tuple[Construct, ...] = (
     ),
     Construct(
         name="COPY",
-        pattern=_rx(r"\bCOPY\s+[A-Za-z_0-9.$\"]+\s*(?:\([^)]*\)\s*)?(?:FROM|TO)\s"),
+        # `FROM STDIN` in a psql script reads the rows written after it in the script itself
+        # (psql.restate blanks them): literals, like INSERT ... VALUES - not refused
+        # (semantic-ir T8, holdout4 H1).
+        pattern=_rx(r"\bCOPY\s+[A-Za-z_0-9.$\"]+\s*(?:\([^)]*\)\s*)?(?:FROM\s+(?!STDIN\b)|TO\s)"),
         code=RefusalCode.SOURCE_UNAVAILABLE,
         reason="COPY moves rows between a relation and something OUTSIDE the database - a file, a "
         "program, or the client. The relation's contents depend on data this analysis can never "

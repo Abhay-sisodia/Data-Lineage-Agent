@@ -18,7 +18,7 @@ edges:
     name: staging.orders.amount
   target:
     kind: variable
-    name: v_a
+    name: mart.fn_nested.v_a
   flow: value
   transform: aggregated
   band: 1
@@ -41,10 +41,10 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: v_a
+    name: mart.fn_nested.v_a
   target:
     kind: variable
-    name: v_b
+    name: mart.fn_nested.v_b
   flow: value
   transform: derived
   band: 1
@@ -54,10 +54,10 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: v_b
+    name: mart.fn_nested.v_b
   target:
     kind: variable
-    name: v_c
+    name: mart.fn_nested.v_c
   flow: value
   transform: derived
   band: 1
@@ -67,10 +67,10 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: v_c
+    name: mart.fn_nested.v_c
   target:
     kind: variable
-    name: v_d
+    name: mart.fn_nested.v_d
   flow: value
   transform: derived
   band: 1
@@ -80,7 +80,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: v_d
+    name: mart.fn_nested.v_d
   target:
     kind: column
     name: mart.kpi_rollup.revenue
@@ -164,7 +164,7 @@ edges:
     name: staging.products.cost
   target:
     kind: variable
-    name: v_cost
+    name: mart.fn_unit_cost.v_cost
   flow: value
   transform: identity
   band: 1
@@ -187,7 +187,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: p_prod
+    name: mart.fn_unit_cost.p_prod
   target:
     kind: relation
     name: staging.products
@@ -203,7 +203,7 @@ edges:
     name: staging.order_lines.unit_price
   target:
     kind: variable
-    name: v_margin
+    name: mart.fn_line_margin.v_margin
   flow: value
   transform: derived
   band: 1
@@ -216,7 +216,7 @@ edges:
     name: staging.products.cost
   target:
     kind: variable
-    name: v_margin
+    name: mart.fn_line_margin.v_margin
   flow: value
   transform: derived
   band: 1
@@ -239,7 +239,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: p_line
+    name: mart.fn_line_margin.p_line
   target:
     kind: relation
     name: staging.order_lines
@@ -447,7 +447,7 @@ forbidden:
     name: staging.order_lines.product_id
   target:
     kind: variable
-    name: v_margin
+    name: mart.fn_line_margin.v_margin
   flow: value
   reason: only fn_unit_cost's argument
   transform: derived

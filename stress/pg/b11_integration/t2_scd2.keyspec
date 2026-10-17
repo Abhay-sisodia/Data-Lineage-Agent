@@ -37,7 +37,7 @@ value core.dim_customer.segment -> mart.customer_summary.segment identity
 value core.dim_customer.region -> mart.customer_summary.region identity
 filter core.dim_customer.is_current, core.dim_customer.valid_from -> mart.customer_summary
 origin mart.pr_publish_customers 1
-filter var:p_since -> mart.customer_summary
+filter var:mart.pr_publish_customers.p_since -> mart.customer_summary
 note USING's WHERE filters the MERGE (S3-03); ON is structural (D-5); p_since is a parameter, band 1.
 
 @ 85 S5 one log row per region

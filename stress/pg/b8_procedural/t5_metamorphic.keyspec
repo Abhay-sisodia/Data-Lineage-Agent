@@ -60,8 +60,8 @@ repeat value core.dim_store.region -> mart.channel_mix.region identity
 
 @ 128 R1 the day's rate into a variable
 origin mart.pr_nightly_load 1
-value staging.fx_rates.rate_to_usd -> var:v_fx identity
-filter staging.fx_rates.currency, staging.fx_rates.rate_date, var:p_day -> staging.fx_rates
+value staging.fx_rates.rate_to_usd -> var:mart.pr_nightly_load.v_fx identity
+filter staging.fx_rates.currency, staging.fx_rates.rate_date, var:mart.pr_nightly_load.p_day -> staging.fx_rates
 
 @ 132 R2 the set-based load
 origin mart.pr_nightly_load 0
@@ -74,23 +74,23 @@ value staging.payments.paid_at -> core.fct_payment.paid_date derived
 value staging.payments.status -> core.fct_payment.status identity
 filter staging.payments.paid_at, staging.payments.currency -> core.fct_payment
 origin mart.pr_nightly_load 1
-value var:v_fx -> core.fct_payment.amount_usd derived
-filter var:p_day -> core.fct_payment
+value var:mart.pr_nightly_load.v_fx -> core.fct_payment.amount_usd derived
+filter var:mart.pr_nightly_load.p_day -> core.fct_payment
 
 @ 143 R3 each customer touched today
 origin mart.pr_nightly_load 1
 value staging.customers.segment -> mart.customer_summary.segment identity
-value var:p_day -> mart.customer_summary.last_order_date identity
-filter staging.orders.order_ts, var:p_day, staging.customers.id, mart.customer_summary.customer_id -> mart.customer_summary
+value var:mart.pr_nightly_load.p_day -> mart.customer_summary.last_order_date identity
+filter staging.orders.order_ts, var:mart.pr_nightly_load.p_day, staging.customers.id, mart.customer_summary.customer_id -> mart.customer_summary
 note The loop query's WHERE (o.order_ts::date = p_day) filters the body's write (rule 4); its JOIN is structural (D-5).
 
 @ 148 R4 the partition's name
 origin mart.pr_nightly_load 1
-value var:p_day -> var:v_part derived
+value var:mart.pr_nightly_load.p_day -> var:mart.pr_nightly_load.v_part derived
 
 @ 150 R5 the undecidable EXECUTE
 expect dynamic_sql EXECUTE:150 | the target is v_part, built from p_day (D-42)
 
 @ 152 R6 the run log
 origin mart.pr_nightly_load 1
-value var:v_rows -> mart.events_log.id identity
+value var:mart.pr_nightly_load.v_rows -> mart.events_log.id identity

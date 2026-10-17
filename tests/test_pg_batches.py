@@ -169,7 +169,8 @@ EXPECTED = {
     ("b7_ddl_lineage/t5_metamorphic", Flow.VALUE): (29, 0, 0),
     ("b7_ddl_lineage/t5_metamorphic", Flow.FILTER): (3, 0, 0),
     ("b7_ddl_lineage/t5_metamorphic", Flow.INFLUENCE): (6, 0, 0),
-    ("b10_lexical/t1_breadth", Flow.VALUE): (29, 0, 0),
+    # semantic-ir T0/T8: S23's \gset is a BIND - two facts more, both found (was 29).
+    ("b10_lexical/t1_breadth", Flow.VALUE): (31, 0, 0),
     ("b10_lexical/t1_breadth", Flow.FILTER): (10, 0, 0),
     ("b10_lexical/t2_depth", Flow.VALUE): (25, 0, 0),  # D-58
     ("b10_lexical/t2_depth", Flow.FILTER): (4, 0, 0),
@@ -177,14 +178,15 @@ EXPECTED = {
     ("b10_lexical/t3_interaction", Flow.VALUE): (17, 0, 0),
     ("b10_lexical/t3_interaction", Flow.FILTER): (11, 0, 0),
     ("b10_lexical/t3_interaction", Flow.INFLUENCE): (1, 0, 0),
-    ("b10_lexical/t4_adversarial", Flow.VALUE): (15, 0, 0),
+    # semantic-ir T8: S16 `FROM :tbl` with `\set tbl` in the script is resolved (D-36 amended).
+    ("b10_lexical/t4_adversarial", Flow.VALUE): (16, 0, 0),
     ("b10_lexical/t4_adversarial", Flow.FILTER): (8, 0, 0),
     ("b10_lexical/t5_metamorphic", Flow.VALUE): (20, 0, 0),
     ("b10_lexical/t5_metamorphic", Flow.FILTER): (8, 0, 0),
     ("b10_lexical/t5_metamorphic", Flow.INFLUENCE): (8, 0, 0),
     ("b8_procedural/t1_breadth", Flow.FILTER): (8, 0, 0),
     ("b8_procedural/t1_breadth", Flow.INFLUENCE): (2, 0, 0),
-    ("b8_procedural/t1_breadth", Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t1_breadth", Flow.VALUE): (13, 0, 0),  # T10: S22 RETURN NEXT is traced
     ("b8_procedural/t2_depth", Flow.FILTER): (3, 0, 0),
     ("b8_procedural/t2_depth", Flow.INFLUENCE): (2, 0, 0),
     ("b8_procedural/t2_depth", Flow.VALUE): (6, 0, 0),
@@ -218,9 +220,9 @@ EXPECTED = {
 EXPECTED_BANDS = {
     ("b8_procedural/t1_breadth", 0, Flow.FILTER): (8, 0, 0),
     ("b8_procedural/t1_breadth", 0, Flow.INFLUENCE): (2, 0, 0),
-    ("b8_procedural/t1_breadth", 0, Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t1_breadth", 0, Flow.VALUE): (13, 0, 0),
     ("b8_procedural/t1_breadth", 1, Flow.FILTER): (8, 0, 0),
-    ("b8_procedural/t1_breadth", 1, Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t1_breadth", 1, Flow.VALUE): (13, 0, 0),
     ("b8_procedural/t1_breadth", 2, Flow.FILTER): (1, 0, 0),
     ("b8_procedural/t1_breadth", 2, Flow.VALUE): (6, 0, 0),
     ("b8_procedural/t2_depth", 0, Flow.FILTER): (3, 0, 0),

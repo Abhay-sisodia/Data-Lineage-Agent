@@ -114,6 +114,18 @@ def writes_rows(verdict: Verdict) -> bool:
     return bool(verdict.constructs & _WRITE_STATEMENTS)
 
 
+_SETS_NEW = re.compile(
+    r"(?is)\bINTO\s+(?:STRICT\s+)?NEW\s*\.\s*\w+"
+    r"|\bNEW\s*\.\s*\w+\s*:=\s*[^;]*?(?:\b[A-Za-z_]\w*\s*\.\s*[A-Za-z_]\w*|\bSELECT\b)"
+)
+
+
+def sets_new(verdict: Verdict) -> bool:
+    """A trigger body that sets a NEW field from a column or a query: a write of the trigger
+    table's row (semantic-ir T4) - `NEW.f := now()` alone sets nothing traceable."""
+    return verdict.kind == "CreateFunctionStmt" and _SETS_NEW.search(verdict.text) is not None
+
+
 def nothing_reason(verdict: Verdict) -> tuple[str, str]:
     """(status, reason) for a statement the analyser produced nothing for."""
     kind = verdict.kind
@@ -184,13 +196,25 @@ def build(verdicts: list[Verdict], result: Any) -> list[LedgerEntry]:
             mine
             and verdict.kind in ("CreateFunctionStmt", "DoStmt")
             and not any(
-                e.target.kind is NodeKind.COLUMN for e in edges if _in(e.origin.line, verdict)
+                (
+                    e.target.kind is NodeKind.COLUMN
+                    and e.target.name.rpartition(".")[0].lower() != e.origin.unit.lower()
+                )
+                # semantic-ir T9: a filter on a table the routine writes (an UPDATE that sets
+                # constants under a WHERE) is lineage of that write, as at top level.
+                or (
+                    e.target.kind is NodeKind.RELATION
+                    and e.target.name.lower() in {w.lower() for w in verdict.writes}
+                )
+                for e in edges
+                if _in(e.origin.line, verdict)
             )
         ):
             # R6 (holdout3): a routine whose edges all end in its own variables - or in the
             # rows its SELECT INTO filters - writes no column. Its lineage is where it is
             # called (a summary), as `nothing_reason` says; calling it column-level said
-            # otherwise, and no prediction could agree with that.
+            # otherwise, and no prediction could agree with that. semantic-ir T3: the same for
+            # its own OUTPUT relation (named after it) - its rows reach a table where called.
             mine = 0
         if mine and refused:
             status, reason = "partial", f"{_edges(mine)}; refused in part - {refused[0].code.value}"

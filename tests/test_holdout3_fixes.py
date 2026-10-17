@@ -117,9 +117,10 @@ END $$;""",
         CONFIG,
     )
     assert result.refusals == []
-    assert {("variable:v_n", "column:tgt.t.n"), ("variable:v_d", "column:tgt.t.d")} <= _pairs(
-        result
-    )
+    assert {
+        ("variable:tgt.g.v_n", "column:tgt.t.n"),
+        ("variable:tgt.g.v_d", "column:tgt.t.d"),
+    } <= _pairs(result)
 
 
 NEXT_DAY = """CREATE FUNCTION tgt.nbd(p_date date, p_k int) RETURNS date LANGUAGE plpgsql AS $$

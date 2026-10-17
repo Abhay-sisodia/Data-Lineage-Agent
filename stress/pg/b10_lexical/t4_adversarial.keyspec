@@ -53,7 +53,8 @@ filter core.dim_store.status -> mart.channel_mix
 expect source_unavailable p_lit | S15: DEALLOCATE ALL at S14 forgot p_lit (D-35); S7's edges must not be emitted again here
 
 @ 141 S16 a psql variable as an identifier
-forbid value staging.orders.channel -> mart.kpi_rollup.level identity | :tbl cannot be resolved by the analysis; refused or declared, never guessed (D-36)
+value staging.orders.channel -> mart.kpi_rollup.level identity
+note semantic-ir T8 (2026-10-16, D-36 amended): \set tbl staging.orders is in this script, so :tbl is pasted exactly as psql pastes it - known, not guessed. A variable set nowhere in the script is still refused or declared.
 
 @ 149 S17 dollar quotes glued to operators
 value staging.orders.id -> mart.sales_daily.orders identity

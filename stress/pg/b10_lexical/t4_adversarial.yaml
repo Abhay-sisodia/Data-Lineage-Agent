@@ -236,6 +236,22 @@ edges:
   evidence: source_read
 - source:
     kind: column
+    name: staging.orders.channel
+  target:
+    kind: column
+    name: mart.kpi_rollup.level
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 141
+  evidence: source_read
+  note: 'semantic-ir T8 (2026-10-16, D-36 amended): \set tbl staging.orders is in this script, so :tbl
+    is pasted exactly as psql pastes it - known, not guessed. A variable set nowhere in the script is
+    still refused or declared.'
+- source:
+    kind: column
     name: staging.orders.id
   target:
     kind: column
@@ -357,15 +373,6 @@ forbidden:
     name: mart.kpi_rollup.segment
   flow: value
   reason: the INSERT after S5 is inside a nested comment
-  transform: identity
-- source:
-    kind: column
-    name: staging.orders.channel
-  target:
-    kind: column
-    name: mart.kpi_rollup.level
-  flow: value
-  reason: :tbl cannot be resolved by the analysis; refused or declared, never guessed (D-36)
   transform: identity
 expected_boundaries:
 - kind: source_unavailable

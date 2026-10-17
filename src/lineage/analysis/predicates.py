@@ -7,9 +7,15 @@ of them need does not get written twice.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from typing import Any
 
 from sqlglot import exp
+
+ROW_DECIDING: ContextVar[bool] = ContextVar("row_deciding", default=False)
+"""Row-deciding mode (`AnalysisConfig.row_deciding_keys`, semantic-ir T0 option C): an INNER
+join's key equality decides which rows survive, so its columns are filters, not plumbing.
+An OUTER join's keys never remove a row and stay structural. Set by `procedure`."""
 
 
 def _structural_column_ids(node: Any) -> set[int]:
@@ -28,6 +34,8 @@ def _structural_column_ids(node: Any) -> set[int]:
         if is_outer_join(join):
             found.update(id(column) for column in on.find_all(exp.Column))
             continue
+        if ROW_DECIDING.get():
+            continue  # an inner join's key decides which rows survive: a filter
         for conjunct in _conjuncts(on):
             if _is_key_equality(conjunct):
                 found.update(id(column) for column in conjunct.find_all(exp.Column))
@@ -97,8 +105,9 @@ def on_condition_columns(join: Any) -> list[Any]:
     if on is None:
         return []
     found: list[Any] = []
+    deciding = ROW_DECIDING.get() and not is_outer_join(join)
     for conjunct in _conjuncts(on):
-        if not _is_key_equality(conjunct):
+        if deciding or not _is_key_equality(conjunct):
             found.extend(predicate_columns(conjunct))
     return found
 
@@ -168,6 +177,8 @@ def _implicit_join_column_ids(node: Any) -> set[int]:
     * a side on the null-supplying end of an outer join stays a filter.
     """
     found: set[int] = set()
+    if ROW_DECIDING.get():
+        return found  # every one is an inner join: in row-deciding mode, a filter
     wheres = [node] if isinstance(node, exp.Where) else []
     wheres += list(node.find_all(exp.Where)) if hasattr(node, "find_all") else []
     for where in wheres:
