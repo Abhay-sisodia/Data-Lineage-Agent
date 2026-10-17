@@ -13,9 +13,9 @@ note The loop query's WHERE decides which passes run (rule 4); the write is dyna
 
 @ 33 S2 the scalar function's SELECT INTO
 origin mart.fn_store_region 1
-value core.dim_store.region -> var:v_region identity
+value core.dim_store.region -> var:mart.fn_store_region.v_region identity
 filter core.dim_store.id -> core.dim_store
-filter var:p_store -> core.dim_store
+filter var:mart.fn_store_region.p_store -> core.dim_store
 
 @ 44 S3 the trigger body
 origin mart.trg_big_order 2
@@ -41,9 +41,9 @@ note Function inlined in the loop query (D-40), its WHERE carried into the body 
 
 @ 99 S6 the threshold
 origin mart.fn_threshold_loop 1
-value staging.payments.amount -> var:v_avg aggregated
+value staging.payments.amount -> var:mart.fn_threshold_loop.v_avg aggregated
 
 @ 103 S7 in the loop: variable in WHERE, record in SET
 origin mart.fn_threshold_loop 1
 value core.dim_warehouse.capacity -> mart.carrier_scorecard.shipments identity
-filter core.dim_warehouse.id, mart.carrier_scorecard.carrier_id, mart.carrier_scorecard.cost_per_kg, var:v_avg -> mart.carrier_scorecard
+filter core.dim_warehouse.id, mart.carrier_scorecard.carrier_id, mart.carrier_scorecard.cost_per_kg, var:mart.fn_threshold_loop.v_avg -> mart.carrier_scorecard

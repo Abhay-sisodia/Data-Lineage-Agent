@@ -608,8 +608,8 @@
   "covers": [],
   "met": true,
   "pairs": [
-   "src.a.v -> variable:total",
-   "variable:total -> tgt.t.v"
+   "src.a.v -> variable:<do>:1:6eb7d1.total",
+   "variable:<do>:1:6eb7d1.total -> tgt.t.v"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -645,7 +645,7 @@
   "met": true,
   "pairs": [
    "src.a.v -> tgt.t.v",
-   "src.a.v -> variable:total"
+   "src.a.v -> variable:tgt.f_out.total"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -654,8 +654,8 @@
   "covers": [],
   "met": true,
   "pairs": [
-   "src.a.v -> variable:p_v",
-   "variable:p_v -> tgt.t.v"
+   "src.a.v -> variable:tgt.p_param.p_v",
+   "variable:tgt.p_param.p_v -> tgt.t.v"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -675,8 +675,8 @@
   "pairs": [
    "src.a.id -> relation:src.a",
    "src.a.v -> src.a.v",
-   "src.a.v -> variable:new_v",
-   "variable:new_v -> tgt.t.v"
+   "src.a.v -> variable:tgt.p_ret.new_v",
+   "variable:tgt.p_ret.new_v -> tgt.t.v"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -704,8 +704,8 @@
   "covers": [],
   "met": true,
   "pairs": [
-   "src.a.v -> variable:total",
-   "variable:total -> tgt.t.v"
+   "src.a.v -> variable:tgt.p_into.total",
+   "variable:tgt.p_into.total -> tgt.t.v"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -724,9 +724,9 @@
   "covers": [],
   "met": true,
   "pairs": [
-   "src.a.v -> variable:total",
-   "variable:total -> tgt.t.v",
-   "variable:total -> variable:total"
+   "src.a.v -> variable:tgt.p_assign2.total",
+   "variable:tgt.p_assign2.total -> tgt.t.v",
+   "variable:tgt.p_assign2.total -> variable:tgt.p_assign2.total"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -1505,8 +1505,8 @@
   "covers": [],
   "met": true,
   "pairs": [
-   "src.a.v -> variable:total",
-   "variable:total -> tgt.t.v"
+   "src.a.v -> variable:tgt.p_assign.total",
+   "variable:tgt.p_assign.total -> tgt.t.v"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -1586,10 +1586,10 @@
   "covers": [],
   "met": true,
   "pairs": [
-   "src.a.arr -> variable:ks",
+   "src.a.arr -> variable:tgt.p_foreach.ks",
    "src.a.id -> relation:src.a",
-   "variable:ks -> variable:x",
-   "variable:x -> tgt.t.k"
+   "variable:tgt.p_foreach.ks -> variable:tgt.p_foreach.x",
+   "variable:tgt.p_foreach.x -> tgt.t.k"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -1599,7 +1599,7 @@
   "met": true,
   "pairs": [
    "src.a.v -> tgt.t.v",
-   "variable:i -> tgt.t.k"
+   "variable:tgt.p_fori.i -> tgt.t.k"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -1641,8 +1641,8 @@
   "met": true,
   "pairs": [
    "src.a.v -> tgt.t.v",
-   "variable:i -> tgt.t.k",
-   "variable:i -> variable:i"
+   "variable:tgt.p_loop.i -> tgt.t.k",
+   "variable:tgt.p_loop.i -> variable:tgt.p_loop.i"
   ],
   "status": "LINEAGE",
   "target": "lineage"
@@ -1700,8 +1700,8 @@
   "met": true,
   "pairs": [
    "src.a.v -> tgt.t.v",
-   "variable:i -> tgt.t.k",
-   "variable:i -> variable:i"
+   "variable:tgt.p_while.i -> tgt.t.k",
+   "variable:tgt.p_while.i -> variable:tgt.p_while.i"
   ],
   "status": "LINEAGE",
   "target": "lineage"

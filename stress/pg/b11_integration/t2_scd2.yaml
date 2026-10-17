@@ -306,7 +306,7 @@ edges:
   evidence: source_read
 - source:
     kind: variable
-    name: p_since
+    name: mart.pr_publish_customers.p_since
   target:
     kind: relation
     name: mart.customer_summary

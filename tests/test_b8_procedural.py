@@ -69,9 +69,9 @@ def test_select_into_writes_a_variable_and_the_variable_feeds_a_column() -> None
         )
     )
     assert facts == {
-        ("column:staging.payments.amount", "variable:v_total", "value", 1),
+        ("column:staging.payments.amount", "variable:mart.f.v_total", "value", 1),
         ("column:staging.payments.status", "relation:staging.payments", "filter", 1),
-        ("variable:v_total", "column:mart.kpi_rollup.revenue", "value", 1),
+        ("variable:mart.f.v_total", "column:mart.kpi_rollup.revenue", "value", 1),
     }
 
 

@@ -43,11 +43,11 @@ forbid value staging.customers.email -> mart.top_customers.full_name identity | 
 
 @ 155 S10 a variable named like a column
 origin mart.fn_shadow 1
-value staging.payments.amount -> var:amount aggregated
+value staging.payments.amount -> var:mart.fn_shadow.amount aggregated
 
 @ 157 S11 the variable in VALUES
 origin mart.fn_shadow 1
-value var:amount -> mart.top_customers.revenue identity
+value var:mart.fn_shadow.amount -> mart.top_customers.revenue identity
 
 @ 169 S12 a $body$-quoted body holding $$
 origin mart.fn_tagged 0

@@ -33,6 +33,7 @@ in the source untouched, so the refusal register refuses it exactly as before B8
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -107,6 +108,8 @@ class Emitted:
     uses: list[Use] = field(default_factory=list)
     written: str = ""  # sql: the relation written, as the statement names it
     binding: bool = False  # a caller's arguments bound to a routine's parameters (step 8)
+    scope: str = ""  # whose variables its symbols are: the routine (T2b); "" = `unit`
+    targets_scope: str = ""  # whose variables its INTO targets are, when not `scope` (a call)
 
 
 @dataclass
@@ -443,6 +446,7 @@ class _Desugarer:
             variables=set(routine.params) | set(routine.out_columns) | set(routine.out_params),
             band=2 if routine.returns == "trigger" else 0,
             trigger=unit if routine.returns == "trigger" else "",
+            scope=_scope_of(routine, self.source, start),
         )
         if bindings:
             context.records["new"] = []
@@ -662,6 +666,7 @@ class _Desugarer:
                     Emitted(
                         line=self._line(loop.query_start or loop.start),
                         unit=context.unit,
+                        scope=context.scope_name,
                         band=inner.band,
                         kind="assign",
                         loops=inner.loop_stack,
@@ -736,6 +741,7 @@ class _Desugarer:
             Emitted(
                 line=line,
                 unit=context.unit,
+                scope=context.scope_name,
                 band=context.band,
                 kind="sql",
                 loops=context.loop_stack,
@@ -889,6 +895,7 @@ class _Desugarer:
             Emitted(
                 line=self._line(stmt.start),
                 unit=context.unit,
+                scope=context.scope_name,
                 band=context.band,
                 kind="assign",
                 loops=context.loop_stack,
@@ -1004,6 +1011,7 @@ class _Desugarer:
         emitted = Emitted(
             line=line,
             unit=context.unit,
+            scope=context.scope_name,
             band=context.band,
             kind=kind,
             loops=context.loop_stack,
@@ -1057,6 +1065,7 @@ class _Desugarer:
         except pl.UnsupportedError:
             return
         emitted.binding = True
+        emitted.targets_scope = function.routine.name  # the callee's parameters (T2b)
 
     def _inline_tree(self, tree: Any, start: int, context: _Context | None = None) -> bool:
         changed = False
@@ -1234,6 +1243,13 @@ class _Context:
     loop_stack: tuple[int, ...] = ()
     loop_phantoms: dict[int, str] = field(default_factory=dict)
     tables: tuple[str, ...] = ()  # in a trigger: the tables NEW is a row of (semantic-ir T4)
+    scope: str = ""
+    """semantic-ir T2b: the routine whose variables these are - its name, or `<do>:<line>:<hash>`
+    for a DO block - so two routines' `p_run_id` are two graph nodes, never one."""
+
+    @property
+    def scope_name(self) -> str:
+        return self.scope or self.unit
 
     def inside_loop(self, number: int) -> _Context:
         return _Context(
@@ -1247,6 +1263,7 @@ class _Context:
             loop_stack=(*self.loop_stack, number),
             loop_phantoms=self.loop_phantoms,
             tables=self.tables,
+            scope=self.scope,
         )
 
     def dynamic(self) -> _Context:
@@ -1261,6 +1278,7 @@ class _Context:
             loop_stack=self.loop_stack,
             loop_phantoms=self.loop_phantoms,
             tables=self.tables,
+            scope=self.scope,
         )
 
 
@@ -1373,6 +1391,16 @@ def _a_returned_argument(column: Any, functions: dict[str, _Function]) -> bool:
                 return position in function.from_arguments
         child, current = current, current.parent
     return False
+
+
+def _scope_of(routine: pl.Routine, source: str, start: int) -> str:
+    """Whose variables a routine's are (T2b): its name, or - for a DO block, which has none -
+    `<do>:<line>:<hash of its body>`, so two DO blocks never share a variable node."""
+    if routine.kind != "do":
+        return routine.name
+    line = source.count("\n", 0, start) + 1
+    body = source[routine.body_start : routine.body_end]
+    return f"<do>:{line}:{hashlib.sha1(body.encode('utf-8')).hexdigest()[:6]}"
 
 
 def _forms(nodes: list[pl.Node]) -> set[str]:
@@ -1566,6 +1594,16 @@ def _column(name: str) -> Node:
     return Node(kind=NodeKind.COLUMN, name=name)
 
 
+def _scoped(scope: str, name: str) -> str:
+    """A variable's graph name: `<routine>.<name>` (T2b), so routines never share one."""
+    return f"{scope}.{name}" if scope else name
+
+
+def _raw(name: str) -> str:
+    """The variable's own name, without its routine (a variable name holds no dot)."""
+    return name.rpartition(".")[2]
+
+
 def _variable(name: str) -> Node:
     return Node(kind=NodeKind.VARIABLE, name=name)
 
@@ -1638,7 +1676,14 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
             continue
         variable = emitted.targets[index]
         kept.append(
-            _edge(edge.source, _variable(variable), edge.flow, edge.transform, band, origin)
+            _edge(
+                edge.source,
+                _variable(_scoped(emitted.targets_scope or emitted.scope, variable)),
+                edge.flow,
+                edge.transform,
+                band,
+                origin,
+            )
         )
         if edge.flow is Flow.VALUE and edge.source.kind is NodeKind.COLUMN:
             provenance.setdefault((emitted.unit, variable), []).append(
@@ -1659,7 +1704,7 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
     def sources(emitted: Emitted, symbol: tuple[str, str]) -> list[tuple[Node, Transform, Flow]]:
         record, name = symbol
         if not record:
-            return [(_variable(name), Transform.IDENTITY, Flow.VALUE)]
+            return [(_variable(_scoped(emitted.scope, name)), Transform.IDENTITY, Flow.VALUE)]
         if record.startswith("@"):
             return [(_column(f"{record[1:]}.{name}"), Transform.IDENTITY, Flow.VALUE)]
         if record in ("new", "old") and emitted.trigger:
@@ -1681,7 +1726,7 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
                 band = max(1, emitted.band)
                 if use.role == "value":
                     if use.target.startswith("var:"):
-                        target = _variable(use.target[4:])
+                        target = _variable(_scoped(emitted.scope, use.target[4:]))
                     elif use.target.startswith("field:"):
                         _, _, name = use.target[6:].partition(".")
                         key = f"{emitted.phantom}.{name}"
@@ -1704,7 +1749,7 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
                         )
                     )
                     if target.kind is NodeKind.VARIABLE and flow is Flow.VALUE:
-                        provenance_key = (emitted.unit, target.name)
+                        provenance_key = (emitted.unit, _raw(target.name))
                         if source.kind is NodeKind.COLUMN:
                             provenance.setdefault(provenance_key, []).append(
                                 (source.name, _combine(transform, use.transform))
@@ -1714,7 +1759,7 @@ def finish(result: Any, desugared: Desugared, dictionary: Dictionary) -> Any:
                             # appending to what is being iterated never ended (step 8).
                             known = provenance.setdefault(provenance_key, [])
                             for column, inner in list(
-                                provenance.get((emitted.unit, source.name), [])
+                                provenance.get((emitted.unit, _raw(source.name)), [])
                             ):
                                 entry = (column, _combine(inner, use.transform))
                                 if entry not in known:

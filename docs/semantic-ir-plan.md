@@ -33,7 +33,7 @@ The parsers (pglast / libpg_query, our PL/pgSQL reader, SQLGlot) do not change.
 | T0 | Lineage contract: `\gset` variables, row-deciding join keys, R2, D-42 USING (`BIND_USING`) | H4, ~4.6 pts | decided: `\gset` = BIND; `\set` substituted (D-36 amended); join keys = option C, a row-deciding mode (2026-10-18) - default keeps D-5. Pending: USING (D-42) |
 | T1 | Gate script: all holdouts vs the baseline, thresholds, one verdict | go / no-go | done |
 | T2 | `analysis/routine_ir.py`: the primitives and ONE lowering table from the reader's tree | the base | table + output shapes done; dispatch moves over with T3/T4 |
-| T2b | Variables scoped per routine (5 of holdout4's 39 variable nodes are shared by unrelated routines) | precision | |
+| T2b | Variables scoped per routine (5 of holdout4's 39 variable nodes are shared by unrelated routines) | precision | done: 0 shared (51 nodes); every score unchanged |
 | T3 | EMIT: one routine output shape (signature + dictionary) and one row-source mechanism for every emit form | H5, H6, H7 | done: RETURN NEXT / OUT-param routines emit into an output relation; holdout4 keys 89.2% |
 | T4 | ASSIGN / BIND to any target, NEW/OLD fields included | H8 | done: NEW.f := / INTO NEW.f write the trigger table; entry 3 32/32; column-level 98.8% |
 | T5 | DYN: one fold for every position, `format()` positional args, `$q$` texts, named call arguments | H7 | done: holdout4 77.2% -> 84.6% (keys 79.8% -> 87.5%), holdout1/3 unchanged |

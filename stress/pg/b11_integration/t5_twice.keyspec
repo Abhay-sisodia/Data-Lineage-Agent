@@ -58,7 +58,7 @@ repeat filter staging.payments.status -> pg_temp.t6
 
 @ 106 R1 the watermark
 origin mart.pr_load_payments 1
-value core.fct_payment.paid_date -> var:v_wm aggregated
+value core.fct_payment.paid_date -> var:mart.pr_load_payments.v_wm aggregated
 note COALESCE(MAX(x), literal) reads one column (D-19); the MAX makes the path aggregated.
 
 @ 108 R2 the incremental load
@@ -72,9 +72,9 @@ value staging.payments.paid_at -> core.fct_payment.paid_date derived
 value staging.payments.status -> core.fct_payment.status identity
 filter staging.payments.paid_at, staging.payments.status -> core.fct_payment
 origin mart.pr_load_payments 1
-filter var:v_wm -> core.fct_payment
+filter var:mart.pr_load_payments.v_wm -> core.fct_payment
 note The fx join's ON is structural (D-5), its cast operand included.
 
 @ 115 R3 the run log
 origin mart.pr_load_payments 1
-value var:v_rows -> mart.events_log.id identity
+value var:mart.pr_load_payments.v_rows -> mart.events_log.id identity

@@ -109,8 +109,8 @@ def test_dml_returning_into_is_read_not_refused() -> None:
     facts = {(str(e.source).split(":")[-1], str(e.target).split(":")[-1]) for e in result.edges}
     assert ("staging.orders.amount", "mart.top_customers.revenue") in facts
     # v_id holds a value of the row just written, and filters the UPDATE from there.
-    assert ("mart.top_customers.customer_id", "v_id") in facts
-    assert ("v_id", "mart.events_log") in facts
+    assert ("mart.top_customers.customer_id", "mart.f.v_id") in facts
+    assert ("mart.f.v_id", "mart.events_log") in facts
 
 
 def test_loop_control_and_a_variable_in_a_from_function_are_read() -> None:

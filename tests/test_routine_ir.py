@@ -217,9 +217,9 @@ def test_an_out_parameter_routine_read_in_lateral_is_traced(book) -> None:
     through its output relation; the caller's argument reaches the routine's WHERE."""
     result = analyse_source(OUT_PARAMS, book, AnalysisConfig(dialect="postgres"))
     assert result.refusals == [] and not result.boundaries
-    assert _path(result, "column:src.a.v", "variable:o_v", "column:tgt.f_rate.o_v",
+    assert _path(result, "column:src.a.v", "variable:tgt.f_rate.o_v", "column:tgt.f_rate.o_v",
                  "column:tgt.t.v")  # fmt: skip
-    assert ("column:src.b.k", "variable:p_k") in _pairs(result)
+    assert ("column:src.b.k", "variable:tgt.f_rate.p_k") in _pairs(result)
     assert result.ledger[0].status == "no_lineage"  # lineage is where it is called
 
 
