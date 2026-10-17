@@ -111,8 +111,13 @@ value staging.payments.amount -> mart.top_customers.revenue identity
 origin mart.pr_close_stores 0
 filter core.dim_store.opened_on -> core.dim_store
 
+@ 262 S22a RETURN NEXT of a SETOF text routine
+origin mart.fn_gen_regions 1
+value core.dim_store.region -> mart.fn_gen_regions.fn_gen_regions identity
+note semantic-ir T3/T10 (2026-10-18): rows built by RETURN NEXT go into the routine's output relation, one column named after the function (PostgreSQL's own name for SETOF a base type). Until then declared source_unavailable (D-40).
+
 @ 268 S22 reading a RETURN NEXT function
-expect source_unavailable mart.fn_gen_regions | its rows are built by RETURN NEXT in a loop (D-40)
+value mart.fn_gen_regions.fn_gen_regions -> mart.channel_mix.region identity
 
 @ 280 S23 the protected statement
 origin mart.fn_upsert_ledger 0

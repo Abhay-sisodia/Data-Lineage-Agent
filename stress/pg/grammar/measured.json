@@ -1680,9 +1680,12 @@
  },
  "plpgsql:PLpgSQL_stmt_return_next": {
   "covers": [],
-  "met": false,
-  "pairs": [],
-  "status": "DECLARED:dangling_reference",
+  "met": true,
+  "pairs": [
+   "src.a.v -> tgt.f_next.f_next",
+   "tgt.f_next.f_next -> tgt.t.v"
+  ],
+  "status": "LINEAGE",
   "target": "lineage"
  },
  "plpgsql:PLpgSQL_stmt_return_query": {

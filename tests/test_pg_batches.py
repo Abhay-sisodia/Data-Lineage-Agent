@@ -186,7 +186,7 @@ EXPECTED = {
     ("b10_lexical/t5_metamorphic", Flow.INFLUENCE): (8, 0, 0),
     ("b8_procedural/t1_breadth", Flow.FILTER): (8, 0, 0),
     ("b8_procedural/t1_breadth", Flow.INFLUENCE): (2, 0, 0),
-    ("b8_procedural/t1_breadth", Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t1_breadth", Flow.VALUE): (13, 0, 0),  # T10: S22 RETURN NEXT is traced
     ("b8_procedural/t2_depth", Flow.FILTER): (3, 0, 0),
     ("b8_procedural/t2_depth", Flow.INFLUENCE): (2, 0, 0),
     ("b8_procedural/t2_depth", Flow.VALUE): (6, 0, 0),
@@ -220,9 +220,9 @@ EXPECTED = {
 EXPECTED_BANDS = {
     ("b8_procedural/t1_breadth", 0, Flow.FILTER): (8, 0, 0),
     ("b8_procedural/t1_breadth", 0, Flow.INFLUENCE): (2, 0, 0),
-    ("b8_procedural/t1_breadth", 0, Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t1_breadth", 0, Flow.VALUE): (13, 0, 0),
     ("b8_procedural/t1_breadth", 1, Flow.FILTER): (8, 0, 0),
-    ("b8_procedural/t1_breadth", 1, Flow.VALUE): (12, 0, 0),
+    ("b8_procedural/t1_breadth", 1, Flow.VALUE): (13, 0, 0),
     ("b8_procedural/t1_breadth", 2, Flow.FILTER): (1, 0, 0),
     ("b8_procedural/t1_breadth", 2, Flow.VALUE): (6, 0, 0),
     ("b8_procedural/t2_depth", 0, Flow.FILTER): (3, 0, 0),

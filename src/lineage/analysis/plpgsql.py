@@ -26,6 +26,14 @@ lines:
 `summaries` turns each scalar function's RETURN into an interprocedural summary (rule 6),
 in the same shape the Oracle path feeds band 0.
 
+**By meaning, not by form (semantic-ir, docs/semantic-ir-plan.md).** Every form the reader
+names is lowered to a primitive (`routine_ir.LOWERING`), and each primitive has ONE
+mechanism here: EMIT - rows go into the routine's output relation, or a RETURN QUERY routine
+is inlined where it is called; DYN - `routine_ir.dynamic_text` in every position; ASSIGN /
+BIND - to variables, record fields and NEW fields (an UPDATE of the trigger's table); CALL -
+`_bind_call` binds a call's arguments to the callee's parameters. A variable is a graph node
+of its routine (`<routine>.<name>`), never shared.
+
 **What it cannot read stays refused by name.** A routine `parsing.plpgsql` rejects is left
 in the source untouched, so the refusal register refuses it exactly as before B8.
 """
@@ -318,27 +326,34 @@ class _Desugarer:
             function = self.functions.get(name)
             if function is None or function.routine.returns not in ("void", ""):
                 continue
-            params = function.routine.params
-            bound = _call_arguments(call, params)
-            names = [name for name in params if name in bound]
-            select = call.find_ancestor(exp.Select)
-            if not names or select is None:
-                continue
-            query = select.copy()
-            query.set(
-                "expressions",
-                [exp.alias_(bound[name].copy(), f"__c{i}") for i, name in enumerate(names)],
-            )
-            for clause in ("order", "limit", "offset", "group", "having"):
-                query.set(clause, None)
-            context = _Context(unit=function.routine.name, variables=set(params), band=1)
-            try:
-                emitted = self._phantom(
-                    query.sql(dialect=DIALECT), start, context, "into", tuple(names)
-                )
-            except pl.UnsupportedError:
-                continue
-            emitted.binding = True
+            self._bind_call(call, function, call.find_ancestor(exp.Select), start, None)
+
+    def _bind_call(
+        self, call: Any, function: _Function, select: Any, start: int, context: _Context | None
+    ) -> None:
+        """CALL (semantic-ir): each argument is the value of the callee's parameter, read
+        from the caller's own FROM - so a path runs from the caller's column through the
+        parameter to what the routine writes or filters. One binding for every call site:
+        a void routine (plan step 8) and a routine read in FROM / LATERAL (T3)."""
+        params = function.routine.params
+        bound = _call_arguments(call, params)
+        names = [param for param in params if param in bound]
+        if not names or select is None:
+            return
+        query = select.copy()
+        query.set(
+            "expressions",
+            [exp.alias_(bound[param].copy(), f"__c{i}") for i, param in enumerate(names)],
+        )
+        for clause in ("order", "limit", "offset", "group", "having"):
+            query.set(clause, None)
+        caller = context or _Context(unit=function.routine.name, variables=set(params), band=1)
+        try:
+            emitted = self._phantom(query.sql(dialect=DIALECT), start, caller, "into", tuple(names))
+        except pl.UnsupportedError:
+            return
+        emitted.binding = True
+        emitted.targets_scope = function.routine.name  # the callee's parameters (T2b)
 
     def _sql_body(self, routine: pl.Routine) -> pl.Block:
         """A LANGUAGE sql routine's body, as the block a PL/pgSQL one would be (step 8).
@@ -946,14 +961,18 @@ class _Desugarer:
         self._sql(f"INSERT INTO {function.output} ({columns}) {query}", start, context)
 
     def _emit_next(self, stmt: pl.Stmt, context: _Context, function: _Function) -> None:
-        """RETURN NEXT [r]: one row of the output - r's fields, or the OUT parameters."""
+        """RETURN NEXT [e]: one row of the output - a record's fields, the OUT parameters,
+        or (SETOF a base type) the value of `e` itself."""
         record = stmt.expression.strip().lower()
         if not record:
             self._emit_out_params(stmt.start, context, function)
             return
-        if record not in context.records:
+        if record in context.records:
+            values = ", ".join(f"{record}.{column}" for column in function.columns)
+        elif len(function.columns) == 1:
+            values = stmt.expression.strip()  # SETOF numeric: `RETURN NEXT r.v`
+        else:
             return  # a record nothing assigned yet: a row of nothing traceable
-        values = ", ".join(f"{record}.{column}" for column in function.columns)
         self.result.synthetic += 1
         self._sql(
             f"INSERT INTO {function.output} ({', '.join(function.columns)}) SELECT {values}",
@@ -1043,29 +1062,22 @@ class _Desugarer:
         call's arguments bind f's parameters, so what they filter inside f is traced."""
         alias = node.args.get("alias")
         name = alias.this if alias is not None else exp.to_identifier(call.name)
-        table = exp.to_table(function.output)
-        table.set("alias", exp.TableAlias(this=name, columns=alias.columns if alias else None))
-        node.replace(table)
-        params = function.routine.params
-        bound = _call_arguments(call, params)
-        names = [param for param in params if param in bound]
-        select = table.find_ancestor(exp.Select)
-        if not names or select is None:
-            return
-        query = select.copy()
-        query.set(
-            "expressions",
-            [exp.alias_(bound[param].copy(), f"__c{i}") for i, param in enumerate(names)],
-        )
-        for clause in ("order", "limit", "offset", "group", "having"):
-            query.set(clause, None)
-        caller = context or _Context(unit=function.routine.name, variables=set(params), band=1)
-        try:
-            emitted = self._phantom(query.sql(dialect=DIALECT), start, caller, "into", tuple(names))
-        except pl.UnsupportedError:
-            return
-        emitted.binding = True
-        emitted.targets_scope = function.routine.name  # the callee's parameters (T2b)
+        renamed = [c.name.lower() for c in alias.columns] if alias is not None else []
+        if renamed:
+            # `f(...) AS f(x)`: the call's own column names go on projections - band 0 does
+            # not read an alias column list (as for an inlined routine, H9).
+            query = exp.select(
+                *(
+                    exp.alias_(exp.column(column), new)
+                    for column, new in zip(function.columns, renamed, strict=False)
+                )
+            ).from_(exp.to_table(function.output))
+            replacement: Any = exp.Subquery(this=query, alias=exp.TableAlias(this=name))
+        else:
+            replacement = exp.to_table(function.output)
+            replacement.set("alias", exp.TableAlias(this=name))
+        node.replace(replacement)
+        self._bind_call(call, function, replacement.find_ancestor(exp.Select), start, context)
 
     def _inline_tree(self, tree: Any, start: int, context: _Context | None = None) -> bool:
         changed = False

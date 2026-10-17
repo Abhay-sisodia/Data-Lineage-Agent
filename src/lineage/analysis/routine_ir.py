@@ -90,12 +90,23 @@ def output_columns(routine: pl.Routine, dictionary: Dictionary | None = None) ->
         return list(routine.out_columns)
     if routine.returns == "record" or (routine.out_params and routine.returns != "scalar"):
         return list(routine.out_params)
-    if routine.returns == "setof" and routine.setof and dictionary is not None:
-        try:
-            return [c.lower() for c in dictionary.columns_of(routine.setof)]
-        except Exception:
-            return []
+    if routine.returns == "setof" and routine.setof:
+        if _BASE_TYPE.fullmatch(routine.setof):
+            # SETOF a base type: one column, which PostgreSQL names after the function.
+            return [routine.name.split(".")[-1]]
+        if dictionary is not None:
+            try:
+                return [c.lower() for c in dictionary.columns_of(routine.setof)]
+            except Exception:
+                return []
     return []
+
+
+_BASE_TYPE = re.compile(
+    r"(?:pg_catalog\.)?(?:numeric|decimal|int[248]?|integer|smallint|bigint|real|float[48]?"
+    r"|double|money|text|varchar|char|character|bpchar|name|bool|boolean|date|time|timetz"
+    r"|timestamp|timestamptz|interval|uuid|json|jsonb|bytea|xml|inet|cidr|oid)"
+)
 
 
 def yields_rows(routine: pl.Routine) -> bool:

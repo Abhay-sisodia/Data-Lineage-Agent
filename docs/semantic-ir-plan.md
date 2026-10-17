@@ -41,7 +41,7 @@ The parsers (pglast / libpg_query, our PL/pgSQL reader, SQLGlot) do not change.
 | T7 | OPAQUE: a statement not followed gives labelled conservative edges, not zero | cascade | |
 | T8 | psql (static): COPY FROM STDIN data skipped, `FETCH :n`, `MOVE`, `\gset` per T0 | H1, H3, H4 | done: holdout4 keys 92.5%, column-level 98.2% (passes); H1 rest = join keys (T0) |
 | T9 | Scan and ledger agree on every new form (holdout4's 8 mismatches) | scan gate | done: 0 mismatches in every holdout; column-level 99.4% |
-| T10 | Retire the form-specific branches T2-T7 replaced; full suite green | cleanup | |
+| T10 | Retire the form-specific branches T2-T7 replaced; full suite green | cleanup | done: one `_bind_call` for every call site; SETOF base-type RETURN NEXT; grammar checklist 416/416 |
 | T11 | Oracle on PG17 (auto_explain, pg_depend), checklist v2 matrix | find gaps early | after go |
 | T12 | Go / no-go: gate run, FINDINGS entry, merge or roll back | decision | |
 

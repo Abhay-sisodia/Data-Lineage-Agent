@@ -155,7 +155,10 @@ def test_a_return_query_function_is_inlined_where_it_is_read() -> None:
     }
 
 
-def test_a_return_next_function_read_is_declared() -> None:
+def test_a_return_next_function_read_is_traced() -> None:
+    """semantic-ir T3/T10: RETURN NEXT of a SETOF text routine emits into its output (one
+    column, named after the function); the call's `AS g(r)` renames it. Until then the call
+    was declared source_unavailable (D-40)."""
     result = _result(
         _routine(
             "DECLARE\n    rr record;\nBEGIN\n"
@@ -165,9 +168,10 @@ def test_a_return_next_function_read_is_declared() -> None:
         )
         + "\nINSERT INTO mart.kpi_rollup (region) SELECT g.r FROM mart.gen() AS g(r);"
     )
-    assert ("source_unavailable", "mart.gen") in {
-        (b.kind.value, b.subject.lower()) for b in result.boundaries
-    }
+    pairs = {(str(e.source), str(e.target)) for e in result.edges}
+    assert ("column:core.dim_store.region", "column:mart.gen.gen") in pairs
+    assert ("column:mart.gen.gen", "column:mart.kpi_rollup.region") in pairs
+    assert "mart.gen" not in {b.subject.lower() for b in result.boundaries}
 
 
 def test_a_scalar_function_gives_its_return_columns_and_the_rest_of_the_projection_stays() -> None:

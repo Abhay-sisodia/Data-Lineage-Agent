@@ -583,6 +583,35 @@ edges:
   evidence: source_read
 - source:
     kind: column
+    name: core.dim_store.region
+  target:
+    kind: column
+    name: mart.fn_gen_regions.fn_gen_regions
+  flow: value
+  transform: identity
+  band: 1
+  origin:
+    unit: mart.fn_gen_regions
+    line: 262
+  evidence: source_read
+  note: 'semantic-ir T3/T10 (2026-10-18): rows built by RETURN NEXT go into the routine''s output relation,
+    one column named after the function (PostgreSQL''s own name for SETOF a base type). Until then declared
+    source_unavailable (D-40).'
+- source:
+    kind: column
+    name: mart.fn_gen_regions.fn_gen_regions
+  target:
+    kind: column
+    name: mart.channel_mix.region
+  flow: value
+  transform: identity
+  band: 0
+  origin:
+    unit: <script>
+    line: 268
+  evidence: source_read
+- source:
+    kind: column
     name: staging.ledger.id
   target:
     kind: column
@@ -673,6 +702,3 @@ expected_boundaries:
 - kind: dynamic_sql
   subject: EXECUTE:195
   reason: 'the table name is p_table, a parameter: undecidable (D-42)'
-- kind: source_unavailable
-  subject: mart.fn_gen_regions
-  reason: its rows are built by RETURN NEXT in a loop (D-40)

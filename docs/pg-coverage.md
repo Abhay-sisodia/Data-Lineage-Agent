@@ -8,7 +8,7 @@ its snippet through `analyse_source`. Rows: `stress/pg/grammar/checklist.yaml`.
 `lineage scan <folder>` uses this table to predict, before analysing, what the analyser
 will make of every statement in a folder - and names the row behind each gap.
 
-**415 / 416 constructs meet their target (99.8%).** Extra combinations: 71 / 72.
+**416 / 416 constructs meet their target (100.0%).** Extra combinations: 71 / 72.
 
 | area | constructs | meet target | % |
 |---|---|---|---|
@@ -16,9 +16,9 @@ will make of every statement in a folder - and names the row behind each gap.
 | clause | 41 | 41 | 100.0% |
 | expression / clause | 100 | 100 | 100.0% |
 | variant | 134 | 134 | 100.0% |
-| PL/pgSQL | 27 | 26 | 96.3% |
+| PL/pgSQL | 27 | 27 | 100.0% |
 
-Measured outcomes over all rows: COUNTED 114, DECLARED 2, EFFECT 10, LINEAGE 281, REFUSED 1, UNCLASSIFIED 1
+Measured outcomes over all rows: COUNTED 114, DECLARED 1, EFFECT 10, LINEAGE 282, REFUSED 1, UNCLASSIFIED 1
 
 ## Targets and outcomes
 
@@ -38,7 +38,6 @@ move data and produced nothing. PARTIAL means lineage came out and a part was re
 | construct | target | measured | note |
 |---|---|---|---|
 | `extra:rows_from_several_functions` | lineage | UNCLASSIFIED:PARSE_FAILED | valid PostgreSQL SQLGlot cannot parse - found in plan step 4 |
-| `plpgsql:PLpgSQL_stmt_return_next` | lineage | DECLARED:dangling_reference |  |
 
 ## Left out of the inventory, by name
 
