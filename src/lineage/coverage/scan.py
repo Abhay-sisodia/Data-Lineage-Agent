@@ -97,8 +97,9 @@ def _restated_as_lineage(v: Any) -> bool:
 
 
 def _written_by_the_run(v: Any, run: _Run) -> bool:
-    """A bound trigger function (D-41) that writes, or a REFRESH of a matview the run made."""
-    if v.kind == "CreateFunctionStmt" and ledger.writes_rows(v):
+    """A bound trigger function (D-41) that writes - rows, or its NEW row's fields (T4) - or a
+    REFRESH of a matview the run made."""
+    if v.kind == "CreateFunctionStmt" and (ledger.writes_rows(v) or ledger.sets_new(v)):
         return run.binds(v)
     if v.kind == "RefreshMatViewStmt" and v.tree is not None:
         rel = v.tree.relation

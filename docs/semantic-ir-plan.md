@@ -35,7 +35,7 @@ The parsers (pglast / libpg_query, our PL/pgSQL reader, SQLGlot) do not change.
 | T2 | `analysis/routine_ir.py`: the primitives and ONE lowering table from the reader's tree | the base | table + output shapes done; dispatch moves over with T3/T4 |
 | T2b | Variables scoped per routine (5 of holdout4's 39 variable nodes are shared by unrelated routines) | precision | |
 | T3 | EMIT: one routine output shape (signature + dictionary) and one row-source mechanism for every emit form | H5, H6, H7 | done: RETURN NEXT / OUT-param routines emit into an output relation; holdout4 keys 89.2% |
-| T4 | ASSIGN / BIND to any target, NEW/OLD fields included | H8 | |
+| T4 | ASSIGN / BIND to any target, NEW/OLD fields included | H8 | done: NEW.f := / INTO NEW.f write the trigger table; entry 3 32/32; column-level 98.8% |
 | T5 | DYN: one fold for every position, `format()` positional args, `$q$` texts, named call arguments | H7 | done: holdout4 77.2% -> 84.6% (keys 79.8% -> 87.5%), holdout1/3 unchanged |
 | T6 | BEGIN ATOMIC read as one statement, body as a LANGUAGE sql body | H2 | |
 | T7 | OPAQUE: a statement not followed gives labelled conservative edges, not zero | cascade | |

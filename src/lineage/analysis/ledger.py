@@ -114,6 +114,18 @@ def writes_rows(verdict: Verdict) -> bool:
     return bool(verdict.constructs & _WRITE_STATEMENTS)
 
 
+_SETS_NEW = re.compile(
+    r"(?is)\bINTO\s+(?:STRICT\s+)?NEW\s*\.\s*\w+"
+    r"|\bNEW\s*\.\s*\w+\s*:=\s*[^;]*?(?:\b[A-Za-z_]\w*\s*\.\s*[A-Za-z_]\w*|\bSELECT\b)"
+)
+
+
+def sets_new(verdict: Verdict) -> bool:
+    """A trigger body that sets a NEW field from a column or a query: a write of the trigger
+    table's row (semantic-ir T4) - `NEW.f := now()` alone sets nothing traceable."""
+    return verdict.kind == "CreateFunctionStmt" and _SETS_NEW.search(verdict.text) is not None
+
+
 def nothing_reason(verdict: Verdict) -> tuple[str, str]:
     """(status, reason) for a statement the analyser produced nothing for."""
     kind = verdict.kind

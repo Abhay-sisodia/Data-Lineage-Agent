@@ -447,6 +447,7 @@ class _Desugarer:
         if bindings:
             context.records["new"] = []
             context.records["old"] = []
+            context.tables = tuple(dict.fromkeys(binding.table for binding in bindings))
         # Plan step 8: a transition table (`REFERENCING NEW TABLE AS new_rows`) holds rows of
         # the table the trigger is on - read from that table.
         self.transitions = {
@@ -760,7 +761,52 @@ class _Desugarer:
         targets = tuple(t.lower() for t in stmt.targets)
         self._phantom(f"SELECT {stmt.expression} FROM {written}", stmt.at, context, "into", targets)
 
+    def _set_new(self, fields: dict[str, str], start: int, context: _Context) -> None:
+        """NEW fields set in a BEFORE trigger: `UPDATE <trigger table> SET f = <value>` - an
+        ordinary EFFECT, so the value's columns and the variables it filters on are traced."""
+        sets = ", ".join(f"{name} = {value}" for name, value in fields.items())
+        for table in context.tables:
+            self.result.synthetic += 1
+            self._sql(f"UPDATE {table} SET {sets}", start, context)
+
+    def _bind_fields(self, query: Any, targets: list[str], start: int, context: _Context) -> None:
+        """`SELECT a, b INTO NEW.x, v ...`: each NEW field takes its column of the query (a
+        scalar subquery of it), each plain target is a BIND as before (semantic-ir T4)."""
+        selects = query.selects
+        if len(selects) != len(targets):
+            raise pl.UnsupportedError("INTO targets that do not match the select list")
+        fields: dict[str, str] = {}
+        plain: list[tuple[Any, str]] = []
+        for select, target in zip(selects, targets, strict=True):
+            record, _, name = target.partition(".")
+            if name and record == "new":
+                single = query.copy()
+                single.set(
+                    "expressions",
+                    [(select.this if isinstance(select, exp.Alias) else select).copy()],
+                )
+                fields[name] = f"({single.sql(dialect=DIALECT)})"
+            elif name and record != "old":
+                raise pl.UnsupportedError("INTO a field of a record other than NEW")
+            elif not name:
+                plain.append((select, target))
+        if fields:
+            self._set_new(fields, start, context)
+        if plain:
+            rest = query.copy()
+            rest.set("expressions", [select.copy() for select, _ in plain])
+            self._into(rest.sql(dialect=DIALECT), start, context, tuple(t for _, t in plain))
+
     def _select_into(self, text: str, start: int, context: _Context) -> None:
+        listed = _INTO_TARGETS.search(text)
+        written = [t.strip().lower() for t in listed.group(1).split(",")] if listed else []
+        if any(t.startswith(("new.", "old.")) for t in written):
+            assert listed is not None
+            query = _parse(text[: listed.start()] + text[listed.end() :])
+            if not isinstance(query, exp.Select):
+                raise pl.UnsupportedError("SELECT INTO that SQLGlot reads otherwise")
+            self._bind_fields(query, written, start, context)
+            return
         # `INTO STRICT` only adds a run-time check that exactly one row came back.
         parsed = _parse(re.sub(r"(?i)\bINTO\s+STRICT\b", "INTO", text))
         if not isinstance(parsed, exp.Select) or parsed.args.get("into") is None:
@@ -805,13 +851,17 @@ class _Desugarer:
             raise pl.UnsupportedError("an assignment SQLGlot cannot parse")
         if "." in target:
             # `NEW.updated_at := now()` - a field set from nothing the analysis can name (a
-            # clock, a literal) carries no lineage, so it is passed over. A field set from
-            # a column or a variable still stops the reader: that write is not traced yet.
+            # clock, a literal) carries no lineage, so it is passed over.
             if query.find(exp.Column) is None and query.find(exp.Subquery) is None:
                 return
             record, _, name = target.partition(".")
-            if record in ("new", "old"):
-                raise pl.UnsupportedError("assignment to a record field")
+            if record == "old":
+                return  # OLD is the row as it was: setting it writes nothing
+            if record == "new":
+                # semantic-ir T4 (holdout4 H8): in a BEFORE trigger NEW is the row being
+                # written - `NEW.f := e` is a write of e into the trigger table's column f.
+                self._set_new({name: expression}, stmt.start, context)
+                return
             # Plan step 8: `r.v := <expr>` is a one-field record value, read as `SELECT * INTO
             # rec` is (G2) - a later `r.v` is traced from it.
             phantom = self._phantom(
@@ -1118,7 +1168,12 @@ class _Desugarer:
             ):
                 continue
             slot = next(((root, target) for root, target in slots if _within(column, root)), None)
-            if slot is not None:
+            if slot is not None and _in_predicate_below(column, slot[0]):
+                # `SET f = (SELECT r.x FROM r WHERE NEW.k LIKE r.p)`: the symbol chooses the
+                # row the value is read from - a filter of the write, not its value (T4).
+                read = _relations_beside(column, parsed) if (into or record_fields) else ()
+                uses.append(Use(symbol=_symbol(column), role="filter", read=read))
+            elif slot is not None:
                 root, target = slot
                 uses.append(
                     Use(
@@ -1178,6 +1233,7 @@ class _Context:
     constants: dict[str, str] = field(default_factory=dict)
     loop_stack: tuple[int, ...] = ()
     loop_phantoms: dict[int, str] = field(default_factory=dict)
+    tables: tuple[str, ...] = ()  # in a trigger: the tables NEW is a row of (semantic-ir T4)
 
     def inside_loop(self, number: int) -> _Context:
         return _Context(
@@ -1190,6 +1246,7 @@ class _Context:
             constants=self.constants,
             loop_stack=(*self.loop_stack, number),
             loop_phantoms=self.loop_phantoms,
+            tables=self.tables,
         )
 
     def dynamic(self) -> _Context:
@@ -1203,6 +1260,7 @@ class _Context:
             constants=self.constants,
             loop_stack=self.loop_stack,
             loop_phantoms=self.loop_phantoms,
+            tables=self.tables,
         )
 
 
@@ -1264,6 +1322,16 @@ def _within(node: Any, root: Any) -> bool:
 def _in_predicate(node: Any) -> bool:
     current = node.parent
     while current is not None:
+        if isinstance(current, (exp.Where, exp.Having, exp.Join, exp.Qualify)):
+            return True
+        current = current.parent
+    return False
+
+
+def _in_predicate_below(node: Any, root: Any) -> bool:
+    """Is `node` in a WHERE / HAVING / JOIN / QUALIFY that sits inside `root`?"""
+    current = node.parent
+    while current is not None and current is not root:
         if isinstance(current, (exp.Where, exp.Having, exp.Join, exp.Qualify)):
             return True
         current = current.parent

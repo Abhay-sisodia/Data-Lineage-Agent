@@ -231,3 +231,43 @@ def test_return_next_of_a_record_built_field_by_field_is_traced(book) -> None:
     assert _path(result, "column:src.a.w", "column:tgt.f_alloc.v", "column:tgt.t.v")
     assert _path(result, "column:src.a.v", "column:tgt.f_alloc.v", "column:tgt.t.v")
     assert result.statements_seen == 2  # the routine and the INSERT; nothing synthetic counted
+
+
+# --- ASSIGN / BIND to NEW fields (semantic-ir T4) ----------------------------------------------
+
+TRIGGER = """CREATE FUNCTION tgt.trg_enrich() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.w := lower(NEW.v::text);
+  SELECT b.n, b.d INTO NEW.n, NEW.d
+  FROM src.b AS b
+  WHERE NEW.k = b.k
+  ORDER BY b.id DESC
+  LIMIT 1;
+  IF NOT FOUND THEN
+    NEW.n := 0;
+  END IF;
+  OLD.v := NEW.v;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER t_enrich BEFORE INSERT OR UPDATE ON tgt.t
+  FOR EACH ROW EXECUTE FUNCTION tgt.trg_enrich();
+
+INSERT INTO tgt.t (id, k, v) SELECT a.id, a.k, a.v FROM src.a AS a;
+"""
+
+
+def test_new_fields_set_in_a_before_trigger_are_writes_of_its_table(book) -> None:
+    """holdout4 H8: `NEW.f := e` was refused and `SELECT .. INTO NEW.f` was read as a plain
+    variable `f`. Both write the trigger table's column; NEW.k in the lookup's WHERE chooses
+    the row read - a filter of the table, not a value."""
+    result = analyse_source(TRIGGER, book, AnalysisConfig(dialect="postgres"))
+    assert result.refusals == []
+    pairs = _pairs(result)
+    assert ("column:src.b.n", "column:tgt.t.n") in pairs
+    assert ("column:src.b.d", "column:tgt.t.d") in pairs
+    assert ("column:tgt.t.v", "column:tgt.t.w") in pairs
+    filters = {(str(e.source), str(e.target)) for e in result.edges if e.flow.value == "filter"}
+    assert ("column:tgt.t.k", "relation:tgt.t") in filters
+    assert ("column:tgt.t.k", "column:tgt.t.n") not in pairs  # not a value of the lookup
+    assert not any(str(e.target) == "variable:n" for e in result.edges)  # no stray variable
