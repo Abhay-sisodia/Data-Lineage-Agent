@@ -30,7 +30,7 @@ The parsers (pglast / libpg_query, our PL/pgSQL reader, SQLGlot) do not change.
 
 | # | Task | Fixes | Status |
 |---|---|---|---|
-| T0 | Lineage contract: `\gset` variables, row-deciding join keys, R2, D-42 USING (`BIND_USING`) | H4, ~4.6 pts | decided 2026-10-16: `\gset` = BIND; `\set` substituted as psql does (D-36 amended). Pending: join keys, R2, USING |
+| T0 | Lineage contract: `\gset` variables, row-deciding join keys, R2, D-42 USING (`BIND_USING`) | H4, ~4.6 pts | decided: `\gset` = BIND; `\set` substituted (D-36 amended); join keys = option C, a row-deciding mode (2026-10-18) - default keeps D-5. Pending: USING (D-42) |
 | T1 | Gate script: all holdouts vs the baseline, thresholds, one verdict | go / no-go | done |
 | T2 | `analysis/routine_ir.py`: the primitives and ONE lowering table from the reader's tree | the base | table + output shapes done; dispatch moves over with T3/T4 |
 | T2b | Variables scoped per routine (5 of holdout4's 39 variable nodes are shared by unrelated routines) | precision | |
@@ -61,3 +61,15 @@ Merge only if all of these hold; otherwise main stays at 6d08998.
 
 Holdout4 is no longer blind once we work against it. The gate proves the mechanisms; only
 a blind holdout5 from the frozen brief (`docs/holdout-brief.md`) proves generality.
+
+## Gate result by mode (2026-10-18, commit after T0 option C)
+
+| | default (D-5) | row-deciding mode |
+|---|---|---|
+| holdout1 recall (keys) | 97.5% (99.6%) | 97.5% (99.6%) |
+| holdout3 recall (keys) | 93.5% (95.3%) | 100% (100%) |
+| holdout4 recall (keys) | 90.4% (93.0%) | 97.2% (97.2%) |
+| gate | FAIL (holdout4 keys) | PASS |
+
+Row-deciding mode on the 55 pinned stress corpora: +206 edges (196 filters, 10 values inside
+scalar subqueries, D-45), 0 removed - every one an inner-join key, as the mode intends.

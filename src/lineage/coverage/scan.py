@@ -34,6 +34,7 @@ from pglast import ast, enums
 
 from lineage.analysis import ledger
 from lineage.analysis.procedure import restate_postgres
+from lineage.config import AnalysisConfig
 from lineage.coverage.grammar import SNAPSHOT, load_rows
 from lineage.parsing import psql
 from lineage.parsing.pg_referee import verdicts
@@ -141,8 +142,11 @@ def _only_dynamic(v: Any) -> bool:
 
 
 def _key_only_delete(v: Any) -> bool:
-    """A DELETE whose WHERE only matches keys (`t.k = s.k AND ...`): no lineage (D-5)."""
+    """A DELETE whose WHERE only matches keys (`t.k = s.k AND ...`): no lineage (D-5) -
+    except in row-deciding mode, where those keys decide which rows go (T0, option C)."""
     if v.kind != "DeleteStmt" or v.tree is None or v.tree.whereClause is None:
+        return False
+    if AnalysisConfig.load().row_deciding_keys:
         return False
 
     def keys(node: Any) -> bool:

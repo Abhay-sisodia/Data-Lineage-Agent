@@ -34,6 +34,7 @@ from lineage.analysis.defuse import (
 from lineage.analysis.document_tables import restate as restate_document_tables
 from lineage.analysis.dynamic import Resolution, resolve_dynamic_sql
 from lineage.analysis.interproc import build_summaries
+from lineage.analysis.predicates import ROW_DECIDING
 from lineage.analysis.reaching import reaching_definitions, uninitialised_uses
 from lineage.analysis.refusal import RefusalCode, classify_program, enclosing_unit_at
 from lineage.analysis.relations import is_path_change, search_path_change
@@ -121,6 +122,22 @@ def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_refe
 
 
 def analyse_source(
+    source: str,
+    dictionary: Dictionary,
+    config: AnalysisConfig | None = None,
+    witness: ExecutionWitness | None = None,
+    result_target: str | None = None,
+    carry: RunCarry | None = None,
+) -> AnalysisResult:
+    """Analyse one source, in the row-deciding mode its configuration asks for (T0, C)."""
+    token = ROW_DECIDING.set(bool(config is not None and config.row_deciding_keys))
+    try:
+        return _analyse_source(source, dictionary, config, witness, result_target, carry)
+    finally:
+        ROW_DECIDING.reset(token)
+
+
+def _analyse_source(
     source: str,
     dictionary: Dictionary,
     config: AnalysisConfig | None = None,
