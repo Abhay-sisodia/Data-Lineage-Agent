@@ -189,6 +189,39 @@ def skip_lexeme(source: str, index: int) -> int | None:
         if tag is not None:
             closing = source.find(tag.group(0), tag.end())
             return len(source) if closing == -1 else closing + len(tag.group(0))
+    if char in "bB" and not (index > 0 and _IDENT_CHAR.match(source[index - 1])):
+        atomic = _ATOMIC.match(source, index)
+        if atomic is not None:
+            return atomic_end(source, atomic.end())
+    return None
+
+
+_ATOMIC = re.compile(r"(?i)BEGIN\s+ATOMIC\b")
+_WORD = re.compile(r"[A-Za-z_][\w$]*")
+
+
+def atomic_end(source: str, cursor: int) -> int | None:
+    """The end of the `END` closing a SQL-standard body that starts at `cursor` (just after
+    `BEGIN ATOMIC`), or None. Its statements end in `;`, which must not end the CREATE
+    FUNCTION around them (semantic-ir T6, holdout4 H2); `CASE ... END` nests inside."""
+    depth = 0
+    while cursor < len(source):
+        skipped = skip_lexeme(source, cursor)
+        if skipped is not None:
+            cursor = skipped
+            continue
+        word = _WORD.match(source, cursor)
+        if word is not None and not (cursor > 0 and _IDENT_CHAR.match(source[cursor - 1])):
+            lowered = word.group(0).lower()
+            if lowered == "case":
+                depth += 1
+            elif lowered == "end":
+                if depth == 0:
+                    return word.end()
+                depth -= 1
+            cursor = word.end()
+            continue
+        cursor += 1
     return None
 
 

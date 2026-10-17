@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from lineage.parsing.sqlscript import skip_lexeme
+from lineage.parsing.sqlscript import atomic_end, skip_lexeme
 
 
 class UnsupportedError(Exception):
@@ -716,14 +716,25 @@ def read_routine(source: str, start: int, end: int) -> Routine | None:
             params.append(words[0].lower())
     header = text[closing + 1 :]
     dollar = re.search(r"\bAS\s+(\$[A-Za-z_]*\$)", header, re.IGNORECASE)
-    if not dollar:
+    atomic = re.search(r"(?i)\bBEGIN\s+ATOMIC\b", header) if not dollar else None
+    if atomic is not None:
+        # A SQL-standard body (semantic-ir T6, holdout4 H2): its statements sit between
+        # BEGIN ATOMIC and the matching END, read as a LANGUAGE sql body is.
+        body_start = start + closing + 1 + atomic.end()
+        finished = atomic_end(source, body_start)
+        if finished is None:
+            raise UnsupportedError("BEGIN ATOMIC without its END")
+        body_end = finished - len("end")
+        options = header[: atomic.start()] + source[finished:end]
+    elif not dollar:
         raise UnsupportedError("a routine body that is not dollar-quoted")
-    tag = dollar.group(1)
-    body_start = start + closing + 1 + dollar.end()
-    body_end = source.find(tag, body_start, end)
-    if body_end < 0:
-        raise UnsupportedError("unterminated routine body")
-    options = header[: dollar.start()] + source[body_end + len(tag) : end]
+    else:
+        tag = dollar.group(1)
+        body_start = start + closing + 1 + dollar.end()
+        body_end = source.find(tag, body_start, end)
+        if body_end < 0:
+            raise UnsupportedError("unterminated routine body")
+        options = header[: dollar.start()] + source[body_end + len(tag) : end]
     language = re.search(r"(?i)\bLANGUAGE\s+(\w+)", options)
     path = re.search(r"(?i)\bSET\s+search_path\s*(?:=|TO)\s*([\w\"]+)", options)
     returns_match = re.search(r"(?i)\bRETURNS\s+(SETOF\s+|TABLE\s*\()?\s*([\w.\"]*)", options)

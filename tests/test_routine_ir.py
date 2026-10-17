@@ -271,3 +271,33 @@ def test_new_fields_set_in_a_before_trigger_are_writes_of_its_table(book) -> Non
     assert ("column:tgt.t.k", "relation:tgt.t") in filters
     assert ("column:tgt.t.k", "column:tgt.t.n") not in pairs  # not a value of the lookup
     assert not any(str(e.target) == "variable:n" for e in result.edges)  # no stray variable
+
+
+# --- BEGIN ATOMIC bodies (semantic-ir T6) ------------------------------------------------------
+
+ATOMIC = """CREATE FUNCTION tgt.fn_label(p_id integer)
+RETURNS text
+LANGUAGE sql
+STABLE
+BEGIN ATOMIC
+    SELECT CASE WHEN b.k > 0 THEN b.v::text ELSE 'none' END || ';' || b.d::text
+    FROM src.b AS b
+    WHERE b.id = p_id;
+END;
+
+INSERT INTO tgt.t (id, w) SELECT a.id, tgt.fn_label(a.id) FROM src.a AS a;
+"""
+
+
+def test_a_begin_atomic_body_is_one_statement_and_its_value_is_traced(book) -> None:
+    """holdout4 H2: the body was split at its inner `;` (and at the one in the literal is
+    not a risk) - the CREATE FUNCTION was not valid and the call lost its lineage."""
+    from lineage.parsing.sqlscript import split_statements
+
+    assert [line for line, _ in split_statements(ATOMIC)] == [1, 11]
+    result = analyse_source(ATOMIC, book, AnalysisConfig(dialect="postgres"))
+    assert result.refusals == []
+    assert {e.status for e in result.ledger} <= {"no_lineage", "column_level"}
+    pairs = _pairs(result)
+    assert ("column:src.b.v", "column:tgt.t.w") in pairs
+    assert ("column:src.b.d", "column:tgt.t.w") in pairs
