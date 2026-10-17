@@ -5126,3 +5126,56 @@ Taken by Abhay with plan step 8 - the grammar checklist's gaps, closed.
   * Recall 93.5% (keys **95.3%**), values 40/40.
   * holdout1 is unchanged: 97.5%, keys 99.6%.
   * Holdout3 is no longer blind; the final proof needs a holdout4.
+
+## semantic-ir - the routine layer by meaning, not by form (holdout4), 2026-10-16..18
+
+* **Why:** every blind holdout dropped recall (holdout1 91.3%, holdout3 89.4%, holdout4
+  77.2%) because the PL/pgSQL layer was one desugar rule per syntactic form - a new form
+  was refused and everything downstream of it lost (one missing node cost holdout4 9.6
+  points). Research (reports/Procedural SQL column lineage.md): no open-source tool does
+  lineage through PL/pgSQL; the change is architecture, not a dependency. Plan and gate:
+  docs/semantic-ir-plan.md, scripts/holdout/gate.py (baseline ccaa793).
+* **The change:** each form the reader names is lowered to a primitive (ASSIGN, BIND, EMIT,
+  EFFECT, DYN, CALL, BRANCH, OPAQUE - `analysis/routine_ir.py`), and each primitive has one
+  mechanism. The parsers did not change.
+  * DYN (T5): one resolver for EXECUTE, RETURN QUERY EXECUTE, FOR ... IN EXECUTE, OPEN ...
+    FOR EXECUTE - positional `format()` (%1$I), `$q$` texts, constants kept from
+    assignments, named call arguments (holdout4 H7).
+  * EMIT (T3, T10): rows built by RETURN NEXT or OUT/INOUT parameters, and SETOF a base type,
+    go into the routine's OUTPUT relation, named after it; a call reads it (H5, H6).
+  * ASSIGN / BIND (T4): NEW fields in a BEFORE trigger are writes of the trigger's table
+    (H8). `INTO NEW.a` had been read as a plain variable `a`.
+  * psql (T8): COPY FROM STDIN data rows skipped (H1); FETCH / MOVE inert (H3).
+  * BEGIN ATOMIC (T6) is one statement, read as a LANGUAGE sql body (H2).
+  * Scan and ledger (T9) agree on prepared EXECUTEs and filter-only routines.
+* **Decisions:**
+  * **D-68** `\gset` is a BIND: the query's row goes into psql variables that carry its
+    columns' lineage (relation `psql_gset_l<line>_<hash>`). Amends D-37.
+  * **D-69** a `\set` value known in the script is substituted as psql substitutes it,
+    identifiers included. Amends D-36 (a variable set nowhere is still refused/declared).
+  * **D-70** join keys, option C: D-5 stays the default; ROW-DECIDING MODE
+    (`AnalysisConfig.row_deciding_keys`, LINEAGE_ROW_DECIDING_KEYS=1) makes an inner
+    join's key equality a filter - the impact view. Outer-join keys stay structural.
+  * **D-71** a routine's emitted rows go into its output relation (D-40 extended); a
+    RETURN QUERY-only routine is still inlined where it is called.
+  * **D-72** `NEW.f := e` / `INTO NEW.f` write the trigger table's column f; OLD is never
+    written. A symbol in a WHERE inside a value slot is a filter of the write.
+  * **D-73** a PL/pgSQL variable is a node of its routine (`<routine>.<name>`; a DO block
+    `<do>:<line>:<hash>`). holdout4 had 5 of 39 variable nodes shared by unrelated routines.
+  * **Pending:** D-42 (USING values external) holds behind `plpgsql.BIND_USING = False`.
+* **Result** (gate = recall no regression; holdout4 recall with keys >= 95%; column-level
+  >= 98%; scan = ledger; 0 silent):
+
+  | | blind | default (D-5) | row-deciding mode |
+  |---|---|---|---|
+  | holdout1 recall (keys) | 91.3% (96.4%) | 97.5% (99.6%) | 97.5% (99.6%) |
+  | holdout3 recall (keys) | 89.4% (90.3%) | 93.5% (95.3%) | 100% (100%) |
+  | holdout4 recall (keys) | 77.2% (79.8%) | 90.4% (93.0%) | 97.2% (97.2%) |
+  | holdout4 column-level / scan mismatches | 95.7% / 8 | 99.4% / 0 | 99.4% / 0 |
+  | gate | - | FAIL (holdout4 keys) | PASS |
+
+  * Grammar checklist 416 / 416 (was 415). Full suite 2325 passed.
+  * Row-deciding mode on the 55 pinned stress corpora: +206 edges, 0 removed, every one an
+    inner-join key (196 filters; 10 values inside scalar subqueries, D-45).
+  * Holdout4 is no longer blind: the gate proves the mechanisms, a blind holdout5 from the
+    frozen brief (docs/holdout-brief.md) proves generality.

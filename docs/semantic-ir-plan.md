@@ -43,7 +43,7 @@ The parsers (pglast / libpg_query, our PL/pgSQL reader, SQLGlot) do not change.
 | T9 | Scan and ledger agree on every new form (holdout4's 8 mismatches) | scan gate | done: 0 mismatches in every holdout; column-level 99.4% |
 | T10 | Retire the form-specific branches T2-T7 replaced; full suite green | cleanup | done: one `_bind_call` for every call site; SETOF base-type RETURN NEXT; grammar checklist 416/416 |
 | T11 | Oracle on PG17 (auto_explain, pg_depend), checklist v2 matrix | find gaps early | after go |
-| T12 | Go / no-go: gate run, FINDINGS entry, merge or roll back | decision | |
+| T12 | Go / no-go: gate run, FINDINGS entry, merge or roll back | decision | GO (2026-10-18): gate PASS in row-deciding mode, no regression in default; FINDINGS D-68..D-73 |
 
 ## Gate (T1, T12)
 
