@@ -196,8 +196,16 @@ def build(verdicts: list[Verdict], result: Any) -> list[LedgerEntry]:
             mine
             and verdict.kind in ("CreateFunctionStmt", "DoStmt")
             and not any(
-                e.target.kind is NodeKind.COLUMN
-                and e.target.name.rpartition(".")[0].lower() != e.origin.unit.lower()
+                (
+                    e.target.kind is NodeKind.COLUMN
+                    and e.target.name.rpartition(".")[0].lower() != e.origin.unit.lower()
+                )
+                # semantic-ir T9: a filter on a table the routine writes (an UPDATE that sets
+                # constants under a WHERE) is lineage of that write, as at top level.
+                or (
+                    e.target.kind is NodeKind.RELATION
+                    and e.target.name.lower() in {w.lower() for w in verdict.writes}
+                )
                 for e in edges
                 if _in(e.origin.line, verdict)
             )

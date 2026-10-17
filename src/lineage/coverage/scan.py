@@ -108,6 +108,27 @@ def _written_by_the_run(v: Any, run: _Run) -> bool:
     return False
 
 
+_WRITES = (ast.InsertStmt, ast.UpdateStmt, ast.DeleteStmt, ast.MergeStmt)
+
+
+def _track_prepared(v: Any, prepared: set[str]) -> bool:
+    """Follow PREPARE / DEALLOCATE in file order (one psql session); True for an EXECUTE of
+    a prepared write - the analyser traces it there, D-35 (semantic-ir T9, holdout4)."""
+    tree = v.tree if v.valid else None
+    if tree is None:
+        return False
+    if v.kind == "PrepareStmt" and isinstance(tree.query, _WRITES):
+        prepared.add(str(tree.name).lower())
+    elif v.kind == "DeallocateStmt":
+        if getattr(tree, "isall", False) or not tree.name:
+            prepared.clear()
+        else:
+            prepared.discard(str(tree.name).lower())
+    elif v.kind == "ExecuteStmt":
+        return str(tree.name).lower() in prepared
+    return False
+
+
 def _only_dynamic(v: Any) -> bool:
     """A routine whose only writes are `EXECUTE <text that is not a literal>`: what it runs
     is not decidable before it runs (D-42), so it is declared, not 'no lineage'."""
@@ -153,7 +174,9 @@ def scan_source(
     served, _ = psql.restate(text)
     restated = dict(split_statements(restate_postgres(text)[0]))
     out: list[StatementScan] = []
+    prepared: set[str] = set()  # this session's prepared statements that write (T9)
     for v in verdicts(served):
+        executes_a_write = _track_prepared(v, prepared)
         if not v.valid:
             out.append(StatementScan(file, v.line, "?", "not valid PostgreSQL", [v.error]))
             continue
@@ -190,7 +213,7 @@ def scan_source(
         nothing, _ = ledger.nothing_reason(v)
         if gaps and (kind_target == "lineage" or v.kind in _ROUTINES):
             prediction = "gap"
-        elif _restated_as_lineage(v) or _written_by_the_run(v, run):
+        elif _restated_as_lineage(v) or _written_by_the_run(v, run) or executes_a_write:
             prediction = "column-level"
         elif _only_dynamic(v):
             prediction = "declared"
