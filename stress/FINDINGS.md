@@ -5179,3 +5179,53 @@ Taken by Abhay with plan step 8 - the grammar checklist's gaps, closed.
     inner-join key (196 filters; 10 values inside scalar subqueries, D-45).
   * Holdout4 is no longer blind: the gate proves the mechanisms, a blind holdout5 from the
     frozen brief (docs/holdout-brief.md) proves generality.
+
+## Blind holdout5 (e-commerce fulfilment and returns), 2026-10-18
+
+* **Corpus:** written by a separate session from the frozen brief (docs/holdout-brief.md,
+  with the holdout number filled in), never seen before scoring. 10 files,
+  3,666 lines, 367 statements, an answer key of 19 entries / 483 scored columns.
+* **Blind result, at d8a4204** (outputs in .holdout-runs/blind-holdout5-d8a4204):
+  * recall 90.7% default, 91.7% row-deciding (the same with keys); column-level 95.7%;
+    9 scan mismatches; 0 silent; 1 statement not valid; every entry had a node.
+  * Blind trend: holdout1 91.3%, holdout3 89.4%, holdout4 77.2%, holdout5 90.7%. The new
+    forms cost columns, not subtrees: no node was missing and no refusal cascaded.
+* **Causes, fixed on branch holdout5-fixes:**
+  * **A** - a comment before `COPY ... FROM STDIN` hid it from psql.restate, so its data rows
+    were read as SQL and swallowed the UPDATE after them (15 of 19 entries).
+  * **B1, D-74** - routines were keyed by name: `fx_to_usd(amount, ccy)` replaced
+    `fx_to_usd(amount, ccy, on)`. An overloaded name gives each overload its own identity,
+    `<name>__<n>`; each call is renamed to the overload its argument count picks (exact,
+    else the smallest that takes more). Non-overloaded names are unchanged.
+  * **B2, D-75** - a column loaded and then renamed (`RENAME COLUMN carrier_cost TO
+    carrier_cost_usd`) lost its lineage to every later reader. A rename (column, table,
+    SET SCHEMA) carries the contents: identity edges old -> new. The statement is still an
+    effect in the ledger and the checklist.
+  * **C, D-76** - `SET LOCAL search_path` lasts until the end of its transaction; it had
+    stayed for the rest of the file. The session path is written back at the COMMIT /
+    ROLLBACK that ends it; a SET LOCAL outside a transaction block is ignored, as in
+    PostgreSQL.
+  * **D, D-77** - `IF v NOT IN ('a', 'b', ...) THEN RAISE EXCEPTION` (no other arm) gives v a
+    finite domain; dynamic SQL that does not fold is enumerated over its domains (at most 16
+    variants): a query is the UNION ALL of its variants, each DML variant is analysed.
+  * **E** - the scan predicted column-level for an EXECUTE of a prepared INSERT of literal
+    parameters; it is no lineage, as the ledger says.
+  * **09:120** - libpg_query cannot resolve a `%ROWTYPE` variable's field offline, so a
+    procedure's body was unreadable and its writes unseen by the scan; on that failure the
+    body is parsed again with %ROWTYPE read as `record`.
+* **Why nothing caught them before:** holdout4 called the last-defined overload (B1) and
+  renamed before loading (B2); the grammar checklist tests one construct at a time, and
+  each of these needs a combination (two definitions + a call, a load + a rename + a read,
+  BEGIN + SET LOCAL + COMMIT + a name, a guard + a dynamic text).
+* **After the fixes** (holdout5 is no longer blind):
+
+  | holdout5 | blind | after A-E, 09:120 |
+  |---|---|---|
+  | recall (keys), both modes | 90.7-91.7% | 97.7% (99.0%) |
+  | column-level | 95.7% | 99.3% |
+  | scan mismatches | 9 | 0 |
+
+  * Holdouts 1, 3, 4 unchanged in both modes; row-deciding gate PASS. Checklist 416 / 416.
+    Full suite 2332 passed.
+  * Still open on holdout5: the refund / restock-fee path through a BEFORE trigger (about
+    5 columns).

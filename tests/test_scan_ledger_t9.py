@@ -49,3 +49,35 @@ def test_an_execute_of_a_prepared_write_is_predicted_column_level(tmp_path) -> N
     predicted = {scan.line: scan.prediction for scan in scan_folder(path)}
     assert predicted[3] == "column-level"
     assert predicted[5] != "column-level"
+
+
+def test_an_execute_of_a_prepared_insert_of_literals_is_no_lineage(tmp_path) -> None:
+    """holdout5 E: `PREPARE p AS INSERT ... VALUES ($1, $2)` writes only its parameters -
+    literals; the ledger says no lineage, and so must the scan."""
+    path = tmp_path / "targets.sql"
+    path.write_text(
+        "PREPARE p_set(integer, integer) AS INSERT INTO tgt.t (id, v) VALUES ($1, $2);\n"
+        "EXECUTE p_set(1, 2);\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    predicted = {scan.line: scan.prediction for scan in scan_folder(path)}
+    assert predicted[2] == "no lineage"
+
+
+def test_a_rowtype_field_assignment_does_not_make_a_body_unreadable() -> None:
+    """holdout5 09:120: libpg_query cannot resolve `v.f := e` for `v t%ROWTYPE` offline, so
+    the whole body was unreadable and its writes unseen - the scan said no lineage."""
+    from lineage.parsing.pg_referee import verdicts
+
+    sql = (
+        "CREATE PROCEDURE tgt.p() LANGUAGE plpgsql AS $$\n"
+        "DECLARE v tgt.t%ROWTYPE;\n"
+        "BEGIN\n"
+        "  v.id := 1;\n"
+        "  INSERT INTO tgt.t (id) VALUES (v.id);\n"
+        "END $$;\n"
+    )
+    [verdict] = verdicts(sql)
+    assert "plpgsql:unreadable_offline" not in verdict.constructs
+    assert verdict.writes == ["tgt.t"]

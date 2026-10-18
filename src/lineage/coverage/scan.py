@@ -112,13 +112,23 @@ def _written_by_the_run(v: Any, run: _Run) -> bool:
 _WRITES = (ast.InsertStmt, ast.UpdateStmt, ast.DeleteStmt, ast.MergeStmt)
 
 
+def _reads_rows(write: Any) -> bool:
+    """Does a prepared write read a column? An INSERT of `VALUES ($1, $2)` writes only its
+    parameters - literals, no lineage (holdout5 E); an INSERT ... SELECT ... FROM reads,
+    and so does an UPDATE / DELETE / MERGE, whose WHERE or join reads the table."""
+    if isinstance(write, ast.InsertStmt):
+        select = write.selectStmt
+        return select is not None and bool(getattr(select, "fromClause", None))
+    return True
+
+
 def _track_prepared(v: Any, prepared: set[str]) -> bool:
     """Follow PREPARE / DEALLOCATE in file order (one psql session); True for an EXECUTE of
     a prepared write - the analyser traces it there, D-35 (semantic-ir T9, holdout4)."""
     tree = v.tree if v.valid else None
     if tree is None:
         return False
-    if v.kind == "PrepareStmt" and isinstance(tree.query, _WRITES):
+    if v.kind == "PrepareStmt" and isinstance(tree.query, _WRITES) and _reads_rows(tree.query):
         prepared.add(str(tree.name).lower())
     elif v.kind == "DeallocateStmt":
         if getattr(tree, "isall", False) or not tree.name:

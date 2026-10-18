@@ -202,6 +202,9 @@ def measure(sql: str, book: Dictionary) -> tuple[str, list[str]]:
             for e in [*result.edges, *result.join_keys]
         }
     )
+    if {entry.status for entry in result.ledger} == {"effect"} and not result.refusals:
+        # A rename's identity edges carry the contents over (holdout5); it is an effect.
+        return ("EFFECT" if result.operations else "EFFECT_UNRECORDED"), pairs
     if result.edges or result.join_keys:
         if result.refusals:
             return f"PARTIAL:{result.refusals[0].code.value}", pairs

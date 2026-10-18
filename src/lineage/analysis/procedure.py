@@ -102,6 +102,9 @@ def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_refe
     # Plan step 8: roles, grants, comments, maintenance ... - nothing to trace and nothing to
     # refuse; PostgreSQL's parser named them, so SQLGlot never has to.
     source = pg_referee.set_aside_inert(source, verdicts)
+    # holdout5 C: `SET LOCAL search_path` lasts until the end of its transaction - the path
+    # before it comes back at COMMIT / ROLLBACK; outside a transaction block it does nothing.
+    source = _scope_local_paths(source, verdicts)
     # D-30: JSON_TABLE / XMLTABLE restated as LATERAL subqueries in the SOURCE, before
     # any front end, classifier or SQLGlot reads it - SQLGlot cannot parse PASSING
     # (B5-04), and the refusal register scans the raw text. Line counts are kept.
@@ -119,6 +122,57 @@ def restate_postgres(source: str) -> tuple[str, list[psql.Include], list[pg_refe
     # keyword forms, typed and radix literals, geometric operators ...), restated as SQL
     # that reads the same columns. Same lines, so every later line number holds.
     return pg_grammar.restate(source), includes, verdicts
+
+
+_TRANSACTION_ENDS = {"TRANS_STMT_COMMIT", "TRANS_STMT_ROLLBACK", "TRANS_STMT_COMMIT_PREPARED",
+                     "TRANS_STMT_ROLLBACK_PREPARED", "TRANS_STMT_PREPARE"}  # fmt: skip
+_TRANSACTION_STARTS = {"TRANS_STMT_BEGIN", "TRANS_STMT_START"}
+
+
+def _scope_local_paths(source: str, verdicts: list[pg_referee.Verdict]) -> str:
+    """`SET LOCAL search_path` scoped to its transaction (holdout5 C), lines kept.
+
+    Band 0 reads search_path changes in script order and never sees BEGIN / COMMIT (they
+    are inert). So the path in force before a SET LOCAL is written back at the COMMIT or
+    ROLLBACK that ends its transaction, and a SET LOCAL outside any transaction block -
+    which PostgreSQL ignores - is blanked.
+    """
+    lines = source.split("\n")
+    session: Any = None  # the session's path: None = the default (RESET)
+    in_transaction, local_set = False, False
+    for verdict in verdicts:
+        tree = verdict.tree if verdict.valid else None
+        if tree is None:
+            continue
+        kind = type(tree).__name__
+        if kind == "TransactionStmt":
+            name = tree.kind.name if tree.kind is not None else ""
+            if name in _TRANSACTION_STARTS:
+                in_transaction = True
+            elif name in _TRANSACTION_ENDS:
+                if local_set:
+                    restore = (
+                        "RESET search_path;"
+                        if session is None
+                        else f"SET search_path TO {', '.join(session)};"
+                    )
+                    index = (verdict.end_line or verdict.line) - 1
+                    lines[index] = f"{lines[index].rstrip()} {restore}"
+                in_transaction, local_set = False, False
+            continue
+        if kind != "VariableSetStmt" or str(getattr(tree, "name", "")).lower() != "search_path":
+            continue
+        if getattr(tree, "is_local", False):
+            if not in_transaction:
+                for index in range(verdict.line - 1, (verdict.end_line or verdict.line)):
+                    lines[index] = " " * len(lines[index])
+            else:
+                local_set = True
+            continue
+        change = search_path_change(verdict.text, "postgres")
+        if is_path_change(change):
+            session = change
+    return "\n".join(lines)
 
 
 def analyse_source(
@@ -492,6 +546,8 @@ def _analyse_source(
     result.fallback = fallback.build(verdicts, result, dictionary)
     # Plan step 6 (D-62): TRUNCATE, DROP, a rename ... recorded as what they do to a relation.
     result.operations = effects.build(verdicts, dictionary)
+    # holdout5: a rename carries the column's contents to its new name (identity edges).
+    result.edges.extend(effects.rename_edges(verdicts, dictionary, schema_after))
     # Plan step 3: every statement, with what became of it - never silent.
     result.ledger = ledger.build(verdicts, result)
     if carry is not None:

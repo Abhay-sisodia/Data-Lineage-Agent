@@ -806,7 +806,22 @@
  "extra:rename_table": {
   "covers": [],
   "met": true,
-  "pairs": [],
+  "pairs": [
+   "tgt.t.arr -> tgt.t_old.arr",
+   "tgt.t.b -> tgt.t_old.b",
+   "tgt.t.d -> tgt.t_old.d",
+   "tgt.t.g -> tgt.t_old.g",
+   "tgt.t.id -> tgt.t_old.id",
+   "tgt.t.iv -> tgt.t_old.iv",
+   "tgt.t.j -> tgt.t_old.j",
+   "tgt.t.k -> tgt.t_old.k",
+   "tgt.t.n -> tgt.t_old.n",
+   "tgt.t.rg -> tgt.t_old.rg",
+   "tgt.t.ts -> tgt.t_old.ts",
+   "tgt.t.v -> tgt.t_old.v",
+   "tgt.t.w -> tgt.t_old.w",
+   "tgt.t.x -> tgt.t_old.x"
+  ],
   "status": "EFFECT",
   "target": "effect"
  },
@@ -2453,7 +2468,9 @@
  "stmt:RenameStmt": {
   "covers": [],
   "met": true,
-  "pairs": [],
+  "pairs": [
+   "tgt.t.v -> tgt.t.amount"
+  ],
   "status": "EFFECT",
   "target": "effect"
  },

@@ -64,6 +64,7 @@ class Loop:
 class If:
     start: int
     arms: list[list[Node]] = field(default_factory=list)
+    conditions: list[str] = field(default_factory=list)  # IF / ELSIF conditions, in order
 
 
 @dataclass
@@ -320,11 +321,11 @@ class _Reader:
         self._skip_space()
         node = If(start=self.position)
         self.take("if")
-        self.until("then")
+        node.conditions.append(self.until("then")[1].strip())
         node.arms.append(self.statements({"elsif", "elseif", "else", "end"}))
         while self.peek() in ("elsif", "elseif"):
             self.take(self.peek())
-            self.until("then")
+            node.conditions.append(self.until("then")[1].strip())
             node.arms.append(self.statements({"elsif", "elseif", "else", "end"}))
         if self.peek() == "else":
             self.take("else")
