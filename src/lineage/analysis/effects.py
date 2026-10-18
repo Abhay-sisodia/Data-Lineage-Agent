@@ -73,6 +73,70 @@ def _effects(statement: Any, book: Dictionary) -> list[tuple[OperationKind, str,
     return found
 
 
+def rename_edges(verdicts: list[Verdict], book: Dictionary, after: Dictionary | None) -> list[Any]:
+    """A rename carries the data (holdout5): identity edges from each old name to its new one.
+
+    `RENAME COLUMN a TO b` after a load leaves the lineage on `t.a` and every later reader on
+    `t.b` - nothing linked them, so the values written before the rename reached no one. The
+    same for `RENAME TO u` and `SET SCHEMA s`, column by column. The statement stays an
+    effect in the ledger; the edges are only the continuity of the column's contents.
+    """
+    from lineage.harness.scoring import PredictedEdge
+    from lineage.ir.model import (
+        FilterPhase,
+        Flow,
+        Mechanism,
+        Node,
+        NodeKind,
+        Origin,
+        Tier,
+        Transform,
+    )
+
+    def edge(old: str, new: str, line: int) -> Any:
+        return PredictedEdge(
+            source=Node(kind=NodeKind.COLUMN, name=old),
+            target=Node(kind=NodeKind.COLUMN, name=new),
+            flow=Flow.VALUE,
+            transform=Transform.IDENTITY,
+            phase=FilterPhase.PRE_AGGREGATION,
+            band=0,
+            mechanism=Mechanism.AST,
+            tier=Tier.A,
+            origin=Origin(unit=SCRIPT_UNIT, line=line),
+        )
+
+    def columns(relation: str) -> list[str]:
+        for source in (after, book):
+            if source is None:
+                continue
+            try:
+                return [c.lower() for c in source.columns_of(relation)]
+            except Exception:
+                continue
+        return []
+
+    edges: list[Any] = []
+    for verdict in verdicts:
+        statement = verdict.tree if verdict.valid else None
+        if isinstance(statement, ast.RenameStmt) and statement.relation is not None:
+            old = _relation(statement.relation, book)
+            schema = old.rpartition(".")[0]
+            kind = statement.renameType.name if statement.renameType is not None else ""
+            if statement.subname and kind == "OBJECT_COLUMN":
+                new_column = str(statement.newname).lower()
+                edges.append(edge(f"{old}.{statement.subname.lower()}", f"{old}.{new_column}",
+                                  verdict.line))  # fmt: skip
+            elif kind in ("OBJECT_TABLE", "OBJECT_VIEW", "OBJECT_MATVIEW"):
+                new = f"{schema}.{statement.newname}".lower() if schema else str(statement.newname)
+                edges += [edge(f"{old}.{c}", f"{new}.{c}", verdict.line) for c in columns(new)]
+        elif isinstance(statement, ast.AlterObjectSchemaStmt) and statement.relation is not None:
+            old = _relation(statement.relation, book)
+            new = f"{statement.newschema}.{old.rpartition('.')[2]}".lower()
+            edges += [edge(f"{old}.{c}", f"{new}.{c}", verdict.line) for c in columns(new)]
+    return edges
+
+
 def build(verdicts: list[Verdict], book: Dictionary) -> list[Operation]:
     """Every effect in the script: each statement's own, and each routine body's."""
     operations: list[Operation] = []

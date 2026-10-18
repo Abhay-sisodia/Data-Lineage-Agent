@@ -492,6 +492,8 @@ def _analyse_source(
     result.fallback = fallback.build(verdicts, result, dictionary)
     # Plan step 6 (D-62): TRUNCATE, DROP, a rename ... recorded as what they do to a relation.
     result.operations = effects.build(verdicts, dictionary)
+    # holdout5: a rename carries the column's contents to its new name (identity edges).
+    result.edges.extend(effects.rename_edges(verdicts, dictionary, schema_after))
     # Plan step 3: every statement, with what became of it - never silent.
     result.ledger = ledger.build(verdicts, result)
     if carry is not None:

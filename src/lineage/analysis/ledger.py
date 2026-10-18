@@ -191,6 +191,8 @@ def build(verdicts: list[Verdict], result: Any) -> list[LedgerEntry]:
             )
             continue
         mine = sum(1 for e in edges if _in(e.origin.line, verdict))
+        if verdict.kind in ("RenameStmt", "AlterObjectSchemaStmt"):
+            mine = 0  # its identity edges only carry the contents over: still an effect
         refused = [r for r in result.refusals if _in(r.line, verdict)]
         if (
             mine

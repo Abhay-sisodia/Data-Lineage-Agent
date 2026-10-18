@@ -301,3 +301,54 @@ def test_a_begin_atomic_body_is_one_statement_and_its_value_is_traced(book) -> N
     pairs = _pairs(result)
     assert ("column:src.b.v", "column:tgt.t.w") in pairs
     assert ("column:src.b.d", "column:tgt.t.w") in pairs
+
+
+# --- overloads (holdout5 B) ----------------------------------------------------------------------
+
+OVERLOADS = """CREATE FUNCTION tgt.to_usd(p_amount numeric, p_k integer, p_on date)
+RETURNS numeric LANGUAGE plpgsql STABLE AS $$
+DECLARE
+  v_rate numeric;
+BEGIN
+  SELECT b.n INTO v_rate FROM src.b AS b WHERE b.k = p_k AND b.d <= p_on;
+  RETURN p_amount * v_rate;
+END $$;
+
+CREATE FUNCTION tgt.to_usd(p_amount numeric, p_k integer)
+RETURNS numeric LANGUAGE sql STABLE AS $$
+  SELECT tgt.to_usd(p_amount, p_k, a.d) FROM src.a AS a WHERE a.id = 1
+$$;
+
+INSERT INTO tgt.t (v, w)
+SELECT tgt.to_usd(a.v, a.k, a.d), tgt.to_usd(a.w, a.k) FROM src.a AS a;
+"""
+
+
+def test_overloads_are_two_routines_and_each_call_runs_its_own(book) -> None:
+    """holdout5 B: `fx_to_usd(amount, ccy, on)` then `fx_to_usd(amount, ccy)` - the second
+    replaced the first, so every 3-argument call lost the rate it reads. Each overload is
+    now its own routine (`<name>__<n>`), and a call runs the one its arguments pick."""
+    result = analyse_source(OVERLOADS, book, AnalysisConfig(dialect="postgres"))
+    assert result.refusals == []
+    pairs = _pairs(result)
+    assert ("column:src.a.v", "column:tgt.t.v") in pairs  # the 3-argument call
+    assert ("column:src.b.n", "column:tgt.t.v") in pairs  # ... reads the rate
+    assert ("column:src.a.w", "column:tgt.t.w") in pairs  # the 2-argument call
+    assert ("column:src.b.n", "column:tgt.t.w") in pairs  # ... through the 3-argument one
+
+
+RENAMED = """INSERT INTO tgt.t (id, v) SELECT a.id, a.v FROM src.a AS a;
+ALTER TABLE tgt.t RENAME COLUMN v TO v_usd;
+INSERT INTO src.b (id, v) SELECT t.id, t.v_usd FROM tgt.t AS t;
+"""
+
+
+def test_a_rename_after_a_load_carries_the_columns_contents(book) -> None:
+    """holdout5: `carrier_cost` was loaded, then renamed `carrier_cost_usd`, and every later
+    reader read the new name - which had no lineage. A rename is an identity edge from the
+    old name to the new; the statement is still an effect in the ledger."""
+    result = analyse_source(RENAMED, book, AnalysisConfig(dialect="postgres"))
+    pairs = _pairs(result)
+    assert ("column:tgt.t.v", "column:tgt.t.v_usd") in pairs
+    assert ("column:tgt.t.v_usd", "column:src.b.v") in pairs
+    assert [e.status for e in result.ledger][1] == "effect"

@@ -161,6 +161,9 @@ class _Function:
     """semantic-ir T3: the relation its rows are emitted into (its own name), when they are
     built by RETURN NEXT or OUT parameters; a call reads that relation."""
     columns: list[str] = field(default_factory=list)  # the output relation's columns
+    key: str = ""
+    """Its identity: the name, or `<name>__<argument count>` when the name is overloaded
+    (holdout5 B) - so two overloads never share a summary, an output or a variable."""
 
 
 # --- desugaring -----------------------------------------------------------------------------
@@ -254,6 +257,9 @@ class _Desugarer:
         self.bindings: dict[str, list[pl.TriggerBinding]] = {}
         self.trigger_functions: set[str] = set()
         self.transitions: dict[str, str] = {}  # in a trigger body: transition table -> table
+        self.arities: dict[str, set[int]] = {}  # routine name -> its argument counts (B)
+        for function in self.functions.values():
+            self.arities.setdefault(function.routine.name, set()).add(len(function.routine.params))
 
     # --- the script -------------------------------------------------------------------------
 
@@ -263,6 +269,10 @@ class _Desugarer:
             binding = pl.read_trigger(self.source[start:end])
             if binding is not None:
                 self.bindings.setdefault(binding.function, []).append(binding)
+            with contextlib.suppress(pl.UnsupportedError):
+                routine = pl.read_routine(self.source, start, end)
+                if routine is not None and routine.kind != "do":
+                    self.arities.setdefault(routine.name, set()).add(len(routine.params))
         previous = 0
         for start, end in spans:
             self.statement(start, end, previous)
@@ -301,6 +311,53 @@ class _Desugarer:
             self.out.blank(start, end + 1)  # its `;` too: the rewrite carries its own
             self.out.put(start, rewritten)
 
+    # --- routine identity: overloads (holdout5 B) --------------------------------------------
+
+    def _key(self, routine: pl.Routine) -> str:
+        """A routine's identity: its name, or `<name>__<n>` when the name has overloads of
+        different argument counts in this run - PostgreSQL picks one by its arguments."""
+        if len(self.arities.get(routine.name, ())) > 1:
+            return f"{routine.name}__{len(routine.params)}"
+        return routine.name
+
+    def _resolve(self, name: str, call: Any) -> _Function | None:
+        """The routine a call to `name` runs: by argument count among its overloads - the
+        exact count, else the smallest that takes more (its defaults fill the rest)."""
+        candidates = [f for f in self.functions.values() if name in (f.routine.name, f.key)]
+        if len(candidates) <= 1:
+            return candidates[0] if candidates else self.functions.get(name)
+        count = len(call.expressions)
+        exact = [f for f in candidates if len(f.routine.params) == count]
+        if exact:
+            return exact[-1]
+        wider = sorted(
+            (f for f in candidates if len(f.routine.params) > count),
+            key=lambda f: len(f.routine.params),
+        )
+        return wider[0] if wider else candidates[-1]
+
+    def _rename_calls(self, tree: Any) -> bool:
+        """Name each call to an overloaded routine after the overload it runs
+        (`fx_to_usd(a, b, c)` -> `fx_to_usd__3(a, b, c)`): band 0's summaries, the inlining
+        and the bindings then find the right one by name. True if any call was renamed."""
+        changed = False
+        for call in list(tree.find_all(exp.Anonymous)):
+            parent = call.parent
+            dotted = isinstance(parent, exp.Dot) and parent.expression is call
+            schema = parent.this.name if dotted else ""
+            if isinstance(parent, exp.Table) and parent.this is call and parent.args.get("db"):
+                schema = parent.args["db"].name
+            name = pl.fold_name(f"{schema}.{call.name}" if schema else call.name)
+            function = self._resolve(name, call)
+            if function is not None and function.key and function.key != name:
+                call.set("this", function.key.split(".")[-1])
+                changed = True
+        return changed
+
+    def _mentions_a_routine(self, text: str) -> bool:
+        lowered = text.lower()
+        return any(f.routine.name.split(".")[-1] in lowered for f in self.functions.values())
+
     def _bind_arguments(self, text: str, start: int) -> None:
         """A call to a routine read earlier binds the caller's arguments to its parameters.
 
@@ -311,9 +368,7 @@ class _Desugarer:
         called for what it DOES (void): a scalar function's value already flows through its
         summary (`Summary.from_arguments`).
         """
-        if not self.functions or not any(
-            name.split(".")[-1] in text.lower() for name in self.functions
-        ):
+        if not self.functions or not self._mentions_a_routine(text):
             return
         parsed = _parse(text)
         if parsed is None:
@@ -323,7 +378,7 @@ class _Desugarer:
             name = pl.fold_name(
                 f"{qualified.this.name}.{call.name}" if qualified is not None else call.name
             )
-            function = self.functions.get(name)
+            function = self._resolve(name, call)
             if function is None or function.routine.returns not in ("void", ""):
                 continue
             self._bind_call(call, function, call.find_ancestor(exp.Select), start, None)
@@ -347,13 +402,14 @@ class _Desugarer:
         )
         for clause in ("order", "limit", "offset", "group", "having"):
             query.set(clause, None)
-        caller = context or _Context(unit=function.routine.name, variables=set(params), band=1)
+        callee = function.key or function.routine.name
+        caller = context or _Context(unit=callee, variables=set(params), band=1)
         try:
             emitted = self._phantom(query.sql(dialect=DIALECT), start, caller, "into", tuple(names))
         except pl.UnsupportedError:
             return
         emitted.binding = True
-        emitted.targets_scope = function.routine.name  # the callee's parameters (T2b)
+        emitted.targets_scope = callee  # the callee's parameters (T2b)
 
     def _sql_body(self, routine: pl.Routine) -> pl.Block:
         """A LANGUAGE sql routine's body, as the block a PL/pgSQL one would be (step 8).
@@ -449,7 +505,7 @@ class _Desugarer:
         except pl.UnsupportedError as error:
             self._gave_up(start, error)
             return
-        unit = routine.name
+        unit = self._key(routine)  # the name, or `<name>__<n>` for an overload (B)
         bindings = self.bindings.get(routine.name, []) if routine.returns == "trigger" else []
         saved = (
             len(self.result.emitted), len(self.result.boundaries), self.phantoms,
@@ -461,7 +517,7 @@ class _Desugarer:
             variables=set(routine.params) | set(routine.out_columns) | set(routine.out_params),
             band=2 if routine.returns == "trigger" else 0,
             trigger=unit if routine.returns == "trigger" else "",
-            scope=_scope_of(routine, self.source, start),
+            scope=unit if routine.kind != "do" else _scope_of(routine, self.source, start),
         )
         if bindings:
             context.records["new"] = []
@@ -476,7 +532,7 @@ class _Desugarer:
         # content after the previous `;`, and the routine's first body statement must be
         # numbered from its own line.
         self.out.blank(previous, end + 1)
-        function = _Function(routine=routine)
+        function = _Function(routine=routine, key=unit)
         columns = routine_ir.output_columns(routine, self.dictionary)
         if (
             columns
@@ -488,9 +544,9 @@ class _Desugarer:
             # routine's OUTPUT, a relation named after it; every emit is an INSERT into it,
             # and a call reads it (holdout4 H5, H6). A routine of RETURN QUERY alone is still
             # inlined where it is called (D-40).
-            function.output, function.columns = routine.name, columns
+            function.output, function.columns = unit, columns
             self._synthetic(
-                start, f"CREATE TABLE {routine.name} ({', '.join(f'{c} text' for c in columns)});"
+                start, f"CREATE TABLE {unit} ({', '.join(f'{c} text' for c in columns)});"
             )
         try:
             if routine.returns == "trigger" and not bindings:
@@ -533,9 +589,9 @@ class _Desugarer:
         if routine.returns == "trigger":
             self.trigger_functions.add(routine.name)
         elif routine.kind == "function":
-            self.functions[routine.name] = function
-            self.result.units[routine.name] = unit
-            self.result.params[routine.name] = list(routine.params)
+            self.functions[unit] = function
+            self.result.units[unit] = unit
+            self.result.params[unit] = list(routine.params)
             if routine.returns == "scalar":
                 assigned = _assignments(self.result.emitted)
                 function.from_arguments = {
@@ -1046,7 +1102,7 @@ class _Desugarer:
     # --- RETURN QUERY functions read in FROM (D-40) -----------------------------------------
 
     def _inline_reads(self, text: str, start: int) -> str | None:
-        if not any(name.split(".")[-1] in text.lower() for name in self.functions):
+        if not self._mentions_a_routine(text):
             return None
         parsed = _parse(text)
         if parsed is None:
@@ -1080,7 +1136,7 @@ class _Desugarer:
         self._bind_call(call, function, replacement.find_ancestor(exp.Select), start, context)
 
     def _inline_tree(self, tree: Any, start: int, context: _Context | None = None) -> bool:
-        changed = False
+        changed = self._rename_calls(tree)
         for table in list(tree.find_all(exp.Table)):
             bound = self.transitions.get(table.name.lower()) if not table.db else None
             if bound is not None:
@@ -1105,7 +1161,7 @@ class _Desugarer:
                 calls.append((lateral, call, ""))
         for node, call, schema in calls:
             name = pl.fold_name(f"{schema}.{call.name}" if schema else call.name)
-            function = self.functions.get(name)
+            function = self._resolve(name, call)
             if function is None:
                 continue
             if function.output:
@@ -1168,6 +1224,7 @@ class _Desugarer:
         parsed = _parse(text)
         if parsed is None:
             raise pl.UnsupportedError("an expression SQLGlot cannot parse")
+        self._rename_calls(parsed)
         if mode == "filter_only":
             return [
                 Use(symbol=_symbol(c), role="filter")
@@ -1230,6 +1287,7 @@ class _Desugarer:
         parsed = _parse(f"SELECT {text}")
         if parsed is None:
             raise pl.UnsupportedError("a RETURN expression SQLGlot cannot parse")
+        self._rename_calls(parsed)
         root = parsed.selects[0]
         found = []
         for column in root.find_all(exp.Column):
