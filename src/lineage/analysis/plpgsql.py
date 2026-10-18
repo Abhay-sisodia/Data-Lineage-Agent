@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import itertools
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -650,6 +651,7 @@ class _Desugarer:
             elif isinstance(node, pl.If):
                 for arm in node.arms:
                     self.nodes(arm, context, function)
+                self._guard(node, context)
             elif isinstance(node, pl.Loop):
                 self.loop(node, context, function)
             else:
@@ -983,8 +985,8 @@ class _Desugarer:
         `$n` is NULL - a USING value is an external value (D-42) - unless `BIND_USING`, which
         binds it to the n-th USING expression so a variable passed there stays traced.
         """
-        bound = using if BIND_USING else ""
-        folded = routine_ir.dynamic_text(expression, context.constants, bound)
+        texts = self._dynamic_texts(expression, using, context)
+        folded = _as_one_query(texts)
         if folded is None:
             line = self._line(start)
             self.result.boundaries.append(
@@ -1043,6 +1045,12 @@ class _Desugarer:
         self._sql(f"INSERT INTO {function.output} ({columns}) SELECT {columns}", start, context)
 
     def _execute(self, stmt: pl.Stmt, context: _Context) -> None:
+        if not stmt.targets:
+            texts = self._dynamic_texts(stmt.expression, stmt.using, context)
+            if len(texts) > 1 and _as_one_query(texts) is None:
+                for text in texts:  # one of these statements runs (holdout5 D)
+                    self._sql(text, stmt.start, context.dynamic())
+                return
         folded = self._dynamic(stmt.expression, stmt.using, stmt.start, context)
         if folded is None:
             return
@@ -1052,6 +1060,58 @@ class _Desugarer:
             self._phantom(folded, stmt.start, dynamic, "into", targets)
         else:
             self._sql(folded, stmt.start, dynamic)
+
+    def _dynamic_texts(self, expression: str, using: str, context: _Context) -> list[str]:
+        """Every SQL text a dynamic expression can be: the one it folds to, or - when a
+        variable in it has a finite domain from a guard - one per value (holdout5 D)."""
+        bound = using if BIND_USING else ""
+        folded = routine_ir.dynamic_text(expression, context.constants, bound)
+        if folded is not None:
+            return [folded]
+        if not context.domains:
+            return []
+        parsed = _parse(f"SELECT {expression}")
+        if parsed is None:
+            return []
+        names = sorted(
+            {
+                column.name.lower()
+                for column in parsed.find_all(exp.Column)
+                if not column.table and column.name.lower() in context.domains
+            }
+        )
+        choices = list(itertools.product(*(context.domains[name] for name in names)))
+        if not names or len(choices) > _MAX_VARIANTS:
+            return []
+        texts: list[str] = []
+        for choice in choices:
+            constants = {**context.constants, **dict(zip(names, choice, strict=True))}
+            text = routine_ir.dynamic_text(expression, constants, bound)
+            if text is None:
+                return []
+            texts.append(text)
+        return list(dict.fromkeys(texts))
+
+    def _guard(self, node: pl.If, context: _Context) -> None:
+        """`IF v NOT IN ('a', 'b') THEN RAISE EXCEPTION ...; END IF;` - with no other arm,
+        the routine goes on only when v is one of those values: v's domain (holdout5 D)."""
+        if len(node.arms) != 1 or len(node.conditions) != 1 or not node.arms[0]:
+            return
+        if not all(isinstance(s, pl.Stmt) and _RAISES.match(s.text) for s in node.arms[0]):
+            return
+        parsed = _parse(f"SELECT {node.conditions[0]}")
+        condition = parsed.selects[0] if parsed is not None and parsed.selects else None
+        if not isinstance(condition, exp.Not):
+            return
+        test = condition.this.unnest() if isinstance(condition.this, exp.Paren) else condition.this
+        if not isinstance(test, exp.In) or not isinstance(test.this, exp.Column):
+            return
+        values = test.expressions
+        if test.this.table or not values:
+            return
+        if not all(isinstance(v, exp.Literal) and v.is_string for v in values):
+            return
+        context.domains[test.this.name.lower()] = [str(v.this) for v in values]
 
     def _phantom(
         self,
@@ -1313,6 +1373,9 @@ class _Context:
     loop_stack: tuple[int, ...] = ()
     loop_phantoms: dict[int, str] = field(default_factory=dict)
     tables: tuple[str, ...] = ()  # in a trigger: the tables NEW is a row of (semantic-ir T4)
+    domains: dict[str, list[str]] = field(default_factory=dict)
+    """holdout5 D: a variable's possible text values after a guard (`IF v NOT IN ('a', 'b')
+    THEN RAISE EXCEPTION`) - a dynamic statement built from it is one of finitely many."""
     scope: str = ""
     """semantic-ir T2b: the routine whose variables these are - its name, or `<do>:<line>:<hash>`
     for a DO block - so two routines' `p_run_id` are two graph nodes, never one."""
@@ -1334,6 +1397,7 @@ class _Context:
             loop_phantoms=self.loop_phantoms,
             tables=self.tables,
             scope=self.scope,
+            domains=self.domains,
         )
 
     def dynamic(self) -> _Context:
@@ -1349,6 +1413,7 @@ class _Context:
             loop_phantoms=self.loop_phantoms,
             tables=self.tables,
             scope=self.scope,
+            domains=self.domains,
         )
 
 
@@ -1471,6 +1536,21 @@ def _scope_of(routine: pl.Routine, source: str, start: int) -> str:
     line = source.count("\n", 0, start) + 1
     body = source[routine.body_start : routine.body_end]
     return f"<do>:{line}:{hashlib.sha1(body.encode('utf-8')).hexdigest()[:6]}"
+
+
+def _as_one_query(texts: list[str]) -> str | None:
+    """The texts a dynamic query can be, as ONE query: itself, or the UNION ALL of its
+    variants (holdout5 D) - one of them runs, so its rows are one of theirs. None when a
+    variant is not a query (each DML variant is analysed on its own)."""
+    if len(texts) == 1:
+        return texts[0]
+    if not texts or not all(isinstance(_parse(text), exp.Query) for text in texts):
+        return None
+    return " UNION ALL ".join(f"({text.strip()})" for text in texts)
+
+
+_MAX_VARIANTS = 16
+_RAISES = re.compile(r"(?is)^\s*raise\b(?!\s+(?:debug|log|info|notice|warning)\b)")
 
 
 def _forms(nodes: list[pl.Node]) -> set[str]:

@@ -352,3 +352,47 @@ def test_a_rename_after_a_load_carries_the_columns_contents(book) -> None:
     assert ("column:tgt.t.v", "column:tgt.t.v_usd") in pairs
     assert ("column:tgt.t.v_usd", "column:src.b.v") in pairs
     assert [e.status for e in result.ledger][1] == "effect"
+
+
+LOCAL_PATH = """SET search_path = tgt, src;
+BEGIN;
+SET LOCAL search_path = src;
+INSERT INTO a (id) SELECT b.id FROM b;
+COMMIT;
+INSERT INTO t (v) SELECT a.v FROM a;
+"""
+
+
+def test_set_local_search_path_ends_with_its_transaction(book) -> None:
+    """holdout5 C: `SET LOCAL search_path = staging, ref` inside BEGIN ... COMMIT was read as
+    lasting forever, so names after the COMMIT bound to the wrong schema."""
+    result = analyse_source(LOCAL_PATH, book, AnalysisConfig(dialect="postgres"))
+    pairs = _pairs(result)
+    assert ("column:src.b.id", "column:src.a.id") in pairs  # inside: src first
+    assert ("column:src.a.v", "column:tgt.t.v") in pairs  # after COMMIT: tgt, src again
+
+
+# --- dynamic SQL over a finite domain (holdout5 D) ----------------------------------------------
+
+SLICE = """CREATE FUNCTION tgt.fn_slice(p_dim text)
+RETURNS TABLE (dim_value text, total numeric) LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  IF p_dim NOT IN ('k', 'n') THEN
+    RAISE EXCEPTION 'unsupported slice: %', p_dim;
+  END IF;
+  RETURN QUERY EXECUTE format(
+    'SELECT %1$I::text, sum(a.v) FROM src.a AS a GROUP BY %1$I ORDER BY 2 DESC', p_dim);
+END $$;
+
+INSERT INTO tgt.t (x, v) SELECT s.dim_value, s.total FROM tgt.fn_slice('k') AS s;
+"""
+
+
+def test_dynamic_sql_over_a_guarded_parameter_is_read_for_each_value(book) -> None:
+    """holdout5 D: the identifier is a parameter, so the text does not fold - but the guard
+    lets the routine go on only for 'k' or 'n': its rows are one of those two queries."""
+    result = analyse_source(SLICE, book, AnalysisConfig(dialect="postgres"))
+    assert not [b for b in result.boundaries if b.kind.value == "dynamic_sql"]
+    pairs = _pairs(result)
+    assert ("column:src.a.v", "column:tgt.t.v") in pairs
+    assert {("column:src.a.k", "column:tgt.t.x"), ("column:src.a.n", "column:tgt.t.x")} <= pairs
