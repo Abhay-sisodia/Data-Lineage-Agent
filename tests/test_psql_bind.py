@@ -99,3 +99,22 @@ def test_copy_from_stdin_data_rows_are_not_sql(book) -> None:
     assert ("column:src.b.k", "column:tgt.t.k") in {
         (str(e.source), str(e.target)) for e in result.edges
     }
+
+
+def test_copy_from_stdin_after_a_comment_and_over_two_lines() -> None:
+    r"""holdout5 A: comments before the COPY hid it, so its rows were read as SQL and
+    swallowed the statement after the `\.` line."""
+    sql = (
+        "SELECT 1;\n"
+        "-- customer-service overrides\n"
+        "COPY src.b (id, k)\n"
+        "FROM STDIN WITH (FORMAT csv, HEADER true);\n"
+        "id,k\n"
+        "1,2\n"
+        "\\.\n"
+        "INSERT INTO tgt.t (k) SELECT b.k FROM src.b AS b;\n"
+    )
+    text, _ = psql.restate(sql)
+    lines = text.split("\n")
+    assert [line.strip() for line in lines[4:7]] == ["", "", ""]
+    assert lines[7].startswith("INSERT INTO tgt.t")

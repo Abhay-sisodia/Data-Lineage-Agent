@@ -49,3 +49,17 @@ def test_an_execute_of_a_prepared_write_is_predicted_column_level(tmp_path) -> N
     predicted = {scan.line: scan.prediction for scan in scan_folder(path)}
     assert predicted[3] == "column-level"
     assert predicted[5] != "column-level"
+
+
+def test_an_execute_of_a_prepared_insert_of_literals_is_no_lineage(tmp_path) -> None:
+    """holdout5 E: `PREPARE p AS INSERT ... VALUES ($1, $2)` writes only its parameters -
+    literals; the ledger says no lineage, and so must the scan."""
+    path = tmp_path / "targets.sql"
+    path.write_text(
+        "PREPARE p_set(integer, integer) AS INSERT INTO tgt.t (id, v) VALUES ($1, $2);\n"
+        "EXECUTE p_set(1, 2);\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    predicted = {scan.line: scan.prediction for scan in scan_folder(path)}
+    assert predicted[2] == "no lineage"

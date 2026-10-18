@@ -117,7 +117,10 @@ def restate(source: str) -> tuple[str, list[Include]]:
         if char == ";":
             out.append(char)
             index += 1
-            if _COPY_FROM_STDIN.match("".join(out)[statement_start:]):
+            statement = "".join(out)[statement_start:]
+            # Comments may stand before the COPY (holdout5 A: they hid it, and its data
+            # rows were read as SQL until the next `;`).
+            if _COPY_FROM_STDIN.match(statement[_sql_start(statement) :]):
                 index = _skip_copy_data(source, index, out)
             statement_start = written()
             continue
