@@ -187,6 +187,9 @@ def _language(statement: Any) -> str:
     ).lower()
 
 
+_ROWTYPE_DECLARATION = re.compile(r"(?i)\b([A-Za-z_][\w$]*\s+)[\w$.\"]+\s*%\s*ROWTYPE\b")
+
+
 def _routine_body(statement: Any, text: str) -> str | None:
     """The CREATE FUNCTION/PROCEDURE text to hand `parse_plpgsql`, DO wrapped as one."""
     if isinstance(statement, ast.DoStmt):
@@ -227,8 +230,16 @@ def _routine_constructs(
     try:
         tree = json.loads(json.dumps(parse_plpgsql(routine)))
     except Exception:
-        out.add("plpgsql:unreadable_offline")
-        return
+        # libpg_query cannot resolve a field of a `%ROWTYPE` variable offline (`v.f := e`
+        # is "not a known variable", holdout5 09:120); declared `record`, the body reads the
+        # same - which statements it runs does not depend on the row type. Lines kept.
+        try:
+            tree = json.loads(
+                json.dumps(parse_plpgsql(_ROWTYPE_DECLARATION.sub(r"\1 record", routine)))
+            )
+        except Exception:
+            out.add("plpgsql:unreadable_offline")
+            return
     embedded: list[str] = []
     located: list[tuple[int, str]] = []
     _walk_plpgsql(tree, out, embedded, located)
